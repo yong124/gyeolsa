@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>광복 IF UI 시안</title>
+<style>
+@font-face { font-family: "Serif KR"; src: url("../game/assets/fonts/NotoSerifKR-VF.ttf"); font-weight: 200 900; }
+@font-face { font-family: "Sans KR"; src: url("../game/assets/fonts/NotoSansKR-VF.ttf"); font-weight: 100 900; }
+:root {
+  --paper: #eadfc4; --paper-hi: #f4ecd8; --paper-lo: #d8c7a2;
+  --ink: #221c16; --ink-2: #4a3f33; --ink-3: #7d6d58;
+  --seal: #b3261e; --gold: #c59b4d; --desk: #1a1511;
+  --s0: #a83a2c; --s1: #2f5a8a; --s2: #3f7a4a; --s3: #b8892b;
+  --noise: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .35  0 0 0 0 .27  0 0 0 0 .16  0 0 0 .22 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #0f0c0a; color: var(--ink); font-family: "Sans KR", sans-serif; padding: 20px; }
+.serif { font-family: "Serif KR", serif; }
+h2.head { color: #d9c9a6; font: 600 22px "Serif KR"; margin: 36px 0 6px; }
+p.note { color: #9d8d74; font-size: 15px; margin-bottom: 14px; }
+
+/* ---------- 공통 재질 ---------- */
+.paper { background: var(--noise), linear-gradient(160deg, var(--paper-hi), var(--paper) 45%, var(--paper-lo)); box-shadow: 0 10px 24px rgba(0,0,0,.55), inset 0 0 40px rgba(120,90,50,.25); }
+.stamp { display: inline-block; color: var(--seal); border: 3px solid var(--seal); outline: 1.5px solid var(--seal); outline-offset: 3px; font: 800 18px "Serif KR"; padding: 2px 10px; letter-spacing: 2px; transform: rotate(-8deg); opacity: .88; mix-blend-mode: multiply; }
+.clip { position: absolute; top: -12px; width: 18px; height: 40px; border: 3px solid #8d8a84; border-radius: 9px; background: transparent; box-shadow: 1px 2px 2px rgba(0,0,0,.4); }
+
+/* ---------- 화면 ---------- */
+.stage { position: relative; width: 1600px; height: 900px; overflow: hidden; border-radius: 6px;
+  background: radial-gradient(ellipse at 40% 45%, #3a2d22 0%, #221a14 55%, var(--desk) 100%); }
+.stage::before { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(90deg, rgba(255,255,255,.012) 0 3px, transparent 3px 11px); }
+
+/* 상단 바 */
+.topbar { position: absolute; left: 20px; right: 20px; top: 10px; height: 52px; display: flex; align-items: center; gap: 22px; padding: 0 16px; border-radius: 2px; }
+.op { font: 700 14px "Serif KR"; color: var(--ink-2); line-height: 1.1; border-right: 1px solid rgba(0,0,0,.2); padding-right: 16px; }
+.op b { display: block; font-size: 18px; color: var(--ink); }
+.cal { display: flex; gap: 3px; }
+.cal div { width: 38px; height: 36px; border: 1px solid rgba(60,45,30,.35); background: rgba(255,255,255,.35); text-align: center; font: 600 11px "Sans KR"; color: var(--ink-3); position: relative; padding-top: 2px; }
+.cal div b { display: block; font: 700 15px "Serif KR"; color: var(--ink); line-height: 1.1; }
+.cal .past { opacity: .45; }
+.cal .past::after { content: ""; position: absolute; inset: 6px 4px; background: linear-gradient(45deg, transparent 46%, var(--seal) 47% 53%, transparent 54%), linear-gradient(-45deg, transparent 46%, var(--seal) 47% 53%, transparent 54%); opacity: .7; }
+.cal .today { border: 2px solid var(--seal); background: rgba(179,38,30,.1); transform: translateY(-3px); box-shadow: 0 3px 0 rgba(0,0,0,.15); }
+.cal .today b { color: var(--seal); }
+.cal .dday { border: 2px dashed var(--seal); }
+.dleft { font: 800 26px "Serif KR"; color: var(--seal); margin-left: -8px; }
+.dleft small { font: 600 12px "Sans KR"; color: var(--ink-3); display: block; margin-top: -4px; }
+.gauge { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+.gauge .lbl { font: 700 13px "Sans KR"; color: var(--ink-2); text-align: right; line-height: 1.15; }
+.gauge .lbl b { font: 800 24px "Serif KR"; color: var(--ink); }
+.pips { display: flex; gap: 3px; }
+.pips i { width: 20px; height: 28px; border: 1.5px solid var(--ink-2); background: rgba(255,255,255,.3); }
+.pips i.on { background: var(--seal); border-color: #7e1812; box-shadow: inset 0 0 0 2px rgba(255,255,255,.15); }
+.pips i.new { animation: pop 1.6s infinite; }
+@keyframes pop { 0%,100% { transform: none; } 50% { transform: scale(1.15); } }
+.alert { display: flex; align-items: center; gap: 8px; border-left: 1px solid rgba(0,0,0,.2); padding-left: 16px; }
+.alert .hats { display: flex; gap: 2px; }
+.alert .hats img { width: 26px; height: 26px; }
+.alert .hats img.off { opacity: .2; filter: grayscale(1); }
+.alert span { font: 700 13px "Sans KR"; color: var(--ink-2); line-height: 1.15; }
+.today-card { display: flex; align-items: center; gap: 8px; background: var(--ink); color: var(--paper); padding: 5px 12px 5px 6px; border-radius: 2px; font-size: 12px; line-height: 1.2; }
+.today-card img { width: 30px; height: 30px; border-radius: 50%; background: var(--paper); }
+.today-card b { font: 700 14px "Serif KR"; color: #f0d59a; }
+.menu-btn { width: 40px; height: 36px; border: 1.5px solid var(--ink-2); display: grid; place-items: center; font-size: 20px; color: var(--ink); }
+
+/* 보드 */
+.board-wrap { position: absolute; left: 20px; top: 72px; width: 820px; height: 820px; padding: 10px; background: #3b2a1c; border-radius: 3px; box-shadow: 0 16px 40px rgba(0,0,0,.7), inset 0 0 0 2px #5a4330; }
+.board { position: relative; width: 800px; height: 800px; padding: 19.05px; display: grid; grid-template: repeat(11, 1fr) / repeat(11, 1fr);
+  background: url("../game/assets/ui/board.png") center / cover; }
+.board::before { content: ""; position: absolute; inset: 0; background: rgba(233,220,192,.55); mix-blend-mode: screen; }
+.cell { position: relative; z-index: 1; margin: 3px; }
+.tile { background-size: cover; background-position: center; border: 3px solid var(--paper-hi); border-radius: 3px; box-shadow: 0 4px 6px rgba(0,0,0,.45); }
+.tile.dark { border-color: #d6c6a2; }
+.reach { border: 2px dashed var(--gold); background: rgba(197,155,77,.22); border-radius: 3px; display: grid; place-items: center; font: 800 28px "Serif KR"; color: #7a5a1e; }
+.danger { background: repeating-linear-gradient(45deg, rgba(179,38,30,.38) 0 6px, transparent 6px 13px); border: 2px solid rgba(179,38,30,.55); border-radius: 3px; z-index: 0; }
+.base-tag { position: absolute; left: 50%; bottom: -12px; transform: translateX(-50%); white-space: nowrap; background: var(--ink); color: var(--paper); font: 700 12px "Serif KR"; padding: 1px 7px; border-radius: 2px; z-index: 3; }
+.flag { position: absolute; top: -18px; right: -10px; z-index: 6; display: flex; align-items: flex-start; }
+.flag::before { content: ""; width: 3px; height: 34px; background: #3a2a1a; border-radius: 2px; }
+.flag span { white-space: nowrap; background: var(--seal); color: #fff; font: 800 12px "Serif KR"; padding: 2px 6px; clip-path: polygon(0 0, 100% 0, 86% 50%, 100% 100%, 0 100%); padding-right: 12px; }
+.flag.team span { background: var(--s1); }
+
+/* 말 */
+.piece { position: absolute; z-index: 5; width: 58px; height: 58px; left: 50%; top: 50%; transform: translate(-50%, -58%); border-radius: 50%;
+  background: #f4ecd8 center / 78% no-repeat; border: 5px solid var(--c); box-shadow: 0 0 0 2px #f4ecd8, 0 9px 10px rgba(0,0,0,.55); }
+.piece.me { box-shadow: 0 0 0 2px #f4ecd8, 0 0 0 6px rgba(240,200,110,.9), 0 0 22px 8px rgba(240,200,110,.6), 0 9px 10px rgba(0,0,0,.55); animation: bob 1.6s ease-in-out infinite; }
+@keyframes bob { 50% { transform: translate(-50%, -66%); } }
+.piece .who { position: absolute; top: -20px; left: 50%; transform: translateX(-50%); background: var(--c); color: #fff; font: 800 11px "Sans KR"; padding: 0 6px; border-radius: 8px; white-space: nowrap; border: 1.5px solid #f4ecd8; }
+.police { position: absolute; z-index: 5; width: 72px; height: 72px; left: 50%; top: 50%; transform: translate(-50%, -56%); border-radius: 50%;
+  background: url("../game/assets/ui/police.png") center / 104% no-repeat #222; border: 4px solid var(--seal); box-shadow: 0 0 0 2px #1a0d0a, 0 0 18px 4px rgba(179,38,30,.7), 0 10px 12px rgba(0,0,0,.6); animation: siren 1.2s infinite; }
+@keyframes siren { 50% { box-shadow: 0 0 0 2px #1a0d0a, 0 0 28px 10px rgba(179,38,30,.9), 0 10px 12px rgba(0,0,0,.6); } }
+.path { position: absolute; inset: 0; z-index: 4; pointer-events: none; }
+.stepno { position: absolute; z-index: 6; width: 22px; height: 22px; border-radius: 50%; background: var(--gold); color: var(--ink); font: 800 12px "Sans KR"; display: grid; place-items: center; border: 2px solid #fff6dc; transform: translate(-50%, -50%); }
+
+/* 오른쪽 패널 */
+.right { position: absolute; left: 862px; top: 72px; width: 718px; bottom: 8px; display: flex; flex-direction: column; gap: 12px; }
+.folder { position: relative; padding: 16px 18px 12px; border-radius: 2px; }
+.folder > h3 { font: 800 17px "Serif KR"; letter-spacing: 3px; color: var(--ink-2); display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; }
+.folder > h3 small { font: 600 12px "Sans KR"; letter-spacing: 0; color: var(--ink-3); }
+.agents { display: grid; gap: 6px; }
+.agent { position: relative; display: grid; grid-template-columns: 6px 50px 1fr auto; align-items: center; gap: 12px; padding: 9px 12px 9px 0; background: rgba(255,255,255,.28); border: 1px solid rgba(80,60,40,.18); }
+.agent .bar { align-self: stretch; background: var(--c); }
+.agent .face { width: 50px; height: 50px; border-radius: 50%; border: 3px solid var(--c); background: #f4ecd8 center / 80% no-repeat; }
+.agent .name { font: 800 16px "Serif KR"; color: var(--ink); }
+.agent .name small { font: 600 12px "Sans KR"; color: var(--ink-3); margin-left: 6px; }
+.agent .line { display: flex; gap: 6px; margin-top: 3px; align-items: center; flex-wrap: wrap; }
+.chip { display: inline-flex; align-items: center; gap: 4px; font: 700 12px "Sans KR"; padding: 1px 7px 1px 3px; border-radius: 10px; background: rgba(0,0,0,.07); color: var(--ink-2); border: 1px solid rgba(0,0,0,.12); }
+.chip i { width: 16px; height: 16px; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-size: 10px; color: #fff; background: var(--ink-2); }
+.chip.m { background: #6b9442; color: #fff; border-color: #4f7430; }
+.chip.m i { background: #3e5e22; }
+.chip.it { background: #3f5f95; color: #fff; border-color: #2f4a78; }
+.chip.it i { background: #243a5e; }
+.chip.warn i { background: var(--seal); }
+.chip.good i { background: var(--s2); }
+.chip.used { opacity: .45; text-decoration: line-through; }
+.agent.turn { background: rgba(255,248,225,.75); border: 1.5px solid var(--gold); transform: translateX(-8px); box-shadow: 4px 4px 0 rgba(0,0,0,.12); }
+.agent .turnstamp { font-size: 14px; padding: 0 8px; }
+.agent .jail { font: 700 11px "Sans KR"; color: var(--ink-3); }
+.tip { position: absolute; z-index: 20; background: var(--ink); color: var(--paper); font-size: 13px; line-height: 1.45; padding: 8px 11px; border-radius: 3px; width: 250px; box-shadow: 0 8px 18px rgba(0,0,0,.5); }
+.tip b { color: #f0d59a; font-family: "Serif KR"; }
+.tip::before { content: ""; position: absolute; left: 22px; top: -6px; border: 6px solid transparent; border-top: 0; border-bottom-color: var(--ink); }
+
+.hand { display: flex; gap: 14px; align-items: flex-end; padding: 2px 4px 0; }
+.card { position: relative; width: 128px; height: 190px; border-radius: 7px; padding: 0; overflow: hidden; background: var(--noise), var(--paper-hi); border: 2px solid #2a2118; box-shadow: 0 6px 12px rgba(0,0,0,.4); display: flex; flex-direction: column; }
+.card .band { height: 26px; color: #fff; font: 800 12px "Sans KR"; letter-spacing: 2px; display: flex; align-items: center; justify-content: center; }
+.card .art { height: 78px; margin: 6px 10px 0; background: center / contain no-repeat; }
+.card .t { font: 800 16px "Serif KR"; text-align: center; margin-top: 4px; }
+.card .d { font-size: 12px; line-height: 1.35; color: var(--ink-2); text-align: center; padding: 2px 8px; }
+.card.mission .band { background: #5e8a36; }
+.card.item .band { background: #36588f; }
+.card.hover { transform: translateY(-14px) rotate(-1deg); box-shadow: 0 16px 20px rgba(0,0,0,.45), 0 0 0 3px var(--gold); }
+.card.slot { background: transparent; border: 2px dashed rgba(60,45,30,.5); box-shadow: none; display: grid; place-items: center; color: var(--ink-3); font: 700 12px "Sans KR"; text-align: center; }
+.hand .sep { width: 1px; align-self: stretch; background: rgba(0,0,0,.18); margin: 10px 2px; }
+
+.actions { padding: 12px 18px 14px; }
+.doing { font: 600 14px "Sans KR"; color: var(--ink-2); margin-bottom: 10px; display: flex; gap: 10px; align-items: center; }
+.doing b { font: 800 15px "Serif KR"; color: var(--ink); }
+.moves { display: flex; gap: 4px; }
+.moves i { width: 14px; height: 14px; border-radius: 50%; background: var(--gold); border: 2px solid #7a5a1e; }
+.moves i.off { background: transparent; }
+.btnrow { display: flex; gap: 10px; align-items: stretch; }
+.primary { flex: 0 0 260px; height: 64px; background: linear-gradient(#c2372c, #9b1f18); color: #fff5e6; border: 2px solid #5e0f0b; border-radius: 3px; font: 800 21px "Serif KR"; letter-spacing: 2px; box-shadow: 0 5px 0 #5e0f0b, 0 8px 14px rgba(0,0,0,.35); display: flex; align-items: center; justify-content: center; gap: 10px; }
+.primary kbd { font: 700 11px "Sans KR"; letter-spacing: 0; border: 1px solid rgba(255,255,255,.5); padding: 1px 6px; border-radius: 3px; }
+.sec { flex: 1; height: 64px; border: 1.5px solid var(--ink-2); border-radius: 3px; background: rgba(255,255,255,.35); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font: 700 12px "Sans KR"; color: var(--ink); box-shadow: 0 3px 0 rgba(60,45,30,.4); }
+.sec svg { width: 24px; height: 24px; }
+.sec.off { opacity: .4; box-shadow: none; position: relative; }
+.sec.off::after { content: "사용함"; position: absolute; font: 800 12px "Serif KR"; color: var(--seal); border: 2px solid var(--seal); padding: 0 4px; transform: rotate(-12deg); top: 20px; }
+.sec.hov { background: #fff7e2; border-color: var(--gold); box-shadow: 0 3px 0 #7a5a1e, 0 0 0 2px var(--gold); }
+
+.ticker { display: flex; align-items: center; gap: 12px; background: rgba(0,0,0,.45); border: 1px solid rgba(233,220,192,.15); color: #e8dcc6; padding: 0 12px; height: 40px; border-radius: 3px; font-size: 14px; margin-top: auto; }
+.ticker .date { font: 700 12px "Serif KR"; color: #f0d59a; border: 1px solid #7a6440; padding: 1px 6px; }
+.ticker b { color: #ff9a8e; }
+.ticker .more { margin-left: auto; font-size: 12px; color: #b9a98a; border: 1px solid #5a4c38; padding: 2px 8px; border-radius: 3px; }
+
+/* 부품 시안 */
+.row { display: flex; gap: 20px; flex-wrap: wrap; }
+.frame { position: relative; border-radius: 6px; overflow: hidden; background: radial-gradient(ellipse at 50% 40%, #3a2d22, #1a1511); }
+.frame .cap { position: absolute; left: 12px; top: 10px; color: #b9a98a; font-size: 12px; z-index: 30; }
+.dice-demo { width: 520px; height: 320px; }
+.dice-demo .strip { position: absolute; left: 50%; bottom: 26px; transform: translateX(-50%); width: 440px; padding: 14px 20px 18px; text-align: center; }
+.dice-demo .strip h4 { font: 800 22px "Serif KR"; }
+.dice-demo .strip p { font-size: 13px; color: var(--ink-2); }
+.odds { height: 8px; background: rgba(0,0,0,.12); margin: 8px 30px 0; position: relative; }
+.odds i { position: absolute; inset: 0 72% 0 0; background: var(--seal); }
+.dice { position: absolute; left: 50%; top: 58px; transform: translateX(-50%); display: flex; gap: 22px; }
+.die { width: 78px; height: 78px; background: #f6efdf; border-radius: 12px; box-shadow: inset -4px -5px 0 #cfc2a4, 0 10px 14px rgba(0,0,0,.6); display: grid; grid-template: repeat(3,1fr)/repeat(3,1fr); padding: 10px; }
+.die i { width: 14px; height: 14px; border-radius: 50%; background: #221c16; place-self: center; }
+.die:first-child { transform: rotate(-10deg); } .die:last-child { transform: rotate(8deg) translateY(6px); }
+.bigstamp { position: absolute; z-index: 25; font: 900 46px "Serif KR"; color: var(--seal); border: 5px solid var(--seal); outline: 2px solid var(--seal); outline-offset: 5px; padding: 0 18px; transform: rotate(-14deg); opacity: .9; right: 70px; top: 120px; background: rgba(244,236,216,.08); }
+
+.event-demo { width: 380px; height: 320px; display: grid; place-items: center; }
+.ecard { width: 250px; padding: 14px 16px 16px; text-align: center; border-radius: 4px; position: relative; }
+.ecard .kind { font: 700 11px "Sans KR"; letter-spacing: 3px; color: var(--seal); border-bottom: 1px solid rgba(179,38,30,.4); padding-bottom: 6px; }
+.ecard img { width: 92px; height: 92px; margin: 10px auto 4px; display: block; border-radius: 50%; border: 3px solid var(--ink); }
+.ecard h4 { font: 900 24px "Serif KR"; }
+.ecard p { font-size: 13px; line-height: 1.5; color: var(--ink-2); margin-top: 4px; }
+.ecard .fx { margin-top: 8px; background: var(--ink); color: #f0d59a; font: 700 13px "Sans KR"; padding: 5px; }
+.fly { position: absolute; right: 14px; bottom: 12px; color: #b9a98a; font-size: 12px; text-align: right; line-height: 1.5; }
+
+.menu-demo { width: 640px; height: 360px; display: flex; }
+.menu-demo .art { width: 300px; background: url("../game/assets/ui/title.png") 30% center / cover; filter: sepia(.2); box-shadow: inset -40px 0 40px rgba(0,0,0,.6); }
+.dossier { position: relative; margin: 26px 22px 26px 26px; flex: 1; padding: 20px 22px; }
+.dossier .top { display: flex; justify-content: space-between; align-items: flex-start; }
+.dossier h1 { font: 900 34px "Serif KR"; line-height: 1; }
+.dossier .sub { font: 600 12px "Sans KR"; color: var(--ink-3); margin-top: 4px; }
+.dossier ul { list-style: none; margin-top: 14px; }
+.dossier li { font: 700 17px "Serif KR"; padding: 5px 0 5px 12px; border-bottom: 1px dotted rgba(0,0,0,.25); display: flex; justify-content: space-between; align-items: center; }
+.dossier li small { font: 500 11px "Sans KR"; color: var(--ink-3); }
+.dossier li.on { background: linear-gradient(90deg, rgba(179,38,30,.14), transparent); border-left: 4px solid var(--seal); padding-left: 8px; }
+</style>
+</head>
+<body>
+
+<h2 class="head" style="margin-top:0">① 게임 화면 (1600×900 실제 크기 비율)</h2>
+<p class="note">장면: 8월 10일, 내 차례. 주사위 3이 나와 이동 중이고, 이동 경로를 미리 보는 상태입니다. 경찰이 동지 3 가까이 다가와 있습니다.</p>
+
+<div class="stage" id="stage">
+  <!-- 상단 바 -->
+  <div class="topbar paper">
+    <div class="op serif"><b>작전 제3호</b>경성 · 4인 · 보통</div>
+    <div class="cal">
+      <div class="past">8월<b>5</b></div><div class="past">8월<b>6</b></div><div class="past">8월<b>7</b></div><div class="past">8월<b>8</b></div><div class="past">8월<b>9</b></div>
+      <div class="today">오늘<b>10</b></div><div>8월<b>11</b></div><div>8월<b>12</b></div><div>8월<b>13</b></div><div>8월<b>14</b></div><div class="dday">광복<b>15</b></div>
+    </div>
+    <div class="dleft">D-5<small>남은 날</small></div>
+    <div class="gauge">
+      <div class="lbl">광복수치<br><b>4</b> / 10</div>
+      <div class="pips"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on new"></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+    </div>
+    <div class="alert">
+      <div class="hats"><img src="../game/assets/ui/police.png"><img src="../game/assets/ui/police.png"><img class="off" src="../game/assets/ui/police.png"></div>
+      <span>경계<br>2단계</span>
+    </div>
+    <div class="today-card"><img src="../game/assets/ui/police.png"><div>오늘의 일제 동향<br><b>특별 경계령</b> · 경찰 이동 +1</div></div>
+    <div class="menu-btn">≡</div>
+  </div>
+
+  <!-- 보드 -->
+  <div class="board-wrap">
+    <div class="board" id="board">
+      <!-- 역·거점 -->
+      <div class="cell tile" style="grid-area:1/6;background-image:url(../game/assets/tiles/station.png)"></div>
+      <div class="cell tile" style="grid-area:6/1;background-image:url(../game/assets/tiles/station.png)"></div>
+      <div class="cell tile" style="grid-area:6/11;background-image:url(../game/assets/tiles/station.png)"></div>
+      <div class="cell tile" style="grid-area:11/6;background-image:url(../game/assets/tiles/station.png)"></div>
+      <div class="cell tile dark" style="grid-area:2/2;background-image:url(../game/assets/tiles/base.png)"><span class="base-tag">일본군영</span></div>
+      <div class="cell tile dark" style="grid-area:2/10;background-image:url(../game/assets/tiles/base.png)"><span class="base-tag">종로경찰서</span></div>
+      <div class="cell tile dark" style="grid-area:10/2;background-image:url(../game/assets/tiles/base.png)"><span class="base-tag">서대문형무소</span></div>
+      <div class="cell tile dark" style="grid-area:10/10;background-image:url(../game/assets/tiles/base.png)"><span class="base-tag">조선총독부</span><div class="flag"><span>내 목표</span></div></div>
+
+      <!-- 깔린 타일 -->
+      <div class="cell tile" style="grid-area:6/6;background-image:url(../game/assets/tiles/start.png)"></div>
+      <div class="cell tile" style="grid-area:6/5;background-image:url(../game/assets/tiles/event_used.png)"></div>
+      <div class="cell tile" style="grid-area:6/4;background-image:url(../game/assets/tiles/item_used.png)"></div>
+      <div class="cell tile" style="grid-area:6/3;background-image:url(../game/assets/tiles/normal.png)"></div>
+      <div class="cell tile" style="grid-area:6/7;background-image:url(../game/assets/tiles/normal.png)"></div>
+      <div class="cell tile" style="grid-area:7/7;background-image:url(../game/assets/tiles/normal.png)"></div>
+      <div class="cell tile" style="grid-area:8/7;background-image:url(../game/assets/tiles/supply.png)"></div>
+      <div class="cell tile" style="grid-area:7/6;background-image:url(../game/assets/tiles/event.png)"></div>
+      <div class="cell tile" style="grid-area:7/8;background-image:url(../game/assets/tiles/normal.png)"></div>
+      <div class="cell tile" style="grid-area:8/8;background-image:url(../game/assets/tiles/event_used.png)"></div>
+      <div class="cell tile" style="grid-area:5/6;background-image:url(../game/assets/tiles/assassin.png)"><div class="flag team"><span>동지1 목표</span></div></div>
+      <div class="cell tile" style="grid-area:5/7;background-image:url(../game/assets/tiles/check.png)"></div>
+      <div class="cell tile" style="grid-area:4/7;background-image:url(../game/assets/tiles/sabotage.png)"></div>
+      <div class="cell tile" style="grid-area:9/9;background-image:url(../game/assets/tiles/normal.png)"></div>
+      <div class="cell tile" style="grid-area:9/8;background-image:url(../game/assets/tiles/item.png)"></div>
+
+      <!-- 이동 가능(미공개) 칸 -->
+      <div class="cell reach" style="grid-area:5/5">?</div>
+      <div class="cell reach" style="grid-area:7/5">?</div>
+      <div class="cell reach" style="grid-area:4/6">?</div>
+      <div class="cell reach" style="grid-area:6/2">?</div>
+
+      <!-- 경찰 위험 -->
+      <div class="cell danger" style="grid-area:8/9"></div>
+      <div class="cell danger" style="grid-area:10/9"></div>
+      <div class="cell danger" style="grid-area:9/10"></div>
+
+      <!-- 말 -->
+      <div class="cell" style="grid-area:6/5"><div class="piece me" style="--c:var(--s0);background-image:url(../game/assets/ui/faction_kb.png)"><span class="who">나</span></div></div>
+      <div class="cell" style="grid-area:6/3"><div class="piece" style="--c:var(--s1);background-image:url(../game/assets/ui/faction_uy.png);background-size:100%"><span class="who">동지1</span></div></div>
+      <div class="cell" style="grid-area:7/8"><div class="piece" style="--c:var(--s2);background-image:url(../game/assets/ui/faction_ub.png)"><span class="who">동지2</span></div></div>
+      <div class="cell" style="grid-area:8/8"><div class="piece" style="--c:var(--s3);background-image:url(../game/assets/ui/faction_kb.png)"><span class="who">동지3</span></div></div>
+      <div class="cell" style="grid-area:9/9"><div class="police"></div></div>
+    </div>
+    <!-- 경로 미리보기: 나(6,5) → (6,6) → (6,7) → (7,7) -->
+    <svg class="path" viewBox="0 0 820 820">
+      <polyline points="341,410 410,410 480,410 480,480" fill="none" stroke="#f0c86e" stroke-width="5" stroke-dasharray="2 10" stroke-linecap="round"/>
+      <circle cx="480" cy="480" r="24" fill="rgba(240,200,110,.25)" stroke="#f0c86e" stroke-width="4"/>
+    </svg>
+    <div class="stepno" style="left:410px;top:410px">1</div>
+    <div class="stepno" style="left:480px;top:410px">2</div>
+    <div class="stepno" style="left:480px;top:480px">3</div>
+  </div>
+
+  <!-- 오른쪽 -->
+  <div class="right">
+    <div class="folder paper">
+      <div class="clip" style="right:40px"></div>
+      <h3>요 원 명 부 <small>마우스를 올리면 자세히</small></h3>
+      <div class="agents">
+        <div class="agent turn" style="--c:var(--s0)">
+          <div class="bar"></div><div class="face" style="background-image:url(../game/assets/ui/faction_kb.png)"></div>
+          <div><div class="name">나<small>한국광복군 · 은신술</small></div>
+            <div class="line"><span class="chip m"><i>◎</i>폭파공작 · 조선총독부</span><span class="chip it"><i>2</i>아이템</span><span class="chip good"><i>↑</i>다음 이동 +1</span><span class="chip used"><i>✦</i>무전 지원</span></div></div>
+          <span class="stamp turnstamp">차례</span>
+        </div>
+        <div class="agent" style="--c:var(--s1)">
+          <div class="bar"></div><div class="face" style="background-image:url(../game/assets/ui/faction_uy.png);background-size:100%"></div>
+          <div><div class="name">동지 1<small>조선의용대 · 기습</small></div>
+            <div class="line"><span class="chip m"><i>◎</i>암살</span><span class="chip it"><i>1</i>아이템</span></div></div>
+          <span></span>
+        </div>
+        <div class="agent" style="--c:var(--s2)">
+          <div class="bar"></div><div class="face" style="background-image:url(../game/assets/ui/faction_ub.png)"></div>
+          <div><div class="name">동지 2<small>의병 · 길 안내</small></div>
+            <div class="line"><span class="chip m"><i>◎</i>방해작전</span><span class="chip warn" id="chipwait"><i>!</i>경찰 대기</span></div></div>
+          <span></span>
+        </div>
+        <div class="agent" style="--c:var(--s3)">
+          <div class="bar"></div><div class="face" style="background-image:url(../game/assets/ui/faction_kb.png)"></div>
+          <div><div class="name">동지 3<small>한국광복군 · 은신술</small></div>
+            <div class="line"><span class="chip m"><i>◎</i>정보탈취 · 조선총독부</span><span class="chip warn"><i>!</i>경찰 인접</span></div></div>
+          <span class="jail">투옥 1회</span>
+        </div>
+      </div>
+      <div class="tip" style="left:178px;top:268px"><b>경찰 대기</b><br>이번 차례에는 이 요원을 쫓는 경찰이 움직이지 않습니다. 동지 1의 미끼 덕분입니다.</div>
+    </div>
+
+    <div class="folder paper" style="padding-bottom:14px">
+      <div class="clip" style="right:40px"></div>
+      <h3>내 손 패 <small>카드를 눌러 사용</small></h3>
+      <div class="hand">
+        <div class="card mission"><div class="band">미 션</div><div class="art" style="background-image:url(../game/assets/tiles/bomb.png)"></div><div class="t">폭파공작</div><div class="d">목표 조선총독부<br>판정 9 이상 · 광복 +1</div></div>
+        <div class="sep"></div>
+        <div class="card item hover"><div class="band">아 이 템</div><div class="art" style="background-image:url(../game/assets/tiles/station.png)"></div><div class="t">승차권</div><div class="d">역에서 다른 역으로<br>바로 이동</div></div>
+        <div class="card item"><div class="band">아 이 템</div><div class="art" style="background-image:url(../game/assets/tiles/supply.png)"></div><div class="t">변장 도구</div><div class="d">회피 판정 +2</div></div>
+        <div class="card slot">폭탄 슬롯<br>비어 있음</div>
+      </div>
+    </div>
+
+    <div class="folder paper actions">
+      <div class="doing"><b>이동 중</b><div class="moves"><i></i><i></i><i></i></div>남은 3칸 · 칸을 누르면 경로를 따라 자동 이동</div>
+      <div class="btnrow">
+        <div class="primary">이동 종료 <kbd>Space</kbd></div>
+        <div class="sec off"><svg viewBox="0 0 24 24" fill="none" stroke="#221c16" stroke-width="2"><path d="M4 10a8 8 0 0 1 16 0M7 12a5 5 0 0 1 10 0"/><circle cx="12" cy="15" r="2"/><path d="M12 17v4"/></svg>무전 지원</div>
+        <div class="sec hov"><svg viewBox="0 0 24 24" fill="none" stroke="#221c16" stroke-width="2"><rect x="8" y="3" width="10" height="8"/><path d="M3 16h6l3 2h6a2 2 0 0 0 0-4h-4M3 20h14"/></svg>아이템 건네기</div>
+        <div class="sec"><svg viewBox="0 0 24 24" fill="none" stroke="#221c16" stroke-width="2"><circle cx="8" cy="7" r="3"/><path d="M3 20c0-4 2-7 5-7s5 3 5 7"/><path d="M15 9h6m-3-3 3 3-3 3"/></svg>미끼</div>
+        <div class="sec"><svg viewBox="0 0 24 24" fill="none" stroke="#221c16" stroke-width="2"><rect x="3" y="5" width="8" height="12" rx="1"/><rect x="13" y="7" width="8" height="12" rx="1"/><path d="M8 2h8l-2-2M16 22H8l2 2"/></svg>미션 교체</div>
+      </div>
+    </div>
+
+    <div class="ticker"><span class="date">8월 10일</span>▸ 조선총독부에서 경찰이 출동해 <b>동지 3</b>을 쫓습니다<span class="more">작전 기록 ▾</span></div>
+  </div>
+</div>
+
+<h2 class="head">② 연출 부품</h2>
+<p class="note">판정은 보드를 가리지 않고 아래쪽에서 굴러가며, 결과는 도장으로 찍힙니다. 일제 동향 카드는 가운데서 뒤집힌 뒤 상단 바의 "오늘의 일제 동향"으로 날아가 남습니다.</p>
+<div class="row">
+  <div class="frame dice-demo">
+    <span class="cap">판정 · 결과 도장</span>
+    <div class="dice"><div class="die"><i style="grid-area:1/1"></i><i style="grid-area:1/3"></i><i style="grid-area:3/1"></i><i style="grid-area:3/3"></i></div><div class="die"><i style="grid-area:1/1"></i><i style="grid-area:1/3"></i><i style="grid-area:2/1"></i><i style="grid-area:2/3"></i><i style="grid-area:3/1"></i><i style="grid-area:3/3"></i></div></div>
+    <div class="bigstamp">성 공</div>
+    <div class="strip paper"><h4>폭파공작 판정 · 합계 10</h4><p>목표 9 이상 · 성공 확률 28%</p><div class="odds"><i></i></div></div>
+  </div>
+  <div class="frame event-demo">
+    <span class="cap">일제 동향 카드</span>
+    <div class="ecard paper"><div class="kind">일제 동향 · 8월 10일</div><img src="../game/assets/ui/police.png"><h4>검문소 증설</h4><p>총독부가 경성 곳곳에 검문소를 새로 세웠습니다.</p><div class="fx">요원 2명의 옆 빈칸에 검문소</div></div>
+  </div>
+</div>
+
+<h2 class="head">③ 메인 메뉴 방향</h2>
+<p class="note">오른쪽 빈 공간을 "작전 서류철"로 채웁니다. 이어하기에는 저장 시점의 날짜와 점수가 보입니다.</p>
+<div class="frame menu-demo">
+  <div class="art"></div>
+  <div class="dossier paper">
+    <div class="clip" style="right:30px"></div>
+    <div class="top"><div><h1>광복 IF</h1><div class="sub">1945, 우리 손으로 되찾는 광복</div></div><span class="stamp" style="margin-top:6px">極 秘</span></div>
+    <ul>
+      <li class="on">이어하기 <small>작전 제3호 · 8월 10일 · 광복 4/10</small></li>
+      <li>새 작전 <small>인원 · 세력 · 난이도</small></li>
+      <li>튜토리얼 <small>5분</small></li>
+      <li>규칙 도감</li>
+      <li>설정</li>
+      <li>종료</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+function fit() { const w = Math.min(1640, document.documentElement.clientWidth); document.body.style.zoom = (w / 1640).toFixed(3); }
+addEventListener("resize", fit); fit();
+</script>
+</body>
+</html>

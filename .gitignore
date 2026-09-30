@@ -1,0 +1,14 @@
+# Godot generated files
+**/.godot/
+
+# Build and release output
+/build/
+/release/
+/game/test.pck
+
+# Editor and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+Desktop.ini

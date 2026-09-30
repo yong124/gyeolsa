@@ -1,0 +1,92 @@
+{
+	"_comment": "세력 정의. modifiers는 상시 보정, active는 하루 1회 쓰는 능력 (data/README.md 참고).",
+	"kb": {
+		"name": "한국광복군",
+		"emblem": "res://assets/ui/faction_kb.png",
+		"desc": "대한민국 임시정부 직속 군대. 광복군 요원들은 미 정보부 OSS의 첩보 훈련을 받아 은신과 비밀작전에 능합니다.",
+		"ability": "회피 판정 항상 성공 · 탈옥 판정 +3",
+		"modifiers": [
+			{
+				"stat": "evade_auto",
+				"value": 1
+			},
+			{
+				"stat": "escape_bonus",
+				"value": 3
+			}
+		],
+		"active": {
+			"name": "무전 지원",
+			"desc": "동료 1명의 다음 차례 이동 +1",
+			"phases": [
+				"start",
+				"move"
+			],
+			"target": "ally",
+			"effects": [
+				{
+					"op": "target_move_mod",
+					"value": 1
+				}
+			]
+		}
+	},
+	"uy": {
+		"name": "조선의용대",
+		"emblem": "res://assets/ui/faction_uy.png",
+		"desc": "대표적인 사회주의 무장투쟁 세력. 오랜 전투로 단련된 역전의 용사들로, 암살 작전에 능합니다.",
+		"ability": "암살 판정 실패 시 한 번 더 굴림",
+		"modifiers": [
+			{
+				"stat": "assassin_rerolls",
+				"value": 1
+			}
+		],
+		"active": {
+			"name": "기습",
+			"desc": "내 칸에 있는 경찰 1개를 제거",
+			"phases": [
+				"start",
+				"move"
+			],
+			"target": "police_near",
+			"range": 0,
+			"effects": [
+				{
+					"op": "remove_target_police"
+				}
+			]
+		}
+	},
+	"ub": {
+		"name": "의병",
+		"emblem": "res://assets/ui/faction_ub.png",
+		"desc": "일제의 대대적인 토벌 속에 살아남은 항일 의병. 경성을 무대로 활약해 구석구석 모르는 곳이 없습니다.",
+		"ability": "이동 주사위 1·2는 3으로",
+		"modifiers": [
+			{
+				"stat": "move_min",
+				"value": 3,
+				"mode": "max"
+			}
+		],
+		"active": {
+			"name": "길 안내",
+			"desc": "동료 1명을 내 옆 칸으로 데려오고, 그 동료의 다음 차례 이동 +1 (감옥에 있는 동료는 불가)",
+			"phases": [
+				"start",
+				"move"
+			],
+			"target": "ally_pullable",
+			"effects": [
+				{
+					"op": "pull_target"
+				},
+				{
+					"op": "target_move_mod",
+					"value": 1
+				}
+			]
+		}
+	}
+}

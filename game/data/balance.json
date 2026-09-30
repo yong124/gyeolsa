@@ -1,0 +1,190 @@
+{
+	"_comment": "밸런스 수치와 보드 구성. 값을 바꾸면 코드 수정 없이 게임에 반영된다.",
+	"board": {
+		"size": 11,
+		"start": [
+			5,
+			5
+		],
+		"bases": [
+			{
+				"pos": [
+					1,
+					1
+				],
+				"name": "일본군영"
+			},
+			{
+				"pos": [
+					9,
+					1
+				],
+				"name": "종로경찰서"
+			},
+			{
+				"pos": [
+					1,
+					9
+				],
+				"name": "서대문형무소"
+			},
+			{
+				"pos": [
+					9,
+					9
+				],
+				"name": "조선총독부"
+			}
+		],
+		"stations": [
+			[
+				5,
+				0
+			],
+			[
+				0,
+				5
+			],
+			[
+				10,
+				5
+			],
+			[
+				5,
+				10
+			]
+		],
+		"map": {
+			"image": "res://assets/ui/board.png",
+			"px": 1400,
+			"origin": 33.33,
+			"cell": 121.33
+		}
+	},
+	"tiles": {
+		"normal": {
+			"name": "일반",
+			"count": 28,
+			"texture": "normal"
+		},
+		"event": {
+			"name": "이벤트",
+			"count": 30,
+			"texture": "event",
+			"used_texture": "event_used"
+		},
+		"item": {
+			"name": "아이템",
+			"count": 20,
+			"texture": "item",
+			"used_texture": "item_used"
+		},
+		"check": {
+			"name": "검문소",
+			"count": 5,
+			"texture": "check"
+		},
+		"supply": {
+			"name": "보급",
+			"count": 5,
+			"texture": "supply"
+		},
+		"assassin": {
+			"name": "암살미션",
+			"count": 6,
+			"texture": "assassin"
+		},
+		"sabotage": {
+			"name": "방해작전",
+			"count": 3,
+			"texture": "sabotage"
+		},
+		"bomb": {
+			"name": "폭파공작",
+			"count": 3,
+			"texture": "bomb"
+		},
+		"base": {
+			"name": "일본군 거점",
+			"count": 0,
+			"texture": "base"
+		},
+		"station": {
+			"name": "전차 역",
+			"count": 0,
+			"texture": "station"
+		},
+		"start": {
+			"name": "스타트",
+			"count": 0,
+			"texture": "start"
+		}
+	},
+	"calendar": {
+		"_comment": "한 라운드가 하루. end_day(8월 15일)가 되면 작전 종료.",
+		"end_month": 8,
+		"end_day": 15,
+		"rounds_by_players": {
+			"2": 21,
+			"3": 14,
+			"4": 10,
+			"5": 8,
+			"6": 7
+		}
+	},
+	"goal_by_players": {
+		"2": 10,
+		"3": 10,
+		"4": 10,
+		"5": 10,
+		"6": 12
+	},
+	"checks": {
+		"assassin": 9,
+		"evade": 7,
+		"escape": 9
+	},
+	"hand_limit": 2,
+	"item_uses_per_turn": 2,
+	"bomb_supply": 5,
+	"police": {
+		"pieces": 4,
+		"escape_distance": 3,
+		"speed_by_alert": [
+			2,
+			3,
+			4
+		],
+		"speed_mod_by_players": {
+			"2": -1
+		},
+		"rescued_player_summons": false
+	},
+	"endings": [
+		{
+			"min_score": 0,
+			"id": "history"
+		},
+		{
+			"min_score": 5,
+			"id": "operation"
+		},
+		{
+			"min_score": -1,
+			"id": "victory",
+			"_comment": "-1 = 목표치 달성"
+		}
+	],
+	"cooperation": {
+		"_comment": "협력 행동. give_range: 아이템을 건넬 수 있는 거리, decoy_range: 미끼로 끌어올 수 있는 경찰까지의 거리",
+		"give_range": 1,
+		"give_counts_as_item_use": true,
+		"decoy_range": 3,
+		"decoy_per_turn": 1
+	},
+	"occupation": {
+		"_comment": "일제 동향 덱. 둘째 날부터 매일 아침 1장",
+		"enabled": true,
+		"first_day_draw": false
+	}
+}
