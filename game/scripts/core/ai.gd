@@ -34,7 +34,8 @@ static func _start(g: GameRules, p: Dictionary) -> Dictionary:
 		return give
 	if g.police_active(p["id"]):
 		var d := _manhattan(g.police[p["id"]]["pos"], p["pos"])
-		if d <= g.police_speed() + 2:
+		var margin := 3 if p.get("personality", "") == "careful" else 2
+		if d <= g.police_speed() + margin:
 			var idx := _usable_item(g, p, ["bribe"])
 			if idx >= 0:
 				return {"type": "use_item", "index": idx}
@@ -57,40 +58,73 @@ static func _move(g: GameRules, p: Dictionary) -> Dictionary:
 	var nxt = plan_step(g, p, T)
 	if nxt == null or not g.can_step(p, nxt):
 		return {"type": "end_move"}
+	if p.get("personality", "") == "careful" and g.police.has(p["id"]) and not T.has(nxt):
+		var danger := g.police_danger(p)
+		if danger.has(nxt) and not danger.has(p["pos"]):
+			return {"type": "end_move"}
 	return {"type": "step", "to": nxt}
 
 
 static func targets(g: GameRules, p: Dictionary) -> Dictionary:
 	var T := g.mission_targets(p)
+	var rescues := {}
 	for q in g.players:
-		if q["jailed"] and q["id"] != p["id"] and _manhattan(q["pos"], p["pos"]) <= RESCUE_RANGE:
-			T[q["pos"]] = true
+		if q["jailed"] and q["id"] != p["id"] and _manhattan(q["pos"], p["pos"]) <= _rescue_range(p):
+			rescues[q["pos"]] = true
+	T.merge(rescues)
 	return T
 
 
 static func intent(g: GameRules, p: Dictionary) -> String:
-	## 차례를 시작할 때 이 동료가 무엇을 하려는지 한 줄로 (말풍선용)
+	## 차례를 시작할 때 이 동료가 무엇을 하려는지 한 줄로 (말풍선용). 문구는 text.json "agents"에서 성격별로 고른다.
+	## 난수를 쓰지 않는다 (같은 판이면 같은 대사 — 온라인·다시보기에서도 똑같이 보이게)
+	var k := _intent_key(g, p)
+	var agents: Dictionary = g.data.text.get("agents", {})
+	var personas: Dictionary = agents.get("personas", {})
+	var mine: Dictionary = personas.get(p.get("personality", ""), {}).get("lines", {})
+	var base: Dictionary = personas.get("default", {}).get("lines", {})
+	var pool: Array = mine.get(k[0], base.get(k[0], []))
+	if pool.is_empty():
+		return str(k[0])
+	var line: String = pool[(g.rounds_left + p["id"] + p["turns"]) % pool.size()]
+	return line.format(k[1])
+
+
+static func persona_name(g: GameRules, p: Dictionary) -> String:
+	return g.data.text.get("agents", {}).get("personas", {}).get(p.get("personality", ""), {}).get("name", "")
+
+
+static func persona_desc(g: GameRules, p: Dictionary) -> String:
+	return g.data.text.get("agents", {}).get("personas", {}).get(p.get("personality", ""), {}).get("desc", "")
+
+
+static func _intent_key(g: GameRules, p: Dictionary) -> Array:
+	## [상황 키, 문구에 넣을 값]
 	if p["jailed"]:
-		return "탈옥할 틈을 노린다" if not g.has_item(p, "pin") else "옷핀으로 자물쇠를 연다"
+		return ["pin" if g.has_item(p, "pin") else "jailed", {}]
 	for q in g.players:
-		if q["jailed"] and q["id"] != p["id"] and _manhattan(q["pos"], p["pos"]) <= RESCUE_RANGE:
-			return "%s을(를) 구하러 간다!" % q["name"].split(" (")[0]
+		if q["jailed"] and q["id"] != p["id"] and _manhattan(q["pos"], p["pos"]) <= _rescue_range(p):
+			return ["rescue", {"who": q["name"].split(" (")[0]}]
 	if g.police_active(p["id"]) and _manhattan(g.police[p["id"]]["pos"], p["pos"]) <= g.police_speed():
-		return "경찰이 바짝 붙었다… 서둘러야 해"
+		return ["chased", {}]
 	var m: Dictionary = p["mission"]
 	var found := not g.mission_targets(p).is_empty()
 	match m.get("type", ""):
 		"intel":
-			return "%s에서 정보를 빼낸다" % g.data.base_names[m["base"]]
+			return ["intel", {"base": g.data.base_names[m["base"]]}]
 		"assassin":
-			return "암살 목표에게 간다" if found else "암살 목표를 찾아 골목을 뒤진다"
+			return ["assassin_go" if found else "assassin_find", {}]
 		"sabotage":
-			return "방해작전 지점으로 간다" if found else "방해작전 지점을 찾는다"
+			return ["sabotage_go" if found else "sabotage_find", {}]
 		"bomb":
 			if p["bombs"] > 0:
-				return "폭탄을 들고 폭파 지점으로" if found else "폭파할 곳을 찾는다"
-			return "보급소에서 폭탄을 구한다" if found else "보급소를 찾는다"
-	return "경성을 살핀다"
+				return ["bomb_go" if found else "bomb_find", {}]
+			return ["supply_go" if found else "supply_find", {}]
+	return ["idle", {}]
+
+
+static func _rescue_range(p: Dictionary) -> int:
+	return RESCUE_RANGE + (3 if p.get("personality", "") == "support" else 0)
 
 
 static func _passable(g: GameRules, p: Dictionary, c: Vector2i, T: Dictionary) -> bool:
@@ -102,8 +136,10 @@ static func _passable(g: GameRules, p: Dictionary, c: Vector2i, T: Dictionary) -
 		return not g.tile_deck.is_empty()
 	match g.board[c]["type"]:
 		"check":
-			# 회피가 확실할 때만 검문소를 뚫고 지나간다
-			return g.flag(p, "evade_auto") or g.react_item(p, "evade") != ""
+			# 돌격형은 위험을 감수하고, 나머지는 회피 수단이 있을 때만 지난다
+			if g.flag(p, "evade_auto") or g.react_item(p, "evade") != "":
+				return true
+			return p.get("personality", "") == "bold" and g.evade_chance(p) >= 0.7
 		"base":
 			return T.has(c)
 	return true

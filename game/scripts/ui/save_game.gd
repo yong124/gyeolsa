@@ -43,7 +43,7 @@ static func summary() -> String:
 	if typeof(d) != TYPE_DICTIONARY or not d.has("state"):
 		return ""
 	var st: Dictionary = d["state"]
-	return "%d인 작전 · 광복 %d/%d · 남은 %d일" % [st["players"].size(), st["score"], st["goal"], st["rounds_left"]]
+	return Loc.t("%d인 작전 · 광복 %d/%d · 남은 %d일") % [st["players"].size(), st["score"], st["goal"], st["rounds_left"]]
 
 
 static func erase() -> void:

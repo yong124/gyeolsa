@@ -83,7 +83,7 @@ static func build(game: GameRules, deck: String, id: String, who: String) -> Con
 	v.add_theme_constant_override("separation", 8)
 	card.add_child(v)
 	var b := Label.new()
-	b.text = info["title"]
+	b.text = Loc.t(info["title"])
 	b.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	b.add_theme_font_size_override("font_size", 14)
 	b.add_theme_font_override("font", Style.sans(800))
@@ -113,7 +113,7 @@ static func build(game: GameRules, deck: String, id: String, who: String) -> Con
 	fl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	fx.add_child(fl)
 	mv.add_child(fx)
-	var hint := UiKit.text("클릭하면 닫힙니다", 11, Style.INK_3, false)
+	var hint := UiKit.text(Loc.t("클릭하면 닫힙니다"), 11, Style.INK_3, false)
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	mv.add_child(hint)
 	for c in [v, b, art, m, mv, n, t, fx, fl, hint, whol]:

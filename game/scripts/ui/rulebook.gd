@@ -20,20 +20,22 @@ func _ready() -> void:
 	add_child(v)
 	var head := HBoxContainer.new()
 	v.add_child(head)
-	var title := UiKit.title("규칙 도감", Style.FS_H2)
+	var title := UiKit.title(Loc.t("규칙 도감"), Style.FS_H2)
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(title)
-	head.add_child(UiKit.button("닫기", func(): closed.emit(), 16, "paper"))
+	head.add_child(UiKit.button(Loc.t("닫기"), func(): closed.emit(), 16, "paper"))
 
 	var tabs := TabContainer.new()
 	tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	v.add_child(tabs)
-	tabs.add_child(_page("기본 규칙", _rules_page()))
-	tabs.add_child(_page("타일", _tiles_page()))
-	tabs.add_child(_page("세력", _factions_page()))
-	tabs.add_child(_page("아이템", _cards_page(_data.cards["items"], true)))
-	tabs.add_child(_page("이벤트", _cards_page(_data.cards["events"], false)))
-	tabs.add_child(_page("일제 동향", _cards_page(_data.cards.get("occupation", []), false)))
+	tabs.add_child(_page(Loc.t("기본 규칙"), _rules_page()))
+	tabs.add_child(_page(Loc.t("타일"), _tiles_page()))
+	tabs.add_child(_page(Loc.t("세력"), _factions_page()))
+	tabs.add_child(_page(Loc.t("아이템"), _cards_page(_data.cards["items"], true)))
+	tabs.add_child(_page(Loc.t("이벤트"), _cards_page(_data.cards["events"], false)))
+	tabs.add_child(_page(Loc.t("일제 동향"), _cards_page(_data.cards.get("occupation", []), false)))
+	if _data.text.has("figures"):
+		tabs.add_child(_page(Loc.t("인물"), _figures_page()))
 
 
 func _page(name: String, content: Control) -> ScrollContainer:
@@ -65,16 +67,16 @@ func _rules_page() -> Control:
 func _tiles_page() -> Control:
 	var v := _col()
 	var desc := {
-		"normal": "아무 일도 없는 길입니다.",
-		"event": "여기서 멈추면 이벤트 카드를 뽑습니다. 쓰고 나면 일반 타일이 됩니다.",
-		"item": "여기서 멈추면 아이템 카드를 뽑습니다. 쓰고 나면 일반 타일이 됩니다.",
-		"check": "들어가려면 회피 판정. 실패하면 이동이 끝나고 경찰이 옵니다. 새로 나오면 그 앞에서 멈춥니다.",
-		"supply": "여기서 멈추면 폭탄을 얻습니다 (폭탄 슬롯이 비었을 때).",
-		"assassin": "암살 미션을 가졌으면 들어가는 순간 암살 판정을 합니다.",
-		"sabotage": "방해작전 미션을 가졌으면 들어가는 순간 회피 판정을 합니다.",
-		"bomb": "폭파공작 미션과 폭탄을 가졌으면 들어가는 순간 성공합니다.",
-		"base": "일본군 거점. 들어가면 이동이 끝나고 경찰이 옵니다. 정보탈취 목표이자 감옥입니다.",
-		"station": "전차 역. 타면 다음 차례에 원하는 역에서 출발합니다.",
+		"normal": Loc.t("아무 일도 없는 길입니다."),
+		"event": Loc.t("여기서 멈추면 이벤트 카드를 뽑습니다. 쓰고 나면 일반 타일이 됩니다."),
+		"item": Loc.t("여기서 멈추면 아이템 카드를 뽑습니다. 쓰고 나면 일반 타일이 됩니다."),
+		"check": Loc.t("들어가려면 회피 판정. 실패하면 이동이 끝나고 경찰이 옵니다. 새로 나오면 그 앞에서 멈춥니다."),
+		"supply": Loc.t("여기서 멈추면 폭탄을 얻습니다 (폭탄 슬롯이 비었을 때)."),
+		"assassin": Loc.t("암살 미션을 가졌으면 들어가는 순간 암살 판정을 합니다."),
+		"sabotage": Loc.t("방해작전 미션을 가졌으면 들어가는 순간 회피 판정을 합니다."),
+		"bomb": Loc.t("폭파공작 미션과 폭탄을 가졌으면 들어가는 순간 성공합니다."),
+		"base": Loc.t("일본군 거점. 들어가면 이동이 끝나고 경찰이 옵니다. 정보탈취 목표이자 감옥입니다."),
+		"station": Loc.t("전차 역. 타면 다음 차례에 원하는 역에서 출발합니다."),
 	}
 	for t in desc:
 		var def := _data.tile(t)
@@ -84,7 +86,7 @@ func _tiles_page() -> Control:
 		var tv := VBoxContainer.new()
 		tv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		var count := int(def.get("count", 0))
-		tv.add_child(UiKit.title(def.get("name", t) + ("  (%d장)" % count if count > 0 else "  (고정)"), 18, Style.SEAL_DARK))
+		tv.add_child(UiKit.title(def.get("name", t) + (Loc.t("  (%d장)") % count if count > 0 else Loc.t("  (고정)")), 18, Style.SEAL_DARK))
 		tv.add_child(UiKit.text(desc[t], 15, Style.INK))
 		h.add_child(tv)
 		v.add_child(h)
@@ -102,10 +104,10 @@ func _factions_page() -> Control:
 		tv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		tv.add_child(UiKit.title(f["name"], 20, Style.SEAL_DARK))
 		tv.add_child(UiKit.text(f["desc"], 15, Style.INK))
-		tv.add_child(UiKit.text("특성: " + f["ability"], 15, Style.GOOD, true, 700))
+		tv.add_child(UiKit.text(Loc.t("특성: ") + f["ability"], 15, Style.GOOD, true, 700))
 		var a: Dictionary = f.get("active", {})
 		if not a.is_empty():
-			tv.add_child(UiKit.text("능력 [%s] (하루 1회): %s" % [a["name"], a["desc"]], 15, Style.ITEM, true, 700))
+			tv.add_child(UiKit.text(Loc.t("능력 [%s] (하루 1회): %s") % [a["name"], a["desc"]], 15, Style.ITEM, true, 700))
 		h.add_child(tv)
 		v.add_child(h)
 	return v
@@ -116,8 +118,40 @@ func _cards_page(list: Array, is_item: bool) -> Control:
 	for c in list:
 		var head: String = "%s  ×%d" % [c["name"], c["count"]]
 		if is_item:
-			head += "  (%s)" % ("소모" if c.get("kind") == "consumable" else "지속")
+			head += "  (%s)" % (Loc.t("소모") if c.get("kind") == "consumable" else Loc.t("지속"))
 		v.add_child(UiKit.title(head, 18, Style.SEAL_DARK))
 		v.add_child(UiKit.text(c["text"], 14, Style.INK_3))
 		v.add_child(UiKit.text(c["effect_text"], 15, Style.INK))
+	return v
+
+
+func _figures_page() -> Control:
+	## 실제 인물 소개 (세력별)
+	var v := _col()
+	var figs: Dictionary = _data.text["figures"]
+	v.add_child(UiKit.text(figs.get("note", ""), 13, Style.INK_3))
+	for k in _data.faction_keys():
+		var f := _data.faction(k)
+		var head := HBoxContainer.new()
+		head.add_theme_constant_override("separation", 10)
+		head.add_child(UiKit.icon(load(f["emblem"]), Vector2(36, 36)))
+		head.add_child(UiKit.title(f["name"], 20, Style.SEAL_DARK))
+		v.add_child(head)
+		for p in figs.get("list", []):
+			if p.get("faction", "") != k:
+				continue
+			var box := PanelContainer.new()
+			box.add_theme_stylebox_override("panel", Style.flat(Color(1, 1, 1, 0.3), Color(Style.INK, 0.12), 1, 2, 10))
+			var bv := VBoxContainer.new()
+			bv.add_theme_constant_override("separation", 2)
+			var nh := HBoxContainer.new()
+			nh.add_theme_constant_override("separation", 10)
+			nh.add_child(UiKit.title(p["name"], 18, Style.INK, 900))
+			var role := UiKit.text(p.get("role", ""), 13, Style.INK_3, false, 700)
+			role.size_flags_vertical = Control.SIZE_SHRINK_END
+			nh.add_child(role)
+			bv.add_child(nh)
+			bv.add_child(UiKit.text(p.get("text", ""), 14, Style.INK_2))
+			box.add_child(bv)
+			v.add_child(box)
 	return v

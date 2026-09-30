@@ -14,7 +14,7 @@ $out = Join-Path $root "build\GwangbokIF"
 $zip = Join-Path $root "build\GwangbokIF_v${Version}_win64.zip"
 
 Write-Host "1/4 테스트 실행"
-foreach ($t in @("data_test", "sim_test", "faction_test", "save_test", "path_test", "tutorial_test")) {
+foreach ($t in @("data_test", "sim_test", "faction_test", "save_test", "path_test", "tutorial_test", "persona_test", "scenario_test")) {
     & $Godot --headless --path $game --script "res://tests/$t.gd" -- 100 | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "테스트 실패: $t" }
     Write-Host "   통과: $t"

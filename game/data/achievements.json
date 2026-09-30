@@ -1,0 +1,106 @@
+{
+	"_comment": "도전 과제. when의 조건을 모두 만족하면 달성. 조건: ending, my_jailed_max, days_left_min, my_rescues_min, my_points_min, players_min, difficulty, tutorial, scenario, factions_won(누적), scenarios_won(누적), games_min(누적).",
+	"list": [
+		{
+			"id": "first_victory",
+			"name": "첫 광복",
+			"desc": "대성공 엔딩을 처음으로 봅니다.",
+			"when": {
+				"ending": "victory"
+			}
+		},
+		{
+			"id": "trained",
+			"name": "훈련 수료",
+			"desc": "튜토리얼을 끝마칩니다.",
+			"when": {
+				"tutorial": true
+			}
+		},
+		{
+			"id": "clean",
+			"name": "무결점 작전",
+			"desc": "한 번도 투옥되지 않고 대성공합니다.",
+			"when": {
+				"ending": "victory",
+				"my_jailed_max": 0
+			}
+		},
+		{
+			"id": "blitzkrieg",
+			"name": "전격전",
+			"desc": "3일 이상 남기고 대성공합니다.",
+			"when": {
+				"ending": "victory",
+				"days_left_min": 3
+			}
+		},
+		{
+			"id": "rescuer",
+			"name": "구출 전문가",
+			"desc": "한 판에서 동료를 2번 이상 구출합니다.",
+			"when": {
+				"my_rescues_min": 2
+			}
+		},
+		{
+			"id": "ace",
+			"name": "에이스 요원",
+			"desc": "한 판에서 광복수치 5 이상을 혼자 올립니다.",
+			"when": {
+				"my_points_min": 5
+			}
+		},
+		{
+			"id": "big_team",
+			"name": "대부대",
+			"desc": "6인 작전에서 대성공합니다.",
+			"when": {
+				"ending": "victory",
+				"players_min": 6
+			}
+		},
+		{
+			"id": "hard",
+			"name": "불굴",
+			"desc": "어려움 난이도에서 대성공합니다.",
+			"when": {
+				"ending": "victory",
+				"difficulty": -1
+			}
+		},
+		{
+			"id": "three_banners",
+			"name": "세 깃발 아래",
+			"desc": "세 세력 모두로 대성공합니다.",
+			"when": {
+				"factions_won": 3
+			}
+		},
+		{
+			"id": "daily",
+			"name": "오늘의 요원",
+			"desc": "오늘의 작전에서 대성공합니다.",
+			"when": {
+				"ending": "victory",
+				"scenario": "daily"
+			}
+		},
+		{
+			"id": "specialist",
+			"name": "특수 작전 전문가",
+			"desc": "특수 작전 네 가지를 모두 성공합니다.",
+			"when": {
+				"scenarios_won": 4
+			}
+		},
+		{
+			"id": "veteran",
+			"name": "역전의 용사",
+			"desc": "작전에 10번 참가합니다.",
+			"when": {
+				"games_min": 10
+			}
+		}
+	]
+}

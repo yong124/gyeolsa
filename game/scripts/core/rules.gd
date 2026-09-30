@@ -67,6 +67,7 @@ var scenario := {}                   # 튜토리얼 등 특수 시나리오 설�
 
 var log_lines: Array = []            # 누적 로그
 var events: Array = []               # UI 알림 큐 (UI가 꺼내 간다)
+var undo_steps: Array = []           # 효과 없이 지나간 공개 칸의 이동 경로
 
 
 # ================================================================ 초기화
@@ -104,8 +105,9 @@ func setup(player_defs: Array, seed_value: int = -1, game_data: GameData = null)
 	for i in player_defs.size():
 		var d: Dictionary = player_defs[i]
 		players.append({
-			"id": i, "name": d.get("name", "요원 %d" % (i + 1)), "faction": d["faction"],
-			"ai": d.get("ai", true), "pos": data.start, "started": false, "jailed": false,
+			"id": i, "name": d.get("name", Loc.t("요원 %d") % (i + 1)), "faction": d["faction"],
+			"ai": d.get("ai", true), "personality": d.get("personality", ""),
+			"pos": data.start, "started": false, "jailed": false,
 			"mission": {}, "items": [], "bombs": 0, "move_mod": 0, "pending_police": false,
 			"skip_next": false, "on_tram": false, "turns": 0,
 			"ability_day": -1, "decoys": 0,
@@ -128,6 +130,12 @@ func setup(player_defs: Array, seed_value: int = -1, game_data: GameData = null)
 		players[int(key)]["items"] = scenario["start_items"][key].duplicate()
 		for id in players[int(key)]["items"]:
 			item_deck.erase(id)
+	# 시나리오: 감옥에서 시작 (특수 작전 "서대문 탈출")
+	for idx in scenario.get("start_jailed", []):
+		var jp: Dictionary = players[int(idx)]
+		jp["started"] = true
+		jp["jailed"] = true
+		jp["pos"] = data.bases[int(scenario.get("jail_base", 0))]
 	history.clear()
 	police.clear()
 	score = 0
@@ -140,7 +148,8 @@ func setup(player_defs: Array, seed_value: int = -1, game_data: GameData = null)
 	ending = {}
 	log_lines.clear()
 	events.clear()
-	_log("%s 작전 개시. 8월 15일 전까지 광복수치 %d을(를) 채우십시오." % [date_label(), goal])
+	undo_steps.clear()
+	_log(Loc.t("%s 작전 개시. 8월 15일 전까지 광복수치 %d을(를) 채우십시오.") % [date_label(), goal])
 	_begin_turn()
 
 
@@ -201,7 +210,7 @@ func has_item(p: Dictionary, id: String) -> bool:
 
 func date_label() -> String:
 	var d := date_of(rounds_left)
-	return "%d월 %d일" % [d.x, d.y]
+	return Loc.date(d.x, d.y)
 
 
 func date_of(days_left: int) -> Vector2i:
@@ -232,7 +241,7 @@ func alert_level() -> int:
 
 func police_speed() -> int:
 	var pol: Dictionary = data.balance["police"]
-	var sp: int = int(pol["speed_by_alert"][alert_level() - 1]) + police_bonus_today
+	var sp: int = int(pol["speed_by_alert"][alert_level() - 1]) + police_bonus_today + int(scenario.get("police_speed_mod", 0))
 	return maxi(1, sp + data.by_players(pol["speed_mod_by_players"], players.size(), 0))
 
 
@@ -272,6 +281,13 @@ func legal_steps(p: Dictionary) -> Array:
 		if can_step(p, p["pos"] + d):
 			out.append(p["pos"] + d)
 	return out
+
+
+func can_undo_step() -> bool:
+	if phase != "move" or undo_steps.is_empty():
+		return false
+	var last: Dictionary = undo_steps[-1]
+	return current == last["player"] and cur()["pos"] == last["to"] and steps_left == last["steps_left"] - 1
 
 
 func can_use_item(p: Dictionary, index: int) -> bool:
@@ -350,7 +366,7 @@ func path_to(p: Dictionary, goal: Vector2i) -> Dictionary:
 	if goal == start or not in_bounds(goal):
 		return out
 	if occupied_by_other(p, goal) and tile_type(goal) != "base":
-		out["reason"] = "다른 요원이 있는 칸"
+		out["reason"] = Loc.t("다른 요원이 있는 칸")
 		return out
 	var prev := {start: start}
 	var q: Array[Vector2i] = [start]
@@ -374,7 +390,7 @@ func path_to(p: Dictionary, goal: Vector2i) -> Dictionary:
 			prev[n] = c
 			q.append(n)
 	if not prev.has(goal):
-		out["reason"] = "갈 수 없는 칸"
+		out["reason"] = Loc.t("갈 수 없는 칸")
 		return out
 	var path: Array[Vector2i] = [goal]
 	while prev[path[-1]] != start:
@@ -389,7 +405,7 @@ func path_to(p: Dictionary, goal: Vector2i) -> Dictionary:
 			out["unknown"] += 1
 	out["reachable"] = path.size() <= steps_left
 	if not out["reachable"]:
-		out["reason"] = "이동력 부족 (%d칸 필요)" % path.size()
+		out["reason"] = Loc.t("이동력 부족 (%d칸 필요)") % path.size()
 	return out
 
 
@@ -470,7 +486,7 @@ func ability_targets(p: Dictionary) -> Array:
 		"police_near":
 			for pid in police:
 				if _manhattan(police[pid]["pos"], p["pos"]) <= int(a.get("range", 1)):
-					out.append({"value": pid, "label": "%s을(를) 쫓는 경찰" % players[pid]["name"]})
+					out.append({"value": pid, "label": Loc.t("%s을(를) 쫓는 경찰") % players[pid]["name"]})
 	return out
 
 
@@ -501,7 +517,7 @@ func decoy_options(p: Dictionary) -> Array:
 	var out := []
 	for pid in police:
 		if pid != p["id"] and _manhattan(police[pid]["pos"], p["pos"]) <= int(coop["decoy_range"]):
-			out.append({"from": pid, "label": "%s을(를) 쫓는 경찰" % players[pid]["name"]})
+			out.append({"from": pid, "label": Loc.t("%s을(를) 쫓는 경찰") % players[pid]["name"]})
 	return out
 
 
@@ -580,7 +596,7 @@ func apply(action: Dictionary) -> bool:
 				return false
 			mission_discard.append(p["mission"])
 			p["mission"] = _draw_mission()
-			_log("%s: 미션을 교체했습니다 → %s" % [p["name"], mission_label(p["mission"])])
+			_log(Loc.t("%s: 미션을 교체했습니다 → %s") % [p["name"], mission_label(p["mission"])])
 			_end_turn()
 		"escape":
 			if phase != "start" or not p["jailed"]:
@@ -590,7 +606,25 @@ func apply(action: Dictionary) -> bool:
 			var to: Vector2i = action["to"]
 			if not can_step(p, to):
 				return false
+			var from: Vector2i = p["pos"]
+			var remaining := steps_left
+			var known := board.has(to)
+			var event_count := events.size()
+			var log_count := log_lines.size()
 			_do_step(p, to)
+			if known and phase == "move" and p["pos"] == to and steps_left == remaining - 1 \
+					and events.size() == event_count + 1 and events[-1]["kind"] == "move" \
+					and log_lines.size() == log_count:
+				undo_steps.append({"player": current, "from": from, "to": to, "steps_left": remaining})
+			else:
+				undo_steps.clear()
+		"undo_step":
+			if not can_undo_step():
+				return false
+			var last: Dictionary = undo_steps.pop_back()
+			p["pos"] = last["from"]
+			steps_left = last["steps_left"]
+			_push({"kind": "move", "player": p["id"], "from": last["to"], "to": last["from"]})
 		"end_move":
 			if phase != "move":
 				return false
@@ -609,8 +643,8 @@ func apply(action: Dictionary) -> bool:
 			if not can_use_ability(p):
 				return false
 			var a := ability_def(p)
-			_ask(p, "ability_target", "[%s] %s — 대상을 고르세요." % [a["name"], a["desc"]],
-				ability_targets(p) + [{"value": -1, "label": "취소"}], "resume")
+			_ask(p, "ability_target", Loc.t("[%s] %s — 대상을 고르세요.") % [a["name"], a["desc"]],
+				ability_targets(p) + [{"value": -1, "label": Loc.t("취소")}], "resume")
 		"give_item":
 			var found := false
 			for o in give_options(p):
@@ -629,6 +663,8 @@ func apply(action: Dictionary) -> bool:
 			_decoy(p, int(action["from"]))
 		_:
 			return false
+	if not action["type"] in ["step", "undo_step"]:
+		undo_steps.clear()
 	return true
 
 
@@ -649,13 +685,13 @@ func _begin_turn() -> void:
 	_push({"kind": "turn", "player": p["id"]})
 	if p["skip_next"]:
 		p["skip_next"] = false
-		_log("%s: 현지지원 요청으로 이번 차례를 쉽니다." % p["name"])
+		_log(Loc.t("%s: 현지지원 요청으로 이번 차례를 쉽니다.") % p["name"])
 		_end_turn()
 		return
 	if p["pending_police"]:
 		p["pending_police"] = false
 		if not p["jailed"]:
-			_log("%s: 불시검문! 경찰이 나타났습니다." % p["name"])
+			_log(Loc.t("%s: 불시검문! 경찰이 나타났습니다.") % p["name"])
 			_summon(p)
 	phase = "start"
 	if p["on_tram"] and not p["jailed"]:
@@ -664,8 +700,8 @@ func _begin_turn() -> void:
 		for i in data.stations.size():
 			var s: Vector2i = data.stations[i]
 			if s == p["pos"] or not occupied_by_other(p, s):
-				opts.append({"value": i, "label": "전차 역 %s" % _dir_name(s)})
-		_ask(p, "tram_dest", "어느 전차 역에서 내리겠습니까?", opts, "start")
+				opts.append({"value": i, "label": Loc.t("전차 역 %s") % _dir_name(s)})
+		_ask(p, "tram_dest", Loc.t("어느 전차 역에서 내리겠습니까?"), opts, "start")
 
 
 func _end_turn() -> void:
@@ -681,7 +717,7 @@ func _end_turn() -> void:
 		police_bonus_today = 0
 		_push({"kind": "day", "date": date_label(), "alert": alert_level(), "days_left": rounds_left,
 			"police_speed": police_speed()})
-		_log("── %s (경계 %d단계) ──" % [date_label(), alert_level()])
+		_log(Loc.t("── %s (경계 %d단계) ──") % [date_label(), alert_level()])
 		_draw_occupation()
 		if phase == "over":
 			return
@@ -706,10 +742,10 @@ func _continue(p: Dictionary, then: String) -> void:
 
 
 func _dir_name(s: Vector2i) -> String:
-	if s.y == 0: return "(북)"
-	if s.y == data.size - 1: return "(남)"
-	if s.x == 0: return "(서)"
-	return "(동)"
+	if s.y == 0: return Loc.t("(북)")
+	if s.y == data.size - 1: return Loc.t("(남)")
+	if s.x == 0: return Loc.t("(서)")
+	return Loc.t("(동)")
 
 
 # ================================================================ 이동
@@ -721,8 +757,8 @@ func _roll_move(p: Dictionary) -> void:
 	p["move_mod"] = 0
 	steps_left = maxi(steps, 0)
 	phase = "move"
-	_push({"kind": "dice", "what": "이동", "dice": [d], "result": steps_left})
-	_log("%s: 주사위 %d → 이동 %d칸" % [p["name"], d, steps_left])
+	_push({"kind": "dice", "what": Loc.t("이동"), "dice": [d], "result": steps_left})
+	_log(Loc.t("%s: 주사위 %d → 이동 %d칸") % [p["name"], d, steps_left])
 	if steps_left == 0:
 		_resolve_stop(p)
 
@@ -733,13 +769,13 @@ func _do_step(p: Dictionary, to: Vector2i) -> void:
 		board[to] = {"type": t, "used": false}
 		_push({"kind": "reveal", "pos": to, "tile": t})
 		if t == "check":
-			_log("%s: 검문소가 나타났습니다! 이동이 끝납니다." % p["name"])
+			_log(Loc.t("%s: 검문소가 나타났습니다! 이동이 끝납니다.") % p["name"])
 			steps_left = 0
 			_resolve_stop(p)
 			return
 	if board[to]["type"] == "check":
 		_check_target = to
-		_log("%s: 검문소 통과를 시도합니다." % p["name"])
+		_log(Loc.t("%s: 검문소 통과를 시도합니다.") % p["name"])
 		_begin_evade(p, "checkpoint")
 		return
 	_arrive(p, to)
@@ -757,8 +793,8 @@ func _arrive(p: Dictionary, to: Vector2i) -> void:
 	if _try_mission(p):
 		return
 	if t == "station":
-		_ask(p, "tram_ride", "전차에 타겠습니까? (이동 종료, 다음 차례에 원하는 역에서 출발)",
-			[{"value": true, "label": "탑승"}, {"value": false, "label": "지나가기"}], "after_step")
+		_ask(p, "tram_ride", Loc.t("전차에 타겠습니까? (이동 종료, 다음 차례에 원하는 역에서 출발)"),
+			[{"value": true, "label": Loc.t("탑승")}, {"value": false, "label": Loc.t("지나가기")}], "after_step")
 		return
 	_after_step(p)
 
@@ -774,26 +810,26 @@ func _after_step(p: Dictionary) -> void:
 
 func _enter_base(p: Dictionary) -> void:
 	var bi := data.bases.find(p["pos"])
-	_log("%s: %s에 들어갔습니다. 이동이 끝납니다." % [p["name"], data.base_names[bi]])
+	_log(Loc.t("%s: %s에 들어갔습니다. 이동이 끝납니다.") % [p["name"], data.base_names[bi]])
 	var rescued_summon: bool = data.balance["police"]["rescued_player_summons"]
 	for q in players:
 		if q["jailed"] and q["pos"] == p["pos"] and q["id"] != p["id"]:
 			q["jailed"] = false
-			_log("%s: %s을(를) 구출했습니다!" % [p["name"], q["name"]])
+			_log(Loc.t("%s: %s을(를) 구출했습니다!") % [p["name"], q["name"]])
 			p["stats"]["rescues"] += 1
-			_record("%s — %s 구출" % [p["name"], q["name"]], "good")
-			_banner("%s 구출!" % q["name"], "good", p)
+			_record(Loc.t("%s — %s 구출") % [p["name"], q["name"]], "good")
+			_banner(Loc.t("%s 구출!") % q["name"], "good", p)
 			if rescued_summon:
 				_summon(q)
 	var m: Dictionary = p["mission"]
 	if m.get("type") == "intel" and m["base"] == bi:
-		_log("%s: 정보탈취 성공!" % p["name"])
-		_banner("정보탈취 성공!", "good", p)
+		_log(Loc.t("%s: 정보탈취 성공!") % p["name"])
+		_banner(Loc.t("정보탈취 성공!"), "good", p)
 		_finish_mission(p)
 		if phase == "over":
 			return
 	if flag(p, "base_no_police"):
-		_log("%s: 위장 신분증 덕분에 경찰이 오지 않았습니다." % p["name"])
+		_log(Loc.t("%s: 위장 신분증 덕분에 경찰이 오지 않았습니다.") % p["name"])
 	else:
 		_summon(p)
 	_post_move(p)
@@ -816,7 +852,7 @@ func _resolve_stop(p: Dictionary) -> void:
 	elif t == "supply" and bomb_supply > 0 and p["bombs"] == 0:
 		bomb_supply -= 1
 		p["bombs"] = 1
-		_log("%s: 보급 타일에서 폭탄을 얻었습니다." % p["name"])
+		_log(Loc.t("%s: 보급 타일에서 폭탄을 얻었습니다.") % p["name"])
 		_push({"kind": "card", "deck": "item", "id": "bomb", "player": p["id"]})
 	_post_move(p)
 
@@ -833,14 +869,14 @@ func _try_mission(p: Dictionary) -> bool:
 		"assassin":
 			_do_assassin(p)
 		"sabotage":
-			_log("%s: 방해작전 개시! 회피 판정을 합니다." % p["name"])
+			_log(Loc.t("%s: 방해작전 개시! 회피 판정을 합니다.") % p["name"])
 			_begin_evade(p, "sabotage")
 		"bomb":
 			if p["bombs"] == 0:
 				return false
 			p["bombs"] -= 1
-			_log("%s: 폭파공작 성공!" % p["name"])
-			_banner("폭파공작 성공!", "good", p)
+			_log(Loc.t("%s: 폭파공작 성공!") % p["name"])
+			_banner(Loc.t("폭파공작 성공!"), "good", p)
 			_finish_mission(p)
 			if phase == "over":
 				return true
@@ -859,39 +895,39 @@ func _do_assassin(p: Dictionary) -> void:
 	while not ok and rerolls > 0:
 		rerolls -= 1
 		var r2 := _d2()
-		_log("%s: 암살 판정 %d 실패 → 다시 굴림 %d" % [p["name"], r + bonus, r2 + bonus])
+		_log(Loc.t("%s: 암살 판정 %d 실패 → 다시 굴림 %d") % [p["name"], r + bonus, r2 + bonus])
 		dice = last_roll.duplicate()
 		r = r2
 		ok = r + bonus >= th
-	_push({"kind": "dice", "what": "암살", "dice": dice, "bonus": bonus, "target": th})
+	_push({"kind": "dice", "what": Loc.t("암살"), "dice": dice, "bonus": bonus, "target": th})
 	if ok:
-		_log("%s: 암살 성공! (%d, 목표 %d 이상)" % [p["name"], r + bonus, th])
-		_banner("암살 성공!", "good", p)
+		_log(Loc.t("%s: 암살 성공! (%d, 목표 %d 이상)") % [p["name"], r + bonus, th])
+		_banner(Loc.t("암살 성공!"), "good", p)
 		_finish_mission(p)
 		if phase == "over":
 			return
 		_summon(p)
 		_post_move(p)
 	else:
-		_log("%s: 암살 실패 (%d, 목표 %d 이상). 회피 판정을 합니다." % [p["name"], r + bonus, th])
-		_banner("암살 실패 — 탈출하라!", "bad", p)
+		_log(Loc.t("%s: 암살 실패 (%d, 목표 %d 이상). 회피 판정을 합니다.") % [p["name"], r + bonus, th])
+		_banner(Loc.t("암살 실패 — 탈출하라!"), "bad", p)
 		_begin_evade(p, "assassin")
 
 
 func _begin_evade(p: Dictionary, ctx: String) -> void:
 	_evade_ctx = ctx
 	if flag(p, "evade_auto"):
-		_log("%s: %s의 은신술로 회피 성공." % [p["name"], data.faction(p["faction"])["name"]])
+		_log(Loc.t("%s: %s의 은신술로 회피 성공.") % [p["name"], data.faction(p["faction"])["name"]])
 		_evade_result(p, true)
 		return
 	if ctx == "assassin" and flag(p, "evade_auto_after_assassin"):
-		_log("%s: 먼 거리에서 저격해 무사히 빠져나왔습니다." % p["name"])
+		_log(Loc.t("%s: 먼 거리에서 저격해 무사히 빠져나왔습니다.") % p["name"])
 		_evade_result(p, true)
 		return
 	var react := react_item(p, "evade")
 	if react != "":
 		_ask(p, "react_evade", item_def(react)["react"]["prompt"],
-			[{"value": true, "label": "%s 사용" % item_def(react)["name"]}, {"value": false, "label": "주사위로 판정"}],
+			[{"value": true, "label": Loc.t("%s 사용") % item_def(react)["name"]}, {"value": false, "label": Loc.t("주사위로 판정")}],
 			"resume")
 		pending["item"] = react
 		return
@@ -902,9 +938,9 @@ func _roll_evade(p: Dictionary) -> void:
 	var bonus: int = stat(p, "evade_bonus", 0)
 	var th := data.check("evade")
 	var r := _d2()
-	_push({"kind": "dice", "what": "회피", "dice": last_roll, "bonus": bonus, "target": th})
+	_push({"kind": "dice", "what": Loc.t("회피"), "dice": last_roll, "bonus": bonus, "target": th})
 	var ok := r + bonus >= th
-	_log("%s: 회피 판정 %d%s → %s" % [p["name"], r, (" %+d" % bonus) if bonus else "", "성공" if ok else "실패"])
+	_log(Loc.t("%s: 회피 판정 %d%s → %s") % [p["name"], r, (" %+d" % bonus) if bonus else "", Loc.t("성공") if ok else Loc.t("실패")])
 	_evade_result(p, ok)
 
 
@@ -913,12 +949,12 @@ func _evade_result(p: Dictionary, ok: bool) -> void:
 		"checkpoint":
 			phase = "move"
 			if ok:
-				_log("%s: 검문소를 무사히 통과했습니다." % p["name"])
-				_banner("검문소 통과", "info", p)
+				_log(Loc.t("%s: 검문소를 무사히 통과했습니다.") % p["name"])
+				_banner(Loc.t("검문소 통과"), "info", p)
 				_arrive(p, _check_target)
 			else:
-				_log("%s: 검문에 걸렸습니다! 이동이 끝납니다." % p["name"])
-				_banner("검문에 걸렸다!", "bad", p)
+				_log(Loc.t("%s: 검문에 걸렸습니다! 이동이 끝납니다.") % p["name"])
+				_banner(Loc.t("검문에 걸렸다!"), "bad", p)
 				_summon(p)
 				steps_left = 0
 				_resolve_stop(p)
@@ -930,14 +966,14 @@ func _evade_result(p: Dictionary, ok: bool) -> void:
 				_jail(p)
 		"sabotage":
 			if ok:
-				_log("%s: 방해작전 성공!" % p["name"])
-				_banner("방해작전 성공!", "good", p)
+				_log(Loc.t("%s: 방해작전 성공!") % p["name"])
+				_banner(Loc.t("방해작전 성공!"), "good", p)
 				_finish_mission(p)
 				if phase == "over":
 					return
 			else:
-				_log("%s: 방해작전 실패." % p["name"])
-				_banner("방해작전 실패", "bad", p)
+				_log(Loc.t("%s: 방해작전 실패.") % p["name"])
+				_banner(Loc.t("방해작전 실패"), "bad", p)
 				_summon(p)
 	_post_move(p)
 
@@ -946,15 +982,15 @@ func _try_escape(p: Dictionary) -> void:
 	var r := _d2()
 	var bonus: int = stat(p, "escape_bonus", 0)
 	var th := data.check("escape")
-	_push({"kind": "dice", "what": "탈옥", "dice": last_roll, "bonus": bonus, "target": th})
+	_push({"kind": "dice", "what": Loc.t("탈옥"), "dice": last_roll, "bonus": bonus, "target": th})
 	if r + bonus >= th:
-		_log("%s: 탈옥 성공! (%d%s)" % [p["name"], r, (" %+d" % bonus) if bonus else ""])
+		_log(Loc.t("%s: 탈옥 성공! (%d%s)") % [p["name"], r, (" %+d" % bonus) if bonus else ""])
 		p["stats"]["escapes"] += 1
-		_banner("탈옥 성공!", "good", p)
+		_banner(Loc.t("탈옥 성공!"), "good", p)
 		p["jailed"] = false
 		_summon(p)
 	else:
-		_log("%s: 탈옥 실패 (%d%s)" % [p["name"], r, (" %+d" % bonus) if bonus else ""])
+		_log(Loc.t("%s: 탈옥 실패 (%d%s)") % [p["name"], r, (" %+d" % bonus) if bonus else ""])
 	_end_turn()
 
 
@@ -972,18 +1008,18 @@ func _finish_mission(p: Dictionary) -> void:
 	var pts := int(data.mission(p["mission"]["type"]).get("reward", 1))
 	p["stats"]["missions"] += 1
 	p["stats"]["points"] += pts
-	_record("%s — %s 성공 (광복 +%d)" % [p["name"], mission_label(p["mission"]), pts], "good")
+	_record(Loc.t("%s — %s 성공 (광복 +%d)") % [p["name"], mission_label(p["mission"]), pts], "good")
 	mission_discard.append(p["mission"])
 	p["mission"] = _draw_mission()
 	_add_score(p, pts)
 	if phase != "over":
-		_log("%s의 새 미션: %s" % [p["name"], mission_label(p["mission"])])
+		_log(Loc.t("%s의 새 미션: %s") % [p["name"], mission_label(p["mission"])])
 
 
 func _add_score(p: Dictionary, pts: int) -> void:
 	score = mini(goal, score + pts)
 	_push({"kind": "score", "score": score, "player": p["id"]})
-	_log("광복 +%d → 광복수치 %d / %d" % [pts, score, goal])
+	_log(Loc.t("광복 +%d → 광복수치 %d / %d") % [pts, score, goal])
 	if score >= goal:
 		_game_over("goal")
 
@@ -993,8 +1029,8 @@ func _game_over(reason: String) -> void:
 	pending = {}
 	ending = data.ending_for(score, goal)
 	ending["reason"] = reason
-	_record("작전 종료 — %s" % ending["name"], "good" if ending["id"] == "victory" else "info")
-	_log("작전 종료 (%s). 최종 광복수치 %d → %s" % ["목표 달성" if reason == "goal" else "8월 15일", score, ending["name"]])
+	_record(Loc.t("작전 종료 — %s") % ending["name"], "good" if ending["id"] == "victory" else "info")
+	_log(Loc.t("작전 종료 (%s). 최종 광복수치 %d → %s") % [Loc.t("목표 달성") if reason == "goal" else Loc.t("8월 15일"), score, ending["name"]])
 	_push({"kind": "over"})
 
 
@@ -1012,13 +1048,13 @@ func _draw_item(p: Dictionary, then: String) -> bool:
 	## 아이템 1장. 소지 한도를 넘어 버릴 카드를 물었으면 true
 	var id := _draw_from(item_deck, item_discard)
 	if id == "":
-		_log("아이템 카드가 모두 떨어졌습니다.")
+		_log(Loc.t("아이템 카드가 모두 떨어졌습니다."))
 		return false
-	_log("%s: 아이템 [%s] 획득" % [p["name"], item_def(id)["name"]])
+	_log(Loc.t("%s: 아이템 [%s] 획득") % [p["name"], item_def(id)["name"]])
 	_push({"kind": "card", "deck": "item", "id": id, "player": p["id"]})
 	p["items"].append(id)
 	if p["items"].size() > int(data.balance["hand_limit"]):
-		_ask_discard(p, "아이템은 %d장까지 가질 수 있습니다. 버릴 카드를 고르세요." % data.balance["hand_limit"], then)
+		_ask_discard(p, Loc.t("아이템은 %d장까지 가질 수 있습니다. 버릴 카드를 고르세요.") % data.balance["hand_limit"], then)
 		return true
 	return false
 
@@ -1029,12 +1065,12 @@ func _draw_event(p: Dictionary) -> void:
 		_post_move(p)
 		return
 	var e := event_def(_cur_event)
-	_log("%s: 이벤트 [%s] - %s" % [p["name"], e["name"], e["effect_text"]])
+	_log(Loc.t("%s: 이벤트 [%s] - %s") % [p["name"], e["name"], e["effect_text"]])
 	_push({"kind": "card", "deck": "event", "id": _cur_event, "player": p["id"]})
 	var react := react_item(p, "event")
 	if react != "":
 		_ask(p, "react_event", "[%s] %s" % [e["name"], item_def(react)["react"]["prompt"]],
-			[{"value": true, "label": "%s 사용" % item_def(react)["name"]}, {"value": false, "label": "그대로 진행"}],
+			[{"value": true, "label": Loc.t("%s 사용") % item_def(react)["name"]}, {"value": false, "label": Loc.t("그대로 진행")}],
 			"post_move")
 		pending["item"] = react
 		return
@@ -1057,7 +1093,7 @@ func _use_item(p: Dictionary, idx: int) -> void:
 	var id: String = p["items"][idx]
 	var use: Dictionary = item_def(id)["use"]
 	item_uses += 1
-	_log("%s: [%s] 사용" % [p["name"], item_def(id)["name"]])
+	_log(Loc.t("%s: [%s] 사용") % [p["name"], item_def(id)["name"]])
 	p["stats"]["items"] += 1
 	_push({"kind": "item_used", "id": id, "player": p["id"]})
 	var then := "end_turn" if use.get("ends_turn", false) else "resume"
@@ -1067,7 +1103,7 @@ func _use_item(p: Dictionary, idx: int) -> void:
 		item_discard.append(id)
 		keep_idx = -1
 	if int(use.get("cost", {}).get("discard_other", 0)) > 0:
-		_ask_discard(p, "[%s] 대가로 버릴 아이템을 고르세요." % item_def(id)["name"], then, keep_idx)
+		_ask_discard(p, Loc.t("[%s] 대가로 버릴 아이템을 고르세요.") % item_def(id)["name"], then, keep_idx)
 		pending["rest"] = use.get("effects", [])
 		return
 	_run_effects(p, use.get("effects", []), then)
@@ -1085,7 +1121,7 @@ func _discard(p: Dictionary, index: int) -> void:
 	var id: String = p["items"][index]
 	p["items"].remove_at(index)
 	item_discard.append(id)
-	_log("%s: [%s]을(를) 버렸습니다." % [p["name"], item_def(id)["name"]])
+	_log(Loc.t("%s: [%s]을(를) 버렸습니다.") % [p["name"], item_def(id)["name"]])
 
 
 # ================================================================ 효과 연산 (data의 "op")
@@ -1105,15 +1141,15 @@ func _effect(p: Dictionary, e: Dictionary, then: String) -> bool:
 	match e["op"]:
 		"add_steps":
 			steps_left += int(e["value"])
-			_log("%s: 이동 %+d (남은 이동 %d)" % [p["name"], e["value"], steps_left])
+			_log(Loc.t("%s: 이동 %+d (남은 이동 %d)") % [p["name"], e["value"], steps_left])
 		"move_mod":
 			p["move_mod"] += int(e["value"])
 		"remove_my_police":
 			if police.erase(p["id"]):
-				_log("%s: 추적하던 경찰을 따돌렸습니다." % p["name"])
+				_log(Loc.t("%s: 추적하던 경찰을 따돌렸습니다.") % p["name"])
 		"remove_all_police":
 			police.clear()
-			_log("모든 경찰이 사라졌습니다.")
+			_log(Loc.t("모든 경찰이 사라졌습니다."))
 		"skip_next_turn":
 			p["skip_next"] = true
 		"police_next_turn":
@@ -1124,10 +1160,10 @@ func _effect(p: Dictionary, e: Dictionary, then: String) -> bool:
 			for q in players:
 				if q["jailed"]:
 					q["jailed"] = false
-					_log("%s: 혼란을 틈타 탈옥했습니다." % q["name"])
+					_log(Loc.t("%s: 혼란을 틈타 탈옥했습니다.") % q["name"])
 		"escape_jail":
 			p["jailed"] = false
-			_log("%s: 탈옥했습니다!" % p["name"])
+			_log(Loc.t("%s: 탈옥했습니다!") % p["name"])
 			if e.get("summon", true):
 				_summon(p)
 		"add_score":
@@ -1135,10 +1171,10 @@ func _effect(p: Dictionary, e: Dictionary, then: String) -> bool:
 		"target_move_mod":
 			var q: Dictionary = players[_target]
 			q["move_mod"] += int(e["value"])
-			_log("%s: 다음 차례 이동 %+d" % [q["name"], e["value"]])
+			_log(Loc.t("%s: 다음 차례 이동 %+d") % [q["name"], e["value"]])
 		"remove_target_police":
 			if police.erase(_target):
-				_log("%s: %s을(를) 쫓던 경찰을 기습해 쓰러뜨렸습니다!" % [p["name"], players[_target]["name"]])
+				_log(Loc.t("%s: %s을(를) 쫓던 경찰을 기습해 쓰러뜨렸습니다!") % [p["name"], players[_target]["name"]])
 		"pull_target":
 			var q: Dictionary = players[_target]
 			var cell := _free_adjacent(q, p["pos"])
@@ -1146,14 +1182,14 @@ func _effect(p: Dictionary, e: Dictionary, then: String) -> bool:
 				var from: Vector2i = q["pos"]
 				q["pos"] = cell
 				_push({"kind": "move", "player": q["id"], "from": from, "to": cell, "teleport": true})
-				_log("%s: %s을(를) 골목길로 안내해 데려왔습니다." % [p["name"], q["name"]])
+				_log(Loc.t("%s: %s을(를) 골목길로 안내해 데려왔습니다.") % [p["name"], q["name"]])
 		"draw_item":
 			return _draw_item(p, then)
 		"discard_item":
 			if p["items"].size() == 1:
 				_discard(p, 0)
 			elif p["items"].size() > 1:
-				_ask_discard(p, "버릴 아이템을 고르세요.", then)
+				_ask_discard(p, Loc.t("버릴 아이템을 고르세요."), then)
 				return true
 		_:
 			push_error("알 수 없는 효과 연산: %s" % e["op"])
@@ -1168,9 +1204,9 @@ func _give_item(p: Dictionary, idx: int, q: Dictionary) -> void:
 	q["items"].append(id)
 	if data.balance["cooperation"]["give_counts_as_item_use"]:
 		item_uses += 1
-	_log("%s: [%s]을(를) %s에게 건넸습니다." % [p["name"], item_def(id)["name"], q["name"]])
+	_log(Loc.t("%s: [%s]을(를) %s에게 건넸습니다.") % [p["name"], item_def(id)["name"], q["name"]])
 	if q["items"].size() > int(data.balance["hand_limit"]):
-		_ask_discard(q, "%s: 아이템이 너무 많습니다. 버릴 카드를 고르세요." % q["name"], "resume")
+		_ask_discard(q, Loc.t("%s: 아이템이 너무 많습니다. 버릴 카드를 고르세요.") % q["name"], "resume")
 
 
 func _decoy(p: Dictionary, from: int) -> void:
@@ -1179,8 +1215,8 @@ func _decoy(p: Dictionary, from: int) -> void:
 	# 끌어온 경찰은 곧바로 나를 쫓는다 (이번 차례 끝에 움직임)
 	police[p["id"]] = {"pos": pol["pos"], "summon_turn": p["turns"] - 1}
 	p["decoys"] += 1
-	_log("%s: 일부러 모습을 드러내 %s을(를) 쫓던 경찰을 유인했습니다!" % [p["name"], players[from]["name"]])
-	_banner("미끼 작전!", "info", p)
+	_log(Loc.t("%s: 일부러 모습을 드러내 %s을(를) 쫓던 경찰을 유인했습니다!") % [p["name"], players[from]["name"]])
+	_banner(Loc.t("미끼 작전!"), "info", p)
 	_push({"kind": "police"})
 
 
@@ -1192,8 +1228,8 @@ func _draw_occupation() -> void:
 		return
 	occupation_discard.append(id)
 	var card := data.occupation(id)
-	_log("[일제 동향] %s - %s" % [card["name"], card["effect_text"]])
-	_record("일제 동향: %s" % card["name"], "warn")
+	_log(Loc.t("[일제 동향] %s - %s") % [card["name"], card["effect_text"]])
+	_record(Loc.t("일제 동향: %s") % card["name"], "warn")
 	_push({"kind": "card", "deck": "occupation", "id": id, "player": -1})
 	for e in card.get("effects", []):
 		_world_effect(e)
@@ -1233,7 +1269,7 @@ func _world_effect(e: Dictionary) -> void:
 						best = q
 				if not best.is_empty() and police.size() < int(data.balance["police"]["pieces"]):
 					police[best["id"]] = {"pos": base, "summon_turn": best["turns"]}
-					_log("%s에서 경찰이 출동해 %s을(를) 쫓습니다!" % [data.base_names[data.bases.find(base)], best["name"]])
+					_log(Loc.t("%s에서 경찰이 출동해 %s을(를) 쫓습니다!") % [data.base_names[data.bases.find(base)], best["name"]])
 		"police_advance":
 			for pid in police.keys():
 				var q: Dictionary = players[pid]
@@ -1244,7 +1280,7 @@ func _world_effect(e: Dictionary) -> void:
 					continue
 				var steps := int(e["value"])
 				if path.size() <= steps:
-					_log("%s: 순찰에 걸려 체포되었습니다!" % q["name"])
+					_log(Loc.t("%s: 순찰에 걸려 체포되었습니다!") % q["name"])
 					_jail(q)
 				else:
 					police[pid]["pos"] = path[steps - 1]
@@ -1287,11 +1323,11 @@ func _resolve_choice(value) -> void:
 			var from: Vector2i = p["pos"]
 			p["pos"] = data.stations[int(value)]
 			_push({"kind": "move", "player": p["id"], "from": from, "to": p["pos"], "teleport": true})
-			_log("%s: 전차를 타고 %s 역에 내렸습니다." % [p["name"], _dir_name(p["pos"])])
+			_log(Loc.t("%s: 전차를 타고 %s 역에 내렸습니다.") % [p["name"], _dir_name(p["pos"])])
 		"tram_ride":
 			if value:
 				p["on_tram"] = true
-				_log("%s: 전차에 탔습니다. 다음 차례에 원하는 역에서 출발합니다." % p["name"])
+				_log(Loc.t("%s: 전차에 탔습니다. 다음 차례에 원하는 역에서 출발합니다.") % p["name"])
 				steps_left = 0
 				_post_move(p)
 			else:
@@ -1301,14 +1337,14 @@ func _resolve_choice(value) -> void:
 				p["ability_day"] = rounds_left
 				p["stats"]["abilities"] += 1
 				_target = int(value)
-				_log("%s: [%s] 사용" % [p["name"], ability_def(p)["name"]])
+				_log(Loc.t("%s: [%s] 사용") % [p["name"], ability_def(p)["name"]])
 				_banner(ability_def(p)["name"], "info", p)
 				_push({"kind": "ability", "player": p["id"]})
 				_run_effects(p, ability_def(p).get("effects", []), "resume")
 		"react_evade":
 			if value:
 				_consume(p, pd["item"])
-				_log("%s: [%s]! 회피 성공." % [p["name"], item_def(pd["item"])["name"]])
+				_log(Loc.t("%s: [%s]! 회피 성공.") % [p["name"], item_def(pd["item"])["name"]])
 				_evade_result(p, true)
 			else:
 				_roll_evade(p)
@@ -1316,7 +1352,7 @@ func _resolve_choice(value) -> void:
 			if value:
 				_consume(p, pd["item"])
 				event_discard.append(_cur_event)
-				_log("%s: [%s]으로 이벤트를 무효로 했습니다." % [p["name"], item_def(pd["item"])["name"]])
+				_log(Loc.t("%s: [%s]으로 이벤트를 무효로 했습니다.") % [p["name"], item_def(pd["item"])["name"]])
 				_post_move(p)
 			else:
 				_apply_event(p)
@@ -1332,10 +1368,10 @@ func _consume(p: Dictionary, id: String) -> void:
 func _summon(p: Dictionary) -> void:
 	if police.has(p["id"]):
 		police[p["id"]] = {"pos": p["pos"], "summon_turn": p["turns"]}
-		_log("%s: 경찰이 다시 위치를 잡았습니다." % p["name"])
+		_log(Loc.t("%s: 경찰이 다시 위치를 잡았습니다.") % p["name"])
 	elif police.size() < int(data.balance["police"]["pieces"]):
 		police[p["id"]] = {"pos": p["pos"], "summon_turn": p["turns"]}
-		_log("%s: 일본 경찰이 소환되었습니다!" % p["name"])
+		_log(Loc.t("%s: 일본 경찰이 소환되었습니다!") % p["name"])
 	_push({"kind": "police"})
 
 
@@ -1351,10 +1387,10 @@ func _jail(p: Dictionary) -> void:
 	p["pos"] = best
 	p["jailed"] = true
 	p["stats"]["jailed"] += 1
-	_record("%s — %s 감옥에 투옥" % [p["name"], data.base_names[data.bases.find(best)]], "bad")
+	_record(Loc.t("%s — %s 감옥에 투옥") % [p["name"], data.base_names[data.bases.find(best)]], "bad")
 	police.erase(p["id"])
-	_banner("%s 투옥!" % p["name"], "bad", p)
-	_log("%s: %s 감옥에 투옥되었습니다!" % [p["name"], data.base_names[data.bases.find(best)]])
+	_banner(Loc.t("%s 투옥!") % p["name"], "bad", p)
+	_log(Loc.t("%s: %s 감옥에 투옥되었습니다!") % [p["name"], data.base_names[data.bases.find(best)]])
 	_push({"kind": "jail", "player": p["id"], "from": from, "to": best})
 
 
@@ -1398,7 +1434,7 @@ func _police_act(p: Dictionary) -> void:
 	var sp := police_speed()
 	if path.size() <= sp:
 		pol["pos"] = p["pos"]
-		_log("%s: 경찰에게 체포되었습니다!" % p["name"])
+		_log(Loc.t("%s: 경찰에게 체포되었습니다!") % p["name"])
 		_push({"kind": "catch", "player": p["id"]})
 		_jail(p)
 		return
@@ -1406,7 +1442,7 @@ func _police_act(p: Dictionary) -> void:
 	_push({"kind": "police"})
 	if path.size() - sp > int(data.balance["police"]["escape_distance"]):
 		police.erase(p["id"])
-		_log("%s: 경찰을 따돌렸습니다." % p["name"])
+		_log(Loc.t("%s: 경찰을 따돌렸습니다.") % p["name"])
 		_push({"kind": "police"})
 
 
@@ -1416,7 +1452,7 @@ const SAVE_FIELDS := ["use_stations", "cards_enabled", "board", "tile_deck", "ev
 	"item_deck", "item_discard", "mission_deck", "mission_discard", "occupation_deck", "occupation_discard",
 	"police_bonus_today", "bomb_supply", "players", "police", "score", "goal", "rounds_total", "rounds_left",
 	"current", "phase", "steps_left", "item_uses", "last_roll", "pending", "ending", "history", "scenario",
-	"_evade_ctx", "_check_target", "_cur_event", "_target", "log_lines"]
+	"_evade_ctx", "_check_target", "_cur_event", "_target", "log_lines", "undo_steps"]
 
 
 func save_state() -> Dictionary:

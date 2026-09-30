@@ -121,6 +121,62 @@
 					"op": "discard_item"
 				}
 			]
+		},
+		{
+			"id": "secret_letter",
+			"name": "국내 동지의 밀서",
+			"count": 1,
+			"bad": false,
+			"text": "경성 지하조직이 모아 둔 물자와 일본군 순찰로를 건네받았습니다.",
+			"effect_text": "아이템 카드를 한 장 뽑고, 다음 차례 이동 +1",
+			"effects": [
+				{
+					"op": "draw_item"
+				},
+				{
+					"op": "move_mod",
+					"value": 1
+				}
+			]
+		},
+		{
+			"id": "informer",
+			"name": "밀고자",
+			"count": 3,
+			"bad": true,
+			"text": "친일 밀정이 요원의 행방을 헌병대에 알렸습니다.",
+			"effect_text": "지금 이 자리에 경찰이 소환됩니다.",
+			"effects": [
+				{
+					"op": "summon_police"
+				}
+			]
+		},
+		{
+			"id": "manse",
+			"name": "울려 퍼진 만세 소리",
+			"count": 1,
+			"bad": false,
+			"text": "종로에서 만세 소리가 울려 퍼지자 순사들이 모두 그쪽으로 몰려갔습니다.",
+			"effect_text": "맵의 모든 경찰을 제외합니다.",
+			"effects": [
+				{
+					"op": "remove_all_police"
+				}
+			]
+		},
+		{
+			"id": "detained",
+			"name": "불심검문",
+			"count": 1,
+			"bad": true,
+			"text": "헌병에게 붙들려 신분 조사를 받느라 발이 묶였습니다.",
+			"effect_text": "다음 차례를 쉽니다.",
+			"effects": [
+				{
+					"op": "skip_next_turn"
+				}
+			]
 		}
 	],
 	"items": [
@@ -476,6 +532,49 @@
 			"text": "비가 내려 거리가 한산합니다. 일제의 감시도 느슨합니다.",
 			"effect_text": "아무 일도 일어나지 않습니다.",
 			"effects": []
+		},
+		{
+			"id": "air_raid",
+			"name": "공습경보",
+			"count": 1,
+			"text": "연합군 폭격기가 경성 하늘을 지나갑니다. 헌병들이 방공호로 흩어졌습니다.",
+			"effect_text": "오늘 경찰 이동 -1",
+			"effects": [
+				{
+					"op": "police_speed_today",
+					"value": -1
+				}
+			]
+		},
+		{
+			"id": "reinforce",
+			"name": "헌병 증원",
+			"count": 1,
+			"text": "만주에서 헌병대 병력이 증원되었습니다.",
+			"effect_text": "무작위 거점 두 곳에서 경찰이 출동해 가까운 요원을 쫓습니다.",
+			"effects": [
+				{
+					"op": "raid_police",
+					"value": 2
+				}
+			]
+		},
+		{
+			"id": "monsoon",
+			"name": "장맛비",
+			"count": 1,
+			"text": "장맛비에 길이 질척입니다. 쫓는 쪽도 쫓기는 쪽도 느려집니다.",
+			"effect_text": "오늘 모든 요원 이동 -1, 경찰 이동 -1",
+			"effects": [
+				{
+					"op": "all_move_mod",
+					"value": -1
+				},
+				{
+					"op": "police_speed_today",
+					"value": -1
+				}
+			]
 		}
 	]
 }

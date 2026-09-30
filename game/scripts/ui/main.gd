@@ -55,12 +55,16 @@ func _start(cfg: Dictionary, autoplay := false) -> void:
 	var defs: Array = cfg["defs"].duplicate(true)
 	if autoplay:
 		defs[0]["ai"] = true
+		Records.disabled = true
 	var game := GameRules.new()
 	game.use_stations = cfg.get("stations", true)
 	var diff: int = cfg.get("difficulty", 0)
 	if diff != 0:
 		game.rounds_override = {defs.size(): data.rounds_for(defs.size()) + diff}
-	game.setup(defs, -1, data)
+	var sc: String = cfg.get("scenario", "")
+	if sc != "" and sc != "daily":
+		game.scenario = data.special_op(sc).get("scenario", {}).duplicate(true)
+	game.setup(defs, int(cfg.get("seed", -1)), data)
 	if not autoplay:
 		SaveGame.erase()
 	_open_game(game, {"cfg": cfg, "tutorial": false}, not autoplay)
@@ -97,7 +101,8 @@ func _show_ending(game: GameRules, meta: Dictionary) -> void:
 	if tutorial:
 		Prefs.tutorial_done = true
 		Prefs.save()
-	var e := EndingScreen.new(game, tutorial)
+	var fresh := Records.record(game, meta)
+	var e := EndingScreen.new(game, tutorial, fresh)
 	e.to_menu.connect(_show_title)
 	e.replay.connect(func(): _start(meta["cfg"]))
 	_swap(e)

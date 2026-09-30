@@ -11,6 +11,7 @@ var _n := 0
 func _ready() -> void:
 	main = get_parent()
 	SaveGame.disabled = true
+	Records.disabled = true
 	var w := 1600
 	var h := 900
 	for a in OS.get_cmdline_user_args():
@@ -69,6 +70,21 @@ func _run() -> void:
 	title._show_setup()
 	await _wait(0.5)
 	await _shot("setup")
+	title._show_special()
+	await _wait(0.4)
+	await _shot("special")
+	title._show_op(main.data.special_ops()[2])
+	await _wait(0.4)
+	await _shot("special_op")
+	title._show_daily()
+	await _wait(0.4)
+	await _shot("daily")
+	title._show_records()
+	await _wait(0.4)
+	await _shot("records")
+	title._show_menu()
+	await _wait(0.3)
+	await _shot("menu")
 	title._show_rulebook()
 	await _wait(0.5)
 	await _shot("rulebook")
@@ -124,7 +140,7 @@ func _run() -> void:
 	await _wait(0.3)
 	await _shot("my_turn_move")
 	# 연출 부품
-	gs._fx.day({"date": "8월 6일", "alert": 2, "police_speed": 3, "days_left": 9}, 1.0)
+	gs._fx.day({"date": "8월 6일", "month_label": Loc.month(8), "day_num": 6, "alert": 2, "police_speed": 3, "days_left": 9, "dispatch": "지하조직 보고: 헌병대 트럭이 거점을 나섰다. 주의하라."}, 1.0)
 	await _wait(0.6)
 	await _shot("fx_day")
 	await _wait(1.6)
@@ -173,8 +189,12 @@ func _run() -> void:
 	g.setup(all_ai, 11, main.data)
 	while g.phase != "over":
 		g.apply(GameAI.decide(g))
-	main._show_ending(g, {"cfg": {}, "tutorial": false})
-	await _wait(6.5)
+	# 도전 과제 표시를 보려고 달성 목록을 두 개 넣어 엔딩 화면을 직접 연다 (기록은 하지 않음)
+	var sample: Array = main.data.achievements.get("list", []).slice(0, 2)
+	var es := EndingScreen.new(g, false, sample)
+	es.to_menu.connect(main._show_title)
+	main._swap(es)
+	await _wait(8.0)
 	await _shot("ending")
 	(main._screen as EndingScreen)._show_report()
 	await _wait(0.8)

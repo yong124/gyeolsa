@@ -17,6 +17,10 @@ const KNOWN_STATS := ["move_bonus", "move_min", "assassin_bonus", "assassin_thre
 const KNOWN_CONDITIONS := ["alert_max", "alert_min", "jailed", "has_my_police", "any_police",
 	"other_items_min"]
 const KNOWN_REACTS := {"evade": ["auto_success"], "event": ["cancel_event"]}
+const KNOWN_SCENARIO := ["rounds", "goal", "police_speed_mod", "start_jailed", "jail_base", "start_items",
+	"first_missions", "tile_order_top"]
+const KNOWN_ACHIEVEMENT := ["ending", "my_jailed_max", "days_left_min", "my_rescues_min", "my_points_min",
+	"players_min", "difficulty", "tutorial", "scenario", "factions_won", "scenarios_won", "games_min"]
 
 static var _cache: GameData
 
@@ -24,6 +28,8 @@ var balance: Dictionary
 var factions: Dictionary
 var cards: Dictionary
 var text: Dictionary
+var scenarios: Dictionary        # 특수 작전 (scenarios.json)
+var achievements: Dictionary     # 도전 과제 (achievements.json)
 
 var size := 11
 var start := Vector2i(5, 5)
@@ -35,6 +41,11 @@ var _items := {}
 var _events := {}
 var _missions := {}
 var _occupation := {}
+
+
+static func reset_cache() -> void:
+	## 언어를 바꾼 뒤 데이터를 다시 읽게 한다
+	_cache = null
 
 
 static func load_default() -> GameData:
@@ -49,6 +60,15 @@ func load_dir(dir: String) -> void:
 	factions = _read(dir + "factions.json")
 	cards = _read(dir + "cards.json")
 	text = _read(dir + "text.json")
+	scenarios = _read(dir + "scenarios.json") if FileAccess.file_exists(dir + "scenarios.json") else {}
+	achievements = _read(dir + "achievements.json") if FileAccess.file_exists(dir + "achievements.json") else {}
+	if Loc.lang != "ko":
+		balance = Loc.translate_tree(balance)
+		factions = Loc.translate_tree(factions)
+		cards = Loc.translate_tree(cards)
+		text = Loc.translate_tree(text)
+		scenarios = Loc.translate_tree(scenarios)
+		achievements = Loc.translate_tree(achievements)
 	for k in factions.keys():
 		if k.begins_with("_"):
 			factions.erase(k)
@@ -139,6 +159,17 @@ func ending_for(score: int, goal: int) -> Dictionary:
 	return out
 
 
+func special_ops() -> Array:
+	return scenarios.get("list", [])
+
+
+func special_op(id: String) -> Dictionary:
+	for s in special_ops():
+		if s["id"] == id:
+			return s
+	return {}
+
+
 # ------------------------------------------------------------------ 검증
 
 func validate() -> Array[String]:
@@ -150,6 +181,16 @@ func validate() -> Array[String]:
 	var cells := size * size - 1 - bases.size() - stations.size()
 	if tile_total > cells:
 		errs.append("타일 %d장이 빈칸 %d칸보다 많습니다." % [tile_total, cells])
+	for s in special_ops():
+		for k in s.get("scenario", {}):
+			if not k in KNOWN_SCENARIO:
+				errs.append("특수 작전 %s: 알 수 없는 설정 '%s'" % [s.get("id"), k])
+		if int(s.get("players", 0)) < 2 or int(s.get("players", 0)) > 6:
+			errs.append("특수 작전 %s: 인원은 2~6명" % s.get("id"))
+	for a in achievements.get("list", []):
+		for k in a.get("when", {}):
+			if not k in KNOWN_ACHIEVEMENT:
+				errs.append("도전 과제 %s: 알 수 없는 조건 '%s'" % [a.get("id"), k])
 	for f in factions:
 		_check_mods(errs, "세력 " + f, factions[f].get("modifiers", []))
 		var a: Dictionary = factions[f].get("active", {})

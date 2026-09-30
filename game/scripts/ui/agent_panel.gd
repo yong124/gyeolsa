@@ -22,9 +22,9 @@ func _ready() -> void:
 	add_child(v)
 	var head := HBoxContainer.new()
 	head.add_theme_constant_override("separation", 10)
-	var t := UiKit.title("요 원 명 부", 16, Style.INK_2)
+	var t := UiKit.title(Loc.t("요 원 명 부"), 16, Style.INK_2)
 	head.add_child(t)
-	var hint := UiKit.text("마우스를 올리면 자세히", 11, Style.INK_3, false)
+	var hint := UiKit.text(Loc.t("마우스를 올리면 자세히"), 11, Style.INK_3, false)
 	hint.size_flags_vertical = Control.SIZE_SHRINK_END
 	head.add_child(hint)
 	v.add_child(head)
@@ -64,8 +64,15 @@ func _make_row(p: Dictionary) -> Dictionary:
 	var name := UiKit.title(short, 16 if not _compact else 15, Style.INK)
 	nh.add_child(name)
 	var f := game.data.faction(p["faction"])
-	var sub := UiKit.text("%s · %s" % [f["name"], f.get("active", {}).get("name", "")], 12, Style.INK_3, false)
+	var personality := GameAI.persona_name(game, p)
+	var desc := "%s · %s" % [f["name"], f.get("active", {}).get("name", "")]
+	if personality != "":
+		desc += Loc.t(" · %s형") % personality
+	var sub := UiKit.text(desc, 12, Style.INK_3, false)
 	sub.size_flags_vertical = Control.SIZE_SHRINK_END
+	if personality != "":
+		sub.tooltip_text = Loc.t("%s형: %s") % [personality, GameAI.persona_desc(game, p)]
+		sub.mouse_filter = Control.MOUSE_FILTER_STOP
 	nh.add_child(sub)
 	v.add_child(nh)
 	var chips := HFlowContainer.new()
@@ -77,11 +84,11 @@ func _make_row(p: Dictionary) -> Dictionary:
 		chips.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		chips.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		nh.add_child(chips)
-		name.tooltip_text = "%s · %s" % [f["name"], f.get("active", {}).get("name", "")]
+		name.tooltip_text = desc + ("\n" + GameAI.persona_desc(game, p) if personality != "" else "")
 		name.mouse_filter = Control.MOUSE_FILTER_STOP
 	else:
 		v.add_child(chips)
-	var stamp := UiKit.stamp("차 례", 14)
+	var stamp := UiKit.stamp(Loc.t("차 례"), 14)
 	stamp.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	h.add_child(stamp)
 	var right := UiKit.text("", 11, Style.INK_3, false)
@@ -118,7 +125,7 @@ func refresh(cur := -1) -> void:
 			face.jailed = p["jailed"]
 			face.queue_redraw()
 		var jailed_n: int = p["stats"].get("jailed", 0) if p.has("stats") else 0
-		row["right"].text = "투옥 %d회" % jailed_n if jailed_n > 0 and not is_cur else ""
+		row["right"].text = Loc.t("투옥 %d회") % jailed_n if jailed_n > 0 and not is_cur else ""
 		var chips := _chips(p)
 		var sig := str(chips)
 		if sig != row["sig"]:
@@ -137,30 +144,30 @@ func _chips(p: Dictionary) -> Array:
 		if p["mission"].has("base"):
 			desc = desc.replace("{base}", game.data.base_names[p["mission"]["base"]])
 		out.append([game.mission_label(p["mission"]).replace(" - ", " · "), "◎", Style.MISSION,
-			"미션: %s\n%s" % [m.get("name", ""), desc], false])
+			Loc.t("미션: %s\n%s") % [m.get("name", ""), desc], false])
 	if not p["items"].is_empty():
 		var names: Array = p["items"].map(func(id): return "· %s — %s" % [game.item_def(id)["name"], game.item_def(id)["effect_text"]])
-		var lbl := "아이템" if p["id"] != human else ", ".join(p["items"].map(func(id): return game.item_def(id)["name"]))
-		out.append([lbl, str(p["items"].size()), Style.ITEM, "아이템\n" + "\n".join(names), false])
+		var lbl := Loc.t("아이템") if p["id"] != human else ", ".join(p["items"].map(func(id): return game.item_def(id)["name"]))
+		out.append([lbl, str(p["items"].size()), Style.ITEM, Loc.t("아이템\n") + "\n".join(names), false])
 	if p["bombs"] > 0:
-		out.append(["폭탄", str(p["bombs"]), Style.INK_2, game.item_def("bomb")["effect_text"], false])
+		out.append([Loc.t("폭탄"), str(p["bombs"]), Style.INK_2, game.item_def("bomb")["effect_text"], false])
 	if p["jailed"]:
-		out.append(["감옥", "!", Style.SEAL, "거점 감옥에 갇혀 있습니다. 차례마다 탈옥을 시도하거나, 동료가 거점에 들어오면 구출됩니다.", false])
+		out.append([Loc.t("감옥"), "!", Style.SEAL, Loc.t("거점 감옥에 갇혀 있습니다. 차례마다 탈옥을 시도하거나, 동료가 거점에 들어오면 구출됩니다."), false])
 	if game.police.has(p["id"]):
 		if game.police_active(p["id"]):
-			out.append(["경찰 추격", "!", Style.SEAL, "경찰이 이 요원을 쫓고 있습니다. 차례가 끝날 때 경찰이 다가오고, 같은 칸이 되면 체포됩니다.", false])
+			out.append([Loc.t("경찰 추격"), "!", Style.SEAL, Loc.t("경찰이 이 요원을 쫓고 있습니다. 차례가 끝날 때 경찰이 다가오고, 같은 칸이 되면 체포됩니다."), false])
 		else:
-			out.append(["경찰 대기", "…", Style.WARN, "방금 나타난 경찰입니다. 이번 차례에는 움직이지 않습니다.", false])
+			out.append([Loc.t("경찰 대기"), "…", Style.WARN, Loc.t("방금 나타난 경찰입니다. 이번 차례에는 움직이지 않습니다."), false])
 	if p["on_tram"]:
-		out.append(["전차", "⇄", Style.INK_2, "전차에 탔습니다. 다음 차례에 원하는 역에서 출발합니다.", false])
+		out.append([Loc.t("전차"), "⇄", Style.INK_2, Loc.t("전차에 탔습니다. 다음 차례에 원하는 역에서 출발합니다."), false])
 	if p["move_mod"] != 0:
-		out.append(["다음 이동 %+d" % p["move_mod"], "↑" if p["move_mod"] > 0 else "↓",
-			Style.GOOD if p["move_mod"] > 0 else Style.SEAL, "다음 차례 주사위 이동에 %+d칸" % p["move_mod"], false])
+		out.append([Loc.t("다음 이동 %+d") % p["move_mod"], "↑" if p["move_mod"] > 0 else "↓",
+			Style.GOOD if p["move_mod"] > 0 else Style.SEAL, Loc.t("다음 차례 주사위 이동에 %+d칸") % p["move_mod"], false])
 	if p["skip_next"]:
-		out.append(["휴식", "z", Style.INK_3, "다음 차례를 쉽니다.", false])
+		out.append([Loc.t("휴식"), "z", Style.INK_3, Loc.t("다음 차례를 쉽니다."), false])
 	if p["ability_day"] == game.rounds_left:
 		var ab := game.ability_def(p)
-		out.append([ab.get("name", "능력"), "✓", Style.INK_3, "오늘은 세력 능력을 이미 썼습니다. 내일 다시 쓸 수 있습니다.", true])
+		out.append([ab.get("name", Loc.t("능력")), "✓", Style.INK_3, Loc.t("오늘은 세력 능력을 이미 썼습니다. 내일 다시 쓸 수 있습니다."), true])
 	return out
 
 

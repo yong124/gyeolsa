@@ -9,13 +9,14 @@ const SPEEDS := [
 	{"name": "즉시", "mult": 0.0},
 ]
 
-var speed := 1
+var speed := 2
 var sfx_volume := 0.8
 var bgm_volume := 0.5
 var fullscreen := false
 var reduce_motion := false     # 연출 줄이기: 내 행동도 빠르게
 var intro_seen := false
 var tutorial_done := false
+var language := "ko"
 
 
 func _ready() -> void:
@@ -28,6 +29,11 @@ func _ready() -> void:
 		sfx_volume = float(cfg.get_value("audio", "sfx", sfx_volume))
 		bgm_volume = float(cfg.get_value("audio", "bgm", bgm_volume))
 		fullscreen = bool(cfg.get_value("video", "fullscreen", fullscreen))
+		language = str(cfg.get_value("game", "language", language))
+	Loc.set_lang(language)
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("lang="):
+			Loc.set_lang(arg.substr(5))   # 테스트용 (저장하지 않음)
 	apply_video()
 
 
@@ -40,6 +46,7 @@ func save() -> void:
 	cfg.set_value("audio", "sfx", sfx_volume)
 	cfg.set_value("audio", "bgm", bgm_volume)
 	cfg.set_value("video", "fullscreen", fullscreen)
+	cfg.set_value("game", "language", language)
 	cfg.save(PATH)
 
 

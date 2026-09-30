@@ -29,6 +29,7 @@ var _toasts: Array = []
 var _alarm := 0.0
 var _stamps: Array = []   # [{"at", "text", "color", "t", "life"}]
 var _flyers: Array = []   # [{"from", "to", "t", "dur", "color", "text"}]
+var _scraps: Array = []   # 성공 시 흩날리는 종이 조각
 var _paper: Texture2D
 
 
@@ -59,6 +60,11 @@ func _process(delta: float) -> void:
 			f["t"] += delta
 		_flyers = _flyers.filter(func(f): return f["t"] < f["dur"])
 		busy = true
+	if not _scraps.is_empty():
+		for s in _scraps:
+			s["t"] += delta
+		_scraps = _scraps.filter(func(s): return s["t"] < s["life"])
+		busy = true
 	if busy or not _dice.is_empty():
 		queue_redraw()
 
@@ -80,6 +86,15 @@ func alarm(mult: float) -> void:
 
 func fly(from: Vector2, to: Vector2, color: Color, dur: float) -> void:
 	_flyers.append({"from": from, "to": to, "t": -randf_range(0.0, 0.12), "dur": maxf(dur, 0.05), "color": color, "text": ""})
+
+
+func paper_burst(at: Vector2, mult: float) -> void:
+	if mult <= 0.0:
+		return
+	for i in 14:
+		_scraps.append({"at": at, "vx": randf_range(-130.0, 130.0), "vy": randf_range(-160.0, -55.0),
+			"t": 0.0, "life": 0.9 * mult, "size": randf_range(5.0, 11.0)})
+	queue_redraw()
 
 
 func fly_card(from: Vector2, to: Vector2, text: String, dur: float) -> void:
@@ -127,13 +142,13 @@ func roll_dice(e: Dictionary, mult: float) -> void:
 	var values: Array = e["dice"]
 	var what: String = e["what"]
 	var judged: bool = e.has("target")
-	var title := "%s 판정" % what if judged else "%s 주사위" % what
+	var title := Loc.t("%s 판정") % what if judged else Loc.t("%s 주사위") % what
 	var sub := ""
 	var odds := -1.0
 	if judged:
 		var bonus: int = e.get("bonus", 0)
 		odds = success_chance(e["target"], bonus)
-		sub = "목표 %d 이상%s · 성공 확률 %d%%" % [e["target"], (" (보정 %+d)" % bonus) if bonus else "", roundi(odds * 100)]
+		sub = Loc.t("목표 %d 이상%s · 성공 확률 %d%%") % [e["target"], (Loc.t(" (보정 %+d)") % bonus) if bonus else "", roundi(odds * 100)]
 	if mult <= 0.0:
 		return
 	Sfx.play("dice", 0.08)
@@ -155,13 +170,13 @@ func roll_dice(e: Dictionary, mult: float) -> void:
 	if judged:
 		var bonus2: int = int(e.get("bonus", 0))
 		var ok: bool = total + bonus2 >= int(e["target"])
-		_dice["stamp"] = "성 공" if ok else "실 패"
+		_dice["stamp"] = Loc.t("성 공") if ok else Loc.t("실 패")
 		_dice["ok"] = ok
-		_dice["title"] = "%s · 합계 %d%s" % [title, total + bonus2, (" (%d%+d)" % [total, bonus2]) if bonus2 else ""]
+		_dice["title"] = Loc.t("%s · 합계 %d%s") % [title, total + bonus2, (" (%d%+d)" % [total, bonus2]) if bonus2 else ""]
 	elif e.has("result"):
-		_dice["stamp"] = "%d 칸" % e["result"]
+		_dice["stamp"] = Loc.t("%d 칸") % e["result"]
 		_dice["ok"] = true
-		_dice["title"] = "이동 %d칸" % e["result"]
+		_dice["title"] = Loc.t("이동 %d칸") % e["result"]
 	var tw := create_tween()
 	tw.tween_method(func(t: float): _dice["stamp_t"] = t, 0.0, 1.0, 0.18 * mult)
 	queue_redraw()
@@ -194,17 +209,29 @@ func day(e: Dictionary, mult: float) -> void:
 	if mult <= 0.0:
 		return
 	Sfx.play("day")
-	var parts: PackedStringArray = str(e["date"]).replace("일", "").split("월 ")
-	_day = {"month": parts[0] if parts.size() > 1 else "", "day": parts[-1],
-		"sub": "경계 %d단계 · 경찰 이동 %d칸" % [e["alert"], e["police_speed"]],
-		"sub2": "8월 15일까지 %d일" % e["days_left"], "alpha": 0.0, "drop": 1.0}
+	_day = {"month": e.get("month_label", ""), "day": str(e.get("day_num", "")),
+		"sub": Loc.t("경계 %d단계 · 경찰 이동 %d칸") % [e["alert"], e["police_speed"]],
+		"sub2": Loc.t("8월 15일까지 %d일") % e["days_left"], "alpha": 0.0, "drop": 1.0,
+		"dispatch": e.get("dispatch", ""), "typed": 0.0}
 	var tw := create_tween().set_parallel()
 	tw.tween_method(func(a: float):
 		_day["alpha"] = a
 		queue_redraw(), 0.0, 1.0, 0.25 * mult)
 	tw.tween_method(func(d: float): _day["drop"] = d, 1.0, 0.0, 0.35 * mult).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	await tw.finished
-	await get_tree().create_timer(0.9 * mult).timeout
+	if _day["dispatch"] != "":
+		# 아침 무전: 한 글자씩 타자기로 찍힌다
+		var ty := create_tween()
+		ty.tween_method(func(t: float):
+			_day["typed"] = t
+			queue_redraw(), 0.0, 1.0, 0.9 * mult)
+		for k in 4:
+			Sfx.play("click", 0.2, 0.25)
+			await get_tree().create_timer(0.2 * mult).timeout
+		await ty.finished
+		await get_tree().create_timer(0.9 * mult).timeout
+	else:
+		await get_tree().create_timer(0.9 * mult).timeout
 	await _fade(_day, 0.3 * mult)
 	_day = {}
 	queue_redraw()
@@ -240,6 +267,11 @@ func _draw() -> void:
 		_draw_stamp(s["at"], s["text"], s["color"], 40, lerpf(2.2, 1.0, k), a * k, -0.2)
 	for f in _flyers:
 		_draw_flyer(f)
+	for s in _scraps:
+		var t: float = s["t"]
+		var at: Vector2 = s["at"] + Vector2(s["vx"] * t, s["vy"] * t + 250.0 * t * t)
+		var a := 1.0 - t / float(s["life"])
+		draw_rect(Rect2(at, Vector2(s["size"], s["size"] * 0.55)), Color(Style.PAPER_HI, a))
 	_draw_toasts()
 
 
@@ -292,11 +324,24 @@ func _draw_day() -> void:
 	for k in 6:
 		draw_circle(r.position + Vector2(40 + k * 44, 10), 5, Color(0.1, 0.07, 0.05, a))
 	var sf := Style.serif(900)
-	_text(Style.sans(800), "1945년  %s월" % _day["month"], Vector2(0, r.position.y + 42), 22, Color(1, 0.96, 0.9, a))
+	_text(Style.sans(800), Loc.t("1945년  %s") % _day["month"], Vector2(0, r.position.y + 42), 22, Color(1, 0.96, 0.9, a))
 	_text(sf, _day["day"], Vector2(0, r.position.y + 210), 150, Color(Style.INK, a))
 	_text(Style.sans(700), _day["sub"], Vector2(0, r.end.y - 50), 16, Color(Style.INK_2, a))
 	_text(Style.sans(800), _day["sub2"], Vector2(0, r.end.y - 22), 16, Color(Style.SEAL, a))
 	draw_set_transform(Vector2.ZERO, 0, Vector2.ONE)
+	if _day["dispatch"] != "" and _day["typed"] > 0.0:
+		# 전보 띠
+		var full: String = _day["dispatch"]
+		var shown := full.substr(0, int(ceil(full.length() * _day["typed"])))
+		var font := Style.serif(700)
+		var fs := 20
+		var w := font.get_string_size(full, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x + 120
+		var strip := Rect2(size.x / 2 - w / 2, size.y / 2 + ph / 2 + 4, w, 50)
+		draw_rect(Rect2(strip.position + Vector2(0, 5), strip.size), Color(0, 0, 0, 0.4 * a))
+		draw_rect(strip, Color(Style.INK, 0.95 * a))
+		draw_rect(strip.grow(-4), Color(Style.GOLD, 0.6 * a), false, 1.0)
+		draw_string(Style.sans(800), strip.position + Vector2(18, 31), Loc.t("무전"), HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(Style.SEAL.lightened(0.3), a))
+		draw_string(font, strip.position + Vector2(66, 33), shown, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(Style.ON_DARK_ACCENT, a))
 
 
 func _draw_banner() -> void:

@@ -14,6 +14,7 @@ var interactive := true          # 연출 중에는 이동 가능 칸 강조를 
 var vis_current := -1            # 화면에 보이는 차례 (-1이면 엔진 값)
 
 var vis_players := {}            # id -> Vector2 (칸 좌표, 소수 가능)
+var _move_lift := {}             # id -> 이동 중 떠오르는 높이
 var vis_jailed := {}             # id -> bool
 var vis_police := {}             # id -> {"pos": Vector2, "active": bool, "alpha": float}
 var hidden_tiles := {}           # 아직 공개 연출 전인 타일
@@ -61,6 +62,7 @@ func _process(delta: float) -> void:
 
 func sync_from_game() -> void:
 	vis_players.clear()
+	_move_lift.clear()
 	vis_jailed.clear()
 	for p in game.players:
 		if p["started"]:
@@ -88,6 +90,7 @@ func apply_players_snap(snap: Dictionary) -> void:
 func animate_move(id: int, from: Vector2i, to: Vector2i, dur: float) -> void:
 	if dur <= 0.0:
 		vis_players[id] = Vector2(to)
+		_move_lift.erase(id)
 		queue_redraw()
 		return
 	var a := Vector2(from)
@@ -95,8 +98,11 @@ func animate_move(id: int, from: Vector2i, to: Vector2i, dur: float) -> void:
 	var tw := create_tween()
 	tw.tween_method(func(t: float):
 		vis_players[id] = a.lerp(b, t)
+		_move_lift[id] = sin(t * PI) * 12.0
 		queue_redraw(), 0.0, 1.0, dur).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	await tw.finished
+	_move_lift.erase(id)
+	queue_redraw()
 
 
 func reveal(c: Vector2i, dur: float) -> void:
@@ -199,6 +205,8 @@ func _gui_input(event: InputEvent) -> void:
 		if c != hover:
 			hover = c
 			tooltip_text = _tooltip(c)
+			if _my_move_turn() and c.x >= 0 and game.can_step(game.players[human_id], c):
+				Sfx.play("click", 0.12, 0.22)
 			_update_preview()
 			queue_redraw()
 	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
@@ -228,16 +236,16 @@ func _tooltip(c: Vector2i) -> String:
 	if c.x < 0:
 		return ""
 	if not game.board.has(c) or hidden_tiles.has(c):
-		return "미탐색 지역"
+		return Loc.t("미탐색 지역")
 	var t: String = game.board[c]["type"]
 	var name := game.data.tile_name(t)
 	var bi := game.data.bases.find(c)
 	if bi >= 0:
-		name = "%s (일본군 거점)" % game.data.base_names[bi]
+		name = Loc.t("%s (일본군 거점)") % game.data.base_names[bi]
 	if game.board[c]["used"]:
-		name += " (사용함 → 일반)"
+		name += Loc.t(" (사용함 → 일반)")
 	if t == "check":
-		name += "\n들어가려면 회피 판정 (실패하면 경찰 소환)"
+		name += Loc.t("\n들어가려면 회피 판정 (실패하면 경찰 소환)")
 	return name
 
 
@@ -344,10 +352,10 @@ func _draw_targets() -> void:
 	var me: Dictionary = game.players[human_id]
 	var marks := {}
 	for c in game.mission_targets(me):
-		marks[c] = ["목표", Style.SEAL]
+		marks[c] = [Loc.t("목표"), Style.SEAL]
 	for q in game.players:
 		if q["jailed"] and q["id"] != human_id:
-			marks[q["pos"]] = ["구출", Style.seat(1)]
+			marks[q["pos"]] = [Loc.t("구출"), Style.seat(1)]
 	var glow := 0.55 + 0.35 * sin(_pulse * 3.0)
 	for c in marks:
 		var r := cell_rect(c).grow(-1)
@@ -390,13 +398,13 @@ func _draw_preview_label() -> void:
 	var ok: bool = _preview["reachable"]
 	var danger := game.police_danger(me).has(hover)
 	var parts := []
-	parts.append(("%d칸" % _preview["steps"]) if ok else _preview["reason"])
+	parts.append((Loc.t("%d칸") % _preview["steps"]) if ok else _preview["reason"])
 	if _preview["checks"] > 0:
-		parts.append("검문 %d회" % _preview["checks"])
+		parts.append(Loc.t("검문 %d회") % _preview["checks"])
 	if _preview["unknown"] > 0:
-		parts.append("미탐색 %d칸" % _preview["unknown"])
+		parts.append(Loc.t("미탐색 %d칸") % _preview["unknown"])
 	if danger:
-		parts.append("체포 위험!")
+		parts.append(Loc.t("체포 위험!"))
 	var text := " · ".join(parts)
 	var font := Style.sans(700)
 	var fs := 16
@@ -457,7 +465,7 @@ func _draw_police() -> void:
 		draw_arc(ctr + Vector2(rad * 0.72, rad * 0.72), rad * 0.24, 0, TAU, 16, Color(1, 1, 1, alpha), 1.5, true)
 		if not v["active"]:
 			var font := Style.sans(800)
-			draw_string(font, ctr + Vector2(-rad * 0.95, -rad - 4), "대기", HORIZONTAL_ALIGNMENT_LEFT, -1, int(rad * 0.55), Color(Style.INK, alpha))
+			draw_string(font, ctr + Vector2(-rad * 0.95, -rad - 4), Loc.t("대기"), HORIZONTAL_ALIGNMENT_LEFT, -1, int(rad * 0.55), Color(Style.INK, alpha))
 
 
 func _draw_players() -> void:
@@ -483,6 +491,7 @@ func _draw_players() -> void:
 			if is_cur:
 				lift = 3.0 + 3.0 * sin(_pulse * 3.5)
 				draw_circle(ctr - Vector2(0, lift), rad + r.size.x * 0.1, Color(Style.GOLD_HI, 0.45 + 0.2 * sin(_pulse * 4.0)))
+			lift += _move_lift.get(id, 0.0)
 			_token(ctr - Vector2(0, lift), rad, _faction_tex[p["faction"]], Style.seat(id), 0.6 if jailed else 1.0, lift)
 			if jailed:
 				for k in 4:
@@ -490,7 +499,7 @@ func _draw_players() -> void:
 					draw_line(Vector2(x, ctr.y - rad - 2), Vector2(x, ctr.y + rad + 2), Color(0.1, 0.08, 0.06), 3.0)
 				draw_line(Vector2(ctr.x - rad, ctr.y - rad * 0.3), Vector2(ctr.x + rad, ctr.y - rad * 0.3), Color(0.1, 0.08, 0.06), 3.0)
 			# 이름표
-			var tag: String = "나" if id == human_id else p["name"].split(" (")[0].replace(" ", "")
+			var tag: String = Loc.t("나") if id == human_id else p["name"].split(" (")[0].replace(" ", "")
 			var fs := maxi(10, int(r.size.x * 0.14))
 			var w := font.get_string_size(tag, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x + 10
 			var tr := Rect2(ctr.x - w / 2, ctr.y - lift - rad - fs * 1.35, w, fs * 1.3)

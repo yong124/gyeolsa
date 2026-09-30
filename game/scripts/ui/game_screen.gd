@@ -71,7 +71,7 @@ func _ready() -> void:
 	elif _briefing:
 		_show_briefing()
 	else:
-		_fx.toast("작전 재개 — %s" % game.date_label(), "info")
+		_fx.toast(Loc.t("작전 재개 — %s") % game.date_label(), "info")
 		_begin()
 
 
@@ -126,8 +126,9 @@ func _build() -> void:
 	_actions = ActionBar.new()
 	_right.add_child(_actions)
 	var ab := game.ability_def(game.players[human])
-	_actions.set_ability(ab.get("name", "능력"), ab.get("desc", ""))
+	_actions.set_ability(ab.get("name", Loc.t("능력")), ab.get("desc", ""))
 	_actions.primary.connect(_on_primary)
+	_actions.undo.connect(func(): _act({"type": "undo_step"}))
 	_actions.ability.connect(func(): _act({"type": "ability"}))
 	_actions.give.connect(_on_give)
 	_actions.decoy.connect(_on_decoy)
@@ -150,9 +151,15 @@ func _build() -> void:
 
 func _subtitle() -> String:
 	if tutorial:
-		return "훈련 · %d인" % game.players.size()
-	var diff: int = meta.get("cfg", {}).get("difficulty", 0)
-	return "%d인 · %s" % [game.players.size(), {1: "쉬움", 0: "보통", -1: "어려움"}.get(diff, "보통")]
+		return Loc.t("훈련 · %d인") % game.players.size()
+	var cfg: Dictionary = meta.get("cfg", {})
+	var sc: String = cfg.get("scenario", "")
+	if sc == "daily":
+		return Loc.t("오늘의 작전 · %s") % cfg.get("date", "")
+	if sc != "":
+		return Loc.t("%s · %d인") % [game.data.special_op(sc).get("name", sc), game.players.size()]
+	var diff: int = cfg.get("difficulty", 0)
+	return Loc.t("%d인 · %s") % [game.players.size(), {1: Loc.t("쉬움"), 0: Loc.t("보통"), -1: Loc.t("어려움")}.get(diff, Loc.t("보통"))]
 
 
 func _layout() -> void:
@@ -192,7 +199,15 @@ func _on_primary() -> void:
 	if game.phase == "start":
 		_act({"type": "escape" if me["jailed"] else "roll"})
 	elif game.phase == "move":
+		_request_end_move()
+
+
+func _request_end_move() -> void:
+	if game.steps_left <= 0:
 		_act({"type": "end_move"})
+		return
+	_show_local_choice(Loc.t("이동 종료"), Loc.t("이동이 %d칸 남았습니다. 지금 차례를 마칠까요?") % game.steps_left,
+		[{"label": Loc.t("이동 종료"), "action": {"type": "end_move"}}])
 
 
 func _pump() -> void:
@@ -246,7 +261,9 @@ func _mult_for(e: Dictionary) -> float:
 	var pid: int = e.get("player", game.current)
 	if pid >= 0 and pid < game.players.size() and not game.players[pid]["ai"]:
 		return Prefs.my_mult()
-	return 0.0 if _skip_ai else Prefs.mult()
+	if _skip_ai:
+		return 0.0
+	return Prefs.mult() * (0.5 if e["kind"] == "move" else 1.0)
 
 
 func _board_pos(c: Vector2i) -> Vector2:
@@ -266,7 +283,7 @@ func _play_event(e: Dictionary) -> void:
 			else:
 				_skip_ai = false
 				Sfx.play("card", 0.0, 0.6)
-				await _fx.banner("당신의 차례", "turn", 1.0, "")
+				await _fx.banner(Loc.t("당신의 차례"), "turn", 1.0, "")
 		"move":
 			Sfx.play("step", 0.15)
 			var dur := STEP_TIME * m * (2.0 if e.get("teleport", false) else 1.0)
@@ -281,7 +298,9 @@ func _play_event(e: Dictionary) -> void:
 		"dice":
 			if tutorial and e.has("target") and e.get("player", game.current) == human:
 				await _tip("judge")
-			await _fx.roll_dice(e, m)
+			var roller: int = _vis_cur if _vis_cur >= 0 else game.current
+			if e.has("target") or not game.players[roller]["ai"]:
+				await _fx.roll_dice(e, m)
 		"banner":
 			var who := ""
 			if e["player"] >= 0:
@@ -292,6 +311,8 @@ func _play_event(e: Dictionary) -> void:
 				_: Sfx.play("card", 0.0, 0.5)
 			if e["tone"] == "bad" and m > 0.0:
 				_fx.alarm(m)
+			if e["tone"] == "good":
+				_fx.paper_burst(_board_pos(e["players_snap"][e["player"]]["pos"]) if e["player"] >= 0 else _fx.focus_center, m)
 			await _fx.banner(e["text"], e["tone"], m, who.trim_suffix(": "))
 		"score":
 			Sfx.play("score")
@@ -304,7 +325,7 @@ func _play_event(e: Dictionary) -> void:
 				_fx.fly(from, _top.pip_center(i) - global_position, Style.SEAL, 0.55 * d)
 			await get_tree().create_timer(0.45 * d).timeout
 			await _top.animate_score(e["score"], 0.35 * d)
-			await _fx.banner("광복수치 %d / %d" % [e["score"], game.goal], "good", m * 0.8)
+			await _fx.banner(Loc.t("광복수치 %d / %d") % [e["score"], game.goal], "good", m * 0.8)
 			if tutorial:
 				await _tip("score")
 		"catch":
@@ -316,12 +337,18 @@ func _play_event(e: Dictionary) -> void:
 			_board.apply_players_snap(e["players_snap"])
 			await _board.animate_move(e["player"], e["from"], e["to"], 0.35 * m)
 			if m > 0.0:
-				await _fx.stamp_at(_board_pos(e["to"]), "투 옥", Style.SEAL, m)
+				await _shake_board(m)
+				await _fx.stamp_at(_board_pos(e["to"]), Loc.t("투 옥"), Style.SEAL, m)
 			if tutorial:
 				await _tip("jail")
 		"day":
 			_top.refresh()
-			await _fx.day(e, Prefs.mult() if Prefs.mult() > 0 else 0.5)
+			var de := e.duplicate()
+			de["dispatch"] = _dispatch()
+			var dd := game.date_of(int(e["days_left"]))
+			de["month_label"] = Loc.month(dd.x)
+			de["day_num"] = dd.y
+			await _fx.day(de, Prefs.mult() if Prefs.mult() > 0 else 0.5)
 			_top.refresh()
 			if e["alert"] >= 3:
 				Music.play("tension")
@@ -349,6 +376,15 @@ func _play_event(e: Dictionary) -> void:
 	_ticker.refresh()
 
 
+func _dispatch() -> String:
+	## 아침 무전: 오늘의 일제 동향에 맞는 한 줄 (같은 날에는 같은 줄)
+	var d: Dictionary = game.data.text.get("dispatches", {})
+	var pool: Array = d.get(game.today_occupation(), d.get("default", []))
+	if pool.is_empty():
+		return ""
+	return pool[game.rounds_left % pool.size()]
+
+
 func _ai_to_move() -> bool:
 	if game.phase == "over":
 		return false
@@ -357,11 +393,20 @@ func _ai_to_move() -> bool:
 	return game.cur()["ai"]
 
 
+func _shake_board(mult: float) -> void:
+	var origin := _frame.position
+	var tw := create_tween()
+	for offset in [Vector2(8, 0), Vector2(-7, 2), Vector2(5, -2), Vector2.ZERO]:
+		tw.tween_property(_frame, "position", origin + offset * mult, 0.045 * mult)
+	await tw.finished
+
+
 func _schedule_ai() -> void:
 	if _ai_busy:
 		return
 	_ai_busy = true
-	await get_tree().create_timer(0.12 + 0.25 * Prefs.mult()).timeout
+	var delay := 0.025 if game.phase == "move" else 0.1
+	await get_tree().create_timer(delay + 0.1 * Prefs.mult()).timeout
 	_ai_busy = false
 	if _playing or _popup.visible or _paused or not _ai_to_move():
 		return
@@ -421,7 +466,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		if game.phase == "start" and not game.players[human]["jailed"]:
 			_act({"type": "roll"})
 		elif game.phase == "move":
-			_act({"type": "end_move"})
+			_request_end_move()
+	elif event.keycode == KEY_BACKSPACE and game.phase == "move" and game.can_undo_step():
+		_act({"type": "undo_step"})
 
 
 # ================================================================ 갱신
@@ -457,32 +504,33 @@ func _refresh_actions() -> void:
 	}
 	var shown := _vis_cur if _vis_cur >= 0 else game.current
 	if game.phase == "over":
-		s.merge({"doing": "작전 종료", "primary_text": "작전 종료", "primary_on": false}, true)
+		s.merge({"doing": Loc.t("작전 종료"), "primary_text": Loc.t("작전 종료"), "primary_on": false}, true)
 	elif _playing and shown != human:
-		s.merge({"doing": "%s의 차례" % game.players[shown]["name"].split(" (")[0],
-			"hint": "Space를 누르면 동료 차례를 빨리 넘깁니다", "primary_text": "동료 차례", "primary_on": false}, true)
+		s.merge({"doing": Loc.t("%s의 차례") % game.players[shown]["name"].split(" (")[0],
+			"hint": Loc.t("Space를 누르면 동료 차례를 빨리 넘깁니다"), "primary_text": Loc.t("동료 차례"), "primary_on": false}, true)
 	elif not _playing and (game.current != human or game.phase == "choice" and game.pending.get("player", -1) != human):
 		var who: String = game.cur()["name"].split(" (")[0]
-		s.merge({"doing": "%s의 차례" % who, "hint": "Space를 누르면 동료 차례를 빨리 넘깁니다",
-			"primary_text": "동료 차례", "primary_on": false})
+		s.merge({"doing": Loc.t("%s의 차례") % who, "hint": Loc.t("Space를 누르면 동료 차례를 빨리 넘깁니다"),
+			"primary_text": Loc.t("동료 차례"), "primary_on": false})
 	elif _playing:
-		s.merge({"doing": "진행 중", "primary_text": "…", "primary_on": false}, true)
+		s.merge({"doing": Loc.t("진행 중"), "primary_text": "…", "primary_on": false}, true)
 	else:
 		match game.phase:
 			"start":
 				if me["jailed"]:
-					s.merge({"doing": "감옥", "hint": _jail_hint(me), "primary_text": "탈옥 시도",
+					s.merge({"doing": Loc.t("감옥"), "hint": _jail_hint(me), "primary_text": Loc.t("탈옥 시도"),
 						"primary_icon": "escape", "primary_on": true})
 				else:
-					var found := "" if not game.mission_targets(me).is_empty() else " · 목표 미발견: 새 길을 열어 찾으세요"
-					s.merge({"doing": "내 차례", "hint": "주사위를 굴려 이동하세요%s" % found,
-						"primary_text": "주사위 굴리기", "primary_icon": "dice", "primary_on": true, "key": true})
+					var found := "" if not game.mission_targets(me).is_empty() else Loc.t(" · 목표 미발견: 새 길을 열어 찾으세요")
+					s.merge({"doing": Loc.t("내 차례"), "hint": Loc.t("주사위를 굴려 이동하세요%s") % found,
+						"primary_text": Loc.t("주사위 굴리기"), "primary_icon": "dice", "primary_on": true, "key": true})
 			"move":
-				s.merge({"doing": "이동 중", "hint": "남은 %d칸 · 칸을 누르면 경로를 따라 자동 이동 · 붉은 빗금 = 체포 위험" % game.steps_left,
-					"primary_text": "이동 종료", "primary_icon": "end", "primary_on": true, "key": true,
-					"steps": game.steps_left, "steps_max": maxi(game.steps_left, _roll_total())})
+				s.merge({"doing": Loc.t("이동 중"), "hint": Loc.t("남은 %d칸 · 칸을 누르면 경로를 따라 자동 이동 · 붉은 빗금 = 체포 위험") % game.steps_left,
+					"primary_text": Loc.t("이동 종료"), "primary_icon": "end", "primary_on": true, "key": true,
+					"steps": game.steps_left, "steps_max": maxi(game.steps_left, _roll_total()),
+					"undo_on": game.can_undo_step()})
 			"choice":
-				s.merge({"doing": "선택", "hint": "선택하세요", "primary_text": "선택 중", "primary_on": false}, true)
+				s.merge({"doing": Loc.t("선택"), "hint": Loc.t("선택하세요"), "primary_text": Loc.t("선택 중"), "primary_on": false}, true)
 	_actions.refresh(s)
 
 
@@ -498,8 +546,8 @@ func _jail_hint(me: Dictionary) -> String:
 	for q in game.players:
 		if q["id"] != human and not q["jailed"] and q["started"]:
 			near = mini(near, absi(q["pos"].x - me["pos"].x) + absi(q["pos"].y - me["pos"].y))
-	return "탈옥 확률 %d%%%s · 가장 가까운 동료 %s칸 (동료가 거점에 들어오면 구출)" % [
-		roundi(game.escape_chance(me) * 100), " · 옷핀으로 즉시 탈옥 가능" if game.has_item(me, "pin") else "",
+	return Loc.t("탈옥 확률 %d%%%s · 가장 가까운 동료 %s칸 (동료가 거점에 들어오면 구출)") % [
+		roundi(game.escape_chance(me) * 100), Loc.t(" · 옷핀으로 즉시 탈옥 가능") if game.has_item(me, "pin") else "",
 		str(near) if near < 99 else "-"]
 
 
@@ -513,10 +561,10 @@ func _tip(id: String) -> void:
 	if text == "":
 		return
 	_tips_shown[id] = true
-	var d := UiKit.dossier(600, "", "훈 련 교 관")
+	var d := UiKit.dossier(600, "", Loc.t("훈 련 교 관"))
 	var v: VBoxContainer = d[1]
 	v.add_child(UiKit.text(text, Style.FS_LEAD, Style.INK))
-	var ok := UiKit.button("알겠습니다", func():
+	var ok := UiKit.button(Loc.t("알겠습니다"), func():
 		_choice.visible = false
 		_tip_closed.emit(), 18, "primary")
 	ok.custom_minimum_size = Vector2(0, 50)
@@ -543,21 +591,21 @@ func _tutorial_after_queue() -> void:
 func _pause() -> void:
 	_paused = true
 	get_tree().paused = false   # 연출 트윈은 멈추지 않고, 입력만 막는다
-	var d := UiKit.dossier(440, "일시정지", "작 전 중 단")
+	var d := UiKit.dossier(440, Loc.t("일시정지"), Loc.t("작 전 중 단"))
 	var v: VBoxContainer = d[1]
-	v.add_child(UiKit.text("%s · 광복 %d/%d · 남은 %d일" % [game.date_label(), game.score, game.goal, game.rounds_left], 15, Style.INK_3, false))
+	v.add_child(UiKit.text(Loc.t("%s · 광복 %d/%d · 남은 %d일") % [game.date_label(), game.score, game.goal, game.rounds_left], 15, Style.INK_3, false))
 	v.add_child(UiKit.hsep())
 	for b in [
-		["계속하기", _resume],
-		["설정", func():
+		[Loc.t("계속하기"), _resume],
+		[Loc.t("설정"), func():
 			var sp := SettingsPanel.new()
 			sp.closed.connect(_pause)
 			_choice.show_with(sp)],
-		["규칙 도감", func():
+		[Loc.t("규칙 도감"), func():
 			var r := Rulebook.new(game.data)
 			r.closed.connect(_pause)
 			_choice.show_with(r)],
-		["저장하고 메인 메뉴로" if not tutorial else "튜토리얼 그만두기", func():
+		[Loc.t("저장하고 메인 메뉴로") if not tutorial else Loc.t("튜토리얼 그만두기"), func():
 			if not tutorial:
 				SaveGame.write(game, meta)
 			back_to_title.emit()],
@@ -595,7 +643,7 @@ func _finish_game() -> void:
 func _show_briefing() -> void:
 	var me: Dictionary = game.players[human]
 	var f := game.data.faction(me["faction"])
-	var d := UiKit.dossier(760, "%s, 경성" % game.date_label(), "작 전 브 리 핑")
+	var d := UiKit.dossier(760, Loc.t("%s, 경성") % game.date_label(), Loc.t("작 전 브 리 핑"))
 	var p: PanelContainer = d[0]
 	var v: VBoxContainer = d[1]
 	var stamp := UiKit.stamp("極 秘", 22, Style.SEAL, -10)
@@ -610,21 +658,21 @@ func _show_briefing() -> void:
 	grid.add_theme_constant_override("v_separation", 8)
 	v.add_child(grid)
 	var rows := [
-		["목표", "8월 15일 일본이 항복하기 전에 광복수치 %d 채우기 (남은 %d일)" % [game.goal, game.rounds_left]],
-		["당신", "%s — %s" % [f["name"], f["ability"]]],
-		["세력 능력", "%s — %s (하루 1회)" % [f.get("active", {}).get("name", "-"), f.get("active", {}).get("desc", "")]],
-		["첫 미션", game.mission_label(me["mission"])],
-		["동지", ", ".join(game.players.filter(func(q): return q["id"] != human).map(func(q): return q["name"]))],
-		["조작", "주사위 → 금색 칸 클릭(또는 방향키). 스페이스로 주사위·이동 종료. ESC 일시정지"],
+		[Loc.t("목표"), Loc.t("8월 15일 일본이 항복하기 전에 광복수치 %d 채우기 (남은 %d일)") % [game.goal, game.rounds_left]],
+		[Loc.t("당신"), "%s — %s" % [f["name"], f["ability"]]],
+		[Loc.t("세력 능력"), Loc.t("%s — %s (하루 1회)") % [f.get("active", {}).get("name", "-"), f.get("active", {}).get("desc", "")]],
+		[Loc.t("첫 미션"), game.mission_label(me["mission"])],
+		[Loc.t("동지"), ", ".join(game.players.filter(func(q): return q["id"] != human).map(func(q): return q["name"]))],
+		[Loc.t("조작"), Loc.t("주사위 → 금색 칸 클릭(또는 방향키). 스페이스로 주사위·이동 종료. ESC 일시정지")],
 	]
 	for r in rows:
-		var k := UiKit.title(r[0], 15, Style.SEAL if r[0] == "목표" else Style.INK_2, 800)
+		var k := UiKit.title(r[0], 15, Style.SEAL if r[0] == Loc.t("목표") else Style.INK_2, 800)
 		k.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 		grid.add_child(k)
 		var t := UiKit.text(r[1], 15, Style.INK)
 		t.custom_minimum_size = Vector2(620, 0)
 		grid.add_child(t)
-	var go := UiKit.button("작전 개시", func():
+	var go := UiKit.button(Loc.t("작전 개시"), func():
 		_choice.visible = false
 		Sfx.play("day")
 		_begin(), 24, "primary")
@@ -637,18 +685,18 @@ func _on_give() -> void:
 	var opts := []
 	for o in game.give_options(game.players[human]):
 		opts.append({"label": o["label"], "action": {"type": "give_item", "index": o["index"], "to": o["to"]}})
-	_show_local_choice("아이템 건네기", "누구에게 어떤 아이템을 건넬까요?", opts)
+	_show_local_choice(Loc.t("아이템 건네기"), Loc.t("누구에게 어떤 아이템을 건넬까요?"), opts)
 
 
 func _on_decoy() -> void:
 	var opts := []
 	for o in game.decoy_options(game.players[human]):
 		opts.append({"label": o["label"], "action": {"type": "decoy", "from": o["from"]}})
-	_show_local_choice("미끼", "어느 경찰을 내 쪽으로 끌어올까요?", opts)
+	_show_local_choice(Loc.t("미끼"), Loc.t("어느 경찰을 내 쪽으로 끌어올까요?"), opts)
 
 
 func _choice_panel(heading: String, prompt: String) -> Array:
-	var d := UiKit.dossier(500, heading, "선 택")
+	var d := UiKit.dossier(500, heading, Loc.t("선 택"))
 	var v: VBoxContainer = d[1]
 	if prompt != "" and prompt != heading:
 		v.add_child(UiKit.text(prompt, 16, Style.INK_2))
@@ -676,7 +724,7 @@ func _show_local_choice(heading: String, prompt: String, opts: Array) -> void:
 		return
 	var d := _choice_panel(heading, prompt)
 	var v: VBoxContainer = d[1]
-	for o in opts + [{"label": "취소", "action": {}}]:
+	for o in opts + [{"label": Loc.t("취소"), "action": {}}]:
 		var a: Dictionary = o["action"]
 		_option_button(v, o["label"], "", func():
 			_choice.visible = false
@@ -702,14 +750,14 @@ func _option_desc(pd: Dictionary, o: Dictionary) -> String:
 	var val = o["value"]
 	match pd["kind"]:
 		"react_evade":
-			return "회피 100%% 성공 (아이템 소모)" if val else "주사위 판정 · 성공 확률 %d%%" % roundi(game.evade_chance(p) * 100)
+			return Loc.t("회피 100%% 성공 (아이템 소모)") if val else Loc.t("주사위 판정 · 성공 확률 %d%%") % roundi(game.evade_chance(p) * 100)
 		"react_event":
-			return "이 이벤트를 무시합니다 (신호탄 소모)" if val else game.event_def(game.current_event()).get("effect_text", "")
+			return Loc.t("이 이벤트를 무시합니다 (신호탄 소모)") if val else game.event_def(game.current_event()).get("effect_text", "")
 		"discard":
 			if int(val) < p["items"].size():
 				return game.item_def(p["items"][int(val)]).get("effect_text", "")
 		"tram_ride":
-			return "이동을 끝내고, 다음 차례에 4개 역 중 원하는 곳에서 출발" if val else "전차를 타지 않고 계속 이동"
+			return Loc.t("이동을 끝내고, 다음 차례에 4개 역 중 원하는 곳에서 출발") if val else Loc.t("전차를 타지 않고 계속 이동")
 		"tram_dest":
 			var T := game.mission_targets(p)
 			if not T.is_empty():
@@ -717,15 +765,15 @@ func _option_desc(pd: Dictionary, o: Dictionary) -> String:
 				var best := 99
 				for c in T:
 					best = mini(best, absi(c.x - st.x) + absi(c.y - st.y))
-				return "미션 목표까지 약 %d칸" % best
+				return Loc.t("미션 목표까지 약 %d칸") % best
 		"ability_target":
-			if int(val) >= 0 and pd["prompt"].find("경찰") < 0:
-				return "미션: %s" % game.mission_label(game.players[int(val)]["mission"])
+			if int(val) >= 0 and game.ability_def(p).get("target", "") != "police_near":
+				return Loc.t("미션: %s") % game.mission_label(game.players[int(val)]["mission"])
 	return ""
 
 
 func _show_card(e: Dictionary, m: float = 1.0) -> void:
-	var who := "경성 전역"
+	var who := Loc.t("경성 전역")
 	var slow := true
 	if e["player"] >= 0:
 		var owner: Dictionary = game.players[e["player"]]
