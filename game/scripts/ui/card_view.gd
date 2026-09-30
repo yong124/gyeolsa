@@ -7,6 +7,7 @@ const DECKS := {
 	"item": {"title": "아 이 템", "color": Style.ITEM, "image": "res://assets/tiles/item.png"},
 	"occupation": {"title": "일 제 동 향", "color": Style.INK, "image": "res://assets/ui/police.png"},
 	"mission": {"title": "미 션", "color": Style.MISSION, "image": "res://assets/tiles/assassin.png"},
+	"strike": {"title": "결 행", "color": Style.SEAL, "image": "res://assets/tiles/base.png"},
 }
 
 
@@ -68,6 +69,9 @@ static func build(game: GameRules, deck: String, id: String, who: String) -> Con
 		"event": d = game.event_def(id)
 		"item": d = game.item_def(id)
 		"occupation": d = game.data.occupation(id)
+		"strike":
+			var st: Dictionary = game.data.text["strikes"][id]
+			d = {"name": st["name"], "text": "%s — %s" % [st["base_name"], st["brief"]], "effect_text": game.strike_goal_text()}
 	var head: Color = info["color"]
 	var root := VBoxContainer.new()
 	root.add_theme_constant_override("separation", 10)
@@ -83,7 +87,7 @@ static func build(game: GameRules, deck: String, id: String, who: String) -> Con
 	v.add_theme_constant_override("separation", 8)
 	card.add_child(v)
 	var b := Label.new()
-	b.text = Loc.t(info["title"])
+	b.text = info["title"]
 	b.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	b.add_theme_font_size_override("font_size", 14)
 	b.add_theme_font_override("font", Style.sans(800))
@@ -113,7 +117,7 @@ static func build(game: GameRules, deck: String, id: String, who: String) -> Con
 	fl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	fx.add_child(fl)
 	mv.add_child(fx)
-	var hint := UiKit.text(Loc.t("클릭하면 닫힙니다"), 11, Style.INK_3, false)
+	var hint := UiKit.text("클릭하면 닫힙니다", 11, Style.INK_3, false)
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	mv.add_child(hint)
 	for c in [v, b, art, m, mv, n, t, fx, fl, hint, whol]:

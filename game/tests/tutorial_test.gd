@@ -12,7 +12,7 @@ func _init() -> void:
 	var games := 200
 	for i in games:
 		var g := GameRules.new()
-		for k in ["goal", "rounds", "first_missions", "start_items", "tile_order_top"]:
+		for k in ["goal", "rounds", "first_missions", "start_items", "tile_order_top", "two_act"]:
 			g.scenario[k] = sc[k]
 		var defs: Array = sc["players"].duplicate(true)
 		defs[0]["ai"] = true

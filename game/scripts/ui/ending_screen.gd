@@ -9,7 +9,7 @@ const STAMPS := {"victory": "대 성 공", "operation": "작 전 개 시", "hist
 
 
 static func _stamp_text(id: String) -> String:
-	return Loc.t(STAMPS.get(id, "완 료"))
+	return STAMPS.get(id, "완 료")
 
 var game: GameRules
 var tutorial := false
@@ -51,7 +51,7 @@ func _achievement_row(size_fs: int, on_dark: bool) -> HFlowContainer:
 	h.add_theme_constant_override("h_separation", 14)
 	h.add_theme_constant_override("v_separation", 8)
 	for a in fresh:
-		var st := UiKit.stamp(Loc.t("도전 과제 · ") + a["name"], size_fs, Color("#e0b04a") if on_dark else Style.SEAL, -4)
+		var st := UiKit.stamp("도전 과제 · " + a["name"], size_fs, Color("#e0b04a") if on_dark else Style.SEAL, -4)
 		st.tooltip_text = a["desc"]
 		st.mouse_filter = Control.MOUSE_FILTER_STOP
 		h.add_child(st)
@@ -94,8 +94,8 @@ func _ready() -> void:
 
 func _show_ending() -> void:
 	UiKit.clear(_stage)
-	var reason := Loc.t("목표 달성 — %s") % game.date_label() if game.ending["reason"] == "goal" else Loc.t("8월 15일, 일본 항복")
-	var head := UiKit.label(Loc.t("%s  ·  광복수치 %d / %d") % [reason, game.score, game.goal], 18, Style.ON_DARK_ACCENT)
+	var reason := "목표 달성 — %s" % game.date_label() if game.ending["reason"] == "goal" else "8월 15일, 일본 항복"
+	var head := UiKit.label("%s  ·  광복수치 %d / %d" % [reason, game.score, game.goal], 18, Style.ON_DARK_ACCENT)
 	head.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_stage.add_child(head)
 	var name := UiKit.label(game.ending["name"], 60, Style.ON_DARK_TITLE)
@@ -103,6 +103,11 @@ func _show_ending() -> void:
 	name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_stage.add_child(name)
 	var st := UiKit.stamp(_stamp_text(game.ending["id"]), 34, Color("#d8392f"), -9)
+	if int(game.ending.get("traitor", -1)) == 0:
+		# 내가 변절자였다
+		var won: bool = game.ending.get("traitor_won", false)
+		head.text = "당신은 변절자였습니다  ·  " + ("결행을 막았습니다" if won else "결행을 막지 못했습니다")
+		st = UiKit.stamp("변절자 승리" if won else "변절자 패배", 30, Color("#d8d0c0") if won else Color("#d8392f"), -9)
 	st.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	st.modulate.a = 0.0
 	_stage.add_child(st)
@@ -133,10 +138,10 @@ func _show_ending() -> void:
 	buttons.add_theme_constant_override("separation", 16)
 	buttons.modulate.a = 0.0
 	_stage.add_child(buttons)
-	var report := UiKit.button(Loc.t("작전 보고서 보기"), _show_report, 20, "primary")
+	var report := UiKit.button("작전 보고서 보기", _show_report, 20, "primary")
 	report.custom_minimum_size = Vector2(240, 54)
 	buttons.add_child(report)
-	var menu := UiKit.button(Loc.t("메인 메뉴"), func(): to_menu.emit(), 18, "dark")
+	var menu := UiKit.button("메인 메뉴", func(): to_menu.emit(), 18, "dark")
 	menu.custom_minimum_size = Vector2(200, 54)
 	buttons.add_child(menu)
 	for b in [report, menu]:
@@ -182,8 +187,8 @@ func _show_report() -> void:
 	var hv := VBoxContainer.new()
 	hv.add_theme_constant_override("separation", -2)
 	hv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	hv.add_child(UiKit.label(Loc.t("작 전 보 고 서"), Style.FS_SMALL, Style.SEAL))
-	hv.add_child(UiKit.title(Loc.t("%s  —  광복수치 %d / %d") % [game.ending["name"], game.score, game.goal], 30, Style.INK, 900))
+	hv.add_child(UiKit.label("작 전 보 고 서", Style.FS_SMALL, Style.SEAL))
+	hv.add_child(UiKit.title("%s  —  광복수치 %d / %d" % [game.ending["name"], game.score, game.goal], 30, Style.INK, 900))
 	head.add_child(hv)
 	var st := UiKit.stamp(_stamp_text(game.ending["id"]), 22, Style.SEAL, -8)
 	st.size_flags_vertical = Control.SIZE_SHRINK_CENTER
@@ -212,13 +217,13 @@ func _show_report() -> void:
 	left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	left.add_theme_constant_override("separation", 10)
 	lsc.add_child(left)
-	left.add_child(UiKit.title(Loc.t("요원 인사 기록"), 20, Style.SEAL_DARK))
+	left.add_child(UiKit.title("요원 인사 기록", 20, Style.SEAL_DARK))
 	var grid := GridContainer.new()
 	grid.columns = 6
 	grid.add_theme_constant_override("h_separation", 26)
 	grid.add_theme_constant_override("v_separation", 6)
 	left.add_child(grid)
-	for h in [Loc.t("요원"), Loc.t("미션"), Loc.t("광복 기여"), Loc.t("구출"), Loc.t("투옥"), Loc.t("능력")]:
+	for h in ["요원", "미션", "광복 기여", "구출", "투옥", "능력"]:
 		grid.add_child(UiKit.text(h, 13, Style.INK_3, false, 700))
 	var best := -1
 	var best_pts := -1
@@ -234,7 +239,7 @@ func _show_report() -> void:
 			grid.add_child(UiKit.text(str(s[k]), 16, Style.INK, false, 700))
 	left.add_child(UiKit.hsep())
 	var notes: Dictionary = game.data.text.get("history_notes", {})
-	left.add_child(UiKit.title(Loc.t("실제 역사에서는"), 20, Style.SEAL_DARK))
+	left.add_child(UiKit.title("실제 역사에서는", 20, Style.SEAL_DARK))
 	for n in notes.get("notes", []):
 		left.add_child(UiKit.title(n["title"], 16, Style.INK, 800))
 		left.add_child(UiKit.text(n["text"], 14, Style.INK_2))
@@ -248,7 +253,7 @@ func _show_report() -> void:
 	var rv := VBoxContainer.new()
 	rv.add_theme_constant_override("separation", 6)
 	right.add_child(rv)
-	rv.add_child(UiKit.title(Loc.t("작전 연표"), 20, Style.SEAL_DARK))
+	rv.add_child(UiKit.title("작전 연표", 20, Style.SEAL_DARK))
 	var log := RichTextLabel.new()
 	log.bbcode_enabled = true
 	log.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -269,9 +274,9 @@ func _show_report() -> void:
 	buttons.add_theme_constant_override("separation", 14)
 	root.add_child(buttons)
 	if not tutorial:
-		var again := UiKit.button(Loc.t("같은 설정으로 다시"), func(): replay.emit(), 18, "primary")
+		var again := UiKit.button("같은 설정으로 다시", func(): replay.emit(), 18, "primary")
 		again.custom_minimum_size = Vector2(250, 50)
 		buttons.add_child(again)
-	var menu := UiKit.button(Loc.t("메인 메뉴"), func(): to_menu.emit(), 18, "paper")
+	var menu := UiKit.button("메인 메뉴", func(): to_menu.emit(), 18, "paper")
 	menu.custom_minimum_size = Vector2(200, 50)
 	buttons.add_child(menu)

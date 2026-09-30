@@ -9,7 +9,7 @@ const KNOWN_OPS := ["add_steps", "remove_my_police", "remove_all_police", "skip_
 	"police_next_turn", "free_all_jailed", "escape_jail", "move_mod", "draw_item", "discard_item",
 	"add_score", "summon_police", "target_move_mod", "remove_target_police", "pull_target"]
 const KNOWN_WORLD_OPS := ["place_checkpoints", "raid_police", "police_advance", "all_move_mod",
-	"police_speed_today"]
+	"police_speed_today", "exposure"]
 const KNOWN_TARGETS := ["ally", "ally_pullable", "police_near"]
 const KNOWN_STATS := ["move_bonus", "move_min", "assassin_bonus", "assassin_threshold",
 	"assassin_rerolls", "evade_bonus", "evade_auto", "evade_auto_after_assassin",
@@ -18,7 +18,7 @@ const KNOWN_CONDITIONS := ["alert_max", "alert_min", "jailed", "has_my_police", 
 	"other_items_min"]
 const KNOWN_REACTS := {"evade": ["auto_success"], "event": ["cancel_event"]}
 const KNOWN_SCENARIO := ["rounds", "goal", "police_speed_mod", "start_jailed", "jail_base", "start_items",
-	"first_missions", "tile_order_top"]
+	"first_missions", "tile_order_top", "two_act"]
 const KNOWN_ACHIEVEMENT := ["ending", "my_jailed_max", "days_left_min", "my_rescues_min", "my_points_min",
 	"players_min", "difficulty", "tutorial", "scenario", "factions_won", "scenarios_won", "games_min"]
 
@@ -43,11 +43,6 @@ var _missions := {}
 var _occupation := {}
 
 
-static func reset_cache() -> void:
-	## 언어를 바꾼 뒤 데이터를 다시 읽게 한다
-	_cache = null
-
-
 static func load_default() -> GameData:
 	if _cache == null:
 		_cache = GameData.new()
@@ -62,13 +57,6 @@ func load_dir(dir: String) -> void:
 	text = _read(dir + "text.json")
 	scenarios = _read(dir + "scenarios.json") if FileAccess.file_exists(dir + "scenarios.json") else {}
 	achievements = _read(dir + "achievements.json") if FileAccess.file_exists(dir + "achievements.json") else {}
-	if Loc.lang != "ko":
-		balance = Loc.translate_tree(balance)
-		factions = Loc.translate_tree(factions)
-		cards = Loc.translate_tree(cards)
-		text = Loc.translate_tree(text)
-		scenarios = Loc.translate_tree(scenarios)
-		achievements = Loc.translate_tree(achievements)
 	for k in factions.keys():
 		if k.begins_with("_"):
 			factions.erase(k)
@@ -140,7 +128,11 @@ func by_players(table: Dictionary, n: int, fallback: int) -> int:
 	return int(table.get(str(n), fallback))
 
 
-func rounds_for(n: int) -> int:
+func rounds_for(n: int, two_act := true) -> int:
+	## 작전 일수. 2막 구조 판은 따로 정한 일수를 쓴다 (기획서 16장)
+	var ta: Dictionary = balance.get("two_act", {})
+	if two_act and ta.get("enabled", false) and ta.has("rounds_by_players"):
+		return by_players(ta["rounds_by_players"], n, 10)
 	return by_players(balance["calendar"]["rounds_by_players"], n, 10)
 
 

@@ -36,9 +36,9 @@ func _ready() -> void:
 	_moves.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	_moves.draw.connect(_draw_moves)
 	top.add_child(_moves)
-	_undo = UiKit.button(Loc.t("↶ 되돌리기"), func(): undo.emit(), 12, "paper")
+	_undo = UiKit.button("↶ 되돌리기", func(): undo.emit(), 12, "paper")
 	_undo.custom_minimum_size = Vector2(82, 28)
-	_undo.tooltip_text = Loc.t("효과가 없었던 마지막 이동 한 칸을 되돌립니다.")
+	_undo.tooltip_text = "효과가 없었던 마지막 이동 한 칸을 되돌립니다."
 	top.add_child(_undo)
 	_hint = UiKit.text("", 13, Style.INK_2, false)
 	_hint.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -66,7 +66,7 @@ func _ready() -> void:
 	_key.position.x -= 12
 	_key.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
-	for spec in [["ability", Loc.t("능력")], ["give", Loc.t("건네기")], ["decoy", Loc.t("미끼")], ["swap", Loc.t("미션 교체")]]:
+	for spec in [["ability", "능력"], ["give", "건네기"], ["decoy", "미끼"], ["swap", "미션 교체"]]:
 		var n: String = spec[0]
 		var b := UiKit.button(spec[1], func(): emit_signal(n), 12, "paper")
 		b.icon = UiKit.ui_icon(n)
@@ -79,7 +79,7 @@ func _ready() -> void:
 		b.clip_text = true
 		row.add_child(b)
 		_sec[n] = b
-	_used_stamp = UiKit.stamp(Loc.t("사용함"), 12, Style.SEAL, -12)
+	_used_stamp = UiKit.stamp("사용함", 12, Style.SEAL, -12)
 	_used_stamp.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_sec["ability"].add_child(_used_stamp)
 	_used_stamp.position = Vector2(14, 22)
@@ -88,10 +88,10 @@ func _ready() -> void:
 
 func set_ability(name: String, desc: String) -> void:
 	_sec["ability"].text = name
-	_sec["ability"].tooltip_text = Loc.t("세력 능력: %s\n%s\n(하루 1회)") % [name, desc]
-	_sec["give"].tooltip_text = Loc.t("옆 칸에 있는 동료에게 아이템을 건넵니다. (아이템 사용 1회로 셈)")
-	_sec["decoy"].tooltip_text = Loc.t("근처의 동료를 쫓는 경찰을 내 쪽으로 끌어옵니다.\n끌어온 경찰은 이번 차례 끝에 바로 움직입니다.")
-	_sec["swap"].tooltip_text = Loc.t("지금 미션을 버리고 새 미션을 뽑습니다. 이번 차례는 끝납니다.")
+	_sec["ability"].tooltip_text = "세력 능력: %s\n%s\n(하루 1회)" % [name, desc]
+	_sec["give"].tooltip_text = "옆 칸에 있는 동료에게 아이템을 건넵니다. (아이템 사용 1회로 셈)"
+	_sec["decoy"].tooltip_text = "근처의 동료를 쫓는 경찰을 내 쪽으로 끌어옵니다.\n끌어온 경찰은 이번 차례 끝에 바로 움직입니다."
+	_sec["swap"].tooltip_text = "지금 미션을 버리고 새 미션을 뽑습니다. 이번 차례는 끝납니다."
 
 
 func refresh(s: Dictionary) -> void:
@@ -114,7 +114,11 @@ func refresh(s: Dictionary) -> void:
 	_used_stamp.visible = s.get("ability_used", false)
 	_sec["give"].disabled = not s.get("give_on", false)
 	_sec["decoy"].disabled = not s.get("decoy_on", false)
+	_sec["decoy"].text = s.get("decoy_label", "미끼")
+	_sec["decoy"].tooltip_text = "가까운 요원 한 명에게 경찰을 붙입니다. (차례당 1회, 3칸 안)" if s.get("decoy_label", "") == "밀고" \
+		else "근처의 동료를 쫓는 경찰을 내 쪽으로 끌어옵니다.\n끌어온 경찰은 이번 차례 끝에 바로 움직입니다."
 	_sec["swap"].disabled = not s.get("swap_on", false)
+	_sec["swap"].text = s.get("swap_label", "미션 교체")
 	_sec["swap"].visible = s.get("swap_visible", true)
 
 

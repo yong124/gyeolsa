@@ -15,6 +15,8 @@ var _alert_lbl: Label
 var _today: PanelContainer
 var _today_name: Label
 var _today_icon: TextureRect
+var _today_title: Label
+var _act_lbl: Label
 var _shown_score := -1.0      # 게이지 연출 중 표시 값
 
 
@@ -31,7 +33,8 @@ func _ready() -> void:
 
 	var op := VBoxContainer.new()
 	op.add_theme_constant_override("separation", -4)
-	op.add_child(UiKit.title(Loc.t("경성 작전"), 18))
+	_act_lbl = UiKit.title("경성 작전", 18)
+	op.add_child(_act_lbl)
 	op.add_child(UiKit.text(_subtitle, 12, Style.INK_3, false))
 	h.add_child(op)
 	h.add_child(_vsep())
@@ -45,7 +48,7 @@ func _ready() -> void:
 	dl.alignment = BoxContainer.ALIGNMENT_CENTER
 	_dleft = UiKit.title("", 26, Style.SEAL, 900)
 	dl.add_child(_dleft)
-	dl.add_child(UiKit.text(Loc.t("남은 날"), 11, Style.INK_3, false))
+	dl.add_child(UiKit.text("남은 날", 11, Style.INK_3, false))
 	h.add_child(dl)
 
 	var sp := Control.new()
@@ -55,7 +58,7 @@ func _ready() -> void:
 	var gl := VBoxContainer.new()
 	gl.add_theme_constant_override("separation", -6)
 	gl.alignment = BoxContainer.ALIGNMENT_CENTER
-	var gl1 := UiKit.text(Loc.t("광복수치"), 12, Style.INK_2, false, 700)
+	var gl1 := UiKit.text("광복수치", 12, Style.INK_2, false, 700)
 	gl1.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	gl.add_child(gl1)
 	_score_lbl = UiKit.title("", 22, Style.INK, 900)
@@ -85,7 +88,8 @@ func _ready() -> void:
 	th.add_child(_today_icon)
 	var tv := VBoxContainer.new()
 	tv.add_theme_constant_override("separation", -4)
-	tv.add_child(UiKit.label(Loc.t("오늘의 일제 동향"), 11, Style.ON_DARK_DIM))
+	_today_title = UiKit.label("오늘의 일제 동향", 11, Style.ON_DARK_DIM)
+	tv.add_child(_today_title)
 	_today_name = UiKit.label("", 15, Style.ON_DARK_ACCENT)
 	_today_name.add_theme_font_override("font", Style.serif(800))
 	tv.add_child(_today_name)
@@ -97,7 +101,7 @@ func _ready() -> void:
 	menu.expand_icon = true
 	menu.custom_minimum_size = Vector2(44, 40)
 	menu.add_theme_constant_override("icon_max_width", 22)
-	menu.tooltip_text = Loc.t("일시정지 · 설정 · 규칙 도감 (ESC)")
+	menu.tooltip_text = "일시정지 · 설정 · 규칙 도감 (ESC)"
 	h.add_child(menu)
 	refresh()
 
@@ -115,15 +119,38 @@ func refresh() -> void:
 	if _shown_score < 0.0 or not _gauge.has_meta("anim"):
 		_shown_score = game.score
 	_score_lbl.text = "%d / %d" % [roundi(_shown_score), game.goal]
-	_alert_lbl.text = Loc.t("경계\n%d단계") % game.alert_level()
-	_alert.tooltip_text = Loc.t("경계 %d단계 · 경찰 이동 %d칸\n날짜가 지날수록 단계가 오르고 경찰이 빨라집니다.") % [game.alert_level(), game.police_speed()]
-	_cal.tooltip_text = Loc.t("오늘 %s · 8월 15일까지 %d일\n8월 15일이 되면 일본이 항복하며 작전이 끝납니다.") % [game.date_label(), game.rounds_left]
+	_alert_lbl.text = "경계\n%d단계" % game.alert_level()
+	_alert.tooltip_text = "경계 %d단계 · 경찰 이동 %d칸\n날짜가 지날수록 단계가 오르고 경찰이 빨라집니다." % [game.alert_level(), game.police_speed()]
+	if game.two_act():
+		var ex: Dictionary = game.data.balance["two_act"]["exposure"]
+		if game.act == 1:
+			_act_lbl.text = "1막 · 정찰"
+			_act_lbl.add_theme_color_override("font_color", Style.INK)
+			_alert_lbl.text = "노출 %d/%d\n경계 %d단계" % [game.exposure, int(ex["max"]), game.alert_level()]
+			_alert.tooltip_text = "노출 %d / %d — 경계 %d단계 (경찰 이동 %d칸)\n매일 아침과 시끄러운 작전(암살·폭파 성공, 검문 실패, 체포)마다 노출이 오릅니다.\n노출 %d부터 2단계, %d부터 3단계." % [
+				game.exposure, int(ex["max"]), game.alert_level(), game.police_speed(), int(ex["thresholds"][0]), int(ex["thresholds"][1])]
+		else:
+			_act_lbl.text = "2막 · 결행"
+			_act_lbl.add_theme_color_override("font_color", Style.SEAL)
+			_alert_lbl.text = "총력\n경계"
+			_alert.tooltip_text = "결행 중: 경계 3단계 고정, 경찰 이동 %d칸\n매일 아침 결행 거점에서 경찰이 출동합니다." % game.police_speed()
+	_cal.tooltip_text = "오늘 %s · 8월 15일까지 %d일\n8월 15일이 되면 일본이 항복하며 작전이 끝납니다." % [game.date_label(), game.rounds_left]
 	var occ := game.today_occupation()
-	_today.visible = occ != ""
-	if occ != "":
-		var d := game.data.occupation(occ)
-		_today_name.text = d["name"]
-		_today.tooltip_text = "%s\n%s" % [d["text"], d["effect_text"]]
+	if game.act == 2 and not game.strike.is_empty():
+		# 2막: 일제 동향 대신 결행 진행
+		var info: Dictionary = game.data.text["strikes"][game.strike["id"]]
+		_today.visible = true
+		_today_title.text = "결행 목표"
+		_today_name.text = "%s  %d / %d" % [info["name"], game.strike["progress"], game.strike["need"]]
+		_today.tooltip_text = "%s\n\n%s" % [info["brief"], game.strike_goal_text()]
+		_today_icon.texture = load("res://assets/tiles/base.png")
+	else:
+		_today.visible = occ != ""
+		if occ != "":
+			var d := game.data.occupation(occ)
+			_today_title.text = "오늘의 일제 동향"
+			_today_name.text = d["name"]
+			_today.tooltip_text = "%s\n%s" % [d["text"], d["effect_text"]]
 	_cal.custom_minimum_size = Vector2(_cal_cells().size() * 41, 44)
 	_gauge.custom_minimum_size = Vector2(game.goal * 21 + 2, 44)
 	_cal.queue_redraw()
@@ -193,7 +220,10 @@ func _draw_calendar() -> void:
 			_cal.draw_rect(r, Color(1, 1, 1, 0.35 if not past else 0.15))
 			_cal.draw_rect(r, Color(Style.INK_2, 0.35), false, 1.0)
 		var a := 0.45 if past else 1.0
-		var top := Loc.t("오늘") if today else (Loc.t("광복") if rl == 0 else Loc.month(d.x))
+		var top := "오늘" if today else ("광복" if rl == 0 else "%d월" % d.x)
+		if not today and game.two_act() and game.act == 1 and rl == int(game.data.balance["two_act"].get("forced_days_left", 2)):
+			top = "결행"   # 이날 아침에는 반드시 결행한다
+			_cal.draw_rect(r, Color(Style.SEAL, 0.12))
 		_center(font, top, Vector2(r.get_center().x, r.position.y + 13), 10, Color(Style.INK_3 if not today else Style.SEAL, a))
 		_center(sfont, str(d.y), Vector2(r.get_center().x, r.position.y + 34), 17, Color(col, a))
 		if past:

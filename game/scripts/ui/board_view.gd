@@ -236,16 +236,19 @@ func _tooltip(c: Vector2i) -> String:
 	if c.x < 0:
 		return ""
 	if not game.board.has(c) or hidden_tiles.has(c):
-		return Loc.t("미탐색 지역")
+		return "미탐색 지역"
 	var t: String = game.board[c]["type"]
 	var name := game.data.tile_name(t)
 	var bi := game.data.bases.find(c)
 	if bi >= 0:
-		name = Loc.t("%s (일본군 거점)") % game.data.base_names[bi]
+		name = "%s (일본군 거점)" % game.data.base_names[bi]
+		if game.two_act():
+			var sd := game.strike_for_base(bi)
+			name += "\n첩보 %d · 결행 사건: %s" % [int(game.intel[bi]), game.data.text["strikes"].get(sd.get("id", ""), {}).get("name", "")]
 	if game.board[c]["used"]:
-		name += Loc.t(" (사용함 → 일반)")
+		name += " (사용함 → 일반)"
 	if t == "check":
-		name += Loc.t("\n들어가려면 회피 판정 (실패하면 경찰 소환)")
+		name += "\n들어가려면 회피 판정 (실패하면 경찰 소환)"
 	return name
 
 
@@ -308,6 +311,25 @@ func _draw_tiles() -> void:
 			var lp := Vector2(r.get_center().x - w / 2.0, r.end.y + fs * 0.35)
 			draw_rect(Rect2(lp.x - 5, lp.y - fs * 0.95, w + 10, fs * 1.3), Style.INK)
 			draw_string(font, lp, label, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Style.PAPER)
+			if game.two_act():
+				_draw_intel(r, game.data.bases.find(c))
+
+
+func _draw_intel(r: Rect2, bi: int) -> void:
+	## 거점의 첩보 마커 (붉은 점, 개수)
+	var n: int = int(game.intel[bi]) if bi < game.intel.size() else 0
+	if n <= 0:
+		return
+	var font := Style.sans(800)
+	var fs := maxi(10, int(r.size.x * 0.16))
+	var t := "%d" % n
+	var c := r.position + Vector2(r.size.x * 0.12, r.size.y * 0.12)
+	var rad := fs * 0.85
+	draw_circle(c + Vector2(1, 2), rad, Color(0, 0, 0, 0.35))
+	draw_circle(c, rad, Style.SEAL)
+	draw_arc(c, rad, 0, TAU, 20, Style.PAPER_HI, 1.5, true)
+	var w := font.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+	draw_string(font, c + Vector2(-w / 2, fs * 0.36), t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color.WHITE)
 
 
 func _hatch(r: Rect2, col: Color, n := 5) -> void:
@@ -351,11 +373,15 @@ func _draw_targets() -> void:
 		return
 	var me: Dictionary = game.players[human_id]
 	var marks := {}
+	if game.act == 2 and not game.strike.is_empty():
+		marks[game.strike_base()] = ["결행", Style.SEAL]
 	for c in game.mission_targets(me):
-		marks[c] = [Loc.t("목표"), Style.SEAL]
+		if not marks.has(c):
+			marks[c] = ["목표", Style.SEAL]
 	for q in game.players:
 		if q["jailed"] and q["id"] != human_id:
-			marks[q["pos"]] = [Loc.t("구출"), Style.seat(1)]
+			if not marks.has(q["pos"]):
+				marks[q["pos"]] = ["구출", Style.seat(1)]
 	var glow := 0.55 + 0.35 * sin(_pulse * 3.0)
 	for c in marks:
 		var r := cell_rect(c).grow(-1)
@@ -398,13 +424,13 @@ func _draw_preview_label() -> void:
 	var ok: bool = _preview["reachable"]
 	var danger := game.police_danger(me).has(hover)
 	var parts := []
-	parts.append((Loc.t("%d칸") % _preview["steps"]) if ok else _preview["reason"])
+	parts.append(("%d칸" % _preview["steps"]) if ok else _preview["reason"])
 	if _preview["checks"] > 0:
-		parts.append(Loc.t("검문 %d회") % _preview["checks"])
+		parts.append("검문 %d회" % _preview["checks"])
 	if _preview["unknown"] > 0:
-		parts.append(Loc.t("미탐색 %d칸") % _preview["unknown"])
+		parts.append("미탐색 %d칸" % _preview["unknown"])
 	if danger:
-		parts.append(Loc.t("체포 위험!"))
+		parts.append("체포 위험!")
 	var text := " · ".join(parts)
 	var font := Style.sans(700)
 	var fs := 16
@@ -465,7 +491,7 @@ func _draw_police() -> void:
 		draw_arc(ctr + Vector2(rad * 0.72, rad * 0.72), rad * 0.24, 0, TAU, 16, Color(1, 1, 1, alpha), 1.5, true)
 		if not v["active"]:
 			var font := Style.sans(800)
-			draw_string(font, ctr + Vector2(-rad * 0.95, -rad - 4), Loc.t("대기"), HORIZONTAL_ALIGNMENT_LEFT, -1, int(rad * 0.55), Color(Style.INK, alpha))
+			draw_string(font, ctr + Vector2(-rad * 0.95, -rad - 4), "대기", HORIZONTAL_ALIGNMENT_LEFT, -1, int(rad * 0.55), Color(Style.INK, alpha))
 
 
 func _draw_players() -> void:
@@ -492,18 +518,21 @@ func _draw_players() -> void:
 				lift = 3.0 + 3.0 * sin(_pulse * 3.5)
 				draw_circle(ctr - Vector2(0, lift), rad + r.size.x * 0.1, Color(Style.GOLD_HI, 0.45 + 0.2 * sin(_pulse * 4.0)))
 			lift += _move_lift.get(id, 0.0)
-			_token(ctr - Vector2(0, lift), rad, _faction_tex[p["faction"]], Style.seat(id), 0.6 if jailed else 1.0, lift)
+			var ring: Color = Style.INK if p["traitor"] else Style.seat(id)
+			_token(ctr - Vector2(0, lift), rad, _faction_tex[p["faction"]], ring, 0.6 if jailed else 1.0, lift)
 			if jailed:
 				for k in 4:
 					var x := ctr.x - rad * 0.75 + k * rad * 0.5
 					draw_line(Vector2(x, ctr.y - rad - 2), Vector2(x, ctr.y + rad + 2), Color(0.1, 0.08, 0.06), 3.0)
 				draw_line(Vector2(ctr.x - rad, ctr.y - rad * 0.3), Vector2(ctr.x + rad, ctr.y - rad * 0.3), Color(0.1, 0.08, 0.06), 3.0)
 			# 이름표
-			var tag: String = Loc.t("나") if id == human_id else p["name"].split(" (")[0].replace(" ", "")
+			var tag: String = "나" if id == human_id else p["name"].split(" (")[0].replace(" ", "")
+			if p["traitor"]:
+				tag = "변절 · " + tag
 			var fs := maxi(10, int(r.size.x * 0.14))
 			var w := font.get_string_size(tag, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x + 10
 			var tr := Rect2(ctr.x - w / 2, ctr.y - lift - rad - fs * 1.35, w, fs * 1.3)
-			draw_rect(tr, Style.seat(id))
+			draw_rect(tr, Style.INK if p["traitor"] else Style.seat(id))
 			draw_rect(tr, Color(Style.PAPER_HI, 0.9), false, 1.5)
 			draw_string(font, tr.position + Vector2(5, fs * 1.0), tag, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color.WHITE)
 

@@ -52,12 +52,12 @@
 			}
 		},
 		{
-			"id": "big_team",
-			"name": "대부대",
-			"desc": "6인 작전에서 대성공합니다.",
+			"id": "full_team",
+			"name": "완전한 결사",
+			"desc": "4인 작전에서 대성공합니다.",
 			"when": {
 				"ending": "victory",
-				"players_min": 6
+				"players_min": 4
 			}
 		},
 		{

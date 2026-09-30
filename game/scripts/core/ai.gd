@@ -6,6 +6,8 @@ const RESCUE_RANGE := 8
 
 
 static func decide(g: GameRules) -> Dictionary:
+	if g.phase in ["start", "move"] and g.cur()["traitor"]:
+		return _traitor(g, g.cur())
 	match g.phase:
 		"choice":
 			return {"type": "choose", "value": _choose(g, g.players[g.pending["player"]])}
@@ -16,13 +18,41 @@ static func decide(g: GameRules) -> Dictionary:
 	return {}
 
 
+# ------------------------------------------------------------------ 변절자
+
+static func _traitor(g: GameRules, p: Dictionary) -> Dictionary:
+	## 변절자: 결행 거점에 가장 가까운 요원에게 밀고하고, 가장 가까운 요원을 기습하러 간다
+	var opts := g.inform_options(p)
+	if not opts.is_empty():
+		var sb := g.strike_base()
+		var best: int = opts[0]["target"]
+		for o in opts:
+			if _manhattan(g.players[o["target"]]["pos"], sb) < _manhattan(g.players[best]["pos"], sb):
+				best = o["target"]
+		return {"type": "inform", "target": best}
+	if g.phase == "start":
+		return {"type": "roll"}
+	var target_path = null
+	for q in g.players:
+		if q["traitor"] or q["jailed"] or not q["started"]:
+			continue
+		var path = g.tile_path(p["pos"], q["pos"])
+		if path != null and (target_path == null or path.size() < target_path.size()):
+			target_path = path
+	if target_path == null or target_path.is_empty() or not g.can_step(p, target_path[0]):
+		return {"type": "end_move"}
+	return {"type": "step", "to": target_path[0]}
+
+
 # ------------------------------------------------------------------ 차례 시작
 
 static func _start(g: GameRules, p: Dictionary) -> Dictionary:
+	if g.can_strike(p):
+		return {"type": "strike"}
 	if p["jailed"]:
 		var idx := _usable_item(g, p, ["pin"])
 		return {"type": "use_item", "index": idx} if idx >= 0 else {"type": "escape"}
-	if not g.mission_feasible(p):
+	if g.act == 1 and not g.mission_feasible(p):
 		return {"type": "swap_mission"}
 	if g.can_use_ability(p) and ability_pick(g, p) >= 0:
 		return {"type": "ability"}
@@ -46,8 +76,10 @@ static func _start(g: GameRules, p: Dictionary) -> Dictionary:
 
 static func _move(g: GameRules, p: Dictionary) -> Dictionary:
 	var T := targets(g, p)
+	if g.act == 2 and T.has(p["pos"]):
+		return {"type": "end_move"}
 	# 보급 타일에서 폭탄을 챙기려고 멈춘다
-	if g.tile_type(p["pos"]) == "supply" and p["mission"]["type"] == "bomb" \
+	if g.tile_type(p["pos"]) == "supply" and p["mission"].get("type", "") == "bomb" \
 			and p["bombs"] == 0 and g.bomb_supply > 0:
 		return {"type": "end_move"}
 	if not T.is_empty():
@@ -66,13 +98,38 @@ static func _move(g: GameRules, p: Dictionary) -> Dictionary:
 
 
 static func targets(g: GameRules, p: Dictionary) -> Dictionary:
-	var T := g.mission_targets(p)
+	var T := g.mission_targets(p) if g.act == 1 else _strike_targets(g, p)
 	var rescues := {}
 	for q in g.players:
 		if q["jailed"] and q["id"] != p["id"] and _manhattan(q["pos"], p["pos"]) <= _rescue_range(p):
 			rescues[q["pos"]] = true
 	T.merge(rescues)
 	return T
+
+
+static func _strike_targets(g: GameRules, p: Dictionary) -> Dictionary:
+	var T := {}
+	if g.strike.is_empty():
+		return T
+	if g.strike["kind"] == "bomb" and p["bombs"] == 0:
+		if g.bomb_supply > 0:
+			for c in g.board:
+				if g.board[c]["type"] == "supply":
+					T[c] = true
+		return T
+	T[g.strike_base()] = true
+	return T
+
+
+static func launch_vote(g: GameRules, p: Dictionary) -> bool:
+	## 결행 투표: 첩보가 충분하거나 날이 얼마 안 남으면 찬성. 성격마다 기준이 다르다.
+	var best := 0
+	for v in g.intel:
+		best = maxi(best, int(v))
+	match p.get("personality", ""):
+		"bold": return best >= 1 or g.rounds_left <= 4
+		"careful": return best >= 3 or g.rounds_left <= 3
+	return best >= 2 or g.rounds_left <= 4
 
 
 static func intent(g: GameRules, p: Dictionary) -> String:
@@ -100,6 +157,8 @@ static func persona_desc(g: GameRules, p: Dictionary) -> String:
 
 static func _intent_key(g: GameRules, p: Dictionary) -> Array:
 	## [상황 키, 문구에 넣을 값]
+	if p.get("traitor", false):
+		return ["traitor", {}]
 	if p["jailed"]:
 		return ["pin" if g.has_item(p, "pin") else "jailed", {}]
 	for q in g.players:
@@ -107,6 +166,8 @@ static func _intent_key(g: GameRules, p: Dictionary) -> Array:
 			return ["rescue", {"who": q["name"].split(" (")[0]}]
 	if g.police_active(p["id"]) and _manhattan(g.police[p["id"]]["pos"], p["pos"]) <= g.police_speed():
 		return ["chased", {}]
+	if g.act == 2 and not g.strike.is_empty():
+		return ["strike", {"base": g.data.base_names[int(g.strike["base"])]}]
 	var m: Dictionary = p["mission"]
 	var found := not g.mission_targets(p).is_empty()
 	match m.get("type", ""):
@@ -219,6 +280,8 @@ static func _choose(g: GameRules, p: Dictionary) -> Variant:
 			return ability_pick(g, p)
 		"react_evade":
 			return true
+		"launch_vote":
+			return launch_vote(g, p)
 		"react_event":
 			return bool(g.event_def(g.current_event()).get("bad", false))
 		"tram_ride":

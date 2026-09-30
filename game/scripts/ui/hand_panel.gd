@@ -4,8 +4,7 @@ extends PanelContainer
 
 signal use_item(index: int)
 
-const CARD_BIG := Vector2(118, 172)
-const CARD_SMALL := Vector2(100, 140)
+const CARD := Vector2(118, 172)
 const LIFT := 12.0
 
 var game: GameRules
@@ -13,7 +12,7 @@ var human := 0
 var _row: HBoxContainer
 var _sig := ""
 var _hint: Label
-var _card := CARD_BIG
+var _card := CARD
 
 
 func _init(g: GameRules, human_id: int) -> void:
@@ -22,15 +21,13 @@ func _init(g: GameRules, human_id: int) -> void:
 
 
 func _ready() -> void:
-	if game.players.size() >= 5:
-		_card = CARD_SMALL
 	add_theme_stylebox_override("panel", Style.paper(14))
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 4)
 	add_child(v)
 	var head := HBoxContainer.new()
 	head.add_theme_constant_override("separation", 10)
-	head.add_child(UiKit.title(Loc.t("내 손 패"), 16, Style.INK_2))
+	head.add_child(UiKit.title("내 손 패", 16, Style.INK_2))
 	_hint = UiKit.text("", 11, Style.INK_3, false)
 	_hint.size_flags_vertical = Control.SIZE_SHRINK_END
 	head.add_child(_hint)
@@ -51,7 +48,7 @@ func refresh(my_turn: bool) -> void:
 		return
 	_sig = sig
 	UiKit.clear(_row)
-	_hint.text = Loc.t("빛나는 카드를 눌러 사용") if usable.has(true) else Loc.t("카드에 마우스를 올리면 설명")
+	_hint.text = "빛나는 카드를 눌러 사용" if usable.has(true) else "카드에 마우스를 올리면 설명"
 	_row.add_child(_holder(_mission_card(me, targets_found), false, -1))
 	var sep := ColorRect.new()
 	sep.color = Color(Style.INK, 0.16)
@@ -60,44 +57,44 @@ func refresh(my_turn: bool) -> void:
 	_row.add_child(sep)
 	for i in me["items"].size():
 		var d := game.item_def(me["items"][i])
-		var kind := Loc.t("소모") if d.get("kind") == "consumable" else Loc.t("지속")
-		var c := CardView.face(Loc.t("아 이 템 · %s") % kind, Style.ITEM, load(d.get("image", "res://assets/tiles/item.png")),
+		var kind := "소모" if d.get("kind") == "consumable" else "지속"
+		var c := CardView.face("아 이 템 · %s" % kind, Style.ITEM, load(d.get("image", "res://assets/tiles/item.png")),
 			d["name"], d["effect_text"], _card.x, _card.y)
-		c.tooltip_text = "%s\n\n%s%s" % [d["text"], d["effect_text"], Loc.t("\n\n▶ 눌러서 사용") if usable[i] else ""]
+		c.tooltip_text = "%s\n\n%s%s" % [d["text"], d["effect_text"], "\n\n▶ 눌러서 사용" if usable[i] else ""]
 		_row.add_child(_holder(c, usable[i], i))
 	for k in range(me["items"].size(), game.data.balance["hand_limit"]):
-		_row.add_child(_slot(Loc.t("아이템 칸\n비어 있음")))
+		_row.add_child(_slot("아이템 칸\n비어 있음"))
 	if me["bombs"] > 0:
 		var bomb := TextureRect.new()
 		bomb.texture = load("res://assets/cards/bomb.png")
 		bomb.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		bomb.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT
 		bomb.custom_minimum_size = _card
-		bomb.tooltip_text = Loc.t("폭탄 ×%d\n%s") % [me["bombs"], game.item_def("bomb")["effect_text"]]
+		bomb.tooltip_text = "폭탄 ×%d\n%s" % [me["bombs"], game.item_def("bomb")["effect_text"]]
 		_row.add_child(_holder(bomb, false, -1))
 	else:
-		_row.add_child(_slot(Loc.t("폭탄 슬롯\n비어 있음")))
+		_row.add_child(_slot("폭탄 슬롯\n비어 있음"))
 
 
 func _mission_card(me: Dictionary, found: bool) -> Control:
 	var t: String = me["mission"].get("type", "")
 	if t == "":
-		return _slot(Loc.t("미션 없음"))
+		return _slot("미션 없음")
 	var m := game.data.mission(t)
 	var art_path := "res://assets/tiles/%s.png" % m.get("tile", "base")
 	var target := ""
 	if me["mission"].has("base"):
-		target = Loc.t("목표 %s\n") % game.data.base_names[me["mission"]["base"]]
+		target = "목표 %s\n" % game.data.base_names[me["mission"]["base"]]
 	elif not found:
-		target = Loc.t("목표 미발견\n")
-	var desc := Loc.t("%s성공 시 광복 +%d") % [target, int(m.get("reward", 1))]
-	var c := CardView.face(Loc.t("미 션"), Style.MISSION, load(art_path), m["name"], desc, _card.x, _card.y)
+		target = "목표 미발견\n"
+	var desc := "%s성공 시 광복 +%d" % [target, int(m.get("reward", 1))]
+	var c := CardView.face("미 션", Style.MISSION, load(art_path), m["name"], desc, _card.x, _card.y)
 	var eff: String = m.get("effect_text", "")
 	if me["mission"].has("base"):
 		eff = eff.replace("{base}", game.data.base_names[me["mission"]["base"]])
 	var base_name: String = game.data.base_names[me["mission"]["base"]] if me["mission"].has("base") else ""
 	c.tooltip_text = "%s\n\n%s%s" % [m.get("text", "").replace("{base}", base_name), eff,
-		"" if found else Loc.t("\n\n아직 목표 타일이 깔리지 않았습니다. 새 길을 열어 찾으세요.")]
+		"" if found else "\n\n아직 목표 타일이 깔리지 않았습니다. 새 길을 열어 찾으세요."]
 	return c
 
 
@@ -166,4 +163,4 @@ class Glow extends Control:
 		var font := Style.sans(800)
 		var r := Rect2(size.x / 2 - 22, size.y - 12, 44, 20)
 		draw_rect(r, Style.GOLD)
-		draw_string(font, r.position + Vector2(9, 15), Loc.t("사용"), HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Style.INK)
+		draw_string(font, r.position + Vector2(9, 15), "사용", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Style.INK)

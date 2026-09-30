@@ -127,17 +127,13 @@
 		"rounds_by_players": {
 			"2": 21,
 			"3": 14,
-			"4": 10,
-			"5": 8,
-			"6": 7
+			"4": 10
 		}
 	},
 	"goal_by_players": {
 		"2": 10,
 		"3": 10,
-		"4": 10,
-		"5": 10,
-		"6": 12
+		"4": 10
 	},
 	"checks": {
 		"assassin": 9,
@@ -186,5 +182,72 @@
 		"_comment": "일제 동향 덱. 둘째 날부터 매일 아침 1장",
 		"enabled": true,
 		"first_day_draw": false
+	},
+	"two_act": {
+		"_comment": "2막 구조 (기획서 16장). 1막 정찰에서 첩보·광복수치를 모으고, 결행 선언 뒤 2막에서 결행 사건을 달성하면 대성공. 수치는 초기값.",
+		"enabled": true,
+		"launch_min_by_players": {
+			"2": 5,
+			"3": 5,
+			"4": 5
+		},
+		"forced_days_left": 2,
+		"exposure": {
+			"per_day": 1,
+			"loud": 1,
+			"thresholds": [
+				3,
+				6
+			],
+			"max": 9
+		},
+		"strikes": [
+			{
+				"id": "barracks",
+				"base": 0,
+				"kind": "assassin",
+				"need": 2,
+				"threshold": 10,
+				"intel_step": 1,
+				"min_threshold": 8
+			},
+			{
+				"id": "police_hq",
+				"base": 1,
+				"kind": "bomb",
+				"need": 2,
+				"intel_step": 1,
+				"min_need": 1
+			},
+			{
+				"id": "prison",
+				"base": 2,
+				"kind": "lockpick",
+				"need": 3,
+				"threshold": 10,
+				"intel_step": 1,
+				"max_bonus": 2
+			},
+			{
+				"id": "gg",
+				"base": 3,
+				"kind": "hold",
+				"intel_step": 3,
+				"min_need": 2
+			}
+		],
+		"act2_police_bonus": 1,
+		"rounds_by_players": {
+			"2": 18,
+			"3": 12,
+			"4": 9
+		},
+		"traitor": {
+			"_comment": "변절자 (기획서 16.10). players 인원에서만 결행 때 한 명이 변절한다.",
+			"players": [
+				4
+			],
+			"inform_range": 3
+		}
 	}
 }

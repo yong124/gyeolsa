@@ -7,7 +7,6 @@ var game: GameRules
 var human := 0
 var _box: VBoxContainer
 var _rows: Array = []     # [{"panel", "face", "name", "sub", "chips", "stamp", "sig", "cur"}]
-var _compact := false
 
 
 func _init(g: GameRules, human_id: int) -> void:
@@ -22,16 +21,15 @@ func _ready() -> void:
 	add_child(v)
 	var head := HBoxContainer.new()
 	head.add_theme_constant_override("separation", 10)
-	var t := UiKit.title(Loc.t("요 원 명 부"), 16, Style.INK_2)
+	var t := UiKit.title("요 원 명 부", 16, Style.INK_2)
 	head.add_child(t)
-	var hint := UiKit.text(Loc.t("마우스를 올리면 자세히"), 11, Style.INK_3, false)
+	var hint := UiKit.text("마우스를 올리면 자세히", 11, Style.INK_3, false)
 	hint.size_flags_vertical = Control.SIZE_SHRINK_END
 	head.add_child(hint)
 	v.add_child(head)
 	_box = VBoxContainer.new()
-	_box.add_theme_constant_override("separation", 5 if game.players.size() <= 4 else 3)
+	_box.add_theme_constant_override("separation", 5)
 	v.add_child(_box)
-	_compact = game.players.size() >= 5
 	for p in game.players:
 		_rows.append(_make_row(p))
 	refresh()
@@ -49,8 +47,7 @@ func _make_row(p: Dictionary) -> Dictionary:
 	var face := Face.new()
 	face.tex = load(game.data.faction(p["faction"])["emblem"])
 	face.ring = Style.seat(p["id"])
-	var fs := 34.0 if _compact else 48.0
-	face.custom_minimum_size = Vector2(fs, fs)
+	face.custom_minimum_size = Vector2(48, 48)
 	face.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	h.add_child(face)
 	var v := VBoxContainer.new()
@@ -61,34 +58,25 @@ func _make_row(p: Dictionary) -> Dictionary:
 	var nh := HBoxContainer.new()
 	nh.add_theme_constant_override("separation", 6)
 	var short: String = p["name"].split(" (")[0]
-	var name := UiKit.title(short, 16 if not _compact else 15, Style.INK)
+	var name := UiKit.title(short, 16, Style.INK)
 	nh.add_child(name)
 	var f := game.data.faction(p["faction"])
 	var personality := GameAI.persona_name(game, p)
 	var desc := "%s · %s" % [f["name"], f.get("active", {}).get("name", "")]
 	if personality != "":
-		desc += Loc.t(" · %s형") % personality
+		desc += " · %s형" % personality
 	var sub := UiKit.text(desc, 12, Style.INK_3, false)
 	sub.size_flags_vertical = Control.SIZE_SHRINK_END
 	if personality != "":
-		sub.tooltip_text = Loc.t("%s형: %s") % [personality, GameAI.persona_desc(game, p)]
+		sub.tooltip_text = "%s형: %s" % [personality, GameAI.persona_desc(game, p)]
 		sub.mouse_filter = Control.MOUSE_FILTER_STOP
 	nh.add_child(sub)
 	v.add_child(nh)
 	var chips := HFlowContainer.new()
 	chips.add_theme_constant_override("h_separation", 5)
 	chips.add_theme_constant_override("v_separation", 3)
-	if _compact:
-		# 인원이 많으면 이름 옆에 칩을 붙여 한 줄로
-		sub.visible = false
-		chips.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		chips.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		nh.add_child(chips)
-		name.tooltip_text = desc + ("\n" + GameAI.persona_desc(game, p) if personality != "" else "")
-		name.mouse_filter = Control.MOUSE_FILTER_STOP
-	else:
-		v.add_child(chips)
-	var stamp := UiKit.stamp(Loc.t("차 례"), 14)
+	v.add_child(chips)
+	var stamp := UiKit.stamp("차 례", 14)
 	stamp.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	h.add_child(stamp)
 	var right := UiKit.text("", 11, Style.INK_3, false)
@@ -113,19 +101,21 @@ func refresh(cur := -1) -> void:
 			var st := Style.row(Color("#fff8e1", 0.8) if is_cur else Color(1, 1, 1, 0.26),
 				Style.GOLD if is_cur else Color(Style.INK, 0.14), 2 if is_cur else 1)
 			st.content_margin_left = 0
-			st.content_margin_top = 6 if not _compact else 3
-			st.content_margin_bottom = 6 if not _compact else 3
+			st.content_margin_top = 6
+			st.content_margin_bottom = 6
 			if is_cur:
 				st.shadow_color = Color(0, 0, 0, 0.12)
 				st.shadow_offset = Vector2(4, 4)
 			row["panel"].add_theme_stylebox_override("panel", st)
 			row["stamp"].visible = is_cur
 		var face: Face = row["face"]
-		if face.jailed != p["jailed"]:
+		var ring: Color = Style.INK if p["traitor"] else Style.seat(p["id"])
+		if face.jailed != p["jailed"] or face.ring != ring:
 			face.jailed = p["jailed"]
+			face.ring = ring
 			face.queue_redraw()
 		var jailed_n: int = p["stats"].get("jailed", 0) if p.has("stats") else 0
-		row["right"].text = Loc.t("투옥 %d회") % jailed_n if jailed_n > 0 and not is_cur else ""
+		row["right"].text = "투옥 %d회" % jailed_n if jailed_n > 0 and not is_cur else ""
 		var chips := _chips(p)
 		var sig := str(chips)
 		if sig != row["sig"]:
@@ -138,36 +128,38 @@ func refresh(cur := -1) -> void:
 func _chips(p: Dictionary) -> Array:
 	## [표시 글, 아이콘 글자, 색, 설명, 흐리게?]
 	var out := []
+	if p["traitor"]:
+		out.append(["변절자", "✕", Style.INK, "일제에 회유되어 돌아섰습니다. 요원이 있는 칸에 들어가 기습 체포하고, 가까운 요원을 밀고합니다.\n8월 15일까지 결행을 막으면 변절자가 이깁니다.", false])
 	if p["mission"].get("type", "") != "":
 		var m := game.data.mission(p["mission"]["type"])
 		var desc: String = m.get("effect_text", "")
 		if p["mission"].has("base"):
 			desc = desc.replace("{base}", game.data.base_names[p["mission"]["base"]])
 		out.append([game.mission_label(p["mission"]).replace(" - ", " · "), "◎", Style.MISSION,
-			Loc.t("미션: %s\n%s") % [m.get("name", ""), desc], false])
+			"미션: %s\n%s" % [m.get("name", ""), desc], false])
 	if not p["items"].is_empty():
 		var names: Array = p["items"].map(func(id): return "· %s — %s" % [game.item_def(id)["name"], game.item_def(id)["effect_text"]])
-		var lbl := Loc.t("아이템") if p["id"] != human else ", ".join(p["items"].map(func(id): return game.item_def(id)["name"]))
-		out.append([lbl, str(p["items"].size()), Style.ITEM, Loc.t("아이템\n") + "\n".join(names), false])
+		var lbl := "아이템" if p["id"] != human else ", ".join(p["items"].map(func(id): return game.item_def(id)["name"]))
+		out.append([lbl, str(p["items"].size()), Style.ITEM, "아이템\n" + "\n".join(names), false])
 	if p["bombs"] > 0:
-		out.append([Loc.t("폭탄"), str(p["bombs"]), Style.INK_2, game.item_def("bomb")["effect_text"], false])
+		out.append(["폭탄", str(p["bombs"]), Style.INK_2, game.item_def("bomb")["effect_text"], false])
 	if p["jailed"]:
-		out.append([Loc.t("감옥"), "!", Style.SEAL, Loc.t("거점 감옥에 갇혀 있습니다. 차례마다 탈옥을 시도하거나, 동료가 거점에 들어오면 구출됩니다."), false])
+		out.append(["감옥", "!", Style.SEAL, "거점 감옥에 갇혀 있습니다. 차례마다 탈옥을 시도하거나, 동료가 거점에 들어오면 구출됩니다.", false])
 	if game.police.has(p["id"]):
 		if game.police_active(p["id"]):
-			out.append([Loc.t("경찰 추격"), "!", Style.SEAL, Loc.t("경찰이 이 요원을 쫓고 있습니다. 차례가 끝날 때 경찰이 다가오고, 같은 칸이 되면 체포됩니다."), false])
+			out.append(["경찰 추격", "!", Style.SEAL, "경찰이 이 요원을 쫓고 있습니다. 차례가 끝날 때 경찰이 다가오고, 같은 칸이 되면 체포됩니다.", false])
 		else:
-			out.append([Loc.t("경찰 대기"), "…", Style.WARN, Loc.t("방금 나타난 경찰입니다. 이번 차례에는 움직이지 않습니다."), false])
+			out.append(["경찰 대기", "…", Style.WARN, "방금 나타난 경찰입니다. 이번 차례에는 움직이지 않습니다.", false])
 	if p["on_tram"]:
-		out.append([Loc.t("전차"), "⇄", Style.INK_2, Loc.t("전차에 탔습니다. 다음 차례에 원하는 역에서 출발합니다."), false])
+		out.append(["전차", "⇄", Style.INK_2, "전차에 탔습니다. 다음 차례에 원하는 역에서 출발합니다.", false])
 	if p["move_mod"] != 0:
-		out.append([Loc.t("다음 이동 %+d") % p["move_mod"], "↑" if p["move_mod"] > 0 else "↓",
-			Style.GOOD if p["move_mod"] > 0 else Style.SEAL, Loc.t("다음 차례 주사위 이동에 %+d칸") % p["move_mod"], false])
+		out.append(["다음 이동 %+d" % p["move_mod"], "↑" if p["move_mod"] > 0 else "↓",
+			Style.GOOD if p["move_mod"] > 0 else Style.SEAL, "다음 차례 주사위 이동에 %+d칸" % p["move_mod"], false])
 	if p["skip_next"]:
-		out.append([Loc.t("휴식"), "z", Style.INK_3, Loc.t("다음 차례를 쉽니다."), false])
+		out.append(["휴식", "z", Style.INK_3, "다음 차례를 쉽니다.", false])
 	if p["ability_day"] == game.rounds_left:
 		var ab := game.ability_def(p)
-		out.append([ab.get("name", Loc.t("능력")), "✓", Style.INK_3, Loc.t("오늘은 세력 능력을 이미 썼습니다. 내일 다시 쓸 수 있습니다."), true])
+		out.append([ab.get("name", "능력"), "✓", Style.INK_3, "오늘은 세력 능력을 이미 썼습니다. 내일 다시 쓸 수 있습니다.", true])
 	return out
 
 

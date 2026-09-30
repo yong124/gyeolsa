@@ -59,13 +59,13 @@ func _ready() -> void:
 	_body.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(_body)
 
-	_hint = UiKit.label(Loc.t("클릭하면 다음으로  ·  ESC 건너뛰기"), 14, Color(1, 1, 1, 0.45))
+	_hint = UiKit.label("클릭하면 다음으로  ·  ESC 건너뛰기", 14, Color(1, 1, 1, 0.45))
 	add_child(_hint)
 	_hint.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
 	_hint.position.y -= 50
 	_hint.grow_horizontal = Control.GROW_DIRECTION_BOTH
 
-	var skip := UiKit.button(Loc.t("건너뛰기 ▶"), _finish, 16)
+	var skip := UiKit.button("건너뛰기 ▶", _finish, 16)
 	add_child(skip)
 	skip.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
 	skip.position += Vector2(-150, 24)

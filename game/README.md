@@ -48,7 +48,7 @@ game/
 └─ tools/                 ← 개발 도구 (빌드에서 제외)
    ├─ gen_sfx.py, gen_bgm.py  효과음·배경음 합성
    ├─ gen_ui_art.py           종이·책상 재질 텍스처 생성
-   ├─ tour.gd                 화면 둘러보기 캡처: godot --path game -- tour out=<폴더> [w=1366 h=768] [store]
+   ├─ tour.gd                 화면 둘러보기 캡처: godot --path game -- tour out=<폴더> [w=1366 h=768] [store | act2]
    └─ build_release.ps1       출시 빌드
 ```
 
@@ -80,4 +80,10 @@ godot --headless --path game --script res://tests/save_test.gd -- 60
 godot --headless --path game --script res://tests/tutorial_test.gd
 # 세력 밸런스 (4인 모두 같은 세력)
 godot --headless --path game --script res://tests/faction_test.gd -- 500
+```
+
+### 2막 구조 검증
+```bash
+# 인원별(2~4인) 대성공·결행 시점·거점 선택률·사건별 성공률
+godot --headless --path game --script res://tests/act2_test.gd -- 500
 ```

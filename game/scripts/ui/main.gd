@@ -82,7 +82,7 @@ func _start_tutorial() -> void:
 	var sc: Dictionary = data.text["tutorial"]["scenario"]
 	var game := GameRules.new()
 	game.scenario = {}
-	for k in ["goal", "rounds", "first_missions", "start_items", "tile_order_top"]:
+	for k in ["goal", "rounds", "first_missions", "start_items", "tile_order_top", "two_act"]:
 		if sc.has(k):
 			game.scenario[k] = sc[k]
 	game.setup(sc["players"].duplicate(true), int(sc.get("seed", 1945)), data)

@@ -123,7 +123,7 @@ func _show_menu() -> void:
 	tv.add_theme_constant_override("separation", 0)
 	tv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	tv.add_child(UiKit.title(_data.text["title"], 54, Style.INK, 900))
-	tv.add_child(UiKit.text(Loc.t("1945, 우리 손으로 되찾는 광복"), 16, Style.INK_3, false, 600))
+	tv.add_child(UiKit.text("1945, 우리 손으로 되찾는 광복", 16, Style.INK_3, false, 600))
 	head.add_child(tv)
 	var st := UiKit.stamp("極 秘", 24, Style.SEAL, -9)
 	st.size_flags_vertical = Control.SIZE_SHRINK_CENTER
@@ -133,19 +133,19 @@ func _show_menu() -> void:
 	sp.custom_minimum_size = Vector2(0, 14)
 	_panel.add_child(sp)
 	if SaveGame.exists():
-		_menu_button(Loc.t("이어하기"), func(): continue_requested.emit(), SaveGame.summary(), true)
-	_menu_button(Loc.t("새 작전"), _show_setup, Loc.t("인원 · 세력 · 난이도"), not SaveGame.exists())
+		_menu_button("이어하기", func(): continue_requested.emit(), SaveGame.summary(), true)
+	_menu_button("새 작전", _show_setup, "인원 · 세력 · 난이도", not SaveGame.exists())
 	var rec := Records.data()
 	var date := Records.today()
 	var best_today: int = int(rec["daily"].get(date, -1))
-	_menu_button(Loc.t("오늘의 작전"), _show_daily, "%s%s" % [_date_label(date), Loc.t(" · 최고 광복 %d") % best_today if best_today >= 0 else Loc.t(" · 새 작전")])
-	_menu_button(Loc.t("특수 작전"), _show_special, Loc.t("성공 %d / %d") % [rec["scenarios_won"].size(), _data.special_ops().size()])
-	_menu_button(Loc.t("튜토리얼"), func(): tutorial_requested.emit(), Loc.t("5분") + ("" if Prefs.tutorial_done else Loc.t(" · 처음이라면 추천")))
-	_menu_button(Loc.t("작전 기록"), _show_records, Loc.t("%d판 · 도전 과제 %d / %d") % [int(rec["games"]), rec["unlocked"].size(), _data.achievements.get("list", []).size()])
-	_menu_button(Loc.t("규칙 도감"), _show_rulebook, "")
-	_menu_button(Loc.t("설정"), _show_settings, "")
-	_menu_button(Loc.t("도입부 다시 보기"), func(): intro_requested.emit(), "")
-	_menu_button(Loc.t("종료"), func(): get_tree().quit(), "")
+	_menu_button("오늘의 작전", _show_daily, "%s%s" % [_date_label(date), " · 최고 광복 %d" % best_today if best_today >= 0 else " · 새 작전"])
+	_menu_button("특수 작전", _show_special, "성공 %d / %d" % [rec["scenarios_won"].size(), _data.special_ops().size()])
+	_menu_button("튜토리얼", func(): tutorial_requested.emit(), "5분" + ("" if Prefs.tutorial_done else " · 처음이라면 추천"))
+	_menu_button("작전 기록", _show_records, "%d판 · 도전 과제 %d / %d" % [int(rec["games"]), rec["unlocked"].size(), _data.achievements.get("list", []).size()])
+	_menu_button("규칙 도감", _show_rulebook, "")
+	_menu_button("설정", _show_settings, "")
+	_menu_button("도입부 다시 보기", func(): intro_requested.emit(), "")
+	_menu_button("종료", func(): get_tree().quit(), "")
 
 
 func _menu_button(text: String, cb: Callable, sub: String, main := false) -> void:
@@ -168,7 +168,6 @@ func _menu_button(text: String, cb: Callable, sub: String, main := false) -> voi
 
 func _show_settings() -> void:
 	var s := SettingsPanel.new()
-	s.allow_language = true
 	s.closed.connect(func(): _overlay.visible = false)
 	_overlay.show_with(s)
 
@@ -185,14 +184,14 @@ func _show_setup() -> void:
 	UiKit.clear(_panel)
 	_seg.clear()
 	_op = {}
-	_panel.add_child(UiKit.label(Loc.t("작 전 명 령 서"), Style.FS_SMALL, Style.SEAL))
-	_panel.add_child(UiKit.title(Loc.t("새 작전"), 40, Style.INK, 900))
+	_panel.add_child(UiKit.label("작 전 명 령 서", Style.FS_SMALL, Style.SEAL))
+	_panel.add_child(UiKit.title("새 작전", 40, Style.INK, 900))
 	var syn := UiKit.text(_data.text["synopsis"].split("\n\n")[0], 14, Style.INK_2)
 	syn.custom_minimum_size = Vector2(600, 0)
 	_panel.add_child(syn)
 	_panel.add_child(UiKit.hsep())
 
-	_panel.add_child(_row_label(Loc.t("내 세력")))
+	_panel.add_child(_row_label("내 세력"))
 	var fr := HBoxContainer.new()
 	fr.add_theme_constant_override("separation", 10)
 	_panel.add_child(fr)
@@ -208,19 +207,19 @@ func _show_setup() -> void:
 	grid.add_theme_constant_override("h_separation", 16)
 	grid.add_theme_constant_override("v_separation", 10)
 	_panel.add_child(grid)
-	grid.add_child(_row_label(Loc.t("인원")))
+	grid.add_child(_row_label("인원"))
 	var opts := []
-	for n in range(2, 7):
-		opts.append([str(n) + Loc.t("인"), n])
+	for n in range(2, 5):   # 2~4인 (기획서 17.1)
+		opts.append([str(n) + "인", n])
 	grid.add_child(_segment("players", opts, _n_players, func(v): _n_players = v))
-	grid.add_child(_row_label(Loc.t("난이도")))
+	grid.add_child(_row_label("난이도"))
 	var dopts := []
 	for i in DIFFICULTY.size():
-		dopts.append([Loc.t(DIFFICULTY[i]["name"]), i])
+		dopts.append([DIFFICULTY[i]["name"], i])
 	grid.add_child(_segment("diff", dopts, _diff, func(v): _diff = v))
-	grid.add_child(_row_label(Loc.t("전차 역")))
+	grid.add_child(_row_label("전차 역"))
 	_chk_stations = CheckBox.new()
-	_chk_stations.text = Loc.t("사용 (보드 가장자리 4곳)")
+	_chk_stations.text = "사용 (보드 가장자리 4곳)"
 	_chk_stations.button_pressed = true
 	_chk_stations.focus_mode = Control.FOCUS_NONE
 	grid.add_child(_chk_stations)
@@ -233,10 +232,10 @@ func _show_setup() -> void:
 	_panel.add_child(box)
 	_update_info()
 
-	var start := UiKit.button(Loc.t("작전 개시"), _on_start, 24, "primary")
+	var start := UiKit.button("작전 개시", _on_start, 24, "primary")
 	start.custom_minimum_size = Vector2(0, 58)
 	_panel.add_child(start)
-	var back := UiKit.button(Loc.t("← 메뉴로"), _show_menu, 15, "tab")
+	var back := UiKit.button("← 메뉴로", _show_menu, 15, "tab")
 	back.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	_panel.add_child(back)
 
@@ -297,7 +296,7 @@ func _faction_card(i: int, key: String) -> PanelContainer:
 	var a := UiKit.text(f.get("active", {}).get("name", ""), 12, Style.INK_3, false, 700)
 	a.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(a)
-	p.tooltip_text = Loc.t("%s\n\n특성: %s\n능력 [%s]: %s") % [f["desc"], f["ability"], f.get("active", {}).get("name", "-"), f.get("active", {}).get("desc", "")]
+	p.tooltip_text = "%s\n\n특성: %s\n능력 [%s]: %s" % [f["desc"], f["ability"], f.get("active", {}).get("name", "-"), f.get("active", {}).get("desc", "")]
 	p.gui_input.connect(func(e: InputEvent):
 		if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
 			Sfx.play("click")
@@ -316,11 +315,11 @@ func _update_info() -> void:
 	if not _op.is_empty():
 		var n: int = int(_op["players"])
 		var sc: Dictionary = _op.get("scenario", {})
-		_info.text = Loc.t("특성: %s\n능력 [%s] (하루 1회): %s\n\n나 + AI 동료 %d명 · 작전 기간 %d일 · 목표 광복수치 %d") % [
-			f["ability"], a.get("name", "-"), a.get("desc", ""), n - 1, int(sc.get("rounds", _data.rounds_for(n))), int(sc.get("goal", _data.goal_for(n)))]
+		_info.text = "특성: %s\n능력 [%s] (하루 1회): %s\n\n나 + AI 동료 %d명 · 작전 기간 %d일 · 목표 광복수치 %d" % [
+			f["ability"], a.get("name", "-"), a.get("desc", ""), n - 1, int(sc.get("rounds", _data.rounds_for(n, bool(sc.get("two_act", true))))), int(sc.get("goal", _data.goal_for(n)))]
 		return
 	var days: int = _data.rounds_for(_n_players) + DIFFICULTY[_diff]["days"]
-	_info.text = Loc.t("특성: %s\n능력 [%s] (하루 1회): %s\n\n나 + AI 동료 %d명 · 작전 기간 %d일 · 목표 광복수치 %d") % [
+	_info.text = "특성: %s\n능력 [%s] (하루 1회): %s\n\n나 + AI 동료 %d명 · 작전 기간 %d일 · 목표 광복수치 %d" % [
 		f["ability"], a.get("name", "-"), a.get("desc", ""), _n_players - 1, days, _data.goal_for(_n_players)]
 
 
@@ -339,13 +338,13 @@ func _launch(cfg: Dictionary) -> void:
 		start_requested.emit(cfg)
 		return
 	# 처음이라면 튜토리얼을 권한다
-	var d := UiKit.dossier(540, Loc.t("처음이신가요?"), Loc.t("권 고"))
+	var d := UiKit.dossier(540, "처음이신가요?", "권 고")
 	var v: VBoxContainer = d[1]
-	v.add_child(UiKit.text(Loc.t("5분짜리 튜토리얼로 규칙을 직접 해 보며 배울 수 있습니다."), 17, Style.INK))
-	v.add_child(UiKit.button(Loc.t("튜토리얼부터 하기"), func():
+	v.add_child(UiKit.text("5분짜리 튜토리얼로 규칙을 직접 해 보며 배울 수 있습니다.", 17, Style.INK))
+	v.add_child(UiKit.button("튜토리얼부터 하기", func():
 		_overlay.visible = false
 		tutorial_requested.emit(), 18, "primary"))
-	v.add_child(UiKit.button(Loc.t("바로 작전 개시"), func():
+	v.add_child(UiKit.button("바로 작전 개시", func():
 		_overlay.visible = false
 		Prefs.tutorial_done = true
 		Prefs.save()
@@ -357,14 +356,14 @@ func make_players(n: int, faction_index: int) -> Array:
 	## 0번 자리가 나, 나머지는 AI. 세력은 내 세력부터 차례로 돌아가며 배정한다.
 	var keys := _data.faction_keys()
 	var agents: Dictionary = _data.text.get("agents", {})
-	var codenames: Array = agents.get("codenames", [Loc.t("동지")])
+	var codenames: Array = agents.get("codenames", ["동지"])
 	var personalities: Array = agents.get("order", ["bold", "support", "careful"])
 	var defs := []
 	for i in n:
 		var f: String = keys[(faction_index + i) % keys.size()]
 		var fname: String = _data.faction(f)["name"]
 		if i == 0:
-			defs.append({"name": Loc.t("나 (%s)") % fname, "faction": f, "ai": false})
+			defs.append({"name": "나 (%s)" % fname, "faction": f, "ai": false})
 		else:
 			defs.append({"name": "%s (%s)" % [codenames[(i - 1) % codenames.size()], fname],
 				"faction": f, "ai": true, "personality": personalities[(i - 1) % personalities.size()]})
@@ -375,7 +374,7 @@ func make_players(n: int, faction_index: int) -> Array:
 
 func _date_label(date: String) -> String:
 	var parts := date.split("-")
-	return Loc.date(int(parts[1]), int(parts[2])) if parts.size() == 3 else date
+	return "%d월 %d일" % [int(parts[1]), int(parts[2])] if parts.size() == 3 else date
 
 
 func _heading(sub: String, t: String) -> void:
@@ -393,7 +392,7 @@ func _show_daily() -> void:
 	var fidx := seed_value % keys.size()
 	var info: Dictionary = _data.scenarios.get("daily", {})
 	var n: int = int(info.get("players", 4))
-	_heading(Loc.t("오 늘 의 작 전 · ") + _date_label(date), info.get("name", Loc.t("오늘의 작전")))
+	_heading("오 늘 의 작 전 · " + _date_label(date), info.get("name", "오늘의 작전"))
 	_panel.add_child(UiKit.text(info.get("brief", ""), 15, Style.INK_2))
 	_panel.add_child(UiKit.hsep())
 	var f := _data.faction(keys[fidx])
@@ -401,19 +400,19 @@ func _show_daily() -> void:
 	h.add_theme_constant_override("separation", 16)
 	h.add_child(UiKit.icon(load(f["emblem"]), Vector2(72, 72)))
 	var v := VBoxContainer.new()
-	v.add_child(UiKit.title(Loc.t("오늘의 세력: ") + f["name"], 20, Style.INK, 800))
-	v.add_child(UiKit.text(Loc.t("%d인 작전 · 작전 기간 %d일 · 목표 광복수치 %d") % [n, _data.rounds_for(n), _data.goal_for(n)], 14, Style.INK_2))
+	v.add_child(UiKit.title("오늘의 세력: " + f["name"], 20, Style.INK, 800))
+	v.add_child(UiKit.text("%d인 작전 · 작전 기간 %d일 · 목표 광복수치 %d" % [n, _data.rounds_for(n), _data.goal_for(n)], 14, Style.INK_2))
 	var best: int = int(Records.data()["daily"].get(date, -1))
-	v.add_child(UiKit.text(Loc.t("오늘 최고 기록: ") + (Loc.t("광복 %d") % best if best >= 0 else Loc.t("아직 없음")), 14, Style.SEAL_DARK, true, 700))
+	v.add_child(UiKit.text("오늘 최고 기록: " + ("광복 %d" % best if best >= 0 else "아직 없음"), 14, Style.SEAL_DARK, true, 700))
 	h.add_child(v)
 	_panel.add_child(h)
-	var start := UiKit.button(Loc.t("작전 개시"), func():
+	var start := UiKit.button("작전 개시", func():
 		Sfx.play("click")
 		_launch({"defs": make_players(n, fidx), "stations": true, "difficulty": 0,
 			"scenario": "daily", "date": date, "seed": seed_value}), 24, "primary")
 	start.custom_minimum_size = Vector2(0, 58)
 	_panel.add_child(start)
-	var back := UiKit.button(Loc.t("← 메뉴로"), _show_menu, 15, "tab")
+	var back := UiKit.button("← 메뉴로", _show_menu, 15, "tab")
 	back.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	_panel.add_child(back)
 
@@ -421,8 +420,8 @@ func _show_daily() -> void:
 func _show_special() -> void:
 	UiKit.clear(_panel)
 	_op = {}
-	_heading(Loc.t("특 수 작 전"), Loc.t("특수 작전"))
-	_panel.add_child(UiKit.text(Loc.t("조건이 다른 작전입니다. 모두 성공하면 도전 과제를 얻습니다."), 14, Style.INK_2))
+	_heading("특 수 작 전", "특수 작전")
+	_panel.add_child(UiKit.text("조건이 다른 작전입니다. 모두 성공하면 도전 과제를 얻습니다.", 14, Style.INK_2))
 	_panel.add_child(UiKit.hsep())
 	var won: Dictionary = Records.data()["scenarios_won"]
 	for op in _data.special_ops():
@@ -435,7 +434,7 @@ func _show_special() -> void:
 		b.custom_minimum_size = Vector2(0, 44)
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		b.tooltip_text = op["brief"]
-		var sub := UiKit.text(Loc.t("%d인") % int(op["players"]), 13, Style.INK_3, false)
+		var sub := UiKit.text("%d인" % int(op["players"]), 13, Style.INK_3, false)
 		sub.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		b.add_child(sub)
 		sub.set_anchors_and_offsets_preset(Control.PRESET_CENTER_RIGHT)
@@ -443,14 +442,14 @@ func _show_special() -> void:
 		sub.position.x -= 12
 		row.add_child(b)
 		if won.has(op["id"]):
-			var st := UiKit.stamp(Loc.t("성 공"), 13, Style.SEAL, -8)
+			var st := UiKit.stamp("성 공", 13, Style.SEAL, -8)
 			st.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 			row.add_child(st)
 		_panel.add_child(row)
 		var brief := UiKit.text(op["brief"], 13, Style.INK_2)
 		brief.custom_minimum_size = Vector2(580, 0)
 		_panel.add_child(brief)
-	var back := UiKit.button(Loc.t("← 메뉴로"), _show_menu, 15, "tab")
+	var back := UiKit.button("← 메뉴로", _show_menu, 15, "tab")
 	back.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	_panel.add_child(back)
 
@@ -458,12 +457,12 @@ func _show_special() -> void:
 func _show_op(op: Dictionary) -> void:
 	UiKit.clear(_panel)
 	_op = op
-	_heading(Loc.t("특 수 작 전"), op["name"])
+	_heading("특 수 작 전", op["name"])
 	var brief := UiKit.text(op["brief"], 15, Style.INK_2)
 	brief.custom_minimum_size = Vector2(600, 0)
 	_panel.add_child(brief)
 	_panel.add_child(UiKit.hsep())
-	_panel.add_child(_row_label(Loc.t("내 세력")))
+	_panel.add_child(_row_label("내 세력"))
 	var fr := HBoxContainer.new()
 	fr.add_theme_constant_override("separation", 10)
 	_panel.add_child(fr)
@@ -480,12 +479,12 @@ func _show_op(op: Dictionary) -> void:
 	box.add_child(_info)
 	_panel.add_child(box)
 	_update_info()
-	var start := UiKit.button(Loc.t("작전 개시"), func():
+	var start := UiKit.button("작전 개시", func():
 		Sfx.play("click")
 		_launch({"defs": make_players(int(op["players"]), _faction), "stations": true, "difficulty": 0, "scenario": op["id"]}), 24, "primary")
 	start.custom_minimum_size = Vector2(0, 58)
 	_panel.add_child(start)
-	var back := UiKit.button(Loc.t("← 특수 작전 목록"), _show_special, 15, "tab")
+	var back := UiKit.button("← 특수 작전 목록", _show_special, 15, "tab")
 	back.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	_panel.add_child(back)
 
@@ -494,15 +493,15 @@ func _show_records() -> void:
 	UiKit.clear(_panel)
 	_op = {}
 	var rec := Records.data()
-	_heading(Loc.t("작 전 기 록"), Loc.t("작전 기록"))
+	_heading("작 전 기 록", "작전 기록")
 	var grid := GridContainer.new()
 	grid.columns = 4
 	grid.add_theme_constant_override("h_separation", 22)
 	grid.add_theme_constant_override("v_separation", 4)
 	var ends: Dictionary = rec["endings"]
-	for pair in [[Loc.t("참가"), Loc.t("%d판") % int(rec["games"])], [Loc.t("대성공"), Loc.t("%d번") % int(ends.get("victory", 0))],
-			[Loc.t("최단 성공"), Loc.t("%d일 남기고") % int(rec["best_days_left"]) if int(rec["best_days_left"]) >= 0 else "-"],
-			[Loc.t("최고 기여"), Loc.t("광복 %d") % int(rec["best_score"])]]:
+	for pair in [["참가", "%d판" % int(rec["games"])], ["대성공", "%d번" % int(ends.get("victory", 0))],
+			["최단 성공", "%d일 남기고" % int(rec["best_days_left"]) if int(rec["best_days_left"]) >= 0 else "-"],
+			["최고 기여", "광복 %d" % int(rec["best_score"])]]:
 		grid.add_child(UiKit.text(pair[0], 13, Style.INK_3, false, 700))
 		grid.add_child(UiKit.title(pair[1], 17, Style.INK, 800))
 	_panel.add_child(grid)
@@ -512,12 +511,12 @@ func _show_records() -> void:
 	for k in _data.faction_keys():
 		var fs: Dictionary = rec["factions"].get(k, {"games": 0, "wins": 0})
 		var g: int = int(fs["games"])
-		fg.add_child(UiKit.text(Loc.t("%s  %d판 %d승%s") % [_data.faction(k)["name"], g, int(fs["wins"]),
+		fg.add_child(UiKit.text("%s  %d판 %d승%s" % [_data.faction(k)["name"], g, int(fs["wins"]),
 			" (%d%%)" % roundi(100.0 * int(fs["wins"]) / g) if g > 0 else ""], 13, Style.INK_2, false, 600))
 	_panel.add_child(fg)
 	_panel.add_child(UiKit.hsep())
 	var list: Array = _data.achievements.get("list", [])
-	_panel.add_child(UiKit.title(Loc.t("도전 과제  %d / %d") % [rec["unlocked"].size(), list.size()], 19, Style.SEAL_DARK))
+	_panel.add_child(UiKit.title("도전 과제  %d / %d" % [rec["unlocked"].size(), list.size()], 19, Style.SEAL_DARK))
 	var ag := GridContainer.new()
 	ag.columns = 2
 	ag.add_theme_constant_override("h_separation", 14)
@@ -534,9 +533,9 @@ func _show_records() -> void:
 		cv.add_child(UiKit.text(a["desc"], 11, Style.INK_2 if got else Style.INK_3))
 		cell.add_child(cv)
 		if got:
-			cell.tooltip_text = Loc.t("달성: %s") % rec["unlocked"][a["id"]]
+			cell.tooltip_text = "달성: %s" % rec["unlocked"][a["id"]]
 		ag.add_child(cell)
 	_panel.add_child(ag)
-	var back := UiKit.button(Loc.t("← 메뉴로"), _show_menu, 15, "tab")
+	var back := UiKit.button("← 메뉴로", _show_menu, 15, "tab")
 	back.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	_panel.add_child(back)

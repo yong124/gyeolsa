@@ -23,7 +23,7 @@ func _init() -> void:
 		(" / 작전 일수 %s" % rounds) if rounds else ""])
 	var keys := data.faction_keys()
 	var failures := errs.size()
-	for n in range(2, 7):
+	for n in range(2, 5):
 		var ends := {"victory": 0, "operation": 0, "history": 0}
 		var stats := {}
 		var jails := 0

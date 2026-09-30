@@ -142,13 +142,13 @@ func roll_dice(e: Dictionary, mult: float) -> void:
 	var values: Array = e["dice"]
 	var what: String = e["what"]
 	var judged: bool = e.has("target")
-	var title := Loc.t("%s 판정") % what if judged else Loc.t("%s 주사위") % what
+	var title := "%s 판정" % what if judged else "%s 주사위" % what
 	var sub := ""
 	var odds := -1.0
 	if judged:
 		var bonus: int = e.get("bonus", 0)
 		odds = success_chance(e["target"], bonus)
-		sub = Loc.t("목표 %d 이상%s · 성공 확률 %d%%") % [e["target"], (Loc.t(" (보정 %+d)") % bonus) if bonus else "", roundi(odds * 100)]
+		sub = "목표 %d 이상%s · 성공 확률 %d%%" % [e["target"], (" (보정 %+d)" % bonus) if bonus else "", roundi(odds * 100)]
 	if mult <= 0.0:
 		return
 	Sfx.play("dice", 0.08)
@@ -170,13 +170,13 @@ func roll_dice(e: Dictionary, mult: float) -> void:
 	if judged:
 		var bonus2: int = int(e.get("bonus", 0))
 		var ok: bool = total + bonus2 >= int(e["target"])
-		_dice["stamp"] = Loc.t("성 공") if ok else Loc.t("실 패")
+		_dice["stamp"] = "성 공" if ok else "실 패"
 		_dice["ok"] = ok
-		_dice["title"] = Loc.t("%s · 합계 %d%s") % [title, total + bonus2, (" (%d%+d)" % [total, bonus2]) if bonus2 else ""]
+		_dice["title"] = "%s · 합계 %d%s" % [title, total + bonus2, (" (%d%+d)" % [total, bonus2]) if bonus2 else ""]
 	elif e.has("result"):
-		_dice["stamp"] = Loc.t("%d 칸") % e["result"]
+		_dice["stamp"] = "%d 칸" % e["result"]
 		_dice["ok"] = true
-		_dice["title"] = Loc.t("이동 %d칸") % e["result"]
+		_dice["title"] = "이동 %d칸" % e["result"]
 	var tw := create_tween()
 	tw.tween_method(func(t: float): _dice["stamp_t"] = t, 0.0, 1.0, 0.18 * mult)
 	queue_redraw()
@@ -210,8 +210,8 @@ func day(e: Dictionary, mult: float) -> void:
 		return
 	Sfx.play("day")
 	_day = {"month": e.get("month_label", ""), "day": str(e.get("day_num", "")),
-		"sub": Loc.t("경계 %d단계 · 경찰 이동 %d칸") % [e["alert"], e["police_speed"]],
-		"sub2": Loc.t("8월 15일까지 %d일") % e["days_left"], "alpha": 0.0, "drop": 1.0,
+		"sub": "경계 %d단계 · 경찰 이동 %d칸" % [e["alert"], e["police_speed"]],
+		"sub2": "8월 15일까지 %d일" % e["days_left"], "alpha": 0.0, "drop": 1.0,
 		"dispatch": e.get("dispatch", ""), "typed": 0.0}
 	var tw := create_tween().set_parallel()
 	tw.tween_method(func(a: float):
@@ -324,7 +324,7 @@ func _draw_day() -> void:
 	for k in 6:
 		draw_circle(r.position + Vector2(40 + k * 44, 10), 5, Color(0.1, 0.07, 0.05, a))
 	var sf := Style.serif(900)
-	_text(Style.sans(800), Loc.t("1945년  %s") % _day["month"], Vector2(0, r.position.y + 42), 22, Color(1, 0.96, 0.9, a))
+	_text(Style.sans(800), "1945년  %s" % _day["month"], Vector2(0, r.position.y + 42), 22, Color(1, 0.96, 0.9, a))
 	_text(sf, _day["day"], Vector2(0, r.position.y + 210), 150, Color(Style.INK, a))
 	_text(Style.sans(700), _day["sub"], Vector2(0, r.end.y - 50), 16, Color(Style.INK_2, a))
 	_text(Style.sans(800), _day["sub2"], Vector2(0, r.end.y - 22), 16, Color(Style.SEAL, a))
@@ -340,7 +340,7 @@ func _draw_day() -> void:
 		draw_rect(Rect2(strip.position + Vector2(0, 5), strip.size), Color(0, 0, 0, 0.4 * a))
 		draw_rect(strip, Color(Style.INK, 0.95 * a))
 		draw_rect(strip.grow(-4), Color(Style.GOLD, 0.6 * a), false, 1.0)
-		draw_string(Style.sans(800), strip.position + Vector2(18, 31), Loc.t("무전"), HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(Style.SEAL.lightened(0.3), a))
+		draw_string(Style.sans(800), strip.position + Vector2(18, 31), "무전", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(Style.SEAL.lightened(0.3), a))
 		draw_string(font, strip.position + Vector2(66, 33), shown, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(Style.ON_DARK_ACCENT, a))
 
 

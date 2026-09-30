@@ -530,8 +530,13 @@
 			"name": "평온한 하루",
 			"count": 2,
 			"text": "비가 내려 거리가 한산합니다. 일제의 감시도 느슨합니다.",
-			"effect_text": "아무 일도 일어나지 않습니다.",
-			"effects": []
+			"effect_text": "감시가 누그러집니다. 노출 -1",
+			"effects": [
+				{
+					"op": "exposure",
+					"value": -1
+				}
+			]
 		},
 		{
 			"id": "air_raid",

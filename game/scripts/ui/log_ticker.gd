@@ -44,7 +44,7 @@ func _ready() -> void:
 	_line.add_theme_font_override("bold_font", Style.sans(800))
 	_line.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	h.add_child(_line)
-	_btn = UiKit.button(Loc.t("작전 기록 ▴"), toggle, 12, "dark")
+	_btn = UiKit.button("작전 기록 ▴", toggle, 12, "dark")
 	_btn.custom_minimum_size = Vector2(96, 28)
 	_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	h.add_child(_btn)
@@ -56,11 +56,11 @@ func _ready() -> void:
 	dv.add_theme_constant_override("separation", 6)
 	drawer.add_child(dv)
 	var dh := HBoxContainer.new()
-	var dt := UiKit.label(Loc.t("작전 기록"), 18, Style.ON_DARK_TITLE)
+	var dt := UiKit.label("작전 기록", 18, Style.ON_DARK_TITLE)
 	dt.add_theme_font_override("font", Style.serif(800))
 	dt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	dh.add_child(dt)
-	dh.add_child(UiKit.button(Loc.t("닫기"), toggle, 12, "dark"))
+	dh.add_child(UiKit.button("닫기", toggle, 12, "dark"))
 	dv.add_child(dh)
 	_log = RichTextLabel.new()
 	_log.bbcode_enabled = true
@@ -72,7 +72,7 @@ func _ready() -> void:
 
 func toggle() -> void:
 	drawer.visible = not drawer.visible
-	_btn.text = Loc.t("작전 기록 ▾") if drawer.visible else Loc.t("작전 기록 ▴")
+	_btn.text = "작전 기록 ▾" if drawer.visible else "작전 기록 ▴"
 	Sfx.play("click")
 
 
@@ -84,13 +84,13 @@ static func _has_any(s: String, words: Array) -> bool:
 
 
 static func tone_of(line: String) -> Color:
-	# 로그에는 어조 정보가 없어 낱말로 가른다 (한국어·영어)
-	var low := line.to_lower()
-	if _has_any(low, ["광복", "성공", "구출", "liberation", "success", "rescue"]):
+	# 로그에는 어조 정보가 없어 낱말로 가른다
+	var low := line
+	if _has_any(low, ["광복", "성공", "구출"]):
 		return Style.GOOD_ON_DARK
-	if _has_any(low, ["체포", "투옥", "실패", "arrest", "jail", "fail"]):
+	if _has_any(low, ["체포", "투옥", "실패"]):
 		return Style.BAD_ON_DARK
-	if _has_any(low, ["경찰", "검문", "police", "checkpoint"]):
+	if _has_any(low, ["경찰", "검문"]):
 		return UiKit.COL_WARN
 	if line.begins_with("──") or line.begins_with("["):
 		return Style.ON_DARK_ACCENT

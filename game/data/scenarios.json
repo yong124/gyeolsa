@@ -13,7 +13,8 @@
 			"brief": "연합군의 상륙이 앞당겨졌습니다. 6일 안에 광복수치 7을 채우십시오.",
 			"scenario": {
 				"rounds": 6,
-				"goal": 7
+				"goal": 7,
+				"two_act": false
 			}
 		},
 		{
@@ -22,7 +23,8 @@
 			"players": 4,
 			"brief": "총독부가 비상 경계에 들어갔습니다. 경찰이 처음부터 두 칸 더 빠릅니다.",
 			"scenario": {
-				"police_speed_mod": 2
+				"police_speed_mod": 2,
+				"two_act": false
 			}
 		},
 		{
@@ -34,7 +36,8 @@
 				"start_jailed": [
 					0
 				],
-				"jail_base": 2
+				"jail_base": 2,
+				"two_act": false
 			}
 		},
 		{
@@ -44,7 +47,8 @@
 			"brief": "동지 한 명과 단둘이 경성에 잠입했습니다. 12일 안에 광복수치 6을 채우십시오.",
 			"scenario": {
 				"rounds": 12,
-				"goal": 6
+				"goal": 6,
+				"two_act": false
 			}
 		}
 	]

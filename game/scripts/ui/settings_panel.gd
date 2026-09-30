@@ -4,8 +4,6 @@ extends PanelContainer
 
 signal closed
 
-var allow_language := false    # 메인 메뉴에서만 (바꾸면 화면을 다시 불러온다)
-
 
 func _ready() -> void:
 	add_theme_stylebox_override("panel", Style.paper(28))
@@ -13,8 +11,8 @@ func _ready() -> void:
 	v.custom_minimum_size = Vector2(540, 0)
 	v.add_theme_constant_override("separation", 14)
 	add_child(v)
-	v.add_child(UiKit.label(Loc.t("환 경 설 정"), Style.FS_SMALL, Style.SEAL))
-	v.add_child(UiKit.title(Loc.t("설정"), Style.FS_H2))
+	v.add_child(UiKit.label("환 경 설 정", Style.FS_SMALL, Style.SEAL))
+	v.add_child(UiKit.title("설정", Style.FS_H2))
 	v.add_child(UiKit.hsep())
 
 	var grid := GridContainer.new()
@@ -23,7 +21,7 @@ func _ready() -> void:
 	grid.add_theme_constant_override("v_separation", 14)
 	v.add_child(grid)
 
-	grid.add_child(_key(Loc.t("전체화면")))
+	grid.add_child(_key("전체화면"))
 	var fs := CheckBox.new()
 	fs.button_pressed = Prefs.fullscreen
 	fs.toggled.connect(func(on):
@@ -32,52 +30,37 @@ func _ready() -> void:
 		Prefs.save())
 	grid.add_child(fs)
 
-	grid.add_child(_key(Loc.t("배경음")))
+	grid.add_child(_key("배경음"))
 	grid.add_child(_slider(Prefs.bgm_volume, func(x):
 		Prefs.bgm_volume = x
 		Music.refresh_volume()))
 
-	grid.add_child(_key(Loc.t("효과음")))
+	grid.add_child(_key("효과음"))
 	grid.add_child(_slider(Prefs.sfx_volume, func(x):
 		Prefs.sfx_volume = x
 		Sfx.play("click")))
 
-	grid.add_child(_key(Loc.t("동료 차례 속도")))
+	grid.add_child(_key("동료 차례 속도"))
 	var sp := OptionButton.new()
 	for s in Prefs.SPEEDS:
-		sp.add_item(Loc.t(s["name"]))
+		sp.add_item(s["name"])
 	sp.select(Prefs.speed)
 	sp.item_selected.connect(func(i):
 		Prefs.speed = i
 		Prefs.save())
 	grid.add_child(sp)
 
-	grid.add_child(_key(Loc.t("연출 줄이기")))
+	grid.add_child(_key("연출 줄이기"))
 	var rm := CheckBox.new()
-	rm.text = Loc.t("내 행동 연출도 빠르게")
+	rm.text = "내 행동 연출도 빠르게"
 	rm.button_pressed = Prefs.reduce_motion
 	rm.toggled.connect(func(on):
 		Prefs.reduce_motion = on
 		Prefs.save())
 	grid.add_child(rm)
 
-	if allow_language:
-		grid.add_child(_key("언어 · Language"))
-		var lang := OptionButton.new()
-		var keys := Loc.LANGS.keys()
-		for k in keys:
-			lang.add_item(Loc.LANGS[k])
-		lang.select(keys.find(Loc.lang))
-		lang.item_selected.connect(func(i):
-			Prefs.language = keys[i]
-			Prefs.save()
-			Loc.set_lang(keys[i])
-			GameData.reset_cache()
-			get_tree().reload_current_scene())
-		grid.add_child(lang)
-
 	v.add_child(UiKit.hsep())
-	var close := UiKit.button(Loc.t("닫기"), func(): closed.emit(), 18, "primary")
+	var close := UiKit.button("닫기", func(): closed.emit(), 18, "primary")
 	close.custom_minimum_size = Vector2(0, 48)
 	v.add_child(close)
 

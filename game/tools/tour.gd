@@ -26,6 +26,8 @@ func _ready() -> void:
 	Prefs.speed = 1
 	if "store" in OS.get_cmdline_user_args():
 		_store()
+	elif "act2" in OS.get_cmdline_user_args():
+		_act2()
 	else:
 		_run()
 
@@ -140,7 +142,7 @@ func _run() -> void:
 	await _wait(0.3)
 	await _shot("my_turn_move")
 	# 연출 부품
-	gs._fx.day({"date": "8월 6일", "month_label": Loc.month(8), "day_num": 6, "alert": 2, "police_speed": 3, "days_left": 9, "dispatch": "지하조직 보고: 헌병대 트럭이 거점을 나섰다. 주의하라."}, 1.0)
+	gs._fx.day({"date": "8월 6일", "month_label": "8월", "day_num": 6, "alert": 2, "police_speed": 3, "days_left": 9, "dispatch": "지하조직 보고: 헌병대 트럭이 거점을 나섰다. 주의하라."}, 1.0)
 	await _wait(0.6)
 	await _shot("fx_day")
 	await _wait(1.6)
@@ -173,13 +175,6 @@ func _run() -> void:
 		gs._pause()
 		await _wait(0.3)
 		await _shot("pause")
-
-	# 6인 작전 화면 (요원 명부가 가장 긴 경우)
-	var six := GameRules.new()
-	six.setup(title_defs(6), 3, main.data)
-	main._open_game(six, {"cfg": {}, "tutorial": false}, false)
-	await _wait(3.0)
-	await _shot("six_players")
 
 	# 엔딩: 따로 한 판을 끝까지 둔 뒤 보여 준다
 	var g := GameRules.new()
@@ -241,4 +236,60 @@ func _store() -> void:
 	await _shot("store_occupation")
 	gs._close_popup()
 	await _wait(1.0)
+	get_tree().quit()
+
+
+func _play_until(game: GameRules, cond: Callable) -> void:
+	game.players[0]["ai"] = true
+	var guard := 0
+	while game.phase != "over" and not cond.call() and guard < 20000:
+		guard += 1
+		game.apply(GameAI.decide(game))
+	game.players[0]["ai"] = false
+	game.events.clear()
+
+
+func _act2() -> void:
+	## 2막 화면: 결행 투표 → 결행 카드 → 2막 보드
+	await _wait(0.5)
+	var defs := title_defs(4)
+	var cfg := {"defs": defs, "stations": true, "difficulty": 0}
+	# 1막에 광복수치가 결행 최소치에 닿는 판을 찾는다
+	var g := GameRules.new()
+	for sd in range(21, 80):
+		g = GameRules.new()
+		g.setup(defs.duplicate(true), sd, main.data)
+		await _play_until(g, func(): return g.act == 2 or (g.score >= g.launch_min() and g.phase == "start" and g.current == 0))
+		if g.act == 1 and g.phase != "over":
+			break
+	if "traitor" in OS.get_cmdline_user_args():
+		g.players[0]["stats"]["jailed"] = 9   # 내가 가장 많이 투옥됨 → 결행 때 내가 변절
+	g.intel[3] = 3   # 동료들도 찬성하도록 첩보를 넉넉히
+	g._start_vote()
+	main._open_game(g, {"cfg": cfg, "tutorial": false}, false)
+	await _wait(2.5)
+	await _shot("vote")
+	var gs: GameScreen = main._screen
+	gs._choice.visible = false
+	gs._act({"type": "choose", "value": true})
+	await _wait(3.0)
+	await _shot("strike_card")
+	gs._close_popup()
+	await _wait(3.5)
+	await _shot("after_launch")
+	if "traitor" in OS.get_cmdline_user_args():
+		gs._choice.visible = false
+		gs._notice_closed.emit()
+		await _wait(4.0)
+		await _shot("traitor_turn")
+		get_tree().quit()
+		return
+	await _wait(1.5)
+	# 2막이 며칠 진행된 보드
+	var h := GameRules.new()
+	h.setup(defs.duplicate(true), 21, main.data)
+	await _play_until(h, func(): return h.act == 2 and h.phase == "start" and h.current == 0 and not h.players[0]["jailed"])
+	main._open_game(h, {"cfg": cfg, "tutorial": false}, false)
+	await _wait(2.5)
+	await _shot("act2_board")
 	get_tree().quit()
