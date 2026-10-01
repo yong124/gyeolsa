@@ -26,11 +26,12 @@
 			"condition_text": "종로경찰서 3칸 안에서 쫓기지 않고 차례를 마침",
 			"reward": [
 				{
-					"op": "team_dice_extra_tomorrow",
+					"op": "dice_extra_tomorrow",
+					"who": "self",
 					"count": 1
 				}
 			],
-			"reward_text": "다음 날 아침 팀 주사위 1개 더",
+			"reward_text": "다음 날 아침 내 주사위 1개 더",
 			"lure": "네 어미는 우리가 데리고 있다.",
 			"redraw_for": [],
 			"epilogue": {
@@ -186,17 +187,17 @@
 			"branch": "own",
 			"story": "빚을 갚으려 시작한 일이 어느새 목숨을 건 일이 되었다.",
 			"condition": {
-				"kind": "take_die",
+				"kind": "rolled_value",
 				"value": 6,
 				"count": 3
 			},
-			"condition_text": "아침에 6을 세 번 가져감 (굴린 눈 그대로)",
+			"condition_text": "아침에 내 주사위에 6이 나온 날이 세 번",
 			"reward": [
 				{
-					"op": "team_die_set"
+					"op": "die_set"
 				}
 			],
-			"reward_text": "팀 주사위 하나를 원하는 눈으로 바꾸기 한 번",
+			"reward_text": "내 주사위 하나를 원하는 눈으로 바꾸기 한 번",
 			"lure": "네 빚은 우리가 갚아 주지.",
 			"redraw_for": [],
 			"epilogue": {
@@ -213,17 +214,18 @@
 			"branch": "own",
 			"story": "남는 것을 갖고, 모자란 것을 견디는 사람.",
 			"condition": {
-				"kind": "take_lowest_die",
-				"count": 4
+				"kind": "give_dice",
+				"count": 3
 			},
-			"condition_text": "아침에 가장 작은 눈을 네 번 가져감 (굴린 눈 그대로)",
+			"condition_text": "동료에게 주사위를 세 번 건넴",
 			"reward": [
 				{
-					"op": "team_dice_reroll_all",
-					"when": "tomorrow"
+					"op": "dice_extra_tomorrow",
+					"who": "all",
+					"count": 1
 				}
 			],
-			"reward_text": "다음 날 아침 팀 주사위 전부 다시 굴리기",
+			"reward_text": "다음 날 아침 모두 주사위 1개 더",
 			"lure": "가진 것도 없는 놈이 누굴 위해 싸우나.",
 			"redraw_for": [
 				"gaeddong"

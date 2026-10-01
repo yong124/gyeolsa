@@ -39,15 +39,16 @@
 					}
 				]
 			},
-			"ability_text": "무전 지원: 아침에 팀 주사위 하나를 다시 굴림",
+			"ability_text": "무전 지원: 아침에 아무 요원의 주사위 하나를 다시 굴림",
 			"ability": {
 				"name": "무전 지원",
 				"when": "morning",
 				"target": "self",
 				"effects": [
 					{
-						"op": "team_die_reroll",
-						"count": 1
+						"op": "die_reroll",
+						"count": 1,
+						"scope": "any"
 					}
 				]
 			}
@@ -220,7 +221,7 @@
 			"gender": "m",
 			"origin": "산에서 내려온 포수",
 			"persona": "support",
-			"trait_text": "이동 주사위 1·2는 3으로",
+			"trait_text": "이동에 쓴 주사위 1·2는 3으로",
 			"trait": {
 				"mods": [
 					{

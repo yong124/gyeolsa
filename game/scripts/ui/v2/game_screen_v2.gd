@@ -303,16 +303,9 @@ func _chips(p: Dictionary) -> Array:
 		out.append(["감옥 · %s" % game.base_name(game.data.bases.find(p["pos"])), "!", Style.SEAL, "감옥에 갇혀 있습니다. 차례마다 탈옥을 시도하거나, 동료가 그 거점에 들어오면 구출됩니다.", false])
 	if game.police.has(p["id"]):
 		out.append(["추격당함", "!", Style.SEAL, "경찰이 이 요원을 쫓고 있습니다. 차례가 끝날 때 다가오고, 같은 칸이 되면 체포됩니다.", false])
-	if p["die"] >= 0:
-		var raw := int(p["die_raw"])
-		var t := "주사위 %d" % raw if raw == int(p["die"]) else "주사위 %d→%d" % [raw, int(p["die"])]
-		out.append([t, "⚄", Style.INK_2, "오늘 이동 주사위", false])
-	var carried := 0
-	for d in game.team_dice:
-		if int(d["owner"]) == p["id"] and d.get("carry", false):
-			carried += 1
-	if carried > 0:
-		out.append(["맡은 주사위 %d" % carried, "⚄", BOMB_COL, "장면에 바칠 주사위", false])
+	var dv: Array = game.my_dice(p["id"]).map(func(i): return str(game.die_value(i)))
+	if not dv.is_empty():
+		out.append(["주사위 " + "·".join(dv), "⚄", Style.INK_2, "오늘 남은 작전 주사위: 이동, 작전 판정, 장면 바치기, 설득, 건네기에 씁니다.", false])
 	if not p["items"].is_empty():
 		var names: Array = p["items"].map(func(id): return str(game.item_def(str(id)).get("name", "")))
 		out.append([", ".join(names) if me else "아이템", str(p["items"].size()), Style.ITEM, "아이템: " + ", ".join(names), false])
@@ -524,15 +517,13 @@ func _refresh_actions() -> void:
 	var others := []
 	var extra_btn: Array = []    # [글, 콜백] — 액션이 아닌 단추 (동료 먼저)
 	for a in mine:
-		if a["type"] in ["take_die", "carry_die", "drop_carry", "release_die", "step", "choose"]:
-			continue
+		if a["type"] in ["step", "choose"] + ["move_die", "persuade", "give_die"] or (a["type"] == "scene_pay" and a["what"] == "die"):
+			continue   # 주사위로 하는 일은 주사위를 눌러서
 		others.append(a)
 	match game.phase:
 		"plan":
 			title = "아 침 계 획"
-			hint = "팀 주사위 %d개 · 하나를 골라 오늘 이동으로 · 남는 것은 예비" % game.team_dice.size()
-			if me["die"] < 0 and not me["jailed"] and not me["skip_dice_tomorrow"]:
-				hint = "주사위를 하나 고르세요 · " + hint
+			hint = "오늘의 작전 주사위 · 큰 눈을 이동에 쓸지, 판정에 남길지 정하세요"
 			primary = _take_type(others, "start_day")
 		"day":
 			title = "누 가 먼 저 ?"
@@ -550,15 +541,24 @@ func _refresh_actions() -> void:
 				if me["jailed"]:
 					hint = "감옥 · 탈옥 판정 %d 이상, 또는 동료의 구출을 기다리며 차례 넘기기" % game.check_target("escape")
 				elif game.steps_left > 0:
-					hint = "이동 %d칸 남음 · 보드에서 칸을 누르면 그 길로 걸어갑니다" % game.steps_left
+					hint = "이동 %d칸 남음 · 보드에서 칸을 누르면 그 길로 걸어갑니다 · 주사위를 더 써서 늘릴 수도 있습니다" % game.steps_left
+				elif not game.my_dice(human).is_empty():
+					hint = "주사위를 눌러 이동하거나 쓰세요 · 판정 때는 어느 주사위로 할지 묻습니다"
 				else:
-					hint = "이동을 마쳤습니다"
+					hint = "주사위를 다 썼습니다"
 				if game.act == 2:
 					hint += " · 장면 자리(금색 점선)에서 바치기 · 판정"
-				for t in ["scene_pay", "scene_check", "escape", "end_move", "end_turn"]:
+				for t in ["scene_pay", "scene_check", "escape"]:
 					primary = _take_type(others, t)
 					if not primary.is_empty():
 						break
+				if primary.is_empty() and game.steps_left == 0 and not me["jailed"]:
+					primary = _best_move_die(mine)
+					if not primary.is_empty():
+						others.append(primary)   # 아래에서 주 단추로 빠진다
+				for t in ["end_move", "end_turn"]:
+					if primary.is_empty():
+						primary = _take_type(others, t)
 			else:
 				title = "동 료 차 례"
 				hint = "%s의 차례입니다." % _name(game.current)
@@ -579,7 +579,7 @@ func _refresh_actions() -> void:
 	pb.add_theme_constant_override("icon_max_width", 26)
 	pb.add_theme_constant_override("h_separation", 10)
 	if not primary.is_empty() and not _playing:
-		pb.text = _label(primary)
+		pb.text = _label(primary) if primary["type"] != "move_die" else "주사위 %d로 이동" % game.die_value(int(primary["die"]))
 		pb.icon = UiKit.ui_icon(_icon(primary) + "_light")
 		var pa: Dictionary = primary
 		_primary_action = pa
@@ -595,7 +595,7 @@ func _refresh_actions() -> void:
 		key.position.x -= 12
 		key.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	else:
-		pb.text = "기다리는 중" if game.phase != "plan" else "주사위를 고르세요"
+		pb.text = "기다리는 중"
 		pb.disabled = true
 	_act_row.add_child(pb)
 	# 보조 버튼
@@ -658,9 +658,20 @@ func _take_type(list: Array, t: String) -> Dictionary:
 	return {}
 
 
+func _best_move_die(mine: Array) -> Dictionary:
+	## 주 단추용: 가장 큰 눈으로 이동
+	var best: Dictionary = {}
+	for a in mine:
+		if a["type"] == "move_die" and (best.is_empty() or game.die_value(int(a["die"])) > game.die_value(int(best["die"]))):
+			best = a
+	return best
+
+
 func _icon(a: Dictionary) -> String:
 	match a["type"]:
-		"start_day", "use_spare", "scene_check", "use_intel": return "dice"
+		"start_day", "move_die", "scene_check", "use_intel": return "dice"
+		"give_die": return "give"
+		"persuade": return "decoy"
 		"begin_turn", "end_move", "end_turn", "scene_pay": return "end"
 		"escape": return "escape"
 		"ability": return "ability"
@@ -671,68 +682,65 @@ func _icon(a: Dictionary) -> String:
 
 
 func _refresh_dice(mine: Array) -> void:
-	## 아침(과 2막 바치기)에 쓰는 팀 주사위. 아침이 아니면 예비·맡은 주사위만 작게 보인다.
-	if game.team_dice.is_empty():
+	## 내 작전 주사위. 누르면 그 주사위로 할 수 있는 일(이동·바치기·설득·건네기)이 작은 메뉴로 뜬다.
+	var idx: Array = []
+	for i in game.op_dice.size():
+		if int(game.op_dice[i]["owner"]) == human:
+			idx.append(i)
+	if idx.is_empty() or not game.phase in ["plan", "day", "turn", "choice"]:
 		_dice_row.visible = false
 		return
 	_dice_row.visible = true
-	var plan := game.phase == "plan"
-	for i in game.team_dice.size():
-		var d: Dictionary = game.team_dice[i]
-		var owner := int(d["owner"])
-		var carry: bool = d.get("carry", false)
-		if not plan and owner >= 0 and not carry:
-			continue   # 낮에는 이동 주사위는 명부에 있으므로 예비·맡은 것만
+	for i in idx:
+		var d: Dictionary = game.op_dice[i]
 		var acts := []
 		for a in mine:
-			if a["type"] in ["take_die", "carry_die", "drop_carry"] and int(a["die"]) == i:
+			if (a["type"] in ["move_die", "persuade", "give_die"] or (a["type"] == "scene_pay" and a["what"] == "die")) and int(a["die"]) == i:
 				acts.append(a)
-		if owner == human and not carry:
-			for a in mine:
-				if a["type"] == "release_die":
-					acts.append(a)
 		var v := VBoxContainer.new()
 		v.add_theme_constant_override("separation", 2)
 		var die := DieFace.new()
 		die.value = int(d["value"])
-		die.big = plan
-		die.mine = owner == human
-		die.taken = owner >= 0 and owner != human
-		die.used = d.get("spare_used", false)
-		die.carry = carry
-		die.custom_minimum_size = Vector2(40, 40) if plan else Vector2(30, 30)
-		if not acts.is_empty() and not _playing:
-			var a0: Dictionary = acts[0]
+		die.mine = not acts.is_empty() and not _playing
+		die.used = d["used"]
+		die.custom_minimum_size = Vector2(44, 44)
+		if die.mine:
 			die.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-			die.tooltip_text = {"take_die": "이 주사위를 오늘 내 이동으로", "carry_die": "장면에 바칠 주사위로 맡아 둠", "drop_carry": "맡은 주사위를 내려놓음", "release_die": "내 주사위를 내려놓음"}.get(a0["type"], "")
+			die.tooltip_text = "눌러서: " + " / ".join(acts.map(func(a): return _label(a)))
+			var at := acts.duplicate()
 			die.gui_input.connect(func(ev):
 				if ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT:
-					_act(a0))
+					_die_menu(at))
 			for a in acts:
 				_shown_actions.append(a)
 		v.add_child(die)
-		var who := "예비" if owner < 0 else ("나" if owner == human else _name(owner).substr(0, 2))
-		if d.get("spare_used", false):
-			who = "씀"
-		elif carry:
-			who = "맡음 · " + who
-		var l := UiKit.text(who, 11, Style.seat(owner) if owner >= 0 else Style.INK_3, false, 700)
+		var l := UiKit.text("씀" if d["used"] else ("이동 %d" % game.move_value(game.players[human], i) if game.phase == "turn" else "내 주사위"), 11, Style.INK_3, false, 700)
 		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		v.add_child(l)
 		_dice_row.add_child(v)
-	if plan:
-		var tip := UiKit.text("주사위를 누르면 가져옵니다.\n예비는 다시 굴리기 · 설득 ·\n이동 보태기 · 탈옥 보태기" + ("\n2막: 남는 주사위는 장면에 바칠 주사위로 맡아 둠" if game.act == 2 else ""), 11, Style.INK_3, false)
-		tip.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		_dice_row.add_child(tip)
-	elif _dice_row.get_child_count() == 0:
-		_dice_row.visible = false
+	var tip := UiKit.text("주사위 하나 = 이동(눈만큼) · 작전 판정(눈 + 주사위 1개)\n장면 바치기 · 설득 · 같은 칸 동료에게 건네기 (하루 1번)\n남은 주사위는 밤에 사라집니다", 11, Style.INK_3, false)
+	tip.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_dice_row.add_child(tip)
+
+
+func _die_menu(acts: Array) -> void:
+	if acts.size() == 1:
+		_act(acts[0])
+		return
+	var pm := PopupMenu.new()
+	add_child(pm)
+	for k in acts.size():
+		pm.add_item(_label(acts[k]), k)
+	pm.id_pressed.connect(func(id): _act(acts[id]))
+	pm.popup_hide.connect(pm.queue_free)
+	pm.popup(Rect2i(Vector2i(get_global_mouse_position()), Vector2i.ZERO))
 
 
 class DieFace extends Control:
 	## 주사위 한 개 (점 눈금 대신 큰 숫자, v1 종이 질감에 맞춘 흰 주사위)
 	var value := 1
 	var big := true
-	var mine := false
+	var mine := false   # 지금 누를 수 있음
 	var taken := false
 	var used := false
 	var carry := false
@@ -853,9 +861,6 @@ func _ai_actor() -> int:
 		"turn":
 			return -1 if game.current == human else game.current
 		"plan":
-			var me: Dictionary = game.players[human]
-			if me["die"] < 0 and not me["jailed"] and not me["skip_dice_tomorrow"] and _has_take(human):
-				return -1   # 사람이 먼저 주사위를 고른다
 			for p in game.players:
 				if p["id"] == human:
 					continue
@@ -875,20 +880,10 @@ func _ai_actor() -> int:
 
 
 func _plan_move_ok(p: Dictionary, a: Dictionary) -> bool:
-	## 아침 계획에서 AI가 둘 만한 수인가. 주사위를 이미 가졌으면 바꿔 잡지 않는다 (사람이 하루를 시작할 때까지 기다림).
+	## 아침 계획에서 AI가 둘 만한 수인가: 아침 능력·아이템만 (하루 시작은 사람이 누른다)
 	if a.is_empty() or int(a.get("player", -1)) != p["id"]:
 		return false
-	match a["type"]:
-		"take_die": return p["die"] < 0
-		"carry_die", "use_item", "ability": return true
-	return false
-
-
-func _has_take(pid: int) -> bool:
-	for a in game.legal_actions():
-		if a["type"] == "take_die" and int(a["player"]) == pid:
-			return true
-	return false
+	return a["type"] in ["use_item", "ability"]
 
 
 func _ai_step() -> void:
@@ -978,9 +973,12 @@ func _play_event(e: Dictionary) -> void:
 				_fx.toast("이벤트 · %s — %s" % [ev.get("name", ""), ev.get("text", "")], "info")
 		"dice_rolled":
 			Sfx.play("dice", 0.1, 0.6)
+		"die_given":
+			if int(e["target"]) == human:
+				_fx.toast("%s이(가) 주사위 %d을(를) 건넸습니다" % [_name(int(e["player"])), int(e["value"])], "good")
 	if e.has("players_snap"):
 		_board.apply_players_snap(e["players_snap"])
-	if k in ["morning", "threat", "dice_rolled", "day_start", "mission_done", "launch", "scene", "scene_break", "traitor",
+	if k in ["morning", "threat", "dice_rolled", "die_used", "die_given", "day_start", "mission_done", "launch", "scene", "scene_break", "traitor",
 			"saga_done", "jail", "rescue", "intel", "ready", "exposure", "turn", "night"]:
 		_refresh_panels()
 	_ticker.refresh()
@@ -1096,20 +1094,20 @@ func _label(a: Dictionary) -> String:
 			return "[%s] → %s 건네기" % [game.item_def(str(me["items"][int(a["index"])])).get("name", ""), _name(int(a["to"]))]
 		"decoy":
 			return "미끼: %s의 경찰을 내 쪽으로" % _name(int(a["from"]))
-		"use_spare":
-			var v := int(game.team_dice[int(a["die"])]["value"])
-			match a["use"]:
-				"move": return "예비 %d: 이동 +%d" % [v, v]
-				"escape": return "예비 %d: 탈옥에 보탬" % v
-				"persuade": return "예비 %d: %s 설득" % [v, _name(int(a["target"]))]
-				"reroll": return "예비 %d: 다시 굴림" % v
+		"move_die":
+			var mv := game.move_value(me, int(a["die"]))
+			return "주사위 %d로 이동 (+%d칸)" % [game.die_value(int(a["die"])), mv]
+		"persuade":
+			return "주사위 %d: %s 설득" % [game.die_value(int(a["die"])), _name(int(a["target"]))]
+		"give_die":
+			return "주사위 %d → %s에게 건네기" % [game.die_value(int(a["die"])), _name(int(a["target"]))]
 		"inform":
 			return "밀고: %s" % _name(int(a["target"]))
 		"scene_check":
 			return "장면 판정"
 		"scene_pay":
 			match a["what"]:
-				"die": return "주사위 %d 바치기" % int(game.team_dice[int(a["die"])]["value"])
+				"die": return "주사위 %d 장면에 바치기" % game.die_value(int(a["die"]))
 				"item": return "[%s] 바치기" % game.item_def(str(me["items"][int(a["index"])])).get("name", "")
 				"bomb": return "폭탄 바치기"
 		"use_intel":
@@ -1134,7 +1132,7 @@ func _show_choice() -> void:
 	var panel := UiKit.paper_panel(22)
 	panel.custom_minimum_size = Vector2(560, 0)
 	panel.add_child(box)
-	box.add_child(UiKit.title({"launch_vote": "결행 투표", "saga_keep": "남길 사연", "reroll": "다시 굴리기", "discard": "버릴 아이템"}.get(kind, "선택"), Style.FS_H3))
+	box.add_child(UiKit.title({"launch_vote": "결행 투표", "saga_keep": "남길 사연", "reroll": "다시 하기", "check_die": "판정 주사위", "discard": "버릴 아이템"}.get(kind, "선택"), Style.FS_H3))
 	box.add_child(UiKit.text(str(pd.get("prompt", "")), Style.FS_BODY))
 	if kind in ["pick_cell", "hop"]:
 		box.add_child(UiKit.text("보드에서 빨간 점선 칸을 눌러도 됩니다.", 14, Style.INK_3))
@@ -1144,18 +1142,20 @@ func _show_choice() -> void:
 		if kind == "saga_keep":
 			var s: Dictionary = game.data.saga(str(val))
 			label = "%s — %s" % [s.get("name", ""), s.get("condition_text", "")]
+		if kind in ["check_die", "reroll"] and not game.check.is_empty():
+			var sv := str(val)
+			var dv := 0
+			if sv.begins_with("die:"):
+				dv = game.die_value(int(sv.substr(4)))
+			elif sv == "grant":
+				dv = int(game.check.get("die_value", 0))
+			if sv != "no":
+				label += " · 성공 %d%%" % roundi(game.check_chance(game.check, dv) * 100.0)
 		var b := UiKit.button(label, func():
 			_choice.visible = false
 			_board.pick_cells = []
 			_act({"type": "choose", "value": val}), 16, "paper")
 		box.add_child(b)
-	if kind == "reroll":
-		for a in game.legal_actions():
-			if a["type"] == "use_spare" and int(a["player"]) == human:
-				var aa: Dictionary = a
-				box.add_child(UiKit.button("예비 주사위 %d로 다시 굴리기" % int(game.team_dice[int(a["die"])]["value"]), func():
-					_choice.visible = false
-					_act(aa), 16, "paper"))
 	_choice.show_with(panel)
 
 

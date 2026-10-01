@@ -10,12 +10,9 @@ extends RefCounted
 ## - legal_actions()는 apply가 받아들이는 액션과 정확히 같다.
 ##
 ## 액션
-##   {"type": "take_die", "player", "die": 인덱스}       (plan) 팀 주사위를 내 이동 주사위로
-##   {"type": "release_die", "player"}                    (plan) 가진 주사위를 내려놓음
-##   {"type": "carry_die", "player", "die": 인덱스}      (2막 plan) 장면에 바칠 주사위를 맡음
-##   {"type": "drop_carry", "player", "die": 인덱스}     (2막 plan) 맡은 주사위를 내려놓음
-##   {"type": "start_day", "player"}                      (plan) 하루 시작 (감옥 밖 요원 모두 주사위를 가졌을 때)
+##   {"type": "start_day", "player"}                      (plan) 하루 시작 (아침 능력·아이템을 쓴 뒤)
 ##   {"type": "begin_turn", "player"}                     (day) 내 차례를 시작 (자유 순서)
+##   {"type": "move_die", "player", "die": 인덱스}       (turn) 내 작전 주사위 하나로 그 눈만큼 이동을 더함
 ##   {"type": "step", "player", "to": Vector2i}           (turn) 한 칸 이동
 ##   {"type": "end_move", "player"}                       (turn) 남은 칸을 버리고 멈춤
 ##   {"type": "escape", "player"}                         (turn, 갇힘) 탈옥 판정
@@ -24,8 +21,8 @@ extends RefCounted
 ##   {"type": "ability", "player", "target"?}             캐릭터 능력 (하루 1회)
 ##   {"type": "give_item", "player", "index", "to"}       가까운 동료에게 아이템 건네기
 ##   {"type": "decoy", "player", "from"}                  동료를 쫓는 경찰을 내 쪽으로
-##   {"type": "use_spare", "player", "die", "use": "move"|"escape"|"reroll"|"persuade", "target"?}  예비 주사위
-##                                                         (persuade는 같은 칸 동료의 심문 카드를 떼어 냄, target 필수)
+##   {"type": "persuade", "player", "die", "target"}      (turn) 내 주사위 하나로 같은 칸 동료를 설득 (심문 카드를 떼어 냄)
+##   {"type": "give_die", "player", "die", "target"}      (turn) 같은 칸 동료에게 내 주사위를 건넴 (하루 give_per_day번)
 ##   {"type": "inform", "player", "target"}               (turn, 변절자) 가까운 요원에게 경찰을 붙임 (밀고)
 ##   {"type": "scene_check", "player"}                     (2막 turn) 장면 판정
 ##   {"type": "scene_pay", "player", "what", "die"?, "index"?}  (2막 turn) 장면에 바침
@@ -33,6 +30,11 @@ extends RefCounted
 ##   {"type": "choose", "player", "value"}                (choice) 선택지 응답
 ##
 ## 선택(choice)의 종류에는 saga_keep(결행 순간에 남길 사연, 비밀), persuade_look(다방 밀담, 비밀)도 있다.
+## 작전 판정(암살·방해·탈옥·장면)을 시작할 때 주사위가 남아 있으면 check_die 선택: 내 주사위 하나(눈 + op_check_dice개)
+## 또는 주사위 없이 check_dice개. 실패하면 reroll 선택에서 남은 주사위로 다시 할 수 있다.
+##
+## 작전 주사위 (7단계, Dead of Winter식): 아침에 요원마다 personal_dice개(2막 + act2_personal_dice_extra)를 굴린다.
+## 모두 공개. 이동·작전 판정·장면 바치기·설득·건네기에 하나씩 쓰고, 남은 것은 밤에 사라진다.
 ##
 ## 단계(phase): morning(자동) → plan → day ⇄ turn (+ choice) → (밤) → morning … → over
 
@@ -71,9 +73,7 @@ var event_discard: Array = []
 var item_deck: Array = []
 var item_discard: Array = []
 var bomb_supply := 0
-var team_dice: Array = []       # [{"value", "owner", "spare_used"}]
-var dice_extra_tomorrow := 0
-var dice_reroll_tomorrow := false   # 내일 아침 팀 주사위를 한 번 더 굴림 (team_dice_reroll_all when: tomorrow)
+var op_dice: Array = []         # 오늘의 작전 주사위 [{"value", "owner", "used"}] (owner는 건네받으면 바뀜)
 var today := {}
 var pending := {}
 var launch_info := {}
@@ -162,8 +162,8 @@ func setup(player_defs: Array, seed_value: int = -1, game_data: GameDataV2 = nul
 		players.append({
 			"id": i, "name": d.get("name", "요원 %d" % (i + 1)), "character": d["character"],
 			"pos": data.start, "jailed": false, "jail_count": 0,
-			"items": [], "bombs": 0, "move_mod_next": 0, "skip_dice_tomorrow": false,
-			"die": -1, "die_raw": -1, "done_today": false, "turns": 0,
+			"items": [], "bombs": 0, "move_mod_next": 0, "dice_next": 0, "gives_today": 0,
+			"done_today": false, "turns": 0,
 			"ability_day": -1, "item_uses": 0, "grants": [], "flags": {},
 			"sagas": [], "saga_done": "", "saga_kept": "", "saga_track": {}, "interro": [],
 			"traitor": false, "jailed_day": -99,
@@ -183,9 +183,7 @@ func setup(player_defs: Array, seed_value: int = -1, game_data: GameDataV2 = nul
 	leader = 0
 	current = -1
 	steps_left = 0
-	team_dice = []
-	dice_extra_tomorrow = 0
-	dice_reroll_tomorrow = false
+	op_dice = []
 	today = _new_today()
 	pending = {}
 	launch_info = {}
@@ -323,22 +321,23 @@ func leader_player() -> Dictionary:
 	return players[leader]
 
 
-func spare_dice() -> Array:
-	## 지금 쓸 수 있는 예비 주사위의 인덱스 (하루가 시작된 뒤, 아무도 안 가졌고 아직 안 쓴 것)
+func my_dice(pid: int) -> Array:
+	## 이 요원이 지금 가진 (아직 안 쓴) 작전 주사위의 인덱스
 	var out := []
-	if not phase in ["day", "turn", "choice"]:
-		return out
-	for i in team_dice.size():
-		if team_dice[i]["owner"] == -1 and not team_dice[i]["spare_used"] and not team_dice[i].get("carry", false):
+	for i in op_dice.size():
+		if int(op_dice[i]["owner"]) == pid and not op_dice[i]["used"]:
 			out.append(i)
 	return out
 
 
-func die_index_of(pid: int) -> int:
-	for i in team_dice.size():
-		if team_dice[i]["owner"] == pid and not team_dice[i].get("carry", false):
-			return i
-	return -1
+func die_value(i: int) -> int:
+	return int(op_dice[i]["value"]) if i >= 0 and i < op_dice.size() else 0
+
+
+func move_value(p: Dictionary, i: int) -> int:
+	## 이 주사위를 이동에 쓰면 몇 칸인가 (포수의 1·2→3, 오늘 이동 주사위 보정, 최소 min_die)
+	var raw := maxi(die_value(i), stat(p, "move_min3"))
+	return maxi(int(data.rules["min_die"]), raw + int(today.get("dice_mod", 0)))
 
 
 func occupied_by_other(p: Dictionary, c: Vector2i) -> bool:
@@ -676,37 +675,28 @@ func _cell_of(v) -> Vector2i:
 	return Vector2i(-999999, -999999)
 
 
-func can_take_die(p: Dictionary, i: int) -> bool:
-	if phase != "plan" or p["skip_dice_tomorrow"]:
-		return false
-	if i < 0 or i >= team_dice.size():
-		return false
-	return team_dice[i]["owner"] == -1
-
-
-func can_carry_die(p: Dictionary, i: int) -> bool:
-	return act == 2 and phase == "plan" and not p["traitor"] and i >= 0 and i < team_dice.size() \
-		and team_dice[i]["owner"] == -1
-
-
-func can_drop_carry(p: Dictionary, i: int) -> bool:
-	return act == 2 and phase == "plan" and i >= 0 and i < team_dice.size() \
-		and team_dice[i]["owner"] == p["id"] and team_dice[i].get("carry", false)
-
-
-func can_release_die(p: Dictionary) -> bool:
-	return phase == "plan" and die_index_of(p["id"]) >= 0
-
-
 func can_start_day() -> bool:
-	if phase != "plan":
-		return false
+	return phase == "plan"
+
+
+func can_move_die(p: Dictionary, i: int) -> bool:
+	return phase == "turn" and p["id"] == current and not p["jailed"] and i in my_dice(p["id"])
+
+
+func can_persuade(p: Dictionary, i: int, target: int) -> bool:
+	return i in my_dice(p["id"]) and target in persuade_targets(p)
+
+
+func give_die_targets(p: Dictionary) -> Array:
+	## 주사위를 건넬 수 있는 동료 (같은 칸, 변절자 제외, 하루 give_per_day번)
+	var out := []
+	if phase != "turn" or p["id"] != current or p["traitor"] or p["jailed"] \
+			or int(p["gives_today"]) >= int(data.rules["give_per_day"]) or my_dice(p["id"]).is_empty():
+		return out
 	for q in players:
-		if q["jailed"] or q["skip_dice_tomorrow"]:
-			continue
-		if die_index_of(q["id"]) < 0:
-			return false
-	return true
+		if q["id"] != p["id"] and not q["traitor"] and _manhattan(q["pos"], p["pos"]) <= int(data.rules["give_range"]):
+			out.append(q["id"])
+	return out
 
 
 func can_begin_turn(p: Dictionary) -> bool:
@@ -861,21 +851,6 @@ func decoy_options(p: Dictionary) -> Array:
 	return out
 
 
-func can_use_spare(p: Dictionary, die: int, use: String, target := -1) -> bool:
-	if p["traitor"] or not die in spare_dice():
-		return false
-	match use:
-		"persuade":
-			return target in persuade_targets(p)
-		"move":
-			return phase == "turn" and p["id"] == current and not p["jailed"]
-		"escape":
-			return phase == "turn" and p["id"] == current and p["jailed"]
-		"reroll":
-			return phase == "choice" and pending.get("kind", "") == "reroll" and pending["player"] == p["id"]
-	return false
-
-
 func _valid_choice(p: Dictionary, value) -> bool:
 	if phase != "choice" or pending.get("player", -1) != p["id"]:
 		return false
@@ -895,20 +870,8 @@ func legal_actions() -> Array:
 			var pid: int = pending["player"]
 			for o in pending["options"]:
 				out.append({"type": "choose", "player": pid, "value": o["value"]})
-			if pending.get("kind", "") == "reroll":
-				for i in spare_dice():
-					out.append({"type": "use_spare", "player": pid, "die": i, "use": "reroll"})
 		"plan":
 			for p in players:
-				for i in team_dice.size():
-					if can_take_die(p, i):
-						out.append({"type": "take_die", "player": p["id"], "die": i})
-					if can_carry_die(p, i):
-						out.append({"type": "carry_die", "player": p["id"], "die": i})
-					if can_drop_carry(p, i):
-						out.append({"type": "drop_carry", "player": p["id"], "die": i})
-				if can_release_die(p):
-					out.append({"type": "release_die", "player": p["id"]})
 				for ii in p["items"].size():
 					if can_use_item(p, ii):
 						out.append({"type": "use_item", "player": p["id"], "index": ii})
@@ -922,6 +885,9 @@ func legal_actions() -> Array:
 					out.append({"type": "begin_turn", "player": p["id"]})
 		"turn":
 			var p: Dictionary = players[current]
+			for i in my_dice(current):
+				if can_move_die(p, i):
+					out.append({"type": "move_die", "player": current, "die": i})
 			for to in legal_steps(p):
 				out.append({"type": "step", "player": current, "to": to})
 			if can_end_move(p):
@@ -938,12 +904,12 @@ func legal_actions() -> Array:
 				out.append({"type": "give_item", "player": current, "index": o["index"], "to": o["to"]})
 			for from in decoy_options(p):
 				out.append({"type": "decoy", "player": current, "from": from})
-			for i in spare_dice():
-				for use in ["move", "escape"]:
-					if can_use_spare(p, i, use):
-						out.append({"type": "use_spare", "player": current, "die": i, "use": use})
-				for t in persuade_targets(p):
-					out.append({"type": "use_spare", "player": current, "die": i, "use": "persuade", "target": t})
+			for t in persuade_targets(p):
+				for i in my_dice(current):
+					out.append({"type": "persuade", "player": current, "die": i, "target": t})
+			for t in give_die_targets(p):
+				for i in my_dice(current):
+					out.append({"type": "give_die", "player": current, "die": i, "target": t})
 			for t in inform_targets(p):
 				out.append({"type": "inform", "player": current, "target": t})
 			out.append_array(scene_options(p))
@@ -982,29 +948,11 @@ func _apply(a: Dictionary) -> bool:
 			if not a.has("value") or not _valid_choice(p, a["value"]):
 				return false
 			_resolve_choice(a["value"])
-		"take_die":
+		"move_die":
 			var i := _int_of(a.get("die", null))
-			if not can_take_die(p, i):
+			if not can_move_die(p, i):
 				return false
-			_take_die(p, i)
-		"release_die":
-			if not can_release_die(p):
-				return false
-			_release_die(p)
-		"carry_die":
-			var i := _int_of(a.get("die", null))
-			if not can_carry_die(p, i):
-				return false
-			team_dice[i]["owner"] = pid
-			team_dice[i]["carry"] = true
-			_push({"kind": "die_carried", "player": pid, "die": i})
-		"drop_carry":
-			var i := _int_of(a.get("die", null))
-			if not can_drop_carry(p, i):
-				return false
-			team_dice[i]["owner"] = -1
-			team_dice[i]["carry"] = false
-			_push({"kind": "die_dropped", "player": pid, "die": i})
+			_move_die(p, i)
 		"start_day":
 			if not can_start_day():
 				return false
@@ -1060,13 +1008,20 @@ func _apply(a: Dictionary) -> bool:
 			if not from in decoy_options(p):
 				return false
 			_decoy(p, from)
-		"use_spare":
+		"persuade":
 			var di := _int_of(a.get("die", null))
-			var use := str(a.get("use", ""))
-			var tgt := _int_of(a["target"]) if a.has("target") else -1
-			if not can_use_spare(p, di, use, tgt):
+			var tgt := _int_of(a.get("target", null))
+			if not can_persuade(p, di, tgt):
 				return false
-			_use_spare(p, di, use, tgt)
+			_use_die(p, di, "persuade")
+			_log("%s: 주사위 %d을(를) 써서 %s을(를) 설득합니다." % [p["name"], die_value(di), players[tgt]["name"]])
+			_persuade_once(p, players[tgt], true)
+		"give_die":
+			var di := _int_of(a.get("die", null))
+			var tgt := _int_of(a.get("target", null))
+			if not di in my_dice(pid) or not tgt in give_die_targets(p):
+				return false
+			_give_die(p, di, players[tgt])
 		"inform":
 			var it := _int_of(a.get("target", null))
 			if not it in inform_targets(p):
@@ -1103,11 +1058,10 @@ func _begin_morning(first: bool) -> void:
 		day += 1
 	today = _new_today()
 	for q in players:
-		q["die"] = -1
-		q["die_raw"] = -1
 		q["done_today"] = false
 		q["item_uses"] = 0
-	team_dice = []
+		q["gives_today"] = 0
+	op_dice = []
 	phase = "morning"
 	current = -1
 	_log("── %s 아침 (남은 %d일) · 리더 %s ──" % [date_label(), rounds_left, players[leader]["name"]])
@@ -1117,7 +1071,7 @@ func _begin_morning(first: bool) -> void:
 
 
 func _morning_continue() -> void:
-	## 아침 순서(기획서 19.3): 위협 → 투표 → 변절 확인 → 미션 줄 → 팀 주사위. 선택이 끼면 멈췄다 이어간다.
+	## 아침 순서(기획서 19.3): 위협 → 투표 → 변절 확인 → 미션 줄 → 작전 주사위. 선택이 끼면 멈췄다 이어간다.
 	while morning_step <= 5 and phase == "morning":
 		var s := morning_step
 		morning_step += 1
@@ -1218,71 +1172,58 @@ func _roll_die() -> int:
 
 
 func _morning_dice() -> void:
-	var n: int = players.size() + int(data.rules["team_dice_extra"]) + dice_extra_tomorrow
-	if act == 2:
-		n += int(data.rules["scenes"].get("act2_dice_extra", 0))
-	dice_extra_tomorrow = 0
-	team_dice = []
-	var vals := []
-	for i in n:
-		var v := _roll_die()
-		team_dice.append({"value": v, "owner": -1, "spare_used": false, "carry": false})
-		vals.append(v)
-	if dice_reroll_tomorrow:
-		dice_reroll_tomorrow = false
-		vals = []
-		for i in n:
-			var v2 := _roll_die()
-			team_dice[i]["value"] = v2
-			vals.append(v2)
-		_log("팀 주사위를 전부 다시 굴렸습니다.")
-	_log("팀 주사위 %d개: %s" % [n, " ".join(vals.map(func(x): return str(x)))])
-	_push({"kind": "dice_rolled", "values": vals})
+	## 요원마다 작전 주사위를 굴린다 (갇힌 요원도). 내일 몫 보정(dice_next)은 여기서 쓰고 지운다.
+	op_dice = []
+	var parts := []
+	var n0 := int(data.rules["personal_dice"]) + (int(data.rules["act2_personal_dice_extra"]) if act == 2 else 0)
+	for q in players:
+		var n := maxi(0, n0 + int(q["dice_next"]))
+		q["dice_next"] = 0
+		var vals := []
+		for k in n:
+			var v := _roll_die()
+			op_dice.append({"value": v, "owner": q["id"], "used": false})
+			vals.append(v)
+		parts.append("%s %s" % [q["name"], " ".join(vals.map(func(x): return str(x))) if not vals.is_empty() else "없음"])
+		_saga_note_multi(q, ["rolled_value"], {"values": vals})
+	_log("작전 주사위: " + " · ".join(parts))
+	_push({"kind": "dice_rolled", "values": op_dice.map(func(d): return d["value"]),
+		"owners": op_dice.map(func(d): return d["owner"])})
 	phase = "plan"
 	current = -1
 
 
 # ================================================================ 계획
 
-func _effective_die(p: Dictionary, raw: int) -> int:
-	return maxi(raw, stat(p, "move_min3"))
-
-
-func _take_die(p: Dictionary, i: int) -> void:
-	var old := die_index_of(p["id"])
-	if old >= 0:
-		team_dice[old]["owner"] = -1
-	team_dice[i]["owner"] = p["id"]
-	p["die_raw"] = int(team_dice[i]["value"])
-	p["die"] = _effective_die(p, p["die_raw"])
-	_log("%s: 주사위 %d을(를) 가져갑니다." % [p["name"], p["die_raw"]] if p["die"] == p["die_raw"] \
-		else "%s: 주사위 %d을(를) 가져갑니다 (%d로 셉니다)." % [p["name"], p["die_raw"], p["die"]])
-	_push({"kind": "die_taken", "player": p["id"], "die": i})
-
-
-func _release_die(p: Dictionary) -> void:
-	var i := die_index_of(p["id"])
-	team_dice[i]["owner"] = -1
-	p["die"] = -1
-	p["die_raw"] = -1
-	_push({"kind": "die_released", "player": p["id"], "die": i})
-
-
 func _start_day() -> void:
-	# 갇힌 요원이 가진 주사위는 예비로 돌아간다 (옥중 연락)
-	for q in players:
-		if q["jailed"]:
-			var i := die_index_of(q["id"])
-			if i >= 0:
-				team_dice[i]["owner"] = -1
-			q["die"] = -1
-			q["die_raw"] = -1
-		q["skip_dice_tomorrow"] = false
 	phase = "day"
 	current = -1
-	_log("하루가 시작됩니다. 남은 주사위는 예비입니다.")
+	_log("하루가 시작됩니다.")
 	_push({"kind": "day_start", "day": day})
-	_saga_day_start()
+
+
+func _use_die(p: Dictionary, i: int, use: String) -> void:
+	op_dice[i]["used"] = true
+	_push({"kind": "die_used", "player": p["id"], "die": i, "value": die_value(i), "use": use})
+
+
+func _move_die(p: Dictionary, i: int) -> void:
+	var mv := move_value(p, i)
+	var extra := int(p["flags"].get("move_extra", 0))
+	p["flags"]["move_extra"] = 0
+	_use_die(p, i, "move")
+	steps_left += mv + extra
+	_log("%s: 주사위 %d로 이동 %d칸%s (남은 이동 %d)" % [p["name"], die_value(i), mv,
+		(" %+d" % extra) if extra != 0 else "", steps_left])
+
+
+func _give_die(p: Dictionary, i: int, q: Dictionary) -> void:
+	op_dice[i]["owner"] = q["id"]
+	p["gives_today"] = int(p["gives_today"]) + 1
+	p["stats"]["gives"] += 1
+	_log("%s: %s에게 주사위 %d을(를) 건넸습니다." % [p["name"], q["name"], die_value(i)])
+	_push({"kind": "die_given", "player": p["id"], "target": q["id"], "die": i, "value": die_value(i)})
+	_saga_note(p, "give_dice", {"target": q["id"]})
 
 
 # ================================================================ 낮: 차례
@@ -1301,13 +1242,10 @@ func _begin_turn(p: Dictionary) -> void:
 		steps_left = 0
 		_log("%s: 감옥에서 차례를 맞았습니다." % p["name"])
 		return
-	var base := 0
-	if p["die"] >= 0:
-		base = maxi(int(data.rules["min_die"]), p["die"] + int(today.get("dice_mod", 0)))
-	var steps: int = base + p["move_mod_next"] + int(today["move_today"].get(p["id"], 0)) + stat(p, "move_bonus")
+	# 이동은 주사위를 써야 한다. 다음 이동·오늘 이동 보정은 처음 쓰는 이동 주사위에 붙는다.
+	p["flags"]["move_extra"] = p["move_mod_next"] + int(today["move_today"].get(p["id"], 0)) + stat(p, "move_bonus")
 	p["move_mod_next"] = 0
-	steps_left = maxi(steps, 0)
-	_log("%s: 이동 %d칸" % [p["name"], steps_left])
+	steps_left = 0
 
 
 func _finish_turn(p: Dictionary) -> void:
@@ -1355,10 +1293,6 @@ func _night_end() -> void:
 		_scene_night()
 		if phase == "over":
 			return
-		for d in team_dice:
-			if d.get("carry", false):
-				d["carry"] = false
-				d["owner"] = -1
 	rounds_left -= 1
 	if rounds_left <= 0:
 		rounds_left = 0
@@ -1620,7 +1554,52 @@ func _start_check(p: Dictionary, name: String, ctx: String, extra: Dictionary = 
 				[{"value": true, "label": "%s 사용" % item_def(react)["name"]}, {"value": false, "label": "주사위로 판정"}], {})
 			pending["item"] = react
 			return
+	if _ask_check_die(p):
+		return
 	_check_roll(p)
+
+
+func is_op_check(c: Dictionary) -> bool:
+	## 작전 판정: 내 주사위를 하나 골라 쓸 수 있는 판정 (강제 판정인 회피·검문·기습 등은 아님)
+	return str(c.get("ctx", "")) in ["mission_check", "escape", "scene"]
+
+
+func _die_check_options(p: Dictionary, prefix: String) -> Array:
+	var opts := []
+	var n := int(data.rules["op_check_dice"])
+	for i in my_dice(p["id"]):
+		opts.append({"value": "die:%d" % i, "label": "주사위 %d 쓰기 (%d + 주사위 %d개)" % [die_value(i), die_value(i), n], "die": i})
+	return opts
+
+
+func _ask_check_die(p: Dictionary) -> bool:
+	## 작전 판정이면 어느 주사위로 할지 묻는다. 물었으면 true.
+	if not is_op_check(check) or my_dice(p["id"]).is_empty():
+		return false
+	var opts := _die_check_options(p, "")
+	opts.append({"value": "roll", "label": "주사위를 쓰지 않음 (주사위 %d개)" % int(data.rules["check_dice"])})
+	_ask(p, "check_die", "%s 판정 (목표 %d%s): 어느 주사위로 하시겠습니까?" % [_check_label(check), int(check["target"]),
+		(", 보정 %+d" % int(check["bonus"])) if int(check["bonus"]) != 0 else ""], opts, {})
+	return true
+
+
+func check_chance(c: Dictionary, die := 0) -> float:
+	## 이 판정이 성공할 확률 (die > 0이면 그 눈 + op_check_dice개, 아니면 check_dice개)
+	var sides := int(data.rules["die_sides"])
+	var n := int(data.rules["op_check_dice"]) if die > 0 else int(data.rules["check_dice"])
+	var need: int = int(c["target"]) - int(c["bonus"]) - die
+	var dist := {0: 1.0}
+	for k in n:
+		var nd := {}
+		for s0 in dist:
+			for f in range(1, sides + 1):
+				nd[s0 + f] = float(nd.get(s0 + f, 0.0)) + float(dist[s0]) / float(sides)
+		dist = nd
+	var ok := 0.0
+	for s1 in dist:
+		if int(s1) >= need:
+			ok += float(dist[s1])
+	return ok
 
 
 func _react_item(p: Dictionary, when: String) -> String:
@@ -1643,10 +1622,10 @@ func _grant_index(p: Dictionary, kind: String, scene := false) -> int:
 	return -1
 
 
-func _d2() -> int:
+func _d2(n := -1) -> int:
 	var dice: Array = []
 	var sum := 0
-	for i in int(data.rules["check_dice"]):
+	for i in (int(data.rules["check_dice"]) if n < 0 else n):
 		var d := _roll_die()
 		dice.append(d)
 		sum += d
@@ -1656,8 +1635,14 @@ func _d2() -> int:
 
 func _check_roll(p: Dictionary) -> void:
 	var c := check
-	var r := _d2()
-	c["dice"] = last_roll.duplicate()
+	var dv := int(c.get("die_value", 0))
+	var r := 0
+	if dv > 0:
+		r = dv + _d2(int(data.rules["op_check_dice"]))
+		c["dice"] = [dv] + last_roll
+	else:
+		r = _d2()
+		c["dice"] = last_roll.duplicate()
 	c["total"] = r + int(c["bonus"])
 	var ok: bool = c["total"] >= int(c["target"])
 	var label := _check_label(c)
@@ -1673,16 +1658,25 @@ func _check_roll(p: Dictionary) -> void:
 		_log("%s: 타고난 솜씨로 다시 굴립니다." % p["name"])
 		_check_roll(p)
 		return
-	var spares := spare_dice()
 	var gi := _grant_index(p, "reroll", str(c.get("ctx", "")) == "scene")
-	if spares.is_empty() and gi < 0:
+	var dice_opts := _die_check_options(p, "") if is_op_check(c) else []
+	if dice_opts.is_empty() and gi < 0:
 		_check_done(p, false)
 		return
 	var opts := [{"value": "no", "label": "그대로 실패로 한다"}]
 	if gi >= 0:
 		opts.append({"value": "grant", "label": "다시 굴릴 권리를 쓴다"})
-	_ask(p, "reroll", "%s 판정에 실패했습니다. 다시 굴리겠습니까?" % label, opts, {})
-	pending["spares"] = spares
+	for o in dice_opts:
+		o["label"] = "주사위 %d로 다시 (%d + 주사위 %d개)" % [die_value(int(o["die"])), die_value(int(o["die"])), int(data.rules["op_check_dice"])]
+		opts.append(o)
+	_ask(p, "reroll", "%s 판정에 실패했습니다. 다시 하시겠습니까?" % label, opts, {})
+
+
+func _check_with_die(p: Dictionary, i: int) -> void:
+	check["die_value"] = die_value(i)
+	_use_die(p, i, "check")
+	_log("%s: 주사위 %d을(를) 판정에 씁니다." % [p["name"], die_value(i)])
+	_check_roll(p)
 
 
 func _check_label(c: Dictionary) -> String:
@@ -2162,29 +2156,6 @@ func _decoy(p: Dictionary, from: int) -> void:
 	_push({"kind": "police"})
 
 
-func _use_spare(p: Dictionary, die: int, use: String, target := -1) -> void:
-	var d: Dictionary = team_dice[die]
-	d["spare_used"] = true
-	match use:
-		"persuade":
-			_log("%s: 예비 주사위로 %s을(를) 설득합니다." % [p["name"], players[target]["name"]])
-			_persuade_once(p, players[target], true)
-		"move":
-			var mv: int = int(d["value"]) + stat(p, "spare_die_bonus")
-			steps_left += mv
-			_log("%s: 예비 주사위 %d로 이동을 %d칸 늘립니다 (남은 이동 %d)." % [p["name"], d["value"], mv, steps_left])
-		"escape":
-			var ev: int = int(d["value"]) + stat(p, "spare_die_bonus")
-			p["flags"]["escape_add"] = int(p["flags"].get("escape_add", 0)) + ev
-			_log("%s: 예비 주사위 %d를 탈옥 판정에 보탭니다 (+%d)." % [p["name"], d["value"], ev])
-		"reroll":
-			_log("%s: 예비 주사위를 써서 판정을 다시 굴립니다." % p["name"])
-			var pd := pending
-			pending = {}
-			phase = pd["resume_phase"]
-			_check_roll(players[check["player"]])
-
-
 # ================================================================ 효과 해석기
 
 func _run_effects(p: Dictionary, effects: Array, ctx: Dictionary) -> void:
@@ -2309,7 +2280,7 @@ func _effect(p: Dictionary, e: Dictionary, ctx: Dictionary, queue: Array) -> boo
 			return _op_checkpoint_place(p, e, ctx, queue)
 		"dice_mod_today":
 			today["dice_mod"] = int(today.get("dice_mod", 0)) + int(e.get("value", 0))
-			_log("오늘 모든 이동 주사위 %+d (최소 %d)." % [int(e.get("value", 0)), int(data.rules["min_die"])])
+			_log("오늘 이동에 쓰는 주사위 %+d (최소 %d)." % [int(e.get("value", 0)), int(data.rules["min_die"])])
 		"police_speed_today":
 			today["police_speed"] = int(today.get("police_speed", 0)) + int(e.get("value", 0))
 			_log("오늘 경찰 이동 %+d." % int(e.get("value", 0)))
@@ -2322,13 +2293,16 @@ func _effect(p: Dictionary, e: Dictionary, ctx: Dictionary, queue: Array) -> boo
 			return _op_discard_item(p, e, queue)
 		"move_mod_next", "move_today":
 			return _op_move(p, e, ctx, queue)
-		"team_dice_extra_tomorrow":
-			dice_extra_tomorrow += int(e.get("count", 1))
-			_log("내일 아침 팀 주사위가 %d개 늘어납니다." % int(e.get("count", 1)))
-		"team_die_reroll", "team_die_adjust", "team_die_set":
-			return _op_team_die(p, e, queue)
-		"team_dice_reroll_all":
-			_op_team_dice_reroll_all(e)
+		"dice_extra_tomorrow", "fewer_dice_tomorrow":
+			var ids = _resolve_who(p, e, ctx, queue, str(e.get("who", "self")))
+			if ids == null:
+				return true
+			var dn := int(e.get("count", 1)) * (1 if e["op"] == "dice_extra_tomorrow" else -1)
+			for id in ids:
+				players[id]["dice_next"] = int(players[id]["dice_next"]) + dn
+				_log("%s: 내일 아침 주사위 %+d개." % [players[id]["name"], dn])
+		"die_reroll", "die_adjust", "die_set":
+			return _op_die(p, e, queue)
 		"threat_bury":
 			return _op_threat_bury(p, e, queue)
 		"place_tile":
@@ -2345,13 +2319,6 @@ func _effect(p: Dictionary, e: Dictionary, ctx: Dictionary, queue: Array) -> boo
 			return _op_transfer_item(p, e, ctx, queue, str(e.get("who", "ally_in_range")), false, bool(e.get("free", false)))
 		"send_item":
 			return _op_transfer_item(p, e, ctx, queue, "ally", true, true)
-		"skip_dice_tomorrow":
-			var ids = _resolve_who(p, e, ctx, queue, str(e.get("who", "self")))
-			if ids == null:
-				return true
-			for id in ids:
-				players[id]["skip_dice_tomorrow"] = true
-				_log("%s: 내일 아침에는 주사위를 받지 못합니다." % players[id]["name"])
 		"checkpoint_pass":
 			p["flags"]["checkpoint_pass"] = int(p["flags"].get("checkpoint_pass", 0)) + int(e.get("count", 1))
 			_log("%s: 이번 차례에 검문소 %d곳을 판정 없이 지나갈 수 있습니다." % [p["name"], int(e.get("count", 1))])
@@ -2861,68 +2828,59 @@ func _op_move(p: Dictionary, e: Dictionary, ctx: Dictionary, queue: Array) -> bo
 	return false
 
 
-func _die_options(include_values := false) -> Array:
-	var opts := []
-	for i in team_dice.size():
-		var d: Dictionary = team_dice[i]
-		var own := " (%s)" % players[d["owner"]]["name"] if d["owner"] >= 0 else ""
-		opts.append({"value": i, "label": "주사위 %d: %d%s" % [i + 1, d["value"], own]})
-	return opts
-
-
-func _set_die_value(i: int, v: int) -> void:
-	team_dice[i]["value"] = v
-	var o: int = team_dice[i]["owner"]
-	if o >= 0 and not team_dice[i].get("carry", false):
-		players[o]["die_raw"] = v
-		players[o]["die"] = _effective_die(players[o], v)
-
-
-func _op_team_die(p: Dictionary, e: Dictionary, queue: Array) -> bool:
-	## team_die_reroll(count) · team_die_adjust(value ±) · team_die_set: 팀 주사위 하나를 골라 손봄
+func _op_die(p: Dictionary, e: Dictionary, queue: Array) -> bool:
+	## die_reroll(count, scope) · die_adjust(value ±) · die_set: 작전 주사위 하나를 골라 손봄.
+	## scope "own"(기본: 내 주사위) 또는 "any"(아무 요원의 주사위)
 	var op := str(e["op"])
-	if team_dice.is_empty():
-		_log("손볼 팀 주사위가 없습니다.")
+	var cand := []
+	for i in op_dice.size():
+		if not op_dice[i]["used"] and (str(e.get("scope", "own")) == "any" or int(op_dice[i]["owner"]) == p["id"]):
+			cand.append(i)
+	if cand.is_empty():
+		_log("손볼 주사위가 없습니다.")
 		return false
 	var sides := int(data.rules["die_sides"])
-	if op == "team_die_adjust":
+	if op == "die_adjust":
 		if not e.has("sel"):
 			var mag := absi(int(e.get("value", 1)))
 			var opts := []
-			for i in team_dice.size():
+			for i in cand:
 				for sign in [1, -1]:
-					var nv: int = int(team_dice[i]["value"]) + sign * mag
+					var nv: int = die_value(i) + sign * mag
 					if nv >= 1 and nv <= sides:
-						opts.append({"value": "%d:%d" % [i, sign * mag],
-							"label": "주사위 %d: %d → %d" % [i + 1, team_dice[i]["value"], nv]})
+						opts.append({"value": "%d:%d" % [i, sign * mag], "label": "%s: %d → %d" % [_die_owner_label(i), die_value(i), nv]})
 			if opts.is_empty():
 				return false
 			return _ask_pick(p, e, queue, "sel", "pick_die", "어느 주사위를 어떻게 바꿀까요?", opts)
 		var parts: PackedStringArray = str(e["sel"]).split(":")
 		var di := int(parts[0])
-		_set_die_value(di, clampi(int(team_dice[di]["value"]) + int(parts[1]), 1, sides))
-		_log("팀 주사위 %d의 눈이 %d이(가) 되었습니다." % [di + 1, team_dice[di]["value"]])
+		op_dice[di]["value"] = clampi(die_value(di) + int(parts[1]), 1, sides)
+		_log("%s의 눈이 %d이(가) 되었습니다." % [_die_owner_label(di), die_value(di)])
+		_push_dice()
 		return false
 	if not e.has("die"):
-		if team_dice.size() == 1:
+		if cand.size() == 1:
 			e = e.duplicate()
-			e["die"] = 0
+			e["die"] = cand[0]
 		else:
-			return _ask_pick(p, e, queue, "die", "pick_die", "어느 주사위를 고르시겠습니까?", _die_options())
+			var dopts := []
+			for i in cand:
+				dopts.append({"value": i, "label": "%s: %d" % [_die_owner_label(i), die_value(i)]})
+			return _ask_pick(p, e, queue, "die", "pick_die", "어느 주사위를 고르시겠습니까?", dopts)
 	var i2 := int(e["die"])
-	if op == "team_die_set":
+	if op == "die_set":
 		if not e.has("val"):
 			var vopts := []
 			for v in range(1, sides + 1):
 				vopts.append({"value": v, "label": "눈 %d" % v})
 			return _ask_pick(p, e, queue, "val", "pick_value", "원하는 눈을 고르세요.", vopts)
-		_set_die_value(i2, clampi(int(e["val"]), 1, sides))
-		_log("팀 주사위 %d의 눈을 %d(으)로 정했습니다." % [i2 + 1, team_dice[i2]["value"]])
+		op_dice[i2]["value"] = clampi(int(e["val"]), 1, sides)
+		_log("%s의 눈을 %d(으)로 정했습니다." % [_die_owner_label(i2), die_value(i2)])
+		_push_dice()
 		return false
-	var nv2 := _roll_die()
-	_set_die_value(i2, nv2)
-	_log("팀 주사위 %d을(를) 다시 굴려 %d이(가) 나왔습니다." % [i2 + 1, nv2])
-	_push({"kind": "dice_rolled", "values": team_dice.map(func(d): return d["value"])})
+	op_dice[i2]["value"] = _roll_die()
+	_log("%s을(를) 다시 굴려 %d이(가) 나왔습니다." % [_die_owner_label(i2), die_value(i2)])
+	_push_dice()
 	var left: int = int(e.get("count", 1)) - 1
 	if left > 0:
 		var e3: Dictionary = e.duplicate()
@@ -2932,15 +2890,13 @@ func _op_team_die(p: Dictionary, e: Dictionary, queue: Array) -> bool:
 	return false
 
 
-func _op_team_dice_reroll_all(e: Dictionary) -> void:
-	if str(e.get("when", "")) == "tomorrow":
-		dice_reroll_tomorrow = true
-		_log("내일 아침 팀 주사위를 전부 다시 굴립니다.")
-		return
-	for i in team_dice.size():
-		_set_die_value(i, _roll_die())
-	_log("팀 주사위를 전부 다시 굴렸습니다.")
-	_push({"kind": "dice_rolled", "values": team_dice.map(func(d): return d["value"])})
+func _die_owner_label(i: int) -> String:
+	return "%s의 주사위" % players[int(op_dice[i]["owner"])]["name"]
+
+
+func _push_dice() -> void:
+	_push({"kind": "dice_rolled", "values": op_dice.map(func(d): return d["value"]),
+		"owners": op_dice.map(func(d): return d["owner"]), "again": true})
 
 
 func _op_threat_bury(p: Dictionary, e: Dictionary, queue: Array) -> bool:
@@ -3162,8 +3118,16 @@ func _resolve_choice(value) -> void:
 					players[check["player"]]["grants"].remove_at(gi)
 				_log("%s: 다시 굴릴 권리를 씁니다." % p["name"])
 				_check_roll(players[check["player"]])
+			elif str(value).begins_with("die:"):
+				_check_with_die(p, int(str(value).substr(4)))
 			else:
 				_check_done(players[check["player"]], false)
+		"check_die":
+			if str(value).begins_with("die:"):
+				_check_with_die(p, int(str(value).substr(4)))
+			else:
+				check["die_value"] = 0
+				_check_roll(p)
 		"react_evade":
 			if bool(value):
 				var id: String = pd["item"]
@@ -3409,7 +3373,7 @@ func saga_progress(pid: int) -> Dictionary:
 			"visit_base_adjacent":
 				need = int(cond.get("count", 1))
 				have = tr.get("bases", []).size()
-			"touch_edge", "end_turn_at_start", "take_die", "take_lowest_die", "shake_police", "pass_checkpoint", \
+			"touch_edge", "end_turn_at_start", "rolled_value", "give_dice", "shake_police", "pass_checkpoint", \
 					"chased_turns_row", "coop_missions", "give_items":
 				need = int(cond.get("count", 1))
 				have = int(tr.get("n", 0))
@@ -3449,7 +3413,7 @@ func epilogue_key(pid: int, team_won: bool) -> String:
 
 
 func persuade_targets(p: Dictionary) -> Array:
-	## 지금 예비 주사위로 설득할 수 있는 대상 (같은 칸 · 심문 카드가 있는 동료, 변절자 제외)
+	## 지금 내 주사위로 설득할 수 있는 대상 (같은 칸 · 심문 카드가 있는 동료, 변절자 제외)
 	var out := []
 	if not _persuade_on() or phase != "turn" or p["id"] != current or p["jailed"] or p["traitor"]:
 		return out
@@ -3562,10 +3526,10 @@ func _saga_count(p: Dictionary, id: String, cond: Dictionary, ctx: Dictionary) -
 			if (_saga_check_at(id) == "launch") != bool(ctx.get("launch", false)):
 				return false
 			return p["items"].size() >= count
-		"take_die":
-			return int(ctx["die_raw"]) == int(cond.get("value", 6)) and _bump(tr) >= count
-		"take_lowest_die":
-			return bool(ctx["lowest"]) and _bump(tr) >= count
+		"rolled_value":
+			return int(cond.get("value", 6)) in ctx["values"] and _bump(tr) >= count
+		"give_dice":
+			return _bump(tr) >= count
 		"shake_police", "pass_checkpoint", "coop_missions", "give_items":
 			return _bump(tr) >= count
 		"never_jailed_until_launch":
@@ -3606,17 +3570,6 @@ func _saga_turn_end(p: Dictionary) -> void:
 func _saga_step_on(p: Dictionary, cell: Vector2i) -> void:
 	## 칸을 밟았다 (이동 중 지나가기만 해도, 순간이동도)
 	_saga_note_multi(p, ["visit_base_adjacent", "touch_edge", "visit_tile"], {"cell": cell})
-
-
-func _saga_day_start() -> void:
-	## 아침 주사위: 가져간 눈이 6인 날, 가장 작은 눈인 날을 센다 (굴린 눈 그대로, 갇혀서 예비로 돌린 주사위는 제외)
-	var lowest := 9999
-	for d in team_dice:
-		lowest = mini(lowest, int(d["value"]))
-	for q in players:
-		if q["jailed"] or q["die_raw"] < 0:
-			continue
-		_saga_note_multi(q, ["take_die", "take_lowest_die"], {"die_raw": q["die_raw"], "lowest": q["die_raw"] == lowest})
 
 
 func _coop_participants(id: String, p: Dictionary, ctx: Dictionary) -> Array:
@@ -4281,10 +4234,8 @@ func _scene_pay_leaf(p: Dictionary, what: String, index: int) -> Dictionary:
 		var kind := str(cond.get("kind", ""))
 		if _scene_complete(cond, str(leaf["path"])) or not _scene_at(p, cond):
 			continue
-		if what == "die" and kind == "dice" and index >= 0 and index < team_dice.size():
-			var d: Dictionary = team_dice[index]
-			if (d["owner"] == p["id"] and d.get("carry", false)) or (d["owner"] == -1 and not d["spare_used"]):
-				return leaf
+		if what == "die" and kind == "dice" and index in my_dice(p["id"]):
+			return leaf
 		if what == "item" and kind == "pay_item" and index >= 0 and index < p["items"].size():
 			return leaf
 		if what == "bomb" and kind == "pay_bomb":
@@ -4304,10 +4255,8 @@ func _scene_pay(p: Dictionary, what: String, index: int) -> void:
 	var part := _scene_part(str(leaf["path"]))
 	match what:
 		"die":
-			part["paid_dice"] = int(part["paid_dice"]) + int(team_dice[index]["value"])
-			team_dice[index]["spare_used"] = true
-			team_dice[index]["carry"] = false
-			team_dice[index]["owner"] = -2
+			part["paid_dice"] = int(part["paid_dice"]) + die_value(index)
+			_use_die(p, index, "scene")
 		"item":
 			item_discard.append(p["items"].pop_at(index))
 			part["paid_items"] = int(part["paid_items"]) + 1
@@ -4358,7 +4307,7 @@ func scene_options(p: Dictionary) -> Array:
 		out.append({"type": "scene_check", "player": p["id"]})
 	if act != 2 or phase != "turn" or current != p["id"] or p["traitor"]:
 		return out
-	for i in team_dice.size():
+	for i in my_dice(p["id"]):
 		if _scene_can_pay(p, "die", i):
 			out.append({"type": "scene_pay", "player": p["id"], "what": "die", "die": i})
 	for i in p["items"].size():
@@ -4480,7 +4429,7 @@ func _end_game(won: bool) -> void:
 const SAVE_FIELDS := ["players", "leader", "day", "rounds_total", "rounds_left", "act", "phase", "current",
 	"steps_left", "board", "tile_deck", "police", "exposure", "intel", "ready", "threat_deck", "threat_discard",
 	"threat_today", "mission_deck", "mission_discard", "mission_row", "event_deck", "event_discard",
-	"item_deck", "item_discard", "bomb_supply", "team_dice", "dice_extra_tomorrow", "dice_reroll_tomorrow", "today", "pending",
+	"item_deck", "item_discard", "bomb_supply", "op_dice", "today", "pending",
 	"launch_info", "ending", "scenes", "scene_index", "scene_state", "intel_tokens", "search_queue", "effect_wait",
 	"check", "morning_step", "last_roll", "saga_decks", "saga_discard", "interro_deck",
 	"interro_discard", "traitor_id", "saga_rewards", "launch_step", "launch_i", "actions", "log_lines", "history"]

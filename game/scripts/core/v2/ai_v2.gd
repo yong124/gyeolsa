@@ -13,7 +13,7 @@ const PERSONA := {
 	"careful": {"risk": 1.4, "vote": 1.2},
 	"support": {"risk": 0.8, "vote": 1.0},
 }
-const CHOICE_KINDS := ["launch_vote", "strike_target", "saga_keep", "persuade_look", "ambush_target", "reroll", "react_evade",
+const CHOICE_KINDS := ["launch_vote", "strike_target", "saga_keep", "persuade_look", "ambush_target", "reroll", "check_die", "react_evade",
 	"discard", "draw_pick", "effect_choice", "pick_player", "pick_cell", "pick_die", "pick_tile", "pick_item",
 	"pick_value", "pick_bury", "hop", "intel_base"]
 
@@ -29,30 +29,9 @@ static func next_actor(g: RulesV2) -> int:
 	if legal.is_empty():
 		return -1
 	if g.phase == "plan":
-		var low := 7
-		for d in g.team_dice:
-			low = mini(low, int(d["value"]))
-		if low <= 2:
-			for a in legal:
-				var actor: Dictionary = g.players[int(a["player"])]
-				if a["type"] == "ability":
-					for e in g.ability_def(actor).get("effects", []):
-						if e.get("op", "") == "team_die_reroll":
-							return int(a["player"])
-				if a["type"] == "use_item":
-					for e in g.item_def(str(actor["items"][int(a["index"])] )).get("effects", []):
-						if e.get("op", "") == "team_die_adjust":
-							return int(a["player"])
-		var chosen := -1
-		var farthest := -1
-		for p in g.players:
-			if not p["jailed"] and not p["skip_dice_tomorrow"] and p["die"] < 0:
-				var distance := _dist(p["pos"], _goal(g, p, PERSONA["support"]))
-				if distance > farthest:
-					farthest = distance
-					chosen = int(p["id"])
-		if chosen >= 0:
-			return chosen
+		for a in legal:
+			if not _morning_fix(g, g.players[int(a["player"])], a).is_empty():
+				return int(a["player"])
 		return int(g.leader)
 	if g.phase == "day":
 		var best := -1
@@ -144,8 +123,8 @@ static func _choice(g: RulesV2, p: Dictionary, legal: Array, policy: Dictionary)
 				var cond: Dictionary = g.data.saga(str(v)).get("condition", {})
 				if cond.get("strike", "") == g.launch_info.get("target", ""):
 					score += 0.5
-			"reroll":
-				score = 10.0 if a.get("type") == "use_spare" or str(v) == "grant" else 0.0
+			"reroll", "check_die":
+				score = _check_option_score(g, p, str(v))
 			"react_evade": score = 10.0 if bool(v) else 0.0
 			"persuade_look":
 				var card: Dictionary = g.data.interrogation.get("cards", []).filter(func(c): return c["id"] == g.pending.get("card", "")).front() if not g.data.interrogation.get("cards", []).filter(func(c): return c["id"] == g.pending.get("card", "")).is_empty() else {}
@@ -153,7 +132,12 @@ static func _choice(g: RulesV2, p: Dictionary, legal: Array, policy: Dictionary)
 			"discard": score = -float(g.item_def(str(p["items"][int(v)])).get("ai_value", 3))
 			"draw_pick": score = float(g.item_def(str(g.pending.get("cards", [])[int(v)])).get("ai_value", 3))
 			"pick_bury": score = 10.0 if bool(v) else 0.0
-			"pick_die": score = -float(g.team_dice[int(v)]["value"]) if typeof(v) == TYPE_INT and int(v) < g.team_dice.size() else 0.0
+			"pick_die":
+				if typeof(v) == TYPE_INT and int(v) < g.op_dice.size():
+					score = -float(g.die_value(int(v)))   # 다시 굴릴 주사위: 가장 낮은 눈
+				elif typeof(v) == TYPE_STRING and ":" in str(v):
+					var sel: PackedStringArray = str(v).split(":")
+					score = float(g.die_value(int(sel[0]))) * signf(float(sel[1]))   # 눈 고치기: 높은 눈을 더 높게
 			"pick_value": score = float(v) if typeof(v) == TYPE_INT else 0.0
 			"pick_player", "ambush_target":
 				if typeof(v) == TYPE_INT and int(v) < g.players.size():
@@ -178,60 +162,50 @@ static func _choice(g: RulesV2, p: Dictionary, legal: Array, policy: Dictionary)
 	return best
 
 
+static func _check_option_score(g: RulesV2, p: Dictionary, v: String) -> float:
+	## 판정에 쓸 주사위 고르기: 성공 확률이 가장 높은 것, 같으면 작은 눈 (큰 눈은 이동에 남김)
+	var c: Dictionary = g.check
+	if c.is_empty():
+		return 0.0
+	if v == "grant":
+		return g.check_chance(c, int(c.get("die_value", 0))) + 0.05
+	if v == "roll":
+		return g.check_chance(c, 0)
+	if v.begins_with("die:"):
+		var dv := g.die_value(int(v.substr(4)))
+		return g.check_chance(c, dv) - float(dv) * 0.001
+	return 0.05   # 「그대로 실패」: 다시 할 방법의 성공 확률이 5%도 안 되면 주사위를 아낀다
+
+
 static func _plan(g: RulesV2, p: Dictionary, legal: Array) -> Dictionary:
-	var low := 7
-	for d in g.team_dice:
-		low = mini(low, int(d["value"]))
-	if low <= 2:
-		for a in legal:
-			if a["type"] == "ability":
-				for e in g.ability_def(p).get("effects", []):
-					if e.get("op", "") == "team_die_reroll":
+	## 아침: 낮은 눈을 다시 굴리는 능력·눈을 고치는 아이템이 쓸모 있으면 쓰고, 아니면 하루를 시작한다
+	for a in legal:
+		var fix := _morning_fix(g, p, a)
+		if not fix.is_empty():
+			return fix
+	return _find(legal, "start_day")
+
+
+static func _morning_fix(g: RulesV2, p: Dictionary, a: Dictionary) -> Dictionary:
+	if int(a["player"]) != p["id"]:
+		return {}
+	var effects := []
+	if a["type"] == "ability":
+		effects = g.ability_def(p).get("effects", [])
+	elif a["type"] == "use_item":
+		effects = g.item_def(str(p["items"][int(a["index"])])).get("effects", [])
+	for e in effects:
+		match str(e.get("op", "")):
+			"die_reroll":
+				for i in g.op_dice.size():
+					var d: Dictionary = g.op_dice[i]
+					if not d["used"] and int(d["value"]) <= 2 and (str(e.get("scope", "own")) == "any" or int(d["owner"]) == p["id"]):
 						return a
-			if a["type"] == "use_item":
-				for e in g.item_def(str(p["items"][int(a["index"])] )).get("effects", []):
-					if e.get("op", "") == "team_die_adjust":
+			"die_adjust":
+				for i in g.my_dice(p["id"]):
+					if g.die_value(i) == 5:
 						return a
-	if p["die"] < 0 and not p["jailed"] and not p["skip_dice_tomorrow"]:
-		var best: Dictionary = {}
-		var best_score := -1.0e20
-		var need := _dist(p["pos"], _goal(g, p, PERSONA["support"]))
-		for a in legal:
-			if a["type"] != "take_die":
-				continue
-			var raw := int(g.team_dice[int(a["die"])]["value"])
-			var effective := maxi(raw, g.stat(p, "move_min3"))
-			var score := float(mini(effective, need)) * 4.0 - float(maxi(0, effective - need)) * 0.1
-			if g.stat(p, "move_min3") > 0:
-				score -= float(raw) * 0.3
-			for id in g.saga_cards(p["id"]):
-				var cond: Dictionary = g.data.saga(str(id)).get("condition", {})
-				if cond.get("kind", "") == "take_die" and raw == int(cond.get("value", -1)):
-					score += 0.7
-				if cond.get("kind", "") == "take_lowest_die" and raw == low:
-					score += 0.7
-			if score > best_score:
-				best_score = score
-				best = a
-		if not best.is_empty():
-			return best
-	var all_moving := true   # 바칠 주사위는 모두가 이동 주사위를 고른 뒤 남는 것만 맡는다
-	for q in g.players:
-		if q["die"] < 0 and not q["jailed"] and not q["skip_dice_tomorrow"]:
-			all_moving = false
-	if g.act == 2 and not p["jailed"] and not p["traitor"] and all_moving:
-		var needed := int(g.scene_need().get("dice", 0))
-		if needed > 0 and _dist(p["pos"], _goal(g, p, PERSONA["support"])) <= maxi(3, p["die"]):
-			var carry: Dictionary = {}
-			for a in legal:
-				if a["type"] == "carry_die" and (carry.is_empty() or int(g.team_dice[int(a["die"])]["value"]) > int(g.team_dice[int(carry["die"])]["value"])):
-					carry = a
-			if not carry.is_empty():
-				return carry
-	var start := _find(legal, "start_day")
-	if not start.is_empty():
-		return start
-	return {}   # 할 일이 없음: 다른 요원이 주사위를 고를 때까지 기다린다 (주사위를 바꿔 잡으며 맴돌지 않게)
+	return {}
 
 
 static func _turn(g: RulesV2, p: Dictionary, legal: Array, policy: Dictionary) -> Dictionary:
@@ -246,10 +220,12 @@ static func _turn(g: RulesV2, p: Dictionary, legal: Array, policy: Dictionary) -
 		return _find(legal, "end_move")
 	if g.tile_type(p["pos"]) == "item" and not g.board[p["pos"]].get("used", false) and int(g.scene_need().get("item", 0)) > 0:
 		return _find(legal, "end_move")
+	var pay_die := _scene_pay_die(g, p, legal)
+	if not pay_die.is_empty():
+		return pay_die
 	for a in legal:
-		if a["type"] == "scene_pay":
-			if a["what"] != "die" or int(g.scene_need().get("dice", 0)) > 0:
-				return a
+		if a["type"] == "scene_pay" and a["what"] != "die":
+			return a
 	if g.act == 2:
 		var sc := _find(legal, "scene_check")
 		if not sc.is_empty():
@@ -257,9 +233,13 @@ static func _turn(g: RulesV2, p: Dictionary, legal: Array, policy: Dictionary) -
 			if not intel.is_empty() and intel.get("mode") == "check" and g.intel_tokens > 0:
 				return intel
 			return sc
-	for a in legal:
-		if a["type"] == "use_spare" and a.get("use") == "persuade" and g.interrogation_count(int(a["target"])) >= 2:
-			return a
+	var small := _smallest(g, p, legal, "persuade")
+	if not small.is_empty() and g.interrogation_count(int(small["target"])) >= 2:
+		return small
+	if _saga_kind(g, p, "give_dice") and g.my_dice(p["id"]).size() >= 2:
+		var gd := _smallest(g, p, legal, "give_die")
+		if not gd.is_empty():
+			return gd
 	if _saga_kind(g, p, "give_items") and p["items"].size() > 0:
 		var give := _find(legal, "give_item")
 		if not give.is_empty():
@@ -301,6 +281,9 @@ static func _turn(g: RulesV2, p: Dictionary, legal: Array, policy: Dictionary) -
 					return a
 	var goal := _goal(g, p, policy)
 	var now := _dist(p["pos"], goal)
+	var mv := _move_die(g, p, legal, goal)
+	if not mv.is_empty():
+		return mv
 	var best: Dictionary = {}
 	var best_score := -1.0e20
 	for a in legal:
@@ -319,14 +302,82 @@ static func _turn(g: RulesV2, p: Dictionary, legal: Array, policy: Dictionary) -
 			best = a
 	if not best.is_empty() and (best_score > 0.0 or now > 0 and g.steps_left > 0 and _find(legal, "end_move").is_empty()):
 		return best
-	if now > 0 and g.steps_left == 0:
-		for a in legal:
-			if a["type"] == "use_spare" and a.get("use") == "move" and int(g.team_dice[int(a["die"])]["value"]) >= mini(now, 3):
-				return a
 	var end := _find(legal, "end_move")
 	if not end.is_empty():
 		return end
 	return _find(legal, "end_turn")
+
+
+static func _move_die(g: RulesV2, p: Dictionary, legal: Array, goal: Vector2i) -> Dictionary:
+	## 이동 주사위 고르기. 목표에서 작전 판정을 할 것 같으면 가장 큰 눈은 판정용으로 남긴다.
+	## 한 주사위로 닿으면 닿는 것 중 가장 작은 눈, 아니면 남길 것을 뺀 가장 큰 눈부터 (닿을 때까지 더함).
+	var path: Dictionary = g.path_to(p, goal)
+	var need: int = int(path["steps"]) if not path["path"].is_empty() else _dist(p["pos"], goal)
+	if need <= g.steps_left or need <= 0:
+		return {}
+	var moves := legal.filter(func(a): return a["type"] == "move_die")
+	if moves.is_empty():
+		return {}
+	moves.sort_custom(func(a, b): return g.die_value(int(a["die"])) < g.die_value(int(b["die"])))
+	if _check_ahead(g, p, goal) and moves.size() >= 2:
+		moves.pop_back()   # 가장 큰 눈은 판정에 남긴다
+	var short: int = need - g.steps_left
+	for a in moves:
+		if g.move_value(p, int(a["die"])) >= short:
+			return a
+	return moves.back()
+
+
+static func _check_ahead(g: RulesV2, p: Dictionary, goal: Vector2i) -> bool:
+	## 목표 칸에서 작전 판정(암살·방해 미션 타일, 2막 장면 판정)을 하게 되는가
+	if g.act == 2:
+		return g.scene_need().has("check_pair") or _scene_has_check(g)
+	var t := g.tile_type(goal)
+	for type in g.data.missions.get("types", {}):
+		if g.mission_tile(type) == t and str(g.mission_type_def(type).get("condition", {}).get("kind", "")) == "check":
+			return true
+	return false
+
+
+static func _scene_has_check(g: RulesV2) -> bool:
+	var stack: Array = [g.current_scene().get("condition", {})]
+	while not stack.is_empty():
+		var c: Dictionary = stack.pop_back()
+		if str(c.get("kind", "")) == "check":
+			return true
+		stack.append_array(c.get("options", []))
+	return false
+
+
+static func _scene_pay_die(g: RulesV2, p: Dictionary, legal: Array) -> Dictionary:
+	## 장면 주사위 합: 남은 합을 한 번에 채우는 가장 작은 눈, 아니면 가장 큰 눈
+	var need := int(g.scene_need().get("dice", 0))
+	if need <= 0:
+		return {}
+	var pays := legal.filter(func(a): return a["type"] == "scene_pay" and a["what"] == "die")
+	if pays.is_empty():
+		return {}
+	pays.sort_custom(func(a, b): return g.die_value(int(a["die"])) < g.die_value(int(b["die"])))
+	for a in pays:
+		if g.die_value(int(a["die"])) >= need:
+			return a
+	return pays.back()
+
+
+static func _smallest(g: RulesV2, p: Dictionary, legal: Array, type: String) -> Dictionary:
+	var best: Dictionary = {}
+	for a in legal:
+		if a["type"] == type and (best.is_empty() or g.die_value(int(a["die"])) < g.die_value(int(best["die"]))):
+			best = a
+	return best
+
+
+static func _largest(g: RulesV2, legal: Array, type: String) -> Dictionary:
+	var best: Dictionary = {}
+	for a in legal:
+		if a["type"] == type and (best.is_empty() or g.die_value(int(a["die"])) > g.die_value(int(best["die"]))):
+			best = a
+	return best
 
 
 static func _traitor(g: RulesV2, p: Dictionary, legal: Array) -> Dictionary:
@@ -345,6 +396,10 @@ static func _traitor(g: RulesV2, p: Dictionary, legal: Array) -> Dictionary:
 			return a
 	if target >= 0:
 		var now := _dist(p["pos"], g.players[target]["pos"])
+		if g.steps_left < now:
+			var big := _largest(g, legal, "move_die")
+			if not big.is_empty():
+				return big
 		for a in legal:
 			if a["type"] == "step" and _dist(a["to"], g.players[target]["pos"]) < now:
 				return a

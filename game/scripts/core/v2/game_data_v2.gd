@@ -16,9 +16,9 @@ const KNOWN_OPS := ["police_dispatch", "police_attach", "police_advance", "polic
 	"police_send_far", "checkpoint_place", "dice_mod_today", "police_speed_today", "exposure",
 	"free_all_jailed", "escape_mod_today", "scene_check_mod_today", "search", "interrogate", "intel",
 	"ready", "draw_item", "gain_bomb", "discard_item", "move_mod_next", "move_today",
-	"team_dice_extra_tomorrow", "team_die_reroll", "team_die_adjust", "team_die_set",
-	"team_dice_reroll_all", "threat_bury", "grant_once", "persuade", "place_tile", "extra_step",
-	"mark_tile", "move_to_ally", "pull_ally", "give_item", "send_item", "skip_dice_tomorrow",
+	"dice_extra_tomorrow", "fewer_dice_tomorrow", "die_reroll", "die_adjust", "die_set",
+	"threat_bury", "grant_once", "persuade", "place_tile", "extra_step",
+	"mark_tile", "move_to_ally", "pull_ally", "give_item", "send_item",
 	"checkpoint_pass", "refill_supply", "choice", "if_players",
 	"if", "interrogate_discard", "threat_flip", "check_or_jail", "entry_no_police"]
 ## if op의 cond
@@ -30,7 +30,7 @@ const KNOWN_SCENE_CONDITIONS := ["enter_base", "deliver_bomb", "check", "check_p
 	"jailed_here", "any_of", "all_of", "cover_entry", "same_day_assassin", "opposite_edges"]
 ## 3-4. 사연 조건 kind
 const KNOWN_SAGA_CONDITIONS := ["end_turn_near_base", "visit_base_adjacent", "touch_edge", "end_turn_at_start",
-	"visit_tile", "hold_items", "take_die", "take_lowest_die", "shake_police", "pass_checkpoint",
+	"visit_tile", "hold_items", "rolled_value", "give_dice", "shake_police", "pass_checkpoint",
 	"never_jailed_until_launch", "chased_turns_row", "rescue_or_escape", "same_cell_turns",
 	"coop_missions", "give_items", "strike_final_by_me", "present_at_final", "strike_entry_by_me"]
 ## 3-5. 캐릭터 특성·아이템 지속 효과 stat

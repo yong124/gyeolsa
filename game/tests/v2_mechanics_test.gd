@@ -115,7 +115,7 @@ func _blank(g: RulesV2) -> RulesV2:
 	g.exposure = 0
 	g.ready = 0
 	g.mission_row = []
-	g.team_dice = []
+	g.op_dice = []
 	g.today = g._new_today()
 	g.pending = {}
 	g.check = {}
@@ -129,8 +129,8 @@ func _blank(g: RulesV2) -> RulesV2:
 	for q in g.players:
 		q["pos"] = g.data.start
 		q["jailed"] = false
-		q["die"] = -1
-		q["die_raw"] = -1
+		q["dice_next"] = 0
+		q["gives_today"] = 0
 		q["done_today"] = false
 		q["item_uses"] = 0
 		q["items"] = []
@@ -155,16 +155,24 @@ func _tile(g: RulesV2, cell: Vector2i, type: String) -> void:
 	g.board[cell] = g._new_tile(type)
 
 
-func _spare(g: RulesV2, value: int) -> void:
-	g.team_dice.append({"value": value, "owner": -1, "spare_used": false})
+func _spare(g: RulesV2, value: int, owner := -1) -> int:
+	## 작전 주사위 하나를 준다 (owner를 안 주면 지금 차례인 요원, 없으면 0번). 그 인덱스를 돌려준다.
+	if owner < 0:
+		owner = g.current if g.current >= 0 else 0
+	g.op_dice.append({"value": value, "owner": owner, "used": false})
+	return g.op_dice.size() - 1
 
 
 func _turn(g: RulesV2, pid: int, die: int) -> bool:
+	## 차례를 시작하고, die > 0이면 그 눈의 주사위를 주어 곧바로 이동에 쓴다 (옛 「이동 주사위」와 같은 셈)
 	var p: Dictionary = g.players[pid]
-	p["die"] = die
-	p["die_raw"] = die
 	g.phase = "day"
-	return g.apply({"type": "begin_turn", "player": pid})
+	if not g.apply({"type": "begin_turn", "player": pid}):
+		return false
+	if die > 0 and not p["jailed"] and g.phase == "turn":
+		var i := _spare(g, die, pid)
+		g.apply({"type": "move_die", "player": pid, "die": i})
+	return true
 
 
 func _step(g: RulesV2, pid: int, to: Vector2i) -> bool:
@@ -178,70 +186,90 @@ func _answer(g: RulesV2, value) -> bool:
 # ------------------------------------------------------------------ 시험
 
 func _test_plan_dice() -> void:
+	## 7단계 작전 주사위: 아침 굴림 · 이동 · 건네기 · 설득
 	var g := _new(["park", "han", "oh", "seo"])
-	g.phase = "plan"
-	g.team_dice = [{"value": 6, "owner": -1, "spare_used": false}, {"value": 2, "owner": -1, "spare_used": false},
-		{"value": 4, "owner": -1, "spare_used": false}, {"value": 5, "owner": -1, "spare_used": false},
-		{"value": 3, "owner": -1, "spare_used": false}]
-	ok(g.apply({"type": "take_die", "player": 0, "die": 0}), "계획: 0번 요원이 6을 가져감")
-	ok(not g.apply({"type": "take_die", "player": 1, "die": 0}), "계획: 남이 가진 주사위는 못 가짐")
-	ok(g.apply({"type": "take_die", "player": 1, "die": 1}), "계획: 1번 요원이 2를 가져감")
-	ok(g.apply({"type": "take_die", "player": 0, "die": 2}), "계획: 가진 주사위를 내려놓고 바꿈")
-	ok(g.team_dice[0]["owner"] == -1 and g.team_dice[2]["owner"] == 0 and g.players[0]["die"] == 4, "계획: 바꾸면 이전 주사위는 비고 값이 4로 바뀜")
-	ok(g.apply({"type": "take_die", "player": 1, "die": 0}), "계획: 풀려난 6을 다른 사람이 가져감")
-	ok(not g.apply({"type": "step", "player": 0, "to": Vector2i(5, 6)}), "계획: 계획 단계에서는 이동 못 함")
-	ok(not g.apply({"type": "start_day", "player": 0}), "계획: 주사위를 못 가진 요원이 있으면 하루를 시작 못 함")
-	g.players[3]["jailed"] = true
-	g.apply({"type": "take_die", "player": 2, "die": 3})
-	ok(g.can_start_day(), "계획: 갇힌 요원은 주사위가 없어도 하루를 시작할 수 있음")
-	ok(g.apply({"type": "release_die", "player": 2}) and not g.can_start_day(), "계획: 내려놓으면 다시 시작 못 함")
-	g.apply({"type": "take_die", "player": 2, "die": 3})
-	g.apply({"type": "take_die", "player": 3, "die": 4})
-	g.apply({"type": "release_die", "player": 3})
-	ok(g.apply({"type": "start_day", "player": 3}), "계획: 아무 요원이나 하루 시작을 보낼 수 있음")
-	ok(g.phase == "day" and g.spare_dice() == [1, 4], "계획: 아무도 안 가진 주사위는 모두 예비가 됨")
-	# 갇힌 요원이 가진 주사위는 예비로 돌아간다
+	var n := int(g.data.rules["personal_dice"])
+	g.players[1]["jailed"] = true
+	g.players[2]["dice_next"] = 1
+	g.players[3]["dice_next"] = -1
+	g._morning_dice()
+	ok(g.phase == "plan" and g.my_dice(0).size() == n and g.my_dice(1).size() == n, "작전 주사위: 아침에 요원마다 %d개 (갇힌 요원도)" % n)
+	ok(g.my_dice(2).size() == n + 1 and g.my_dice(3).size() == n - 1 and g.players[2]["dice_next"] == 0 and g.players[3]["dice_next"] == 0,
+		"작전 주사위: 내일 몫 보정(+1, −1)은 그날 아침에 쓰고 지움")
+	var all_ok := true
+	for d in g.op_dice:
+		all_ok = all_ok and int(d["value"]) >= 1 and int(d["value"]) <= int(g.data.rules["die_sides"]) and not d["used"]
+	ok(all_ok, "작전 주사위: 눈은 1~6, 아직 안 씀")
+	g.act = 2
+	g._morning_dice()
+	ok(g.my_dice(0).size() == n + int(g.data.rules["act2_personal_dice_extra"]), "작전 주사위: 2막에는 더 굴림")
+	g.act = 1
+	ok(not g.apply({"type": "step", "player": 0, "to": Vector2i(5, 6)}) and not g.apply({"type": "move_die", "player": 0, "die": g.my_dice(0)[0]}),
+		"작전 주사위: 아침 계획 단계에서는 이동 못 함")
+	ok(g.apply({"type": "start_day", "player": 2}) and g.phase == "day", "작전 주사위: 아무 요원이나 하루를 시작")
+	# 이동: 주사위를 써야 움직이고, 여러 개를 더할 수 있음
 	var g2 := _new(["park", "han", "oh", "seo"])
-	g2.phase = "plan"
-	g2.team_dice = [{"value": 6, "owner": -1, "spare_used": false}, {"value": 2, "owner": -1, "spare_used": false},
-		{"value": 4, "owner": -1, "spare_used": false}, {"value": 5, "owner": -1, "spare_used": false},
-		{"value": 3, "owner": -1, "spare_used": false}]
-	g2.players[3]["jailed"] = true
-	for i in 4:
-		g2.apply({"type": "take_die", "player": i, "die": i})
-	g2.apply({"type": "start_day", "player": 0})
-	ok(g2.spare_dice().size() == 2 and g2.players[3]["die"] == -1, "계획: 갇힌 요원이 가졌던 주사위는 예비로 돌아옴")
-	# 못 받는 요원
+	var a := _spare(g2, 4, 0)
+	var b := _spare(g2, 2, 0)
+	var c := _spare(g2, 5, 1)
+	g2.apply({"type": "begin_turn", "player": 0})
+	ok(g2.steps_left == 0 and g2.legal_steps(g2.players[0]).is_empty(), "이동: 차례를 시작해도 주사위를 쓰기 전에는 0칸")
+	ok(not g2.apply({"type": "move_die", "player": 0, "die": c}), "이동: 남의 주사위는 못 씀")
+	ok(g2.apply({"type": "move_die", "player": 0, "die": a}) and g2.steps_left == 4 and g2.op_dice[a]["used"], "이동: 주사위 4를 쓰면 4칸")
+	ok(not g2.apply({"type": "move_die", "player": 0, "die": a}), "이동: 쓴 주사위는 다시 못 씀")
+	ok(g2.apply({"type": "move_die", "player": 0, "die": b}) and g2.steps_left == 6, "이동: 주사위를 더 써서 이동을 늘림")
+	# 다음 이동 보정은 처음 쓰는 이동 주사위에 붙음
 	var g3 := _new(["park", "han", "oh", "seo"])
-	g3.phase = "plan"
-	_spare(g3, 3)
-	g3.players[1]["skip_dice_tomorrow"] = true
-	ok(not g3.apply({"type": "take_die", "player": 1, "die": 0}), "계획: 오늘 주사위를 못 받는 요원은 못 가짐")
+	g3.players[0]["move_mod_next"] = 2
+	var d3 := _spare(g3, 3, 0)
+	g3.apply({"type": "begin_turn", "player": 0})
+	ok(g3.steps_left == 0, "이동: 보정만으로는 움직이지 않음")
+	g3.apply({"type": "move_die", "player": 0, "die": d3})
+	ok(g3.steps_left == 5 and g3.players[0]["move_mod_next"] == 0, "이동: 다음 이동 +2는 처음 쓰는 이동 주사위에 붙음")
+	# 남은 주사위는 밤이 지나면 사라짐
+	var g4 := _new(["park", "han", "oh", "seo"])
+	_spare(g4, 6, 0)
+	_spare(g4, 6, 0)
+	for pid in 4:
+		_turn(g4, pid, 1)
+		g4.apply({"type": "end_move", "player": pid})
+	ok(g4.day == 2 and (g4.phase != "plan" or g4.my_dice(0).size() == n), "작전 주사위: 쓰지 않은 주사위는 밤에 사라지고 아침에 새로 굴림")
+	# 건네기: 같은 칸, 하루 1번, 변절자에게는 못 줌
+	var g5 := _new(["park", "han", "oh", "seo"])
+	var gd0 := _spare(g5, 6, 0)
+	var gd1 := _spare(g5, 3, 0)
+	g5.players[2]["pos"] = g5.data.bases[0]
+	g5.players[3]["traitor"] = true
+	g5.apply({"type": "begin_turn", "player": 0})
+	var tg := g5.give_die_targets(g5.players[0])
+	ok(1 in tg and not 2 in tg and not 3 in tg, "건네기: 같은 칸 동료만 (멀리 있는 요원, 변절자 제외)")
+	ok(g5.apply({"type": "give_die", "player": 0, "die": gd0, "target": 1}) and gd0 in g5.my_dice(1) and not gd0 in g5.my_dice(0),
+		"건네기: 주사위가 동료 것이 됨")
+	ok(not g5.apply({"type": "give_die", "player": 0, "die": gd1, "target": 1}), "건네기: 하루 1번")
+	ok(g5.players[0]["stats"]["gives"] == 1, "건네기: 통계에 셈")
+	# 설득: 내 주사위 하나로 같은 칸 동료의 심문 카드를 뗌
+	var g6 := _new(["park", "han", "oh", "seo"])
+	g6.players[1]["interro"] = ["held", "shaken"]
+	var pd := _spare(g6, 2, 0)
+	g6.apply({"type": "begin_turn", "player": 0})
+	ok(not g6.apply({"type": "persuade", "player": 0, "die": pd, "target": 2}), "설득: 심문 카드가 없는 동료는 대상이 아님")
+	ok(g6.apply({"type": "persuade", "player": 0, "die": pd, "target": 1}) and g6.players[1]["interro"].size() == 1 and g6.op_dice[pd]["used"],
+		"설득: 주사위 하나를 쓰고 심문 카드 1장을 뗌")
 
 
 func _test_gaeddong_dice() -> void:
 	var g := _new(["gaeddong", "park", "han", "oh"])
-	g.phase = "plan"
-	for v in [1, 2, 4, 6, 3]:
-		_spare(g, v)
-	g.apply({"type": "take_die", "player": 0, "die": 0})
-	ok(g.players[0]["die"] == 3 and g.players[0]["die_raw"] == 1, "김개똥: 1을 가져가면 3 (굴린 눈은 1 그대로)")
-	g.apply({"type": "take_die", "player": 0, "die": 1})
-	ok(g.players[0]["die"] == 3 and g.players[0]["die_raw"] == 2, "김개똥: 2도 3")
-	g.apply({"type": "take_die", "player": 0, "die": 2})
-	ok(g.players[0]["die"] == 4, "김개똥: 4는 그대로")
-	g.apply({"type": "take_die", "player": 1, "die": 0})
-	ok(g.players[1]["die"] == 1, "다른 캐릭터: 1은 1")
-	# 이동 칸 수
-	var g2 := _new(["gaeddong", "park", "han", "oh"])
-	g2.phase = "plan"
-	for v in [1, 5, 5, 5, 5]:
-		_spare(g2, v)
-	for i in 4:
-		g2.apply({"type": "take_die", "player": i, "die": i if i > 0 else 0})
-	g2.apply({"type": "start_day", "player": 0})
-	g2.apply({"type": "begin_turn", "player": 0})
-	ok(g2.steps_left == 3, "김개똥: 주사위 1을 가져가면 3칸 이동")
+	var i1 := _spare(g, 1, 0)
+	var i2 := _spare(g, 2, 0)
+	var i4 := _spare(g, 4, 0)
+	var j1 := _spare(g, 1, 1)
+	ok(g.move_value(g.players[0], i1) == 3 and g.move_value(g.players[0], i2) == 3, "김개똥: 이동에 쓴 1·2는 3")
+	ok(g.move_value(g.players[0], i4) == 4, "김개똥: 4는 그대로")
+	ok(g.move_value(g.players[1], j1) == 1, "다른 캐릭터: 1은 1")
+	g.apply({"type": "begin_turn", "player": 0})
+	g.apply({"type": "move_die", "player": 0, "die": i1})
+	ok(g.steps_left == 3, "김개똥: 주사위 1로 3칸 이동")
+	ok(g.die_value(i1) == 1, "김개똥: 굴린 눈은 1 그대로")
 
 
 func _test_free_order_and_night() -> void:
@@ -368,25 +396,15 @@ func _test_checkpoint() -> void:
 	_turn(g3, 0, 4)
 	_step(g3, 0, Vector2i(5, 6))
 	ok(g3.board[Vector2i(5, 6)]["type"] == "check" and g3.players[0]["pos"] == START and g3.players[0]["done_today"], "검문: 새로 나온 검문소는 그 앞에서 이동이 끝남")
-	# 판정 실패 뒤 예비 주사위로 다시 굴리기 선택
+	# 검문 회피는 강제 판정: 주사위를 고르지 않고, 실패해도 주사위로 다시 하지 않음
 	var gd4 := _gd(func(d): d.rules["checks"]["evade"] = 99)
 	var g4 := _new(["park", "han", "oh", "seo"], gd4)
 	_tile(g4, Vector2i(5, 6), "check")
-	_spare(g4, 3)
-	g4.phase = "day"
+	var k4 := _spare(g4, 3, 0)
 	_turn(g4, 0, 4)
 	_step(g4, 0, Vector2i(5, 6))
-	ok(g4.phase == "choice" and g4.pending["kind"] == "reroll" and g4.pending["spares"] == [0], "다시 굴리기: 실패하면 예비 주사위로 다시 굴릴지 묻는다")
-	ok(g4.apply({"type": "use_spare", "player": 0, "die": 0, "use": "reroll"}), "다시 굴리기: 예비 주사위를 써서 다시 굴림")
-	ok(g4.team_dice[0]["spare_used"], "다시 굴리기: 예비 주사위는 한 번만 (사용 표시)")
-	ok(g4.phase == "day" and g4.players[0]["done_today"], "다시 굴리기: 또 실패하고 수단이 없으면 실패로 처리")
-	var g5 := _new(["park", "han", "oh", "seo"], gd4)
-	_tile(g5, Vector2i(5, 6), "check")
-	_spare(g5, 3)
-	_turn(g5, 0, 4)
-	_step(g5, 0, Vector2i(5, 6))
-	_answer(g5, "no")
-	ok(g5.phase == "day" and g5.exposure == 1, "다시 굴리기: 고르지 않으면 실패로 처리")
+	ok(g4.phase == "day" and g4.players[0]["done_today"] and g4.exposure == 1, "검문: 강제 판정은 주사위를 묻지 않고 실패로 처리")
+	ok(not g4.op_dice[k4]["used"], "검문: 남은 주사위는 그대로")
 
 
 func _test_checkpoint_auto_and_smoke() -> void:
@@ -666,7 +684,7 @@ func _test_escape_and_spare() -> void:
 	g.apply({"type": "begin_turn", "player": 0})
 	ok(g.phase == "turn" and g.steps_left == 0, "탈옥: 갇힌 요원의 차례는 이동 없이 시작")
 	ok(not g.apply({"type": "step", "player": 0, "to": g.data.bases[0] + Vector2i(1, 0)}), "탈옥: 갇힌 요원은 이동 못 함")
-	ok(g.apply({"type": "escape", "player": 0}), "탈옥: 탈옥 판정을 시도")
+	ok(g.apply({"type": "escape", "player": 0}), "탈옥: 탈옥 판정을 시도 (주사위가 없으면 곧바로 굴림)")
 	ok(not g.players[0]["jailed"] and g.police.has(0) and g.players[0]["done_today"], "탈옥: 성공하면 풀려나 경찰이 붙고 차례가 끝남")
 	var gd2 := _gd(func(d): d.rules["checks"]["escape"] = 99)
 	var g2 := _new(["park", "han", "oh", "seo"], gd2)
@@ -680,30 +698,48 @@ func _test_escape_and_spare() -> void:
 	g3.players[0]["pos"] = g3.data.bases[0]
 	g3.apply({"type": "begin_turn", "player": 0})
 	ok(g3.apply({"type": "end_turn", "player": 0}) and g3.players[0]["done_today"], "탈옥: 포기하고 차례를 마칠 수 있음")
-	# 예비 주사위를 탈옥 판정에 보탬 (목표 9, 박 하사 +3, 예비 6 → 6+3+6 = 15 필요 없이 2d6 최소 2 + 9 ≥ 9)
-	var gd3 := _gd(func(d): d.rules["checks"]["escape"] = 11)
+	# 작전 판정: 주사위를 고르면 눈 + 1d6 (목표 13, 박 하사 +3 → 주사위 6 + 1d6 + 3 ≥ 10이면 늘 성공... 1d6 최소 1이면 10)
+	var gd3 := _gd(func(d): d.rules["checks"]["escape"] = 10)
 	var g4 := _new(["park", "han", "oh", "seo"], gd3)
 	g4.players[0]["jailed"] = true
 	g4.players[0]["pos"] = g4.data.bases[0]
-	_spare(g4, 6)
+	var six := _spare(g4, 6, 0)
+	var two := _spare(g4, 2, 0)
 	g4.apply({"type": "begin_turn", "player": 0})
-	ok(g4.apply({"type": "use_spare", "player": 0, "die": 0, "use": "escape"}), "예비 주사위: 탈옥 판정에 보탤 수 있음")
-	ok(not g4.apply({"type": "use_spare", "player": 0, "die": 0, "use": "escape"}), "예비 주사위: 한 번 쓴 것은 다시 못 씀")
 	g4.apply({"type": "escape", "player": 0})
-	ok(not g4.players[0]["jailed"], "예비 주사위: 보탠 눈이 판정에 더해져 (목표 11, 박 하사 +3, 예비 6, 2d6 최소 2) 반드시 성공")
-	# 이동에 더함
-	var g5 := _new(["park", "han", "oh", "seo"])
-	_spare(g5, 5)
-	_turn(g5, 0, 2)
-	ok(g5.steps_left == 2, "예비 주사위: 이동 2칸")
-	ok(g5.apply({"type": "use_spare", "player": 0, "die": 0, "use": "move"}) and g5.steps_left == 7, "예비 주사위: 이동에 눈만큼 더함")
-	ok(not g5.apply({"type": "use_spare", "player": 0, "die": 0, "use": "move"}), "예비 주사위: 각각 하루 한 번")
-	ok(not g5.apply({"type": "use_spare", "player": 0, "die": 0, "use": "escape"}), "예비 주사위: 갇히지 않았으면 탈옥에 못 씀")
-	# 남이 가진 주사위는 예비가 아님
-	var g6 := _new(["park", "han", "oh", "seo"])
-	g6.team_dice = [{"value": 4, "owner": 1, "spare_used": false}]
-	_turn(g6, 0, 2)
-	ok(g6.spare_dice().is_empty() and not g6.apply({"type": "use_spare", "player": 0, "die": 0, "use": "move"}), "예비 주사위: 남이 가진 주사위는 쓸 수 없음")
+	ok(g4.phase == "choice" and g4.pending["kind"] == "check_die", "작전 판정: 주사위가 있으면 어느 주사위로 할지 묻는다")
+	var vals: Array = g4.pending["options"].map(func(o): return o["value"])
+	ok(("die:%d" % six) in vals and ("die:%d" % two) in vals and "roll" in vals, "작전 판정: 내 주사위마다 + 주사위 없이 굴리기")
+	ok(absf(g4.check_chance(g4.check, 6) - 1.0) < 0.001 and g4.check_chance(g4.check, 2) < 0.7, "작전 판정: check_chance (눈 6이면 확실, 눈 2면 아님)")
+	_answer(g4, "die:%d" % six)
+	ok(not g4.players[0]["jailed"] and g4.op_dice[six]["used"] and not g4.op_dice[two]["used"], "작전 판정: 고른 주사위만 쓰고 눈 6 + 1d6 + 3 ≥ 10이라 성공")
+	var last_dice: Array = []
+	for e in g4.events:
+		if e.get("kind", "") == "dice":
+			last_dice = e["dice"]
+	ok(last_dice.size() == 1 + int(g4.data.rules["op_check_dice"]) and int(last_dice[0]) == 6, "작전 판정: 굴림 기록은 [고른 눈, 새 주사위]")
+	# 실패하면 남은 주사위로 다시
+	var g5 := _new(["han", "oh", "seo", "mun"], gd2)
+	g5.players[0]["jailed"] = true
+	g5.players[0]["pos"] = g5.data.bases[0]
+	var r1 := _spare(g5, 3, 0)
+	var r2 := _spare(g5, 4, 0)
+	g5.apply({"type": "begin_turn", "player": 0})
+	g5.apply({"type": "escape", "player": 0})
+	_answer(g5, "die:%d" % r1)
+	ok(g5.phase == "choice" and g5.pending["kind"] == "reroll" and ("die:%d" % r2) in g5.pending["options"].map(func(o): return o["value"]),
+		"다시 하기: 실패하면 남은 주사위로 다시 할지 묻는다")
+	_answer(g5, "die:%d" % r2)
+	ok(g5.op_dice[r2]["used"] and g5.players[0]["jailed"] and g5.players[0]["done_today"], "다시 하기: 남은 주사위를 쓰고 다시 판정 (목표 99라 실패, 차례 끝)")
+	# 주사위 없이 굴리기
+	var g6 := _new(["park", "han", "oh", "seo"], gd)
+	g6.players[0]["jailed"] = true
+	g6.players[0]["pos"] = g6.data.bases[0]
+	var k := _spare(g6, 5, 0)
+	g6.apply({"type": "begin_turn", "player": 0})
+	g6.apply({"type": "escape", "player": 0})
+	_answer(g6, "roll")
+	ok(not g6.players[0]["jailed"] and not g6.op_dice[k]["used"], "작전 판정: 주사위 없이 굴리면 주사위는 남음")
 
 
 func _test_alert_dispatch() -> void:
@@ -1218,17 +1254,19 @@ func _test_item_cards() -> void:
 
 	g = _new(CH)
 	g.phase = "plan"
-	g.team_dice = [{"value": 3, "owner": -1, "spare_used": false}, {"value": 6, "owner": -1, "spare_used": false},
-		{"value": 2, "owner": -1, "spare_used": false}]
+	_spare(g, 3, 0)
+	_spare(g, 6, 0)
+	_spare(g, 2, 1)
 	g.players[0]["items"] = ["pocket_watch"]
 	ok(g.apply({"type": "use_item", "player": 0, "index": 0}), "아이템 회중시계: 아침(계획)에 씀")
 	_cov("item", "pocket_watch")
 	var vals := []
 	for o in g.pending["options"]:
 		vals.append(o["value"])
-	ok(g.pending["kind"] == "pick_die" and "0:1" in vals and "0:-1" in vals and not "1:1" in vals, "아이템 회중시계: 주사위와 ±1을 고름 (6은 +1 불가)")
+	ok(g.pending["kind"] == "pick_die" and "0:1" in vals and "0:-1" in vals and not "1:1" in vals and not "2:1" in vals and not "2:-1" in vals,
+		"아이템 회중시계: 내 주사위와 ±1을 고름 (6은 +1 불가, 남의 주사위는 아님)")
 	_answer(g, "0:1")
-	ok(g.team_dice[0]["value"] == 4 and g.phase == "plan", "아이템 회중시계: 팀 주사위 하나의 눈 +1")
+	ok(g.op_dice[0]["value"] == 4 and g.phase == "plan", "아이템 회중시계: 내 주사위 하나의 눈 +1")
 	g = _new(CH)
 	g.players[0]["items"] = ["pocket_watch"]
 	_turn(g, 0, 2)
@@ -1314,10 +1352,10 @@ func _test_item_cards() -> void:
 	_turn(g, 0, 2)
 	g.apply({"type": "use_item", "player": 0, "index": 0})
 	_cov("item", "comrade_cover")
-	ok(g.police.is_empty() and g.players[0]["skip_dice_tomorrow"], "아이템 동지들의 엄호: 모든 경찰 제거, 내일 내 몫 주사위 없음")
-	g.phase = "plan"
-	g.team_dice = [{"value": 3, "owner": -1, "spare_used": false}]
-	ok(not g.can_take_die(g.players[0], 0) and g.can_take_die(g.players[1], 0), "아이템 동지들의 엄호: 내일 아침 그 요원은 주사위를 못 가짐")
+	ok(g.police.is_empty() and g.players[0]["dice_next"] == -1, "아이템 동지들의 엄호: 모든 경찰 제거, 내일 내 주사위 1개 덜")
+	g._morning_dice()
+	ok(g.my_dice(0).size() == int(g.data.rules["personal_dice"]) - 1 and g.my_dice(1).size() == int(g.data.rules["personal_dice"]),
+		"아이템 동지들의 엄호: 내일 아침 그 요원만 주사위를 덜 굴림")
 
 	# 망원경: 암살 판정 +1
 	var gda := _gd(func(d): d.missions["types"]["assassin"]["condition"]["target"] = 99)
@@ -1402,7 +1440,7 @@ func _test_traits() -> void:
 	_cov("trait", "mun")
 
 	g = _new(["gaeddong", "han", "oh", "seo"])
-	ok(g._effective_die(g.players[0], 1) == 3 and g._effective_die(g.players[0], 2) == 3 and g._effective_die(g.players[0], 5) == 5, "특성 김개똥(move_min3): 1·2는 3")
+	ok(g.move_value(g.players[0], _spare(g, 1, 0)) == 3 and g.move_value(g.players[0], _spare(g, 2, 0)) == 3 and g.move_value(g.players[0], _spare(g, 5, 0)) == 5, "특성 김개똥(move_min3): 이동에 쓴 1·2는 3")
 	_cov("trait", "gaeddong")
 
 	g = _new(["makrye", "han", "oh", "seo"])
@@ -1469,8 +1507,6 @@ func _test_traits() -> void:
 	g = _new(CH, gdx)
 	_turn(g, 0, 2)
 	ok(g.steps_left == 3, "stat move_bonus: 이동 +1")
-	_spare(g, 4)
-	ok(g.apply({"type": "use_spare", "player": 0, "die": 0, "use": "move"}) and g.steps_left == 8, "stat spare_die_bonus: 예비 주사위 +1 (4 → 5)")
 	var gb := _new(CH, gdx)
 	var b0: Vector2i = gb.data.bases[0]
 	_tile(gb, b0 + Vector2i(1, 0), "normal")
@@ -1492,15 +1528,16 @@ func _test_traits() -> void:
 # ------------------------------------------------------------------ 캐릭터 능력 (12개)
 
 func _test_abilities() -> void:
-	# 윤 소위: 아침에 팀 주사위 하나 다시 굴림
+	# 윤 소위: 아침에 아무 요원의 주사위 하나 다시 굴림
 	var g := _new(["yun", "han", "oh", "seo"])
 	g.phase = "plan"
-	g.team_dice = [{"value": 3, "owner": -1, "spare_used": false}, {"value": 6, "owner": -1, "spare_used": false},
-		{"value": 2, "owner": -1, "spare_used": false}]
+	_spare(g, 3, 0)
+	_spare(g, 6, 1)
+	_spare(g, 2, 2)
 	ok(g.apply({"type": "ability", "player": 0}), "능력 무전 지원: 아침(계획)에 씀")
-	ok(g.phase == "choice" and g.pending["kind"] == "pick_die" and g.pending["options"].size() == 3, "능력 무전 지원: 다시 굴릴 주사위를 고름")
-	_answer(g, 1)
-	ok(_log_has(g, "팀 주사위 2을(를) 다시 굴려") and g.phase == "plan" and g.players[0]["ability_day"] == g.day, "능력 무전 지원: 고른 주사위를 다시 굴림")
+	ok(g.phase == "choice" and g.pending["kind"] == "pick_die" and g.pending["options"].size() == 3, "능력 무전 지원: 다른 요원의 주사위까지 골라 다시 굴림")
+	_answer(g, 2)
+	ok(_log_has(g, "요원 oh의 주사위을(를) 다시 굴려") and g.phase == "plan" and g.players[0]["ability_day"] == g.day, "능력 무전 지원: 고른 주사위를 다시 굴림")
 	_cov("ability", "yun")
 
 	# 박 하사: 동료의 오늘 이동 +1
@@ -1812,25 +1849,30 @@ func _test_ops_misc() -> void:
 	_answer(g, 1)
 	ok(g.players[1]["items"] == ["safety_pin"], "op send_item: 갇힌 동료에게 옷핀을 보냄")
 
-	# team_die_set · team_dice_extra_tomorrow · team_dice_reroll_all
+	# die_set · dice_extra_tomorrow · fewer_dice_tomorrow
 	g = _new(CH)
-	g.team_dice = [{"value": 3, "owner": 0, "spare_used": false}, {"value": 4, "owner": -1, "spare_used": false}]
-	g.players[0]["die_raw"] = 3
-	g.players[0]["die"] = 3
-	_fx(g, 0, [{"op": "team_die_set"}])
-	_answer(g, 0)
+	_spare(g, 3, 0)
+	_spare(g, 4, 1)
+	_fx(g, 0, [{"op": "die_set"}])
+	ok(g.pending.get("kind", "") == "pick_value", "op die_set: 내 주사위가 하나뿐이면 곧바로 눈을 묻는다")
 	_answer(g, 6)
-	ok(g.team_dice[0]["value"] == 6 and g.players[0]["die"] == 6 and g.players[0]["die_raw"] == 6, "op team_die_set: 고른 주사위가 원하는 눈이 되고 가진 사람의 값도 바뀜")
-	_fx(g, 0, [{"op": "team_dice_extra_tomorrow", "count": 1}, {"op": "team_dice_reroll_all", "when": "tomorrow"}])
-	ok(g.dice_extra_tomorrow == 1 and g.dice_reroll_tomorrow, "op team_dice_extra_tomorrow · team_dice_reroll_all(tomorrow): 내일로 미룸")
-	g._begin_morning(false)
-	while g.phase == "choice":
-		_answer(g, g.pending["options"][0]["value"])
-	ok(g.team_dice.size() == 4 + int(g.data.rules["team_dice_extra"]) + 1 and not g.dice_reroll_tomorrow and _log_has(g, "팀 주사위를 전부 다시 굴렸습니다"), "다음 날 아침: 주사위가 하나 늘고 전부 다시 굴림")
+	ok(g.op_dice[0]["value"] == 6 and g.op_dice[1]["value"] == 4, "op die_set: 내 주사위 하나를 원하는 눈으로 (남의 주사위는 그대로)")
+	_fx(g, 0, [{"op": "dice_extra_tomorrow", "count": 1}])
+	_fx(g, 1, [{"op": "fewer_dice_tomorrow", "count": 1}])
+	_fx(g, 0, [{"op": "dice_extra_tomorrow", "who": "all", "count": 1}])
+	ok(g.players[0]["dice_next"] == 2 and g.players[1]["dice_next"] == 0 and g.players[2]["dice_next"] == 1,
+		"op dice_extra_tomorrow · fewer_dice_tomorrow: 내일 아침 몫을 늘리고 줄임 (who all 포함)")
+	g._morning_dice()
+	var pdn := int(g.data.rules["personal_dice"])
+	ok(g.my_dice(0).size() == pdn + 2 and g.my_dice(1).size() == pdn and g.my_dice(2).size() == pdn + 1 and g.players[0]["dice_next"] == 0,
+		"다음 날 아침: 늘린 만큼 더 굴리고 보정은 지움")
 	g = _new(CH)
-	g.team_dice = [{"value": 3, "owner": -1, "spare_used": false}, {"value": 4, "owner": -1, "spare_used": false}]
-	_fx(g, 0, [{"op": "team_dice_reroll_all"}])
-	ok(_log_has(g, "팀 주사위를 전부 다시 굴렸습니다"), "op team_dice_reroll_all: 지금 전부 다시 굴림")
+	_spare(g, 1, 1)
+	_spare(g, 5, 0)
+	_fx(g, 0, [{"op": "die_reroll", "scope": "any"}])
+	ok(g.pending.get("kind", "") == "pick_die" and g.pending["options"].size() == 2, "op die_reroll(scope any): 아무 요원의 주사위를 고름")
+	_answer(g, 0)
+	ok(_log_has(g, "의 주사위을(를) 다시 굴려"), "op die_reroll: 고른 주사위를 다시 굴림")
 
 	# threat_bury peek
 	g = _new(CH)
@@ -1931,32 +1973,6 @@ func _walk(g: RulesV2, pid: int, from: Vector2i, to: Vector2i, die := 2, finish 
 	_step(g, pid, to)
 	if finish and g.phase == "turn" and g.current == pid:
 		g.apply({"type": "end_move", "player": pid})
-
-
-func _day_with(g: RulesV2, dice: Array, picks: Dictionary) -> void:
-	## 아침 계획을 꾸며 하루를 시작한다. picks: {요원 id: 주사위 인덱스}, 나머지 요원은 남은 주사위를 아무거나
-	g.phase = "plan"
-	g.team_dice = []
-	for v in dice:
-		g.team_dice.append({"value": v, "owner": -1, "spare_used": false})
-	for q in g.players:
-		q["die"] = -1
-		q["die_raw"] = -1
-		q["done_today"] = false
-	var used := []
-	for pid in picks:
-		used.append(picks[pid])
-	for q in g.players:
-		if q["jailed"] or picks.has(q["id"]):
-			continue
-		for i in dice.size():
-			if not i in used:
-				picks[q["id"]] = i
-				used.append(i)
-				break
-	for pid in picks:
-		g.apply({"type": "take_die", "player": pid, "die": picks[pid]})
-	g.apply({"type": "start_day", "player": 0})
 
 
 func _answer_all(g: RulesV2, idx := 0) -> int:
@@ -2061,7 +2077,7 @@ func _test_saga_cards() -> void:
 	ok(g.players[0]["saga_done"] == "", "사연 어머니의 소식: 4칸 떨어진 곳에서는 안 이뤄짐")
 	g.players[0]["pos"] = hq + Vector2i(-2, 1)
 	_end_here(g, 0)
-	ok(g.players[0]["saga_done"] == "mother" and g.dice_extra_tomorrow == 1, "사연 어머니의 소식: 3칸 안에서 쫓기지 않고 마치면 이룸, 다음 날 팀 주사위 +1")
+	ok(g.players[0]["saga_done"] == "mother" and g.players[0]["dice_next"] == 1, "사연 어머니의 소식: 3칸 안에서 쫓기지 않고 마치면 이룸, 다음 날 내 주사위 +1")
 	_cov("saga", "mother")
 
 	# 기록자: 서로 다른 거점 세 곳의 옆 칸
@@ -2149,39 +2165,42 @@ func _test_saga_cards() -> void:
 	# 노름꾼: 굴린 눈 6을 가져간 날 세 번. 내려놓고 다시 가져가도 하루 1번
 	g = _new(CH)
 	_give(g, 0, ["gambler"])
-	g.phase = "plan"
-	g.team_dice = [{"value": 6, "owner": -1, "spare_used": false}, {"value": 6, "owner": -1, "spare_used": false},
-		{"value": 2, "owner": -1, "spare_used": false}, {"value": 3, "owner": -1, "spare_used": false}, {"value": 4, "owner": -1, "spare_used": false}]
-	g.apply({"type": "take_die", "player": 0, "die": 0})
-	g.apply({"type": "release_die", "player": 0})
-	g.apply({"type": "take_die", "player": 0, "die": 1})
-	for i in range(1, 4):
-		g.apply({"type": "take_die", "player": i, "die": i + 1})
-	g.apply({"type": "start_day", "player": 0})
-	ok(g.saga_progress(0)["gambler"] == {"have": 1, "need": 3}, "사연 노름꾼: 6을 내려놓고 다시 가져가도 그날은 1번")
-	_day_with(g, [6, 1, 2, 3, 4], {0: 0})
-	ok(g.saga_progress(0)["gambler"]["have"] == 2, "사연 노름꾼: 다음 날 6을 가져가면 2번")
-	g.players[0]["jailed"] = true
-	_day_with(g, [6, 1, 2, 3, 4], {0: 0})
-	ok(g.saga_progress(0)["gambler"]["have"] == 2 and g.players[0]["die"] == -1, "사연 노름꾼: 갇혀서 예비로 돌린 주사위는 세지 않음")
-	g.players[0]["jailed"] = false
-	_day_with(g, [6, 1, 2, 3, 4], {0: 0})
-	ok(g.players[0]["saga_done"] == "gambler" and g.pending.get("kind", "") == "pick_die", "사연 노름꾼: 세 번째에 이루고 바꿀 주사위를 고른다")
-	_answer(g, 1)
-	ok(g.pending["kind"] == "pick_value", "사연 노름꾼: 주사위를 고르면 원하는 눈을 묻는다")
+	g._saga_note_multi(g.players[0], ["rolled_value"], {"values": [6, 6]})
+	ok(g.saga_progress(0)["gambler"] == {"have": 1, "need": 3}, "사연 노름꾼: 한 아침에 6이 둘이어도 1번")
+	g._saga_note_multi(g.players[0], ["rolled_value"], {"values": [2, 5]})
+	ok(g.saga_progress(0)["gambler"]["have"] == 1, "사연 노름꾼: 6이 없는 아침은 세지 않음")
+	var before: int = g.saga_progress(0)["gambler"]["have"]
+	g._morning_dice()
+	var rolled: Array = g.my_dice(0).map(func(i): return g.die_value(i))
+	ok(g.saga_progress(0)["gambler"]["have"] == before + (1 if 6 in rolled else 0), "사연 노름꾼: 아침 굴림이 그대로 셈 (%s)" % str(rolled))
+	g.op_dice = []
+	g.phase = "day"
+	g.players[0]["saga_track"]["gambler"] = {"n": 2}
+	_spare(g, 2, 0)
+	_spare(g, 5, 1)
+	g._saga_note_multi(g.players[0], ["rolled_value"], {"values": [3, 6]})
+	g._saga_idle_flush()
+	ok(g.players[0]["saga_done"] == "gambler" and g.pending.get("kind", "") == "pick_value", "사연 노름꾼: 세 번째에 이루고 (내 주사위가 하나라) 원하는 눈을 묻는다")
 	_answer(g, 4)
-	ok(g.team_dice[1]["value"] == 4 and g.phase == "day", "사연 노름꾼: 팀 주사위를 원하는 눈으로 바꿈")
+	ok(g.op_dice[0]["value"] == 4 and g.op_dice[1]["value"] == 5 and g.phase == "day", "사연 노름꾼: 내 주사위를 원하는 눈으로 바꿈")
 	_cov("saga", "gambler")
 
-	# 욕심 없는 사람: 가장 작은 눈 (같은 눈이 여럿이어도 센다)
+	# 욕심 없는 사람: 동료에게 주사위를 세 번 건넴
 	g = _new(CH)
 	_give(g, 0, ["no_greed"])
-	_give(g, 1, ["no_greed"])
-	for d in 3:
-		_day_with(g, [1, 1, 3, 4, 5], {0: 0, 1: 1})
-	ok(g.saga_progress(0)["no_greed"]["have"] == 3 and g.saga_progress(1)["no_greed"]["have"] == 3, "사연 욕심 없는 사람: 같은 가장 작은 눈이 둘이면 둘 다 센다")
-	_day_with(g, [2, 3, 3, 4, 5], {0: 3, 1: 0})   # 0번은 가장 작지 않은 눈, 1번은 가장 작은 눈
-	ok(g.players[0]["saga_done"] == "" and g.players[1]["saga_done"] == "no_greed" and g.dice_reroll_tomorrow, "사연 욕심 없는 사람: 네 번째에 이루고 내일 팀 주사위를 전부 다시 굴림")
+	for k in 3:
+		g.phase = "day"
+		g.current = -1
+		g.players[0]["done_today"] = false
+		g.players[0]["gives_today"] = 0
+		var gi := _spare(g, 2, 0)
+		g.apply({"type": "begin_turn", "player": 0})
+		g.apply({"type": "give_die", "player": 0, "die": gi, "target": 1})
+		g.apply({"type": "end_move", "player": 0})
+		if k == 1:
+			ok(g.saga_progress(0)["no_greed"]["have"] == 2 and g.players[0]["saga_done"] == "", "사연 욕심 없는 사람: 건넬 때마다 셈")
+	ok(g.players[0]["saga_done"] == "no_greed" and g.players[2]["dice_next"] == 1 and g.players[0]["dice_next"] == 1,
+		"사연 욕심 없는 사람: 세 번째에 이루고 내일 아침 모두 주사위 1개 더")
 	_cov("saga", "no_greed")
 
 	# 약속의 반지: 결행 순간 아이템 2장 이상
@@ -2470,8 +2489,12 @@ func _test_saga_boundaries() -> void:
 	g = _new(CH)
 	_give(g, 0, ["gambler"])
 	g.players[0]["saga_track"]["gambler"] = {"n": 2}
-	_day_with(g, [6, 1, 2, 3, 4], {0: 0})
-	ok(g.phase == "choice" and g.pending["kind"] == "pick_die", "사연: 하루를 시작할 때 이뤄 선택이 끼면 멈춤")
+	g.phase = "plan"
+	_spare(g, 6, 0)
+	_spare(g, 1, 0)
+	g._saga_note_multi(g.players[0], ["rolled_value"], {"values": [6, 1]})
+	g.apply({"type": "start_day", "player": 0})
+	ok(g.phase == "choice" and g.pending["kind"] == "pick_die", "사연: 아침 굴림으로 이뤄 선택이 끼면 멈춤")
 	_answer(g, 0)
 	_answer(g, 3)
 	ok(g.phase == "day" and g.can_begin_turn(g.players[0]), "사연: 선택이 끝나면 낮으로 돌아와 차례를 시작할 수 있음")
@@ -2603,16 +2626,16 @@ func _test_persuasion() -> void:
 	var legal := g.legal_actions()
 	var found := 0
 	for a in legal:
-		if a["type"] == "use_spare" and a["use"] == "persuade":
+		if a["type"] == "persuade":
 			found += 1
 			if a["target"] != 1:
 				found += 100
 	ok(found == 2 and g.persuade_targets(g.players[0]) == [1], "설득: 같은 칸 동료에게 예비 주사위마다 설득 액션이 나옴")
-	ok(not g.apply({"type": "use_spare", "player": 0, "die": 0, "use": "persuade"}) and not g.apply({"type": "use_spare", "player": 0, "die": 0, "use": "persuade", "target": 2}), "설득: 대상이 없거나 심문 카드가 없는 동료는 거부")
+	ok(not g.apply({"type": "persuade", "player": 0, "die": 0}) and not g.apply({"type": "persuade", "player": 0, "die": 0, "target": 2}), "설득: 대상이 없거나 심문 카드가 없는 동료는 거부")
 	var dis: int = g.interro_discard.size()
-	ok(g.apply({"type": "use_spare", "player": 0, "die": 0, "use": "persuade", "target": 1}), "설득: 예비 주사위로 설득")
-	ok(g.players[1]["interro"].size() == 2 and g.interro_discard.size() == dis + 1 and g.team_dice[0]["spare_used"], "설득: 심문 카드 1장이 버려지고 주사위가 쓰임")
-	ok(not g.apply({"type": "use_spare", "player": 0, "die": 0, "use": "persuade", "target": 1}), "설득: 쓴 예비 주사위는 못 씀 (하루 한 번)")
+	ok(g.apply({"type": "persuade", "player": 0, "die": 0, "target": 1}), "설득: 예비 주사위로 설득")
+	ok(g.players[1]["interro"].size() == 2 and g.interro_discard.size() == dis + 1 and g.op_dice[0]["used"], "설득: 심문 카드 1장이 버려지고 주사위가 쓰임")
+	ok(not g.apply({"type": "persuade", "player": 0, "die": 0, "target": 1}), "설득: 쓴 예비 주사위는 못 씀 (하루 한 번)")
 	var pe := {}
 	var sec := false
 	for e in g.events:
@@ -2621,7 +2644,7 @@ func _test_persuasion() -> void:
 		if e["kind"] == "persuade_cards" and e.get("secret", false) and e["player"] == 1:
 			sec = true
 	ok(pe.get("player", -1) == 0 and pe.get("target", -1) == 1 and pe.get("discarded", -1) == 1 and sec, "설득: 알림 persuade(공개)와 버린 카드 내용(secret)")
-	ok(g.apply({"type": "use_spare", "player": 0, "die": 1, "use": "persuade", "target": 1}) and g.players[1]["interro"].size() == 1, "설득: 다른 예비 주사위로 한 번 더")
+	ok(g.apply({"type": "persuade", "player": 0, "die": 1, "target": 1}) and g.players[1]["interro"].size() == 1, "설득: 다른 예비 주사위로 한 번 더")
 	ok(g.persuade_targets(g.players[0]) == [1], "설득: 카드가 남은 동료는 계속 대상")
 
 	# 거리: 옆 칸은 안 됨 / 감옥 면회는 됨 / 변절자·갇힌 본인은 안 됨
@@ -2647,7 +2670,7 @@ func _test_persuasion() -> void:
 	_spare(g, 4)
 	_turn(g, 0, 2)
 	ok(g.persuade_targets(g.players[0]) == [1], "설득: 그 거점 칸에 서면 감옥에 있는 동료도 같은 칸 (면회)")
-	g.apply({"type": "use_spare", "player": 0, "die": 0, "use": "persuade", "target": 1})
+	g.apply({"type": "persuade", "player": 0, "die": 0, "target": 1})
 	ok(g.players[1]["interro"].is_empty(), "설득: 면회로 감옥의 동료 심문 카드를 버림")
 	g = _new(CH)
 	g.players[1]["interro"] = ["held"]
@@ -2704,16 +2727,16 @@ func _test_persuasion() -> void:
 	_spare(g, 2)
 	_spare(g, 3)
 	_turn(g, 0, 2)
-	g.apply({"type": "use_spare", "player": 0, "die": 0, "use": "persuade", "target": 1})
+	g.apply({"type": "persuade", "player": 0, "die": 0, "target": 1})
 	ok(g.players[1]["interro"].size() == 2 and g.players[0]["grants"].is_empty(), "사연 의형제 권리: 설득 한 번에 심문 카드 2장을 버리고 권리를 씀")
-	g.apply({"type": "use_spare", "player": 0, "die": 1, "use": "persuade", "target": 1})
+	g.apply({"type": "persuade", "player": 0, "die": 1, "target": 1})
 	ok(g.players[1]["interro"].size() == 1, "사연 의형제 권리: 권리는 한 번뿐, 다음 설득은 1장")
 
-	# 설득 효과를 거치지 않는 액션은 서로 영향 없음 (이동 예비 주사위는 그대로)
+	# 설득에 쓰지 않은 주사위는 이동에 그대로 씀
 	g = _new(CH)
 	_spare(g, 4)
 	_turn(g, 0, 1)
-	ok(g.apply({"type": "use_spare", "player": 0, "die": 0, "use": "move"}) and g.steps_left == 5, "예비 주사위: 기존 이동 사용은 target 없이 그대로")
+	ok(g.apply({"type": "move_die", "player": 0, "die": 0}) and g.steps_left == 5, "주사위: 설득과 상관없이 이동에도 씀")
 
 
 func _persuade_off_three() -> void:
@@ -2972,19 +2995,21 @@ func _test_traitor_day() -> void:
 	g.apply({"type": "end_move", "player": 3})
 	ok(g.phase != "turn", "변절자의 하루: 차례를 마칠 수 있음")
 
-	# 아침: 변절자도 팀 주사위 하나를 가져가고, 예비 주사위는 못 씀
+	# 아침: 변절자도 주사위를 굴리고, 이동에만 쓴다
 	g = _new(CH)
 	g.act = 2
 	g.players[3]["traitor"] = true
 	g.traitor_id = 3
-	g.phase = "plan"
-	for v in [1, 2, 4, 6, 3]:
-		_spare(g, v)
-	g.apply({"type": "take_die", "player": 3, "die": 0})
-	ok(g.players[3]["die"] == 1 and g.players[3]["die_raw"] == 1, "변절자의 하루: 아침에 팀 주사위를 가져가며 김개똥 특성(1→3)은 없음")
+	g.players[0]["interro"] = ["held"]
+	g._morning_dice()
+	ok(g.my_dice(3).size() == int(g.data.rules["personal_dice"]) + int(g.data.rules["act2_personal_dice_extra"]), "변절자의 하루: 변절자도 아침에 주사위를 굴림")
 	g.phase = "day"
-	_turn_noprep(g, 3)
-	ok(not g.spare_dice().is_empty() and not g.legal_actions().any(func(a): return a["type"] == "use_spare"), "변절자의 하루: 예비 주사위를 쓸 수 없음")
+	for q in g.players:
+		q["done_today"] = q["id"] != 3
+	g.apply({"type": "begin_turn", "player": 3})
+	var tl := g.legal_actions()
+	ok(tl.any(func(a): return a["type"] == "move_die") and not tl.any(func(a): return a["type"] in ["persuade", "give_die", "scene_pay"]),
+		"변절자의 하루: 주사위는 이동에만 (설득·건네기·바치기 없음)")
 
 	# 이미 깔린 칸으로만, 검문 없이, 칸 효과 없이
 	g = _traitor_game(["park", "han", "oh", "gaeddong"])
@@ -3123,10 +3148,10 @@ func _test_traitor_day() -> void:
 	var types := {}
 	for a in g.legal_actions():
 		types[a["type"]] = true
-	ok(types.keys().all(func(k): return k in ["step", "end_move", "inform"]), "변절자의 하루: 합법 액션은 이동·멈춤·밀고뿐 (%s)" % str(types.keys()))
+	ok(types.keys().all(func(k): return k in ["step", "end_move", "inform", "move_die"]), "변절자의 하루: 합법 액션은 이동·멈춤·밀고뿐 (%s)" % str(types.keys()))
 	ok(not g.apply({"type": "use_item", "player": 3, "index": 0}) and not g.apply({"type": "give_item", "player": 3, "index": 0, "to": 0}) \
-		and not g.apply({"type": "decoy", "player": 3, "from": 0}) and not g.apply({"type": "use_spare", "player": 3, "die": 0, "use": "move"}) \
-		and not g.apply({"type": "use_spare", "player": 3, "die": 0, "use": "persuade", "target": 1}), "변절자의 하루: 아이템·건네기·미끼·예비 주사위·설득은 거부")
+		and not g.apply({"type": "decoy", "player": 3, "from": 0}) and not g.apply({"type": "give_die", "player": 3, "die": 0, "target": 1}) \
+		and not g.apply({"type": "persuade", "player": 3, "die": 0, "target": 1}), "변절자의 하루: 아이템·건네기·미끼·주사위 건네기·설득은 거부")
 	# 경찰은 변절자의 차례 끝에 움직이지 않는다
 	g = _traitor_game(["park", "han", "oh", "gaeddong"])
 	var pos0: Vector2i = g.players[3]["pos"]
@@ -3158,10 +3183,10 @@ func _turn_traitor_day(g: RulesV2, pid: int, die: int) -> void:
 		if q["id"] != pid:
 			q["done_today"] = true
 	g.players[pid]["done_today"] = false
-	g.players[pid]["die"] = die
-	g.players[pid]["die_raw"] = die
 	g.phase = "day"
 	g.apply({"type": "begin_turn", "player": pid})
+	if die > 0 and g.phase == "turn":
+		g.apply({"type": "move_die", "player": pid, "die": _spare(g, die, pid)})
 
 
 func _turn_noprep(g: RulesV2, pid: int) -> void:
@@ -3189,7 +3214,7 @@ func _test_stage3_queries() -> void:
 	_give(g, 1, ["financier", "sibling_revenge"])
 	g.players[1]["items"] = ["telegram", "pocket_watch", "train_ticket"]
 	var pr: Dictionary = g.saga_progress(0)
-	ok(pr["moth"] == {"have": 2, "need": 3} and pr["no_greed"] == {"have": 0, "need": 4}, "조회: saga_progress {have, need}")
+	ok(pr["moth"] == {"have": 2, "need": 3} and pr["no_greed"] == {"have": 0, "need": 3}, "조회: saga_progress {have, need}")
 	var pr1: Dictionary = g.saga_progress(1)
 	ok(pr1["financier"] == {"have": 3, "need": 3} and pr1["sibling_revenge"] == {"have": 0, "need": 1}, "조회: 아이템 수는 현재 값, 결행 갈래는 0/1")
 	# 저장·불러오기: 새 상태가 모두 들어 있음
@@ -3277,8 +3302,7 @@ func _test_one_scene(target: String, card: Dictionary) -> void:
 		"dice":
 			_turn(g, 0, 1)
 			for i in 3:
-				g.team_dice.append({"value": 6, "owner": 0, "carry": true, "spare_used": false})
-				g.apply({"type": "scene_pay", "player": 0, "what": "die", "die": i})
+				g.apply({"type": "scene_pay", "player": 0, "what": "die", "die": _spare(g, 6, 0)})
 				if g.phase == "over":
 					break
 		"pay_item":
@@ -3319,16 +3343,17 @@ func _test_scene_boundaries() -> void:
 	var data := _fixed_data()
 	var card: Dictionary = data.strike("prison")["entry"]
 	var g := _scene_fixture("prison", card)
-	g.team_dice = [{"value": 3, "owner": 0, "carry": true, "spare_used": false},
-		{"value": 4, "owner": 0, "carry": false, "spare_used": false},
-		{"value": 4, "owner": -1, "carry": false, "spare_used": false}]
+	_spare(g, 3, 0)
+	_spare(g, 4, 1)
+	_spare(g, 4, 0)
 	_turn(g, 0, 1)
-	ok(not g.apply({"type": "scene_pay", "player": 0, "what": "die", "die": 1}), "주사위: 이동 주사위는 바칠 수 없음")
+	ok(not g.apply({"type": "scene_pay", "player": 0, "what": "die", "die": 1}) and not g.apply({"type": "scene_pay", "player": 0, "what": "die", "die": 3}),
+		"주사위: 남의 주사위나 이미 쓴 주사위는 바칠 수 없음")
 	ok(g.apply({"type": "scene_pay", "player": 0, "what": "die", "die": 0}) and g.ending.is_empty(), "주사위: 한 번 바쳐도 합이 모자라면 남음")
 	g._scene_night()
 	ok(g.apply({"type": "scene_pay", "player": 0, "what": "die", "die": 2}) and g.ending.get("won", false), "주사위: 여러 날 누적되어 돌파")
 	g = _scene_fixture("prison", card)
-	g.team_dice = [{"value": 5, "owner": 0, "carry": true, "spare_used": false}]
+	_spare(g, 5, 0)
 	_turn(g, 0, 1)
 	ok(g.apply({"type": "use_intel", "player": 0, "mode": "dice"}) and g.intel_tokens == 2, "첩보: 토큰 하나로 주사위 필요 합을 2 줄임")
 	ok(g.apply({"type": "scene_pay", "player": 0, "what": "die", "die": 0}) and g.ending.get("won", false), "첩보: 줄어든 합에 닿으면 돌파")
@@ -3471,7 +3496,7 @@ func _test_act2_edges() -> void:
 	g.data = _gd()
 	g.data.scenes["strikes"]["prison"]["entry"]["condition"] = {"kind": "all_of", "options": [
 		{"kind": "dice", "sum": 3}, {"kind": "pay_item", "count": 1}]}
-	g.team_dice = [{"value": 3, "owner": 0, "carry": true, "spare_used": false}]
+	_spare(g, 3, 0)
 	g.players[0]["items"] = [g.data.items["items"][0]["id"]]
 	_turn(g, 0, 1)
 	g.apply({"type": "scene_pay", "player": 0, "what": "die", "die": 0})
@@ -3485,19 +3510,6 @@ func _test_act2_edges() -> void:
 	g._end_game(false)
 	ok(g.ending["epilogues"][0]["key"] == "lose_fail" and data.saga("last_telegram")["epilogue"]["lose_fail"] in g.ending["epilogues"][0]["text"],
 		"후일담: 없는 lose_done은 lose_fail 문장으로 대체")
-	g = _scene_fixture("prison", data.strike("prison")["entry"])
-	g.phase = "plan"
-	g.team_dice = [{"value": 3, "owner": -1, "carry": false, "spare_used": false},
-		{"value": 4, "owner": -1, "carry": false, "spare_used": false}]
-	ok(g.apply({"type": "carry_die", "player": 0, "die": 0}) and g.apply({"type": "take_die", "player": 0, "die": 1})
-		and g.die_index_of(0) == 1, "맡기기: 이동 주사위와 바칠 주사위를 따로 가짐")
-	ok(g.apply({"type": "drop_carry", "player": 0, "die": 0}) and g.team_dice[0]["owner"] == -1,
-		"맡기기: drop_carry로만 맡은 주사위를 내려놓음")
-	g.apply({"type": "carry_die", "player": 0, "die": 0})
-	g.phase = "day"
-	var old_dice: Array = g.team_dice
-	g._night_end()
-	ok(not old_dice[0]["carry"] and old_dice[0]["owner"] == -1, "맡기기: 밤 뒤에는 표지가 없음")
 	g = _scene_fixture("prison", data.strike("prison")["final"])
 	g.players[0]["pos"] = g._base_cell("prison")
 	g.data = _gd()
@@ -3506,7 +3518,7 @@ func _test_act2_edges() -> void:
 	ok(g.search_queue.is_empty() and g.effect_wait.is_empty() and not g.police.is_empty(), "위협: 수색 판정 대기열을 요원 번호순으로 끝까지 처리")
 	g = _scene_fixture("prison", data.strike("prison")["entry"])
 	g.phase = "plan"
-	ok(not g.apply({"type": "scene_check", "player": 0, "bogus": true}) and not g.apply({"type": "carry_die", "player": 0, "die": 999}),
+	ok(not g.apply({"type": "scene_check", "player": 0, "bogus": true}) and not g.apply({"type": "move_die", "player": 0, "die": 999}),
 		"액션: 법적 목록에 없는 형태는 거부")
 
 
@@ -3516,11 +3528,9 @@ func _test_act2_sagas_and_failures() -> void:
 	g.scenes = [data.strike("prison")["entry"]["id"], data.strike("prison")["final"]["id"]]
 	g.scene_index = 0
 	g.players[0]["sagas"] = ["first_step"]
-	g.team_dice = [{"value": 6, "owner": 0, "carry": true, "spare_used": false},
-		{"value": 1, "owner": 0, "carry": true, "spare_used": false}]
 	_turn(g, 0, 1)
-	g.apply({"type": "scene_pay", "player": 0, "what": "die", "die": 0})
-	g.apply({"type": "scene_pay", "player": 0, "what": "die", "die": 1})
+	g.apply({"type": "scene_pay", "player": 0, "what": "die", "die": _spare(g, 6, 0)})
+	g.apply({"type": "scene_pay", "player": 0, "what": "die", "die": _spare(g, 1, 0)})
 	ok(g.scene_index == 1 and g.players[0]["saga_done"] == "first_step", "사연 훅: 실제 진입 장면 돌파로 첫걸음 이룸")
 	g = _scene_fixture("barracks", data.strike("barracks")["final"])
 	g.players[0]["pos"] = g._base_cell("barracks")

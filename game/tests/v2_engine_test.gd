@@ -269,29 +269,29 @@ func _check_invalid(g: RulesV2, legal: Array, bot: RandomNumberGenerator, tag: S
 		{"type": "step", "player": (maxi(g.current, 0) + 1) % n, "to": Vector2i(5, 6)},
 		{"type": "step", "player": 0, "to": Vector2i(99, 99)},
 		{"type": "begin_turn", "player": bot.randi_range(0, n - 1), "bogus": true} if g.phase != "day" else {"type": "begin_turn", "player": 99},
-		{"type": "take_die", "player": 0, "die": 99},
-		{"type": "take_die", "player": 99, "die": 0},
-		{"type": "release_die"},
+		{"type": "move_die", "player": 0, "die": 99},
+		{"type": "move_die", "player": 99, "die": 0},
+		{"type": "give_die", "player": 0, "die": 0, "target": 0},
 		{"type": "choose", "player": (maxi(g.pending.get("player", 0), 0) + 1) % n, "value": 0},
 		{"type": "choose", "player": 0, "value": "없는 값"},
 		{"type": "fly", "player": 0},
 		{"type": "use_item", "player": 0, "index": 9},
 		{"type": "give_item", "player": 0, "index": 0, "to": 0},
 		{"type": "decoy", "player": 0, "from": 0},
-		{"type": "use_spare", "player": 0, "die": 99, "use": "move"},
-		{"type": "use_spare", "player": 0, "die": 0, "use": "persuade"},
-		{"type": "use_spare", "player": 0, "die": 0, "use": "persuade", "target": 99},
+		{"type": "persuade", "player": 0, "die": 99, "target": 1},
+		{"type": "persuade", "player": 0, "die": 0},
+		{"type": "persuade", "player": 0, "die": 0, "target": 99},
 		{"type": "inform", "player": 0, "target": 1},
 		{"type": "escape", "player": (maxi(g.current, 0) + 1) % n},
 		{"type": "start_day"},
 	]
 	if g.phase == "turn":
 		cands.append({"type": "begin_turn", "player": 0})
-		cands.append({"type": "take_die", "player": 0, "die": 0})
 		cands.append({"type": "start_day", "player": 0})
 	if g.phase == "plan":
 		cands.append({"type": "step", "player": 0, "to": Vector2i(5, 6)})
 		cands.append({"type": "begin_turn", "player": 0})
+		cands.append({"type": "move_die", "player": 0, "die": 0})
 	var before := str(_strip(g.save_state())) if g.actions.size() % 60 == 0 else ""
 	var acts := g.actions.size()
 	for a in cands:
@@ -321,23 +321,23 @@ func _check_invariants(g: RulesV2, tag: String, turn_seen: Dictionary) -> void:
 	for c in g.board:
 		if not g.in_bounds(c):
 			_fail("%s: 보드 밖 타일 %s" % [tag, c])
-	# 주사위는 한 사람에 하나
-	var owners := {}
-	for i in g.team_dice.size():
-		var o: int = g.team_dice[i]["owner"]
-		if o >= 0 and not g.team_dice[i].get("carry", false):
-			if owners.has(o):
-				_fail("%s: 요원 %d이 주사위를 둘 이상 가짐" % [tag, o])
-			owners[o] = i
-			if g.players[o]["die_raw"] != g.team_dice[i]["value"]:
-				_fail("%s: 요원 %d의 주사위 값이 어긋남" % [tag, o])
+	# 작전 주사위: 주인은 요원, 눈은 1~면 수, 쓴 주사위는 남은 주사위에 없음
+	for i in g.op_dice.size():
+		var d: Dictionary = g.op_dice[i]
+		if int(d["owner"]) < 0 or int(d["owner"]) >= g.players.size():
+			_fail("%s: 주인 없는 작전 주사위 %d" % [tag, i])
+		if int(d["value"]) < 1 or int(d["value"]) > int(R["die_sides"]):
+			_fail("%s: 주사위 눈이 범위 밖 %s" % [tag, d])
+		if d["used"] and i in g.my_dice(int(d["owner"])):
+			_fail("%s: 쓴 주사위가 남은 주사위에 들어감" % tag)
+	for q in g.players:
+		if int(q["gives_today"]) > int(R["give_per_day"]):
+			_fail("%s: 하루 건네기 횟수 초과" % tag)
 	if g.act == 2:
 		if g.scene_index < 0 or g.scene_index >= g.scenes.size():
 			_fail("%s: 장면 번호가 범위를 벗어남" % tag)
 		if g.intel_tokens < 0:
 			_fail("%s: 첩보 토큰이 음수" % tag)
-		if g.phase == "morning" and g.team_dice.any(func(d): return d.get("carry", false)):
-			_fail("%s: 밤이 지났는데 맡은 주사위가 남음" % tag)
 		for part in [g.scene_state] + g.scene_state.get("parts", {}).values():
 			for key in ["pair_ok", "people"]:
 				if g.traitor_id in part.get(key, []):

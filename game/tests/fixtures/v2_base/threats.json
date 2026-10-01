@@ -93,7 +93,7 @@
 			"name": "통금령",
 			"count": 2,
 			"tone": "bad",
-			"text": "오늘 모든 이동 주사위 −1 (최소 1)",
+			"text": "오늘 이동에 쓰는 주사위 −1 (최소 1)",
 			"effects": [
 				{
 					"op": "dice_mod_today",
@@ -119,7 +119,7 @@
 			"name": "장맛비",
 			"count": 1,
 			"tone": "mixed",
-			"text": "오늘 모든 이동 주사위 −1, 경찰 이동 −1",
+			"text": "오늘 이동에 쓰는 주사위 −1, 경찰 이동 −1",
 			"effects": [
 				{
 					"op": "dice_mod_today",
