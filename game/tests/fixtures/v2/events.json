@@ -1,0 +1,10 @@
+{
+	"events": [
+		{"id": "hide", "name": "쫓기는 동지", "count": 2, "tone": "choice", "text": "숨겨 주겠는가",
+		 "effects": [{"op": "choice", "options": [
+			{"label": "숨겨 준다", "effects": [{"op": "police_attach", "who": "self"}]},
+			{"label": "외면한다", "effects": []}]}]},
+		{"id": "reunion", "name": "옛 동지와의 재회", "tone": "good", "text": "재회한다",
+		 "effects": [{"op": "if_players", "players": [4], "then": [{"op": "move_to_ally", "adjacent": true}], "else": [{"op": "draw_item", "count": 1}]}]}
+	]
+}

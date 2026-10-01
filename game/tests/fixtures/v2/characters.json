@@ -1,0 +1,14 @@
+{
+	"factions": {
+		"kb": {"name": "한국광복군", "theme": "생존·계획"},
+		"ug": {"name": "경성 지하조직", "theme": "잠입"}
+	},
+	"characters": [
+		{"id": "yun", "name": "윤", "faction": "kb", "gender": "m", "origin": "광복군", "persona": "careful",
+		 "trait_text": "회피 보너스", "trait": {"mods": [{"stat": "evade_bonus", "value": 1}]},
+		 "ability_text": "무전 지원", "ability": {"name": "무전 지원", "when": "morning", "target": "ally", "effects": [{"op": "give_item", "range": 3, "free": true}]}},
+		{"id": "seo", "name": "서", "faction": "ug", "gender": "f", "origin": "지하조직", "persona": "support",
+		 "trait_text": "손", "trait": {"mods": [{"stat": "hand_limit", "value": 1}]},
+		 "ability_text": "없음", "ability": {}}
+	]
+}

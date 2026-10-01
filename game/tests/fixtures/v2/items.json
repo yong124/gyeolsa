@@ -1,0 +1,8 @@
+{
+	"items": [
+		{"id": "smoke", "name": "연막탄", "count": 2, "kind": "consumable", "text": "회피 자동 성공", "when": "react_evade",
+		 "effects": [{"op": "grant_once", "kind": "evade_auto", "scope": "any"}]},
+		{"id": "scope", "name": "망원경", "count": 2, "kind": "persistent", "text": "위협을 엿본다", "when": "any",
+		 "mods": [{"stat": "threat_peek", "value": 1}]}
+	]
+}
