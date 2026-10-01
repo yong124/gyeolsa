@@ -37,6 +37,8 @@ func _ready() -> void:
 		_hot()
 	elif "tut2" in OS.get_cmdline_user_args():
 		_tut2()
+	elif "v2" in OS.get_cmdline_user_args():
+		_v2()
 	elif "act2" in OS.get_cmdline_user_args():
 		_act2()
 	else:
@@ -417,4 +419,48 @@ func _hot() -> void:
 	await _wait(0.8)
 	await _shot("after_survey")
 	print("[tour] 결말 %s, 기록 %s" % [game.ending.get("id", ""), DirAccess.get_files_at(PlaytestLog.dir)])
+	get_tree().quit()
+
+
+func _v2() -> void:
+	## v2 시험판: 요원 고르기 → 자동 진행하며 단계마다 캡처 → 엔딩
+	await _wait(0.5)
+	main._show_v2_setup()
+	await _wait(0.8)
+	await _shot("v2_setup")
+	var setup = main._screen
+	var defs := []
+	var data := GameDataV2.load_default()
+	for id in ["yun", "jeong", "gaeddong", "oh"]:
+		defs.append({"name": "나" if defs.is_empty() else str(data.character(id)["name"]), "character": id})
+	var game := RulesV2.new()
+	game.setup(defs, 4242)
+	var screen := GameScreenV2.new(game, 0, {"autoplay": true})
+	var done := [false]
+	screen.finished.connect(func(): done[0] = true)
+	main._swap(screen)
+	var shots := {"plan": false, "turn": false, "act2_plan": false, "act2_turn": false}
+	var guard := 0
+	while not done[0] and guard < 6000:
+		guard += 1
+		await _wait(0.05)
+		if game.act == 1 and game.day >= 2 and game.phase == "plan" and not shots["plan"]:
+			shots["plan"] = true
+			await _wait(0.4)
+			await _shot("v2_plan")
+		elif game.act == 1 and game.day >= 3 and game.phase == "turn" and game.current == 0 and not shots["turn"]:
+			shots["turn"] = true
+			await _shot("v2_turn")
+		elif game.act == 2 and game.phase == "plan" and not shots["act2_plan"]:
+			shots["act2_plan"] = true
+			await _wait(0.4)
+			await _shot("v2_act2_plan")
+		elif game.act == 2 and game.phase == "turn" and not shots["act2_turn"] and game.day > int(game.launch_info.get("day", 0)):
+			shots["act2_turn"] = true
+			await _shot("v2_act2_turn")
+	print("[tour] v2 끝: phase=%s ending=%s day=%d act=%d" % [game.phase, game.ending.get("id", "-"), game.day, game.act])
+	var e := EndingScreenV2.new(game, 0)
+	main._swap(e)
+	await _wait(0.8)
+	await _shot("v2_ending")
 	get_tree().quit()

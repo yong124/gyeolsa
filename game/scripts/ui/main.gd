@@ -20,7 +20,9 @@ func _ready() -> void:
 	for err in data.validate():
 		push_error("데이터 오류: " + err)
 	var args := OS.get_cmdline_user_args()
-	if "tour" in args:
+	if "v2uitest" in args:
+		add_child(load("res://tests/v2_ui_test.gd").new())   # v2 화면 시험 (개발용)
+	elif "tour" in args:
 		add_child(load("res://tools/tour.gd").new())   # 개발용 화면 캡처 (빌드에는 없음)
 	elif "autostart" in args:
 		var title := TitleScreen.new(data)
@@ -48,6 +50,7 @@ func _show_title() -> void:
 	title.continue_requested.connect(_continue)
 	title.tutorial_requested.connect(_start_tutorial)
 	title.intro_requested.connect(_show_intro)
+	title.v2_requested.connect(_show_v2_setup)
 	_swap(title)
 
 
@@ -122,6 +125,28 @@ func _survey_then(game: GameRules, meta: Dictionary, next: Callable) -> void:
 	var s := SurveyScreen.new(meta["playtest"], seats)
 	s.finished.connect(next)
 	_swap(s)
+
+
+# ================================================================ v2 (시험판)
+
+func _show_v2_setup() -> void:
+	var setup := SetupScreenV2.new()
+	setup.back_requested.connect(_show_title)
+	setup.start_requested.connect(_start_v2)
+	_swap(setup)
+
+
+func _start_v2(defs: Array, seed_value: int) -> void:
+	var game := RulesV2.new()
+	game.setup(defs, seed_value)
+	var screen := GameScreenV2.new(game, 0, {"defs": defs})
+	screen.back_to_title.connect(_show_title)
+	screen.finished.connect(func():
+		var e := EndingScreenV2.new(game, 0)
+		e.to_menu.connect(_show_title)
+		e.replay.connect(_show_v2_setup)
+		_swap(e))
+	_swap(screen)
 
 
 func _swap(screen: Control) -> void:

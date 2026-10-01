@@ -103,6 +103,8 @@ static func decide(g: RulesV2, pid: int, persona := "") -> Dictionary:
 		"turn": picked = _turn(g, p, own, policy)
 	if picked in legal:
 		return picked
+	if picked.is_empty() and g.phase == "plan":
+		return {}
 	fallback_count += 1
 	for t in ["end_move", "end_turn", "start_day", "begin_turn", "choose"]:
 		var a := _find(own, t)
@@ -213,7 +215,11 @@ static func _plan(g: RulesV2, p: Dictionary, legal: Array) -> Dictionary:
 				best = a
 		if not best.is_empty():
 			return best
-	if g.act == 2 and not p["jailed"] and not p["traitor"]:
+	var all_moving := true   # 바칠 주사위는 모두가 이동 주사위를 고른 뒤 남는 것만 맡는다
+	for q in g.players:
+		if q["die"] < 0 and not q["jailed"] and not q["skip_dice_tomorrow"]:
+			all_moving = false
+	if g.act == 2 and not p["jailed"] and not p["traitor"] and all_moving:
 		var needed := int(g.scene_need().get("dice", 0))
 		if needed > 0 and _dist(p["pos"], _goal(g, p, PERSONA["support"])) <= maxi(3, p["die"]):
 			var carry: Dictionary = {}
@@ -225,7 +231,7 @@ static func _plan(g: RulesV2, p: Dictionary, legal: Array) -> Dictionary:
 	var start := _find(legal, "start_day")
 	if not start.is_empty():
 		return start
-	return legal[0]
+	return {}   # 할 일이 없음: 다른 요원이 주사위를 고를 때까지 기다린다 (주사위를 바꿔 잡으며 맴돌지 않게)
 
 
 static func _turn(g: RulesV2, p: Dictionary, legal: Array, policy: Dictionary) -> Dictionary:

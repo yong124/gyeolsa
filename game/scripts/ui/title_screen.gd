@@ -7,6 +7,7 @@ signal start_requested(config: Dictionary)   # {"defs", "difficulty", "scenario"
 signal continue_requested
 signal tutorial_requested(id: String)
 signal intro_requested
+signal v2_requested
 
 const DIFFICULTY := [{"name": "쉬움", "days": 1}, {"name": "보통", "days": 0}, {"name": "어려움", "days": -1}]
 
@@ -135,6 +136,7 @@ func _show_menu() -> void:
 	if SaveGame.exists():
 		_menu_button("이어하기", func(): continue_requested.emit(), SaveGame.summary(), true)
 	_menu_button("새 작전", _show_setup, "인원 · 세력 · 난이도", not SaveGame.exists())
+	_menu_button("새 규칙 v2 (시험판)", func(): v2_requested.emit(), "4인 · 팀 주사위 · 위협 카드 · 비밀 사연 · 결행 장면")
 	var rec := Records.data()
 	var date := Records.today()
 	var best_today: int = int(rec["daily"].get(date, -1))
