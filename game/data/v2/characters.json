@@ -1,0 +1,402 @@
+{
+	"_comment": "소속 4개와 캐릭터 12명 (카드 목록 v2 6절 최종 표, 기획서 19.14). 소속은 이름표이고 규칙 효과가 없음. mods의 value는 기본값에 더하는 값(bomb_slots, hand_limit 포함). persona: bold(돌격)/careful(신중)/support(지원). 소속 키 kb/uy/ub는 v1과 같고 지하조직은 ug.",
+	"factions": {
+		"kb": {
+			"name": "한국광복군",
+			"theme": "생존·계획",
+			"_comment": "주사위, 회피, 동료 지원"
+		},
+		"uy": {
+			"name": "조선의용대",
+			"theme": "공격",
+			"_comment": "암살, 폭탄, 경찰 쫓기"
+		},
+		"ub": {
+			"name": "의병",
+			"theme": "이동·길",
+			"_comment": "동료 데려오기, 타일, 짐"
+		},
+		"ug": {
+			"name": "경성 지하조직",
+			"theme": "정보·결속",
+			"_comment": "위협, 설득, 검문"
+		}
+	},
+	"characters": [
+		{
+			"id": "yun",
+			"name": "윤 소위",
+			"faction": "kb",
+			"gender": "m",
+			"origin": "일본군에서 탈출한 학병",
+			"persona": "bold",
+			"trait_text": "회피 판정 항상 성공",
+			"trait": {
+				"mods": [
+					{
+						"stat": "evade_auto",
+						"value": 1
+					}
+				]
+			},
+			"ability_text": "무전 지원: 아침에 팀 주사위 하나를 다시 굴림",
+			"ability": {
+				"name": "무전 지원",
+				"when": "morning",
+				"target": "self",
+				"effects": [
+					{
+						"op": "team_die_reroll",
+						"count": 1
+					}
+				]
+			}
+		},
+		{
+			"id": "park",
+			"name": "박 하사",
+			"faction": "kb",
+			"gender": "m",
+			"origin": "충칭에서 온 통신병",
+			"persona": "careful",
+			"trait_text": "탈옥 판정 +3",
+			"trait": {
+				"mods": [
+					{
+						"stat": "escape_bonus",
+						"value": 3
+					}
+				]
+			},
+			"ability_text": "전령: 동료 하나의 오늘 이동 +1",
+			"ability": {
+				"name": "전령",
+				"when": "turn",
+				"target": "ally",
+				"effects": [
+					{
+						"op": "move_today",
+						"who": "ally",
+						"value": 1
+					}
+				]
+			}
+		},
+		{
+			"id": "han",
+			"name": "한 간호장교",
+			"faction": "kb",
+			"gender": "f",
+			"origin": "전선에서 돌아온 간호장교",
+			"persona": "support",
+			"trait_text": "내가 구출한 동료는 다음 이동 +2",
+			"trait": {
+				"mods": [
+					{
+						"stat": "rescued_move_bonus",
+						"value": 2
+					}
+				]
+			},
+			"ability_text": "응급 처치: 같은 칸이나 옆 칸 동료의 다음 판정 +2",
+			"ability": {
+				"name": "응급 처치",
+				"when": "turn",
+				"target": "ally_adjacent",
+				"effects": [
+					{
+						"op": "grant_once",
+						"kind": "check_bonus",
+						"value": 2,
+						"scope": "any",
+						"who": "ally_adjacent"
+					}
+				]
+			}
+		},
+		{
+			"id": "oh",
+			"name": "저격수 오",
+			"faction": "uy",
+			"gender": "m",
+			"origin": "화북 전선의 저격수",
+			"persona": "bold",
+			"trait_text": "암살 실패 시 한 번 더 굴림",
+			"trait": {
+				"mods": [
+					{
+						"stat": "assassin_rerolls",
+						"value": 1
+					}
+				]
+			},
+			"ability_text": "기습: 내 칸의 경찰 1개 제거",
+			"ability": {
+				"name": "기습",
+				"when": "turn",
+				"target": "self",
+				"effects": [
+					{
+						"op": "police_remove",
+						"scope": "cell"
+					}
+				]
+			}
+		},
+		{
+			"id": "seok",
+			"name": "석 기술자",
+			"faction": "uy",
+			"gender": "m",
+			"origin": "폭탄을 만드는 기술자",
+			"persona": "bold",
+			"trait_text": "폭탄을 2개까지 들 수 있음",
+			"trait": {
+				"mods": [
+					{
+						"stat": "bomb_slots",
+						"value": 1
+					}
+				]
+			},
+			"ability_text": "급조 폭탄: 보급 타일 옆 칸에서 아이템 1장을 버리고 폭탄 1개",
+			"ability": {
+				"name": "급조 폭탄",
+				"when": "turn",
+				"target": "self",
+				"effects": [
+					{
+						"op": "discard_item",
+						"count": 1
+					},
+					{
+						"op": "gain_bomb",
+						"count": 1
+					}
+				]
+			},
+			"_comment": "bomb_slots value 1 = 기본 칸(rules.json bomb_slots 1)에 더하는 칸 수. 합계 2개",
+			"_todo": "능력 사용 위치 조건 '보급 타일 옆 칸에서'를 표현할 조건 어휘가 없음. 효과만 적고 위치 제한은 코드가 별도 처리해야 함"
+		},
+		{
+			"id": "mun",
+			"name": "문 선전대원",
+			"faction": "uy",
+			"gender": "f",
+			"origin": "전단을 뿌리던 여학생 출신 선전대원",
+			"persona": "careful",
+			"trait_text": "방해 판정 +2, 성공하면 노출 −1",
+			"trait": {
+				"mods": [
+					{
+						"stat": "sabotage_bonus",
+						"value": 2
+					},
+					{
+						"stat": "sabotage_exposure",
+						"value": -1
+					}
+				]
+			},
+			"ability_text": "군중 동원: 내 옆 칸의 경찰 1개를 2칸 물러나게 함",
+			"ability": {
+				"name": "군중 동원",
+				"when": "turn",
+				"target": "self",
+				"effects": [
+					{
+						"op": "police_push",
+						"steps": 2
+					}
+				]
+			}
+		},
+		{
+			"id": "gaeddong",
+			"name": "포수 김개똥",
+			"faction": "ub",
+			"gender": "m",
+			"origin": "산에서 내려온 포수",
+			"persona": "support",
+			"trait_text": "이동 주사위 1·2는 3으로",
+			"trait": {
+				"mods": [
+					{
+						"stat": "move_min3",
+						"value": 3
+					}
+				]
+			},
+			"ability_text": "길 안내: 동료 하나를 내 옆 칸으로 데려옴",
+			"ability": {
+				"name": "길 안내",
+				"when": "turn",
+				"target": "ally",
+				"effects": [
+					{
+						"op": "pull_ally"
+					}
+				]
+			}
+		},
+		{
+			"id": "makrye",
+			"name": "주모 막례",
+			"faction": "ub",
+			"gender": "f",
+			"origin": "의병의 끼니를 대던 산골 주막 주모",
+			"persona": "support",
+			"trait_text": "아이템을 3장까지 들 수 있고, 아이템을 뽑을 때 2장 보고 1장 고름",
+			"trait": {
+				"mods": [
+					{
+						"stat": "hand_limit",
+						"value": 1
+					},
+					{
+						"stat": "item_draw_choice",
+						"value": 2
+					}
+				]
+			},
+			"ability_text": "주막 인심: 같은 칸이나 옆 칸 동료에게 아이템 1장을 줌 (아이템 사용으로 치지 않음)",
+			"ability": {
+				"name": "주막 인심",
+				"when": "turn",
+				"target": "ally_adjacent",
+				"effects": [
+					{
+						"op": "give_item",
+						"range": 1,
+						"free": true
+					}
+				]
+			},
+			"_comment": "hand_limit value 1 = 기본 한도(rules.json hand_limit 2)에 더하는 장수. 합계 3장. item_draw_choice value 2 = 2장 보고 1장 고름. give_item의 free=true는 아이템 사용으로 치지 않음"
+		},
+		{
+			"id": "choi",
+			"name": "최 훈장",
+			"faction": "ub",
+			"gender": "m",
+			"origin": "마을 서당의 훈장",
+			"persona": "careful",
+			"trait_text": "잠입 미션의 첩보 +1",
+			"trait": {
+				"mods": [
+					{
+						"stat": "mission_intel_bonus",
+						"value": 1,
+						"type": "infiltrate"
+					}
+				]
+			},
+			"ability_text": "마을 사람들: 타일 더미에서 원하는 타일 하나를 찾아 옆 빈칸에 깖 (그 뒤 더미를 섞음)",
+			"ability": {
+				"name": "마을 사람들",
+				"when": "turn",
+				"target": "self",
+				"effects": [
+					{
+						"op": "place_tile",
+						"type": "choose",
+						"near": "self"
+					}
+				]
+			},
+			"_todo": "'그 뒤 타일 더미를 섞음'을 표현할 op가 없음. place_tile type=choose에 섞기가 포함된다고 보고 코드가 처리해야 함"
+		},
+		{
+			"id": "jeong",
+			"name": "정 인쇄공",
+			"faction": "ug",
+			"gender": "m",
+			"origin": "지하 인쇄소의 식자공",
+			"persona": "careful",
+			"trait_text": "위협 덱 맨 위 2장을 봄 (팀 전체에 공개)",
+			"trait": {
+				"mods": [
+					{
+						"stat": "threat_peek",
+						"value": 2
+					}
+				]
+			},
+			"ability_text": "연락망: 3칸 안의 동료 설득 1번",
+			"ability": {
+				"name": "연락망",
+				"when": "turn",
+				"target": "ally_in_range",
+				"range": 3,
+				"effects": [
+					{
+						"op": "persuade",
+						"range": 3,
+						"mode": "random"
+					}
+				]
+			},
+			"_comment": "threat_peek value 2 = 맨 위 2장. 설득은 무작위(random) 방식"
+		},
+		{
+			"id": "seo",
+			"name": "서 마담",
+			"faction": "ug",
+			"gender": "f",
+			"origin": "순사들이 드나드는 다방 주인",
+			"persona": "careful",
+			"trait_text": "내게 경찰이 붙을 때 회피 판정으로 막을 수 있음",
+			"trait": {
+				"mods": [
+					{
+						"stat": "block_police_with_evade",
+						"value": 1
+					}
+				]
+			},
+			"ability_text": "다방 밀담: 같은 칸 동료의 심문 카드 1장을 보고, 원하면 버림",
+			"ability": {
+				"name": "다방 밀담",
+				"when": "turn",
+				"target": "ally_same_cell",
+				"effects": [
+					{
+						"op": "persuade",
+						"range": 0,
+						"mode": "look"
+					}
+				]
+			},
+			"_todo": "'동료의 심문 카드 1장을 보고 원하면 버림'은 persuade(range 0, mode look)로 가장 가깝게 적음. 뜻이 정확히 같은지는 코드에서 확인 필요"
+		},
+		{
+			"id": "lee",
+			"name": "이 차장",
+			"faction": "ug",
+			"gender": "m",
+			"origin": "전차 차장",
+			"persona": "support",
+			"trait_text": "이동이 끝날 때 동료 옆의 깔린 칸으로 한 칸 옮길 수 있음",
+			"trait": {
+				"mods": [
+					{
+						"stat": "end_move_hop_to_ally",
+						"value": 1
+					}
+				]
+			},
+			"ability_text": "표 검사: 이번 차례 검문소 하나를 판정 없이 지나감",
+			"ability": {
+				"name": "표 검사",
+				"when": "turn",
+				"target": "self",
+				"effects": [
+					{
+						"op": "checkpoint_pass",
+						"count": 1
+					}
+				]
+			}
+		}
+	]
+}
