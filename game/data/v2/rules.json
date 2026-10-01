@@ -11,8 +11,8 @@
 	"_comment_launch_min": "결행을 시작할 수 있는 최소 준비 수치",
 	"forced_launch_days_left": 2,
 	"_comment_forced_launch_days_left": "남은 날이 이 값이 되면 결행을 강제한다",
-	"exposure": {"max": 9, "thresholds": [3, 6], "loud": 1, "_comment": "경계(노출) 최대치, 경계 단계가 오르는 문턱, 시끄러운 행동의 노출 증가"},
-	"police": {"pieces": 4, "escape_distance": 3, "speed_by_alert": [2, 3, 4], "_comment": "경찰 말 수, 따돌리는 거리, 경계 단계별 경찰 이동"},
+	"exposure": {"max": 9, "thresholds": [3, 6], "loud": 1, "on_jail": 1, "on_checkpoint_fail": 1, "_comment": "경계(노출) 최대치, 경계 단계가 오르는 문턱, 시끄러운 행동의 노출 증가, 투옥되었을 때와 검문에 걸렸을 때의 노출 증가"},
+	"police": {"pieces": 4, "escape_distance": 3, "speed_by_alert": [2, 3, 4], "min_speed": 1, "_comment": "경찰 말 수, 따돌리는 거리, 경계 단계별 경찰 이동, 오늘 효과를 더한 뒤의 최소 이동"},
 	"hand_limit": 2,
 	"item_uses_per_turn": 1,
 	"bomb_slots": 1,
@@ -21,5 +21,16 @@
 	"traitor": {"players": [4], "shaken_needed": 2, "_comment": "변절자가 생기는 인원, 흔들린 심문 누적 기준"},
 	"scenes": {"middle_draw": 2, "reinforce_by_alert": {"1": 0, "2": 1, "3": 2}, "_comment": "중간 장면 뽑는 수, 경계 단계별 경비 강화 장수"},
 	"intel_token": {"check_bonus": 1, "dice_reduce": 2, "_comment": "첩보 토큰 사용 효과"},
-	"saga": {"deal_per_pile": 1, "_comment": "더미마다 나눠 주는 개인 사연 수"}
+	"saga": {"deal_per_pile": 1, "_comment": "더미마다 나눠 주는 개인 사연 수"},
+	"die_sides": 6,
+	"_comment_die_sides": "주사위 눈 수",
+	"check_dice": 2,
+	"_comment_check_dice": "판정에 굴리는 주사위 수 (합으로 비교)",
+	"min_die": 1,
+	"_comment_min_die": "오늘 이동 주사위 보정(dice_mod_today)을 받은 뒤의 최소 눈",
+	"bomb_supply": 5,
+	"_comment_bomb_supply": "처음 폭탄 보급 수 (보급 타일에서 하나씩 가져감)",
+	"coop": {"give_range": 1, "decoy_range": 3, "decoy_per_turn": 1, "give_counts_as_item_use": true, "_comment": "건네기 거리(칸), 미끼 거리(칸), 차례당 미끼 횟수, 건네기를 아이템 사용 1회로 셀지"},
+	"hideout_flag": "hideout",
+	"_comment_hideout_flag": "이 표시가 있는 칸에서 차례를 마치면 나를 쫓던 경찰이 사라진다 (mark_tile의 flag 이름)"
 }
