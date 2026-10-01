@@ -72,11 +72,28 @@
 			"when": "turn",
 			"effects": [
 				{
-					"op": "checkpoint_pass",
-					"count": 1
+					"op": "choice",
+					"options": [
+						{
+							"label": "거점 진입",
+							"effects": [
+								{
+									"op": "entry_no_police"
+								}
+							]
+						},
+						{
+							"label": "검문소",
+							"effects": [
+								{
+									"op": "checkpoint_pass",
+									"count": 1
+								}
+							]
+						}
+					]
 				}
-			],
-			"_todo": "'거점 진입에도 경찰이 붙지 않음'을 나타내는 op이 없어 검문소 통과(checkpoint_pass)만 적음. 거점 진입 쪽은 코드에서 처리해야 함"
+			]
 		},
 		{
 			"id": "cipher_book",

@@ -309,7 +309,8 @@
 			"reward": [
 				{
 					"op": "draw_item",
-					"count": 1
+					"count": 1,
+					"item": "smoke"
 				}
 			],
 			"reward_text": "연막탄 1장",
@@ -323,8 +324,7 @@
 				"lose_done": "그는 끝까지 겁내지 않았다. 그것만으로는 모자랐다.",
 				"lose_fail": "불나방은 불 앞에서 날개를 접었다.",
 				"traitor": "그 배짱은 헌병대의 앞잡이가 되어서도 사라지지 않았다."
-			},
-			"_todo": "보상이 '연막탄 1장'(특정 아이템)인데 draw_item은 아이템 종류를 지정하는 인자가 없음. 어휘에 item id 지정(예: draw_item의 item)이 필요. 일단 draw_item 1장으로 둠"
+			}
 		},
 		{
 			"id": "survivor",

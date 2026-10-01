@@ -19,9 +19,14 @@ const KNOWN_OPS := ["police_dispatch", "police_attach", "police_advance", "polic
 	"team_dice_extra_tomorrow", "team_die_reroll", "team_die_adjust", "team_die_set",
 	"team_dice_reroll_all", "threat_bury", "grant_once", "persuade", "place_tile", "extra_step",
 	"mark_tile", "move_to_ally", "pull_ally", "give_item", "send_item", "skip_dice_tomorrow",
-	"checkpoint_pass", "refill_supply", "choice", "if_players"]
+	"checkpoint_pass", "refill_supply", "choice", "if_players",
+	"if", "interrogate_discard", "threat_flip", "check_or_jail", "entry_no_police"]
+## if op의 cond
+const KNOWN_IF_CONDS := ["chased", "not_chased", "has_interrogation"]
+## 능력 사용 조건 (ability.requires)
+const KNOWN_REQUIRES := ["near_tile"]
 ## 3-3. 장면·협동 조건 kind
-const KNOWN_SCENE_CONDITIONS := ["check", "check_pair", "dice", "pay_item", "pay_bomb", "people", "hold",
+const KNOWN_SCENE_CONDITIONS := ["enter_base", "deliver_bomb", "check", "check_pair", "dice", "pay_item", "pay_bomb", "people", "hold",
 	"jailed_here", "any_of", "all_of", "cover_entry", "same_day_assassin", "opposite_edges"]
 ## 3-4. 사연 조건 kind
 const KNOWN_SAGA_CONDITIONS := ["end_turn_near_base", "visit_base_adjacent", "touch_edge", "end_turn_at_start",
@@ -233,7 +238,7 @@ func _validate_missions(errs: Array[String]) -> void:
 		if c.get("type") == "coop":
 			coop += 1
 		var intel = c.get("intel")
-		if intel != null and intel != "nearest" and not intel in BASE_IDS:
+		if intel != null and not intel in ["nearest", "entered"] and not intel in BASE_IDS:
 			errs.append("%s: intel '%s'는 거점 id가 아닙니다." % [who, intel])
 		if c.has("base") and not c["base"] in BASE_IDS:
 			errs.append("%s: base '%s'는 거점 id가 아닙니다." % [who, c["base"]])
@@ -371,6 +376,9 @@ func _validate_characters(errs: Array[String]) -> void:
 		if typeof(ab) == TYPE_DICTIONARY and not ab.is_empty():
 			if ab.has("target") and not ab["target"] in KNOWN_TARGETS:
 				errs.append("%s: 능력의 알 수 없는 target '%s'" % [who, ab["target"]])
+			for k in ab.get("requires", {}):
+				if not k in KNOWN_REQUIRES:
+					errs.append("%s: 능력의 알 수 없는 requires '%s'" % [who, k])
 			_check_effects(errs, who + " 능력", ab.get("effects", []))
 	if not characters.is_empty():
 		_check_count(errs, "캐릭터", cards.size(), 12, true)
@@ -423,12 +431,14 @@ func _check_effects(errs: Array[String], who: String, effects: Array) -> void:
 			if not e["from"] in ["random_base", "strike_base"] and not e["from"] in BASE_IDS:
 				errs.append("%s: police_dispatch의 알 수 없는 from '%s'" % [who, e["from"]])
 		if op == "intel" and e.has("base"):
-			if not e["base"] in ["nearest", "choose"] and not e["base"] in BASE_IDS:
+			if not e["base"] in ["nearest", "choose", "entered"] and not e["base"] in BASE_IDS:
 				errs.append("%s: intel의 알 수 없는 base '%s'" % [who, e["base"]])
 		if op == "choice":
 			for o in e.get("options", []):
 				_check_effects(errs, who + " 선택", o.get("effects", []))
-		elif op == "if_players":
+		elif op == "if_players" or op == "if":
+			if op == "if" and not e.get("cond") in KNOWN_IF_CONDS:
+				errs.append("%s: if의 알 수 없는 cond '%s'" % [who, e.get("cond")])
 			_check_effects(errs, who, e.get("then", []))
 			_check_effects(errs, who, e.get("else", []))
 
@@ -460,6 +470,8 @@ func _check_cond(errs: Array[String], who: String, cond, known: Array) -> void:
 		errs.append("%s: 알 수 없는 조건 kind '%s'" % [who, kind])
 	if cond.has("where") and not _where_ok(cond["where"]):
 		errs.append("%s: 조건의 알 수 없는 where '%s'" % [who, cond["where"]])
+	if known == KNOWN_SCENE_CONDITIONS and cond.has("base") and not cond["base"] in BASE_IDS and cond["base"] != "card":
+		errs.append("%s: 조건의 base '%s'는 거점 id가 아닙니다." % [who, cond["base"]])
 	if kind == "any_of" or kind == "all_of":
 		for o in cond.get("options", []):
 			_check_cond(errs, who, o, known)

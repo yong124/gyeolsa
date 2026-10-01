@@ -25,10 +25,10 @@
 				{
 					"op": "police_dispatch",
 					"from": "random_base",
-					"count": 2
+					"count": 2,
+					"distinct": true
 				}
-			],
-			"_todo": "서로 다른 두 거점에서 각각 출동해야 함. police_dispatch count 2로 적었으나 거점이 겹치지 않게 뽑는 규칙은 코드에서 처리해야 함"
+			]
 		},
 		{
 			"id": "arrest_order",

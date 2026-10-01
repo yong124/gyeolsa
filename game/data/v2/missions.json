@@ -17,16 +17,20 @@
 			"how": "그 거점에 들어감 (경찰이 붙음)",
 			"ready": 1,
 			"loud": false,
-			"condition": null,
-			"_todo": "거점 진입 자체가 조건인데 3-3절 condition에 해당 kind가 없어 null로 둠. 카드의 base로 판단"
+			"condition": {
+				"kind": "enter_base",
+				"base": "card"
+			}
 		},
 		"bomb": {
 			"name": "폭파",
 			"how": "보급 타일에서 폭탄을 얻고 폭파 타일로",
 			"ready": 1,
 			"loud": true,
-			"condition": null,
-			"_todo": "폭탄 얻고 폭파 타일 도달 조건을 3-3절 condition으로 적을 수 없어 null로 둠"
+			"condition": {
+				"kind": "deliver_bomb",
+				"tile": "bomb"
+			}
 		},
 		"sabotage": {
 			"name": "방해",
@@ -269,12 +273,15 @@
 			"id": "m_cover_entry",
 			"name": "엄호 잠입",
 			"type": "coop",
-			"intel": "nearest",
+			"intel": "entered",
 			"rewards": [
 				{
 					"op": "intel",
-					"base": "nearest",
+					"base": "entered",
 					"value": 2
+				},
+				{
+					"op": "entry_no_police"
 				}
 			],
 			"text": "한 명이 거점에 들어가는 차례에 다른 한 명이 그 옆 칸에 있음 → 그 거점 첩보 +2, 경찰이 붙지 않음, 결행 준비 +1",
@@ -282,8 +289,7 @@
 				"kind": "cover_entry"
 			},
 			"ready": 1,
-			"loud": false,
-			"_todo": "첩보는 '들어간 그 거점'에 붙는데 intel을 'nearest'로 적음. '경찰이 붙지 않음'을 나타내는 op이 없어 rewards에 넣지 않음"
+			"loud": false
 		},
 		{
 			"id": "m_simul_strike",
@@ -298,7 +304,7 @@
 			},
 			"ready": 3,
 			"loud": true,
-			"_todo": "암살 타일 판정이라 시끄러움(노출 +1)인지 카드 목록에 없음. 암살 종류에 맞춰 loud true로 두었으니 확인 필요"
+			"_comment": "암살 두 번이라 시끄러움 (노출은 각 암살마다 +1)"
 		},
 		{
 			"id": "m_prison_visit",
@@ -316,12 +322,12 @@
 			"condition": {
 				"kind": "people",
 				"count": 2,
-				"where": "prison",
+				"where": "adjacent",
+				"base": "prison",
 				"same_day": true
 			},
 			"ready": 1,
-			"loud": false,
-			"_todo": "'형무소 옆 칸'인데 where 어휘(inside/adjacent/거점 id)로는 '그 거점의 옆 칸'을 적을 수 없어 거점 id로 둠"
+			"loud": false
 		},
 		{
 			"id": "m_link_line",
@@ -361,12 +367,12 @@
 			"condition": {
 				"kind": "people",
 				"count": 2,
-				"where": "gg",
+				"where": "adjacent",
+				"base": "gg",
 				"same_day": true
 			},
 			"ready": 1,
-			"loud": false,
-			"_todo": "'총독부 옆 칸'인데 where 어휘로는 '그 거점의 옆 칸'을 적을 수 없어 거점 id로 둠"
+			"loud": false
 		}
 	]
 }

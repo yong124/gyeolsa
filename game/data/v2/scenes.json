@@ -70,9 +70,12 @@
 						"check": "generic",
 						"target": 9
 					},
-					"on_fail": [],
-					"stop_text": "비상종이 울리자 경성 전체가 깨어났다.",
-					"_todo": "실패하면 '2막 위협 카드 1장을 바로 뒤집음'을 표현할 op가 어휘에 없음 (예: threat_flip 필요). on_fail을 비워 둠"
+					"on_fail": [
+						{
+							"op": "threat_flip"
+						}
+					],
+					"stop_text": "비상종이 울리자 경성 전체가 깨어났다."
 				}
 			],
 			"final": {
@@ -192,9 +195,13 @@
 					"check": "assassin",
 					"target": 10
 				},
-				"on_fail": [],
-				"stop_text": "사령관은 그날 밤 숙소를 옮겼다.",
-				"_todo": "실패하면 '회피 판정, 실패하면 투옥'을 표현할 op가 어휘에 없음 (회피 판정 뒤 투옥). on_fail을 비워 둠"
+				"on_fail": [
+					{
+						"op": "check_or_jail",
+						"check": "evade"
+					}
+				],
+				"stop_text": "사령관은 그날 밤 숙소를 옮겼다."
 			}
 		},
 		"police_hq": {

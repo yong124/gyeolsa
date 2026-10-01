@@ -54,15 +54,22 @@
 			"text": "나를 쫓는 경찰 제거. 쫓기고 있지 않으면 노출 −1",
 			"effects": [
 				{
-					"op": "police_remove",
-					"scope": "mine"
-				},
-				{
-					"op": "exposure",
-					"value": -1
+					"op": "if",
+					"cond": "chased",
+					"then": [
+						{
+							"op": "police_remove",
+							"scope": "mine"
+						}
+					],
+					"else": [
+						{
+							"op": "exposure",
+							"value": -1
+						}
+					]
 				}
-			],
-			"_todo": "'쫓기고 있지 않을 때만 노출 −1'이라는 조건부 op이 없어 두 효과를 나란히 적음. 코드에서 쫓기지 않을 때만 노출 −1을 적용해야 함"
+			]
 		},
 		{
 			"id": "secret_letter",
@@ -89,7 +96,7 @@
 					"who": "self"
 				}
 			],
-			"_todo": "'이 자리에 경찰이 나타남'(이 칸에서 출현)을 나타내는 op이 없어 police_attach self로 대신함"
+			"_comment": "police_attach: 경찰이 그 요원의 칸에 나타나 쫓기 시작함"
 		},
 		{
 			"id": "cop_eye",
@@ -179,7 +186,26 @@
 					"players": [
 						4
 					],
-					"then": [],
+					"then": [
+						{
+							"op": "if",
+							"cond": "has_interrogation",
+							"then": [
+								{
+									"op": "interrogate_discard",
+									"who": "self",
+									"count": 1,
+									"mode": "random"
+								}
+							],
+							"else": [
+								{
+									"op": "draw_item",
+									"count": 1
+								}
+							]
+						}
+					],
 					"else": [
 						{
 							"op": "draw_item",
@@ -187,8 +213,7 @@
 						}
 					]
 				}
-			],
-			"_todo": "'내 심문 카드 1장 무작위 버림'(없으면 아이템 1장)을 나타내는 op이 없어 then을 비워 둠. 4인에서 심문 카드가 없을 때의 아이템 1장 대체도 코드에서 처리해야 함"
+			]
 		}
 	]
 }
