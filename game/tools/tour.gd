@@ -451,6 +451,17 @@ func _v2() -> void:
 		elif game.act == 1 and game.day >= 3 and game.phase == "turn" and game.current == 0 and not shots["turn"]:
 			shots["turn"] = true
 			await _shot("v2_turn")
+			screen._peek.show_for(screen._mid_box.get_child(0), screen._mission_info(str(game.mission_row[0])), true)
+			await _wait(0.2)
+			await _shot("v2_peek_mission")
+			var sg: Array = game.saga_cards(0)
+			screen._peek.show_for(screen._hand_row.get_child(0), screen._saga_info(str(sg[0]), game.saga_progress(0).get(sg[0], {"have": 0, "need": 1}), false), true)
+			await _wait(0.2)
+			await _shot("v2_peek_saga")
+			screen._peek.show_for(screen._top._threat, screen._threat_info(), true)
+			await _wait(0.2)
+			await _shot("v2_peek_threat")
+			screen._peek.visible = false
 		elif game.act == 2 and game.phase == "plan" and not shots["act2_plan"]:
 			shots["act2_plan"] = true
 			await _wait(0.4)
@@ -458,6 +469,15 @@ func _v2() -> void:
 		elif game.act == 2 and game.phase == "turn" and not shots["act2_turn"] and game.day > int(game.launch_info.get("day", 0)):
 			shots["act2_turn"] = true
 			await _shot("v2_act2_turn")
+			for c in screen._mid_box.get_children():
+				if c is PanelContainer and c.custom_minimum_size.x > 200:
+					screen._peek.show_for(c, screen._scene_info(screen._scene_card_dict(str(game.scenes[game.scene_index])), game.scene_index), true)
+			await _wait(0.2)
+			await _shot("v2_peek_scene")
+			screen._peek.show_for(screen._rows[1]["panel"], screen._char_info(game.players[1]), true)
+			await _wait(0.2)
+			await _shot("v2_peek_char")
+			screen._peek.visible = false
 	print("[tour] v2 끝: phase=%s ending=%s day=%d act=%d" % [game.phase, game.ending.get("id", "-"), game.day, game.act])
 	var e := EndingScreenV2.new(game, 0)
 	main._swap(e)

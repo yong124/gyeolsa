@@ -51,6 +51,7 @@ var _act_row: HBoxContainer
 var _ticker: LogTickerV2
 var _fx: FxLayer
 var _choice: Overlay
+var _peek: CardPeekV2   # 마우스를 올리면 뜨는 큰 카드
 var _shown_actions: Array = []    # 지금 화면에 단추로 나온 액션 (시험용)
 var _primary_action: Dictionary = {}  # 주 버튼 액션 (스페이스)
 
@@ -82,6 +83,7 @@ func _mult() -> float:
 # ================================================================ 구성
 
 func _build() -> void:
+	_peek = CardPeekV2.new()
 	var desk := TextureRect.new()
 	desk.texture = Style.tex("desk")
 	desk.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -152,6 +154,8 @@ func _build() -> void:
 	add_child(_fx)
 	_choice = Overlay.new(Color(0.03, 0.02, 0.01, 0.62))
 	add_child(_choice)
+	add_child(_peek)
+	_peek.attach(_top._threat, _threat_info)
 
 
 func _panel(title: String, hint: String) -> Array:
@@ -205,8 +209,9 @@ func _layout() -> void:
 
 func _make_row(p: Dictionary) -> Dictionary:
 	var panel := PanelContainer.new()
-	panel.tooltip_text = _char_tip(p)
 	panel.mouse_filter = Control.MOUSE_FILTER_PASS
+	var pid: int = p["id"]
+	_peek.attach(panel, func(): return _char_info(game.players[pid]))
 	var h := HBoxContainer.new()
 	h.add_theme_constant_override("separation", 10)
 	panel.add_child(h)
@@ -248,10 +253,6 @@ func _make_row(p: Dictionary) -> Dictionary:
 	_roster_box.add_child(panel)
 	return {"panel": panel, "face": face, "name": name, "sub": sub, "bar": bar, "chips": chips, "stamp": stamp, "sig": "", "cur": null}
 
-
-func _char_tip(p: Dictionary) -> String:
-	var ch: Dictionary = game.char_def(p)
-	return "%s — %s\n특성: %s\n능력 (하루 1번): %s" % [ch.get("name", ""), ch.get("origin", ""), ch.get("trait_text", ""), ch.get("ability_text", "")]
 
 
 func _refresh_roster() -> void:
@@ -379,7 +380,7 @@ func _refresh_mid() -> void:
 				desc = "%s\n%s" % [td.get("how", ""), desc]
 			var card := CardView.face(band, Color("#2f7f7a") if coop else Style.MISSION, load(MISSION_ART.get(type, MISSION_ART["coop"])),
 				str(m.get("name", "")), desc, 164, 112)
-			card.tooltip_text = "%s\n%s" % [m.get("name", ""), desc]
+			_peek.attach(card, _mission_info(str(id)))
 			_mid_box.add_child(card)
 		if game.mission_row.is_empty():
 			_mid_box.add_child(UiKit.text("아침에 미션 줄을 채웁니다.", 14, Style.INK_3))
@@ -413,16 +414,14 @@ func _refresh_mid() -> void:
 				parts.append("%s %d" % [{"dice": "주사위 합", "item": "아이템", "bomb": "폭탄", "check_pair": "판정 성공", "people": "사람", "hold": "밤"}.get(key, key), int(need[key])])
 			if not parts.is_empty():
 				v.add_child(UiKit.text("남은 것: " + ", ".join(parts), 12, Style.GOOD, false, 800))
-			box.tooltip_text = "여기서 멈추면: " + str(card.get("stop_text", ""))
 		else:
 			var known := last   # 마지막 장면은 공개된 카드 (결행마다 고정)
 			box.add_theme_stylebox_override("panel", Style.flat(Color("#e4d6b4"), Style.SEAL if last else Color("#bba57c"), 2 if last else 1, 2, 6))
 			box.custom_minimum_size = Vector2(76, 58)
 			v.add_child(_center_lbl(UiKit.title(str(card.get("name", "")) if known else "?", 14, Style.SEAL if last else Style.INK_3)))
 			v.add_child(_center_lbl(UiKit.text("마지막" if last else "중간", 11, Style.SEAL if last else Style.INK_3, false)))
-			if known:
-				box.tooltip_text = _cond_text(card.get("condition", {}), card)
 		box.mouse_filter = Control.MOUSE_FILTER_PASS
+		_peek.attach(box, _scene_info(card, i))
 		box.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		_mid_box.add_child(box)
 
@@ -465,8 +464,7 @@ func _refresh_hand() -> void:
 			dots += "●" if i < int(pr["have"]) else "○"
 		var card := CardView.face(band, SAGA_COL, load("res://assets/cards/event_back.png"), str(s.get("name", "")),
 			"%s\n%s" % [s.get("condition_text", ""), dots], W, H)
-		card.tooltip_text = "%s\n%s\n\n조건: %s\n보상: %s%s" % [s.get("name", ""), s.get("story", ""), s.get("condition_text", ""), s.get("reward_text", ""),
-			"\n\n이룸" if done else "\n\n비밀: 나만 봅니다"]
+		_peek.attach(card, _saga_info(str(id), pr, done))
 		if not done:
 			var tag := UiKit.stamp("비밀", 10, SAGA_COL, 12)
 			tag.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -478,16 +476,18 @@ func _refresh_hand() -> void:
 		var sh := game.shaken_count(human)
 		var card := CardView.face("심 문", INTERRO_COL, load("res://assets/cards/event_back.png"), "%d장" % ni,
 			"흔들렸다 %d장\n%d장이면 변절할 수 있음" % [sh, int(game.data.rules["traitor"]["shaken_needed"])], W, H)
-		card.tooltip_text = "심문 카드 %d장 중 흔들렸다 %d장. 흔들렸다가 %d장 이상이면 결행 순간이나 2막 아침에 변절합니다.\n같은 칸의 동료가 예비 주사위로 설득하면 한 장을 무작위로 뗍니다. 사연을 이루면 모두 버립니다." % [
-			ni, sh, int(game.data.rules["traitor"]["shaken_needed"])]
+		_peek.attach(card, _interro_info())
 		_hand_row.add_child(card)
 	for i in me["items"].size():
 		var it: Dictionary = game.item_def(str(me["items"][i]))
 		var card := CardView.face("아 이 템", Style.ITEM, load("res://assets/cards/item_back.png"), str(it.get("name", "")), str(it.get("text", "")), W, H)
-		card.tooltip_text = "%s\n%s" % [it.get("name", ""), it.get("text", "")]
+		_peek.attach(card, {"band": "아 이 템", "color": Style.ITEM, "art": load("res://assets/cards/item_back.png"), "name": str(it.get("name", "")),
+			"sections": [["효과", str(it.get("text", ""))], ["", "같은 칸 동료에게 줄 수 있습니다." + (" 2막 장면에 아이템으로 바칠 수도 있습니다." if game.act == 2 else "")]]})
 		_hand_row.add_child(card)
 	for i in me["bombs"]:
 		var card := CardView.face("폭 탄", BOMB_COL, load("res://assets/cards/bomb.png"), "폭탄", "폭파 미션이나 장면에 씀", W, H)
+		_peek.attach(card, {"band": "폭 탄", "color": BOMB_COL, "art": load("res://assets/cards/bomb.png"), "name": "폭탄",
+			"sections": [["쓰는 곳", "1막: 폭파 미션의 목표 타일까지 들고 가면 미션을 이룹니다.\n2막: 폭탄을 요구하는 장면에 바칩니다."]]})
 		_hand_row.add_child(card)
 	var empty: int = game.hand_limit(me) - me["items"].size()
 	for i in mini(empty, 2):
@@ -1245,3 +1245,98 @@ func choose_now(value) -> void:
 
 func act_now(a: Dictionary) -> void:
 	_act(a)
+
+
+# ================================================================ 큰 카드 (마우스 올림)
+
+func _char_info(p: Dictionary) -> Dictionary:
+	var ch: Dictionary = game.char_def(p)
+	var fac: String = str(game.data.characters.get("factions", {}).get(ch.get("faction", ""), {}).get("name", ""))
+	var secs := [["특성 (늘)", str(ch.get("trait_text", ""))], ["능력 (하루 1번)", str(ch.get("ability_text", ""))]]
+	for c in _chips(p):
+		if c[0] == "리더" or c[0] == "추격당함" or str(c[0]).begins_with("감옥") or p["traitor"]:
+			secs.append([str(c[0]), str(c[3]), Style.SEAL if c[2] == Style.SEAL else Style.INK_3])
+	var band := "나" if p["id"] == human else ("변 절 자" if p["traitor"] else "동 료")
+	return {"band": band, "color": Style.INK if p["traitor"] else Style.seat(p["id"]),
+		"art": _board.faction_texture(str(ch.get("faction", ""))), "name": str(ch.get("name", "")),
+		"sub": "%s · %s" % [fac, ch.get("origin", "")], "sections": secs}
+
+
+func _mission_info(id: String) -> Dictionary:
+	var m: Dictionary = game.mission_def(id)
+	var type := str(m.get("type", ""))
+	var td: Dictionary = game.mission_type_def(type)
+	var coop := td.get("ready") == null
+	var ready := int(m.get("ready", td.get("ready", 0)))
+	var secs := [["이루는 법", str(m.get("how", td.get("how", "")))], ["보상", str(m.get("text", ""))]]
+	if not coop:
+		secs.append(["결행 준비", "+%d · 결행 준비가 %d가 되면 아침마다 결행 투표가 열립니다." % [ready, int(game.data.rules["launch_min"])]])
+	else:
+		secs.append(["협동 미션", "결행 준비는 오르지 않지만 모두에게 도움이 되는 보상을 줍니다."])
+	if bool(m.get("loud", td.get("loud", false))):
+		secs.append(["시끄러움", "이루면 노출이 오릅니다.", Style.SEAL])
+	return {"band": "미 션 · " + str(td.get("name", "")), "color": Color("#2f7f7a") if coop else Style.MISSION,
+		"art": load(MISSION_ART.get(type, MISSION_ART["coop"])), "name": str(m.get("name", "")), "sections": secs}
+
+
+func _scene_info(card: Dictionary, i: int) -> Dictionary:
+	var last := i == game.scenes.size() - 1
+	var state := "돌파함"
+	if i == game.scene_index:
+		state = "지금 장면"
+	elif i > game.scene_index:
+		state = "마지막 장면" if last else "아직 모르는 장면"
+	var sub := "%d / %d · %s" % [i + 1, game.scenes.size(), state]
+	if i > game.scene_index and not last:
+		return {"band": "결 행 장 면", "color": Style.INK_3, "name": "?", "sub": sub,
+			"sections": [["", "앞 장면을 돌파하면 뒤집혀 드러납니다."]]}
+	var wh := str(card.get("where", ""))
+	var where: String = {"adjacent": "거점 옆 칸", "inside": "거점 안", "inside_or_adjacent": "거점 안이나 옆 칸"}.get(wh, wh)
+	var secs := [["조건", _cond_text(card.get("condition", {}), card)]]
+	if where != "":
+		secs.append(["자리", where])
+	if i == game.scene_index:
+		var need := game.scene_need()
+		var parts := []
+		for key in need:
+			parts.append("%s %d" % [{"dice": "주사위 합", "item": "아이템", "bomb": "폭탄", "check_pair": "판정 성공", "people": "사람", "hold": "밤"}.get(key, key), int(need[key])])
+		if not parts.is_empty():
+			secs.append(["남은 것", ", ".join(parts), Style.GOOD])
+	secs.append(["여기서 멈추면", str(card.get("stop_text", "")), Style.SEAL])
+	var col := Style.GOLD
+	if last:
+		col = Style.SEAL
+	elif i < game.scene_index:
+		col = Style.MISSION
+	return {"band": "결 행 장 면", "color": col, "name": str(card.get("name", "")), "sub": sub, "sections": secs}
+
+
+func _saga_info(id: String, pr: Dictionary, done: bool) -> Dictionary:
+	var s: Dictionary = game.data.saga(id)
+	return {"band": "사 연 · 이룸" if done else "사 연 · 비밀", "color": SAGA_COL, "art": load("res://assets/cards/event_back.png"),
+		"name": str(s.get("name", "")), "sub": "진행 %d / %d" % [int(pr["have"]), int(pr["need"])],
+		"sections": [["", str(s.get("story", ""))], ["조건", str(s.get("condition_text", ""))], ["보상", str(s.get("reward_text", ""))],
+			["", "이룬 사연입니다." if done else "나만 봅니다. 이루면 공개되고, 심문 카드를 모두 버립니다."]]}
+
+
+func _interro_info() -> Dictionary:
+	var ni := game.interrogation_count(human)
+	var sh := game.shaken_count(human)
+	var need := int(game.data.rules["traitor"]["shaken_needed"])
+	return {"band": "심 문", "color": INTERRO_COL, "art": load("res://assets/cards/event_back.png"), "name": "심문 카드 %d장" % ni,
+		"sub": "흔들렸다 %d장 · 버텼다 %d장" % [sh, ni - sh],
+		"sections": [["변절", "흔들렸다가 %d장 이상이면 결행 순간이나 2막 아침에 변절합니다." % need, Style.SEAL],
+			["벗어나기", "같은 칸의 동료가 예비 주사위로 설득하면 한 장을 무작위로 뗍니다. 사연을 이루면 모두 버립니다."],
+			["공개", "다른 요원은 장수만 봅니다."]]}
+
+
+func _threat_info() -> Dictionary:
+	if game.threat_today == "":
+		return {}
+	var t: Dictionary = game.data.threat(game.threat_today)
+	var secs := [["오늘", str(t.get("text", ""))]]
+	var peek := game.threat_preview()
+	for k in peek.size():
+		var nt: Dictionary = game.data.threat(str(peek[k]))
+		secs.append([["내일", "모레", "글피"][mini(k, 2)] + " · " + str(nt.get("name", "")), str(nt.get("text", ""))])
+	return {"band": "일 제 위 협", "color": Style.INK, "art": load("res://assets/ui/police.png"), "name": str(t.get("name", "")), "sections": secs}
