@@ -52,8 +52,6 @@ static func _start(g: GameRules, p: Dictionary) -> Dictionary:
 	if p["jailed"]:
 		var idx := _usable_item(g, p, ["pin"])
 		return {"type": "use_item", "index": idx} if idx >= 0 else {"type": "escape"}
-	if g.act == 1 and not g.mission_feasible(p):
-		return {"type": "swap_mission"}
 	if g.can_use_ability(p) and ability_pick(g, p) >= 0:
 		return {"type": "ability"}
 	var decoy := _decoy_pick(g, p)
@@ -62,13 +60,6 @@ static func _start(g: GameRules, p: Dictionary) -> Dictionary:
 	var give := _give_pick(g, p)
 	if not give.is_empty():
 		return give
-	if g.police_active(p["id"]):
-		var d := _manhattan(g.police[p["id"]]["pos"], p["pos"])
-		var margin := 3 if p.get("personality", "") == "careful" else 2
-		if d <= g.police_speed() + margin:
-			var idx := _usable_item(g, p, ["bribe"])
-			if idx >= 0:
-				return {"type": "use_item", "index": idx}
 	return {"type": "roll"}
 
 
@@ -284,25 +275,6 @@ static func _choose(g: GameRules, p: Dictionary) -> Variant:
 			return launch_vote(g, p)
 		"react_event":
 			return bool(g.event_def(g.current_event()).get("bad", false))
-		"tram_ride":
-			var T := targets(g, p)
-			if T.is_empty():
-				return false
-			var here := _min_dist(p["pos"], T)
-			for s in g.data.stations:
-				if s != p["pos"] and _min_dist(s, T) + 3 < here - g.steps_left:
-					return true
-			return false
-		"tram_dest":
-			var T := targets(g, p)
-			var best = opts[0]["value"]
-			var bd := 999
-			for o in opts:
-				var d := _min_dist(g.data.stations[o["value"]], T) if not T.is_empty() else g.rng.randi_range(0, 9)
-				if d < bd:
-					bd = d
-					best = o["value"]
-			return best
 	return opts[0]["value"]
 
 

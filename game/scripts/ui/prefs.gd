@@ -16,6 +16,7 @@ var fullscreen := false
 var reduce_motion := false     # 연출 줄이기: 내 행동도 빠르게
 var intro_seen := false
 var tutorial_done := false
+var playtest := true           # 플레이테스트 기록·설문 (user://playtests)
 
 
 func _ready() -> void:
@@ -25,6 +26,7 @@ func _ready() -> void:
 		intro_seen = bool(cfg.get_value("game", "intro_seen", intro_seen))
 		tutorial_done = bool(cfg.get_value("game", "tutorial_done", tutorial_done))
 		reduce_motion = bool(cfg.get_value("game", "reduce_motion", reduce_motion))
+		playtest = bool(cfg.get_value("game", "playtest", playtest))
 		sfx_volume = float(cfg.get_value("audio", "sfx", sfx_volume))
 		bgm_volume = float(cfg.get_value("audio", "bgm", bgm_volume))
 		fullscreen = bool(cfg.get_value("video", "fullscreen", fullscreen))
@@ -37,6 +39,7 @@ func save() -> void:
 	cfg.set_value("game", "intro_seen", intro_seen)
 	cfg.set_value("game", "tutorial_done", tutorial_done)
 	cfg.set_value("game", "reduce_motion", reduce_motion)
+	cfg.set_value("game", "playtest", playtest)
 	cfg.set_value("audio", "sfx", sfx_volume)
 	cfg.set_value("audio", "bgm", bgm_volume)
 	cfg.set_value("video", "fullscreen", fullscreen)

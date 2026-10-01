@@ -12,6 +12,7 @@ func _ready() -> void:
 	main = get_parent()
 	SaveGame.disabled = true
 	Records.disabled = true
+	PlaytestLog.disabled = true
 	var w := 1600
 	var h := 900
 	for a in OS.get_cmdline_user_args():
@@ -26,6 +27,16 @@ func _ready() -> void:
 	Prefs.speed = 1
 	if "store" in OS.get_cmdline_user_args():
 		_store()
+	elif "survey" in OS.get_cmdline_user_args():
+		await _wait(0.5)
+		main._swap(SurveyScreen.new({"survey": [], "file": "x.json"}, [{"id": 0, "name": "1번 요원 (한국광복군)"}, {"id": 1, "name": "2번 요원 (조선의용대)"}]))
+		await _wait(0.8)
+		await _shot("survey")
+		get_tree().quit()
+	elif "hot" in OS.get_cmdline_user_args():
+		_hot()
+	elif "tut2" in OS.get_cmdline_user_args():
+		_tut2()
 	elif "act2" in OS.get_cmdline_user_args():
 		_act2()
 	else:
@@ -95,7 +106,7 @@ func _run() -> void:
 	# 사람 자리로 한 판 (브리핑 → 내 차례)
 	var game := GameRules.new()
 	game.setup(defs.duplicate(true), 7, main.data)
-	main._open_game(game, {"cfg": {"defs": defs, "stations": true, "difficulty": 0}, "tutorial": false}, true)
+	main._open_game(game, {"cfg": {"defs": defs, "difficulty": 0}, "tutorial": false}, true)
 	await _wait(1.0)
 	await _shot("briefing")
 	var gs: GameScreen = main._screen
@@ -208,7 +219,7 @@ func _store() -> void:
 		game.apply(GameAI.decide(game))
 	game.players[0]["ai"] = false
 	game.events.clear()
-	main._open_game(game, {"cfg": {"defs": defs, "stations": true, "difficulty": 0}, "tutorial": false}, false)
+	main._open_game(game, {"cfg": {"defs": defs, "difficulty": 0}, "tutorial": false}, false)
 	await _wait(2.5)
 	var gs: GameScreen = main._screen
 	await _shot("store_turn")
@@ -253,7 +264,7 @@ func _act2() -> void:
 	## 2막 화면: 결행 투표 → 결행 카드 → 2막 보드
 	await _wait(0.5)
 	var defs := title_defs(4)
-	var cfg := {"defs": defs, "stations": true, "difficulty": 0}
+	var cfg := {"defs": defs, "difficulty": 0}
 	# 1막에 광복수치가 결행 최소치에 닿는 판을 찾는다
 	var g := GameRules.new()
 	for sd in range(21, 80):
@@ -292,4 +303,118 @@ func _act2() -> void:
 	main._open_game(h, {"cfg": cfg, "tutorial": false}, false)
 	await _wait(2.5)
 	await _shot("act2_board")
+	get_tree().quit()
+
+
+func _tut2() -> void:
+	## 2막 훈련: 안내 창이 뜰 때마다 찍고 넘기며, 내 차례는 AI 판단으로 둔다
+	await _wait(0.8)
+	main._start_tutorial("tutorial2")
+	var gs: GameScreen = main._screen
+	var game: GameRules = gs.game
+	var shot_tips := {}
+	var t := 0.0
+	while game.phase != "over" and t < 240.0:
+		await _wait(0.2)
+		t += 0.2
+		if gs._choice.visible:
+			var key := "choice_%s" % game.pending.get("kind", "tip")
+			for id in gs._tips_shown:
+				if not shot_tips.has(id):
+					shot_tips[id] = true
+					key = "tip_" + id
+			await _wait(0.4)
+			await _shot(key)
+			if key.begins_with("tip_"):
+				gs._choice.visible = false
+				gs._tip_closed.emit()
+			elif game.phase == "choice":
+				gs._choice.visible = false
+				gs._act({"type": "choose", "value": true if game.pending["kind"] == "launch_vote" else game.pending["options"][0]["value"]})
+		elif not gs._playing and gs._queue.is_empty() and game.current == 0 and game.phase in ["start", "move"]:
+			if game.act == 2 and not shot_tips.has("act2_board"):
+				shot_tips["act2_board"] = true
+				await _shot("act2_board")
+			gs._act(GameAI.decide(game))
+	await _until(func(): return gs._choice.visible, 30.0)
+	await _wait(0.4)
+	await _shot("tip_done")
+	gs._choice.visible = false
+	gs._tip_closed.emit()
+	await _wait(4.0)
+	await _shot("ending")
+	get_tree().quit()
+
+
+func _hot() -> void:
+	## 핫시트 3인(사람 2 + AI 1) 한 판: 설정 화면 → 자리 교대 안내 → 투표 → 엔딩 → 설문 → 기록 파일
+	PlaytestLog.disabled = false
+	PlaytestLog.dir = out + "/logs"
+	Prefs.speed = 3
+	Prefs.reduce_motion = true
+	await _wait(0.8)
+	main._show_title()
+	await _wait(0.8)
+	var title: TitleScreen = main._screen
+	title._n_players = 3
+	title._n_humans = 2
+	title._show_setup()
+	await _wait(0.5)
+	await _shot("setup_hotseat")
+	var cfg := {"defs": title.make_players(3, 0, 2), "difficulty": 0, "seed": 4242}
+	main._start(cfg)
+	await _wait(1.0)
+	var gs: GameScreen = main._screen
+	var game: GameRules = gs.game
+	gs._choice.visible = false
+	gs._begin()
+	var shots := {}
+	var t := 0.0
+	while game.phase != "over" and t < 400.0:
+		await _wait(0.1)
+		t += 0.1
+		if gs._choice.visible:
+			await _wait(0.2)
+			if gs._noticing:
+				var k := "handover_%d" % gs.human
+				if not shots.has(k):
+					shots[k] = true
+					await _shot(k)
+				gs._choice.visible = false
+				gs._notice_closed.emit()
+			elif game.phase == "choice" and not game.players[game.pending["player"]]["ai"]:
+				var k2: String = "choice_" + str(game.pending["kind"])
+				if not shots.has(k2):
+					shots[k2] = true
+					await _shot(k2)
+				gs._choice.visible = false
+				gs._act(GameAI.decide(game))
+			else:
+				gs._choice.visible = false
+		elif not gs._playing and gs._queue.is_empty() and not game.cur()["ai"] and game.phase in ["start", "move"] and game.current == gs.human:
+			if not shots.has("turn_%d" % gs.human):
+				shots["turn_%d" % gs.human] = true
+				await _shot("turn_%d" % gs.human)
+			gs._act(GameAI.decide(game))
+	await _until(func(): return main._screen is EndingScreen, 30.0)
+	await _wait(3.0)
+	(main._screen as EndingScreen).to_menu.emit()
+	await _wait(0.8)
+	var sv: SurveyScreen = main._screen
+	sv._ans = {"fun": 4, "clarity": 3, "agency": 3, "tension": 5, "launch": 4, "again": 4, "length": 2}
+	sv._checks["confusing"]["vote"].button_pressed = true
+	sv._checks["cut"]["decoy"].button_pressed = true
+	sv._texts["best"].text = "형무소 자물쇠를 마지막에 풀었을 때"
+	await _wait(0.3)
+	await _shot("survey")
+	sv._save()
+	sv._build()
+	sv._ans = {"fun": 5, "clarity": 4, "agency": 2, "tension": 4, "launch": 3, "again": 5, "length": 3}
+	sv._checks["confusing"]["exposure"].button_pressed = true
+	sv._texts["worst"].text = "동료 차례를 기다릴 때"
+	sv._save()
+	sv.finished.emit()
+	await _wait(0.8)
+	await _shot("after_survey")
+	print("[tour] 결말 %s, 기록 %s" % [game.ending.get("id", ""), DirAccess.get_files_at(PlaytestLog.dir)])
 	get_tree().quit()

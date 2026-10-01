@@ -66,7 +66,7 @@ func _ready() -> void:
 	_key.position.x -= 12
 	_key.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
-	for spec in [["ability", "능력"], ["give", "건네기"], ["decoy", "미끼"], ["swap", "미션 교체"]]:
+	for spec in [["ability", "능력"], ["give", "건네기"], ["decoy", "미끼"], ["swap", "주사위로 이동"]]:
 		var n: String = spec[0]
 		var b := UiKit.button(spec[1], func(): emit_signal(n), 12, "paper")
 		b.icon = UiKit.ui_icon(n)
@@ -91,7 +91,7 @@ func set_ability(name: String, desc: String) -> void:
 	_sec["ability"].tooltip_text = "세력 능력: %s\n%s\n(하루 1회)" % [name, desc]
 	_sec["give"].tooltip_text = "옆 칸에 있는 동료에게 아이템을 건넵니다. (아이템 사용 1회로 셈)"
 	_sec["decoy"].tooltip_text = "근처의 동료를 쫓는 경찰을 내 쪽으로 끌어옵니다.\n끌어온 경찰은 이번 차례 끝에 바로 움직입니다."
-	_sec["swap"].tooltip_text = "지금 미션을 버리고 새 미션을 뽑습니다. 이번 차례는 끝납니다."
+	_sec["swap"].tooltip_text = "결행 판정 대신 주사위를 굴려 이동합니다."
 
 
 func refresh(s: Dictionary) -> void:
@@ -118,7 +118,7 @@ func refresh(s: Dictionary) -> void:
 	_sec["decoy"].tooltip_text = "가까운 요원 한 명에게 경찰을 붙입니다. (차례당 1회, 3칸 안)" if s.get("decoy_label", "") == "밀고" \
 		else "근처의 동료를 쫓는 경찰을 내 쪽으로 끌어옵니다.\n끌어온 경찰은 이번 차례 끝에 바로 움직입니다."
 	_sec["swap"].disabled = not s.get("swap_on", false)
-	_sec["swap"].text = s.get("swap_label", "미션 교체")
+	_sec["swap"].text = s.get("swap_label", "주사위로 이동")
 	_sec["swap"].visible = s.get("swap_visible", true)
 
 

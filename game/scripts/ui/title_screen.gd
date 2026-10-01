@@ -3,9 +3,9 @@ extends HBoxContainer
 ## 메인 메뉴: 왼쪽은 표지 그림, 오른쪽은 책상 위 "작전 서류철".
 ## 서류철 안에서 메뉴 ↔ 새 작전 설정이 바뀐다.
 
-signal start_requested(config: Dictionary)   # {"defs", "stations", "difficulty"}
+signal start_requested(config: Dictionary)   # {"defs", "difficulty", "scenario", "seed"}
 signal continue_requested
-signal tutorial_requested
+signal tutorial_requested(id: String)
 signal intro_requested
 
 const DIFFICULTY := [{"name": "쉬움", "days": 1}, {"name": "보통", "days": 0}, {"name": "어려움", "days": -1}]
@@ -14,9 +14,9 @@ var _data: GameData
 var _panel: VBoxContainer
 var _overlay: Overlay
 var _n_players := 4
+var _n_humans := 1       # 핫시트: 앞에서부터 이만큼이 사람
 var _faction := 0
 var _diff := 1
-var _chk_stations: CheckBox
 var _info: Label
 var _seg := {}          # 그룹 이름 -> [Button]
 var _faction_cards: Array = []
@@ -140,7 +140,7 @@ func _show_menu() -> void:
 	var best_today: int = int(rec["daily"].get(date, -1))
 	_menu_button("오늘의 작전", _show_daily, "%s%s" % [_date_label(date), " · 최고 광복 %d" % best_today if best_today >= 0 else " · 새 작전"])
 	_menu_button("특수 작전", _show_special, "성공 %d / %d" % [rec["scenarios_won"].size(), _data.special_ops().size()])
-	_menu_button("튜토리얼", func(): tutorial_requested.emit(), "5분" + ("" if Prefs.tutorial_done else " · 처음이라면 추천"))
+	_menu_button("튜토리얼", _show_tutorials, "기본 훈련 · 2막 훈련" + ("" if Prefs.tutorial_done else " · 처음이라면 추천"))
 	_menu_button("작전 기록", _show_records, "%d판 · 도전 과제 %d / %d" % [int(rec["games"]), rec["unlocked"].size(), _data.achievements.get("list", []).size()])
 	_menu_button("규칙 도감", _show_rulebook, "")
 	_menu_button("설정", _show_settings, "")
@@ -211,18 +211,24 @@ func _show_setup() -> void:
 	var opts := []
 	for n in range(2, 5):   # 2~4인 (기획서 17.1)
 		opts.append([str(n) + "인", n])
-	grid.add_child(_segment("players", opts, _n_players, func(v): _n_players = v))
+	grid.add_child(_segment("players", opts, _n_players, func(v):
+		_n_players = v
+		if _n_humans > v:
+			_n_humans = v
+			_mark("humans", v)))
+	grid.add_child(_row_label("사람"))
+	var hopts := []
+	for n in range(1, 5):
+		hopts.append([str(n) + "명", n])
+	grid.add_child(_segment("humans", hopts, _n_humans, func(v):
+		_n_humans = mini(v, _n_players)
+		if _n_humans != v:
+			_mark.call_deferred("humans", _n_humans)))
 	grid.add_child(_row_label("난이도"))
 	var dopts := []
 	for i in DIFFICULTY.size():
 		dopts.append([DIFFICULTY[i]["name"], i])
 	grid.add_child(_segment("diff", dopts, _diff, func(v): _diff = v))
-	grid.add_child(_row_label("전차 역"))
-	_chk_stations = CheckBox.new()
-	_chk_stations.text = "사용 (보드 가장자리 4곳)"
-	_chk_stations.button_pressed = true
-	_chk_stations.focus_mode = Control.FOCUS_NONE
-	grid.add_child(_chk_stations)
 
 	var box := PanelContainer.new()
 	box.add_theme_stylebox_override("panel", Style.flat(Color(Style.INK, 0.06), Color(Style.INK, 0.15), 1, 2, 12))
@@ -319,18 +325,39 @@ func _update_info() -> void:
 			f["ability"], a.get("name", "-"), a.get("desc", ""), n - 1, int(sc.get("rounds", _data.rounds_for(n, bool(sc.get("two_act", true))))), int(sc.get("goal", _data.goal_for(n)))]
 		return
 	var days: int = _data.rounds_for(_n_players) + DIFFICULTY[_diff]["days"]
-	_info.text = "특성: %s\n능력 [%s] (하루 1회): %s\n\n나 + AI 동료 %d명 · 작전 기간 %d일 · 목표 광복수치 %d" % [
-		f["ability"], a.get("name", "-"), a.get("desc", ""), _n_players - 1, days, _data.goal_for(_n_players)]
+	var who := "나 + AI 동료 %d명" % (_n_players - 1)
+	if _n_humans > 1:
+		who = "사람 %d명 (한 컴퓨터에서 돌아가며)%s" % [_n_humans, " + AI %d명" % (_n_players - _n_humans) if _n_players > _n_humans else ""]
+	_info.text = "특성 (1번 요원): %s\n능력 [%s] (하루 1회): %s\n\n%s · 작전 기간 %d일 · 목표 광복수치 %d" % [
+		f["ability"], a.get("name", "-"), a.get("desc", ""), who, days, _data.goal_for(_n_players)]
 
 
 func _on_start() -> void:
 	Sfx.play("click")
 	var cfg := {
-		"defs": make_players(_n_players, _faction),
-		"stations": _chk_stations.button_pressed,
+		"defs": make_players(_n_players, _faction, _n_humans),
 		"difficulty": DIFFICULTY[_diff]["days"],
 	}
 	_launch(cfg)
+
+
+func _show_tutorials() -> void:
+	var d := UiKit.dossier(560, "훈련", "교 육 과 정")
+	var v: VBoxContainer = d[1]
+	for t in [
+		["기본 훈련", "5분 · 이동, 미션, 판정, 경찰, 감옥", "tutorial"],
+		["2막 훈련", "5분 · 첩보와 노출, 결행 투표, 결행", "tutorial2"],
+	]:
+		var id: String = t[2]
+		var b := UiKit.button(t[0], func():
+			_overlay.visible = false
+			tutorial_requested.emit(id), 20, "tab")
+		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		b.custom_minimum_size = Vector2(0, 46)
+		v.add_child(b)
+		v.add_child(UiKit.text(t[1], 14, Style.INK_3, false))
+	v.add_child(UiKit.button("닫기", func(): _overlay.visible = false, 16, "paper"))
+	_overlay.show_with(d[0])
 
 
 func _launch(cfg: Dictionary) -> void:
@@ -343,7 +370,7 @@ func _launch(cfg: Dictionary) -> void:
 	v.add_child(UiKit.text("5분짜리 튜토리얼로 규칙을 직접 해 보며 배울 수 있습니다.", 17, Style.INK))
 	v.add_child(UiKit.button("튜토리얼부터 하기", func():
 		_overlay.visible = false
-		tutorial_requested.emit(), 18, "primary"))
+		tutorial_requested.emit("tutorial"), 18, "primary"))
 	v.add_child(UiKit.button("바로 작전 개시", func():
 		_overlay.visible = false
 		Prefs.tutorial_done = true
@@ -352,8 +379,9 @@ func _launch(cfg: Dictionary) -> void:
 	_overlay.show_with(d[0])
 
 
-func make_players(n: int, faction_index: int) -> Array:
-	## 0번 자리가 나, 나머지는 AI. 세력은 내 세력부터 차례로 돌아가며 배정한다.
+func make_players(n: int, faction_index: int, humans := 1) -> Array:
+	## 앞에서부터 humans 자리가 사람(한 컴퓨터에서 돌아가며 두는 핫시트), 나머지는 AI.
+	## 세력은 0번 자리의 세력부터 차례로 돌아가며 배정한다.
 	var keys := _data.faction_keys()
 	var agents: Dictionary = _data.text.get("agents", {})
 	var codenames: Array = agents.get("codenames", ["동지"])
@@ -362,8 +390,10 @@ func make_players(n: int, faction_index: int) -> Array:
 	for i in n:
 		var f: String = keys[(faction_index + i) % keys.size()]
 		var fname: String = _data.faction(f)["name"]
-		if i == 0:
+		if i == 0 and humans <= 1:
 			defs.append({"name": "나 (%s)" % fname, "faction": f, "ai": false})
+		elif i < humans:
+			defs.append({"name": "%d번 요원 (%s)" % [i + 1, fname], "faction": f, "ai": false})
 		else:
 			defs.append({"name": "%s (%s)" % [codenames[(i - 1) % codenames.size()], fname],
 				"faction": f, "ai": true, "personality": personalities[(i - 1) % personalities.size()]})
@@ -408,7 +438,7 @@ func _show_daily() -> void:
 	_panel.add_child(h)
 	var start := UiKit.button("작전 개시", func():
 		Sfx.play("click")
-		_launch({"defs": make_players(n, fidx), "stations": true, "difficulty": 0,
+		_launch({"defs": make_players(n, fidx), "difficulty": 0,
 			"scenario": "daily", "date": date, "seed": seed_value}), 24, "primary")
 	start.custom_minimum_size = Vector2(0, 58)
 	_panel.add_child(start)
@@ -481,7 +511,7 @@ func _show_op(op: Dictionary) -> void:
 	_update_info()
 	var start := UiKit.button("작전 개시", func():
 		Sfx.play("click")
-		_launch({"defs": make_players(int(op["players"]), _faction), "stations": true, "difficulty": 0, "scenario": op["id"]}), 24, "primary")
+		_launch({"defs": make_players(int(op["players"]), _faction), "difficulty": 0, "scenario": op["id"]}), 24, "primary")
 	start.custom_minimum_size = Vector2(0, 58)
 	_panel.add_child(start)
 	var back := UiKit.button("← 특수 작전 목록", _show_special, 15, "tab")

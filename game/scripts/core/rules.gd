@@ -8,7 +8,6 @@ extends RefCounted
 ##
 ## 액션
 ##   {"type": "roll"}                      이동 주사위 굴리기
-##   {"type": "swap_mission"}              미션 교체 (차례 종료)
 ##   {"type": "escape"}                    탈옥 판정
 ##   {"type": "step", "to": Vector2i}      한 칸 이동
 ##   {"type": "end_move"}                  이동 종료
@@ -26,7 +25,6 @@ var data: GameData
 var rng := RandomNumberGenerator.new()
 
 # 설정 (setup 전에 바꾼다)
-var use_stations := true
 var cards_enabled := true            # false면 이벤트·아이템 타일 효과 없음 (밸런스 검증용)
 var rounds_override := {}            # {인원: 작전 일수} 테스트용
 
@@ -62,6 +60,8 @@ var _check_target := Vector2i(-1, -1)
 var _cur_event := ""
 var _target := -1                      # 세력 능력의 대상 (플레이어 또는 경찰 주인 id)
 
+var actions: Array = []              # 받아들인 액션 전부 (시드 + 이 목록으로 판을 그대로 재생할 수 있다)
+var launch_info := {}                 # 결행 선언 {"reason", "days_left", "score", "intel"} (플레이테스트 기록용)
 var history: Array = []              # 작전 연표 [{"date", "text", "tone"}] (엔딩 보고서용)
 var scenario := {}                   # 튜토리얼 등 특수 시나리오 설정 (setup 전에 지정)
 
@@ -76,20 +76,34 @@ var undo_steps: Array = []           # 효과 없이 지나간 공개 칸의 이
 
 # ================================================================ 초기화
 
+static func from_cfg(cfg: Dictionary, game_data: GameData, seed_value := -1) -> GameRules:
+	## 새 작전 설정(cfg: defs, difficulty, scenario, seed)으로 판을 만든다.
+	## 메뉴에서 시작할 때와 플레이테스트 기록을 재생할 때 같은 방식을 쓴다.
+	var g := GameRules.new()
+	var defs: Array = cfg["defs"].duplicate(true)
+	var diff: int = int(cfg.get("difficulty", 0))
+	if diff != 0:
+		g.rounds_override = {defs.size(): game_data.rounds_for(defs.size()) + diff}
+	var sc: String = cfg.get("scenario", "")
+	if sc != "" and sc != "daily":
+		g.scenario = game_data.special_op(sc).get("scenario", {}).duplicate(true)
+	g.setup(defs, seed_value if seed_value >= 0 else int(cfg.get("seed", -1)), game_data)
+	return g
+
+
 func setup(player_defs: Array, seed_value: int = -1, game_data: GameData = null) -> void:
 	## player_defs: [{"name": String, "faction": 세력 키, "ai": bool}, ...]
 	data = game_data if game_data else GameData.load_default()
-	if seed_value >= 0:
-		rng.seed = seed_value
-	else:
-		rng.randomize()
+	if seed_value < 0:
+		# 무작위 판도 시드를 명시해 둔다 (기록 재생용 · JSON에서도 정확한 32비트 값)
+		var r := RandomNumberGenerator.new()
+		r.randomize()
+		seed_value = r.randi()
+	rng.seed = seed_value
 	board.clear()
 	board[data.start] = {"type": "start", "used": false}
 	for b in data.bases:
 		board[b] = {"type": "base", "used": false}
-	if use_stations:
-		for s in data.stations:
-			board[s] = {"type": "station", "used": false}
 	tile_deck = []
 	for t in data.balance["tiles"]:
 		for i in int(data.tile(t)["count"]):
@@ -113,7 +127,7 @@ func setup(player_defs: Array, seed_value: int = -1, game_data: GameData = null)
 			"ai": d.get("ai", true), "personality": d.get("personality", ""),
 			"pos": data.start, "started": false, "jailed": false,
 			"mission": {}, "items": [], "bombs": 0, "move_mod": 0, "pending_police": false,
-			"skip_next": false, "on_tram": false, "turns": 0,
+			"skip_next": false, "turns": 0,
 			"ability_day": -1, "decoys": 0, "traitor": false, "informed": false,
 			"stats": {"missions": 0, "points": 0, "rescues": 0, "jailed": 0, "escapes": 0, "items": 0, "abilities": 0},
 		})
@@ -141,6 +155,8 @@ func setup(player_defs: Array, seed_value: int = -1, game_data: GameData = null)
 		jp["jailed"] = true
 		jp["pos"] = data.bases[int(scenario.get("jail_base", 0))]
 	history.clear()
+	actions.clear()
+	launch_info = {}
 	police.clear()
 	score = 0
 	goal = int(scenario.get("goal", data.goal_for(players.size())))
@@ -159,6 +175,12 @@ func setup(player_defs: Array, seed_value: int = -1, game_data: GameData = null)
 	for b in data.bases:
 		intel.append(0)
 	strike = {}
+	# 시나리오: 1막을 중간부터 시작 (2막 훈련)
+	score = int(scenario.get("start_score", 0))
+	exposure = int(scenario.get("start_exposure", 0))
+	var si: Array = scenario.get("start_intel", [])
+	for i in mini(si.size(), intel.size()):
+		intel[i] = int(si[i])
 	_log("%s 작전 개시. 8월 15일 전까지 광복수치 %d을(를) 채우십시오." % [date_label(), goal])
 	_begin_turn()
 
@@ -239,6 +261,11 @@ func today_occupation() -> String:
 	return occupation_discard[-1] if not occupation_discard.is_empty() else ""
 
 
+func rule_on(id: String) -> bool:
+	## 규칙 끄기 (scenario.off): 규칙 정돈 실험용. ability, give, decoy, items, events, occupation, exposure, vote
+	return not id in scenario.get("off", [])
+
+
 func two_act() -> bool:
 	## 2막 구조를 쓰는 판인가 (튜토리얼·특수 작전은 기존 규칙)
 	return bool(data.balance.get("two_act", {}).get("enabled", false)) and bool(scenario.get("two_act", true))
@@ -248,7 +275,13 @@ func _ta() -> Dictionary:
 	return data.balance.get("two_act", {})
 
 
+func exposure_max() -> int:
+	return int(_ta().get("exposure", {}).get("max", 9))
+
+
 func launch_min() -> int:
+	if scenario.has("launch_min"):
+		return int(scenario["launch_min"])
 	return data.by_players(_ta().get("launch_min_by_players", {}), players.size(), 5)
 
 
@@ -323,7 +356,7 @@ func alert_level() -> int:
 	## 경계 단계 1~3. 2막 구조에서는 노출 트랙으로, 기존 규칙에서는 날짜로 정한다.
 	if two_act():
 		if act == 2:
-			return 3
+			return int(launch_info.get("alert", 3))   # 결행 때의 경계가 2막 내내 이어진다
 		var th: Array = _ta()["exposure"]["thresholds"]
 		return 1 + int(exposure >= int(th[0])) + int(exposure >= int(th[1]))
 	var elapsed := float(rounds_total - rounds_left) / maxf(rounds_total, 1)
@@ -485,8 +518,8 @@ func path_to(p: Dictionary, goal: Vector2i) -> Dictionary:
 				continue
 			if occupied_by_other(p, n) and tile_type(n) != "base":
 				continue
-			if not board.has(n) and tile_deck.is_empty():
-				continue
+			if not board.has(n) and (tile_deck.is_empty() or p.get("traitor", false)):
+				continue   # 새 길을 깔 수 없음 (타일 소진 · 변절자는 깔린 길로만)
 			prev[n] = c
 			q.append(n)
 	if not prev.has(goal):
@@ -563,7 +596,7 @@ func ability_def(p: Dictionary) -> Dictionary:
 
 func can_use_ability(p: Dictionary) -> bool:
 	var a := ability_def(p)
-	if a.is_empty() or p["id"] != current or p["jailed"] or p["traitor"]:
+	if a.is_empty() or p["id"] != current or p["jailed"] or p["traitor"] or not rule_on("ability"):
 		return false
 	if not phase in a.get("phases", ["start", "move"]) or p["ability_day"] == rounds_left:
 		return false
@@ -593,7 +626,7 @@ func ability_targets(p: Dictionary) -> Array:
 func give_options(p: Dictionary) -> Array:
 	## 건넬 수 있는 (아이템, 동료) 조합 [{"index", "to", "label"}]
 	var coop: Dictionary = data.balance["cooperation"]
-	if p["id"] != current or p["jailed"] or p["traitor"] or not phase in ["start", "move"]:
+	if p["id"] != current or p["jailed"] or p["traitor"] or not phase in ["start", "move"] or not rule_on("give"):
 		return []
 	if coop["give_counts_as_item_use"] and item_uses >= int(data.balance["item_uses_per_turn"]):
 		return []
@@ -610,7 +643,7 @@ func give_options(p: Dictionary) -> Array:
 func decoy_options(p: Dictionary) -> Array:
 	## 미끼로 끌어올 수 있는 경찰 [{"from", "label"}]
 	var coop: Dictionary = data.balance["cooperation"]
-	if p["id"] != current or p["jailed"] or p["traitor"] or not phase in ["start", "move"]:
+	if p["id"] != current or p["jailed"] or p["traitor"] or not phase in ["start", "move"] or not rule_on("decoy"):
 		return []
 	if p["decoys"] >= int(coop["decoy_per_turn"]) or police.has(p["id"]):
 		return []
@@ -683,6 +716,13 @@ func _cond_ok(p: Dictionary, cond: Dictionary) -> bool:
 # ================================================================ 액션
 
 func apply(action: Dictionary) -> bool:
+	var ok := _apply(action)
+	if ok:
+		actions.append(action.duplicate(true))
+	return ok
+
+
+func _apply(action: Dictionary) -> bool:
 	if phase == "over":
 		return false
 	var p := cur()
@@ -691,13 +731,6 @@ func apply(action: Dictionary) -> bool:
 			if phase != "start" or p["jailed"]:
 				return false
 			_roll_move(p)
-		"swap_mission":
-			if phase != "start" or p["jailed"] or act == 2:
-				return false
-			mission_discard.append(p["mission"])
-			p["mission"] = _draw_mission()
-			_log("%s: 미션을 교체했습니다 → %s" % [p["name"], mission_label(p["mission"])])
-			_end_turn()
 		"escape":
 			if phase != "start" or not p["jailed"]:
 				return false
@@ -811,14 +844,13 @@ func _begin_turn() -> void:
 			_log("%s: 불시검문! 경찰이 나타났습니다." % p["name"])
 			_summon(p)
 	phase = "start"
-	if p["on_tram"] and not p["jailed"]:
-		p["on_tram"] = false
-		var opts := []
-		for i in data.stations.size():
-			var s: Vector2i = data.stations[i]
-			if s == p["pos"] or not occupied_by_other(p, s):
-				opts.append({"value": i, "label": "전차 역 %s" % _dir_name(s)})
-		_ask(p, "tram_dest", "어느 전차 역에서 내리겠습니까?", opts, "start")
+	if act == 1 and not p["jailed"] and not p["traitor"] and not p["mission"].is_empty():
+		var tries := 0
+		while not mission_feasible(p) and tries < 3:
+			tries += 1
+			mission_discard.append(p["mission"])
+			p["mission"] = _draw_mission()
+			_log("%s: 남은 타일로는 이룰 수 없는 미션이라 새 미션을 받았습니다 → %s" % [p["name"], mission_label(p["mission"])])
 
 
 func _end_turn() -> void:
@@ -851,7 +883,7 @@ func _end_turn() -> void:
 			if rounds_left <= int(_ta().get("forced_days_left", 2)):
 				_log("작전일이 코앞입니다. 더 기다릴 수 없습니다!")
 				_launch("forced", "begin_turn")
-			elif score >= launch_min():
+			elif score >= launch_min() and rule_on("vote"):
 				_start_vote()
 			if phase == "choice":
 				return
@@ -932,10 +964,6 @@ func _arrive(p: Dictionary, to: Vector2i) -> void:
 		return
 	if _try_mission(p):
 		return
-	if t == "station":
-		_ask(p, "tram_ride", "전차에 타겠습니까? (이동 종료, 다음 차례에 원하는 역에서 출발)",
-			[{"value": true, "label": "탑승"}, {"value": false, "label": "지나가기"}], "after_step")
-		return
 	_after_step(p)
 
 
@@ -998,7 +1026,7 @@ func _resolve_stop(p: Dictionary) -> void:
 	var t: String = tile.get("type", "")
 	if t in ["event", "item"] and not tile["used"]:
 		tile["used"] = true
-		if cards_enabled:
+		if cards_enabled and rule_on("events" if t == "event" else "items"):
 			if t == "event":
 				_draw_event(p)
 				return
@@ -1186,15 +1214,8 @@ func _add_score(p: Dictionary, pts: int) -> void:
 	score = mini(goal, score + pts)
 	_push({"kind": "score", "score": score, "player": p["id"]})
 	_log("광복 +%d → 광복수치 %d / %d" % [pts, score, goal])
-	if score >= goal:
-		if not two_act():
-			_game_over("goal")
-		elif act == 1:
-			# 목표치 도달: 최고 준비로 즉시 결행
-			_log("준비가 끝났습니다. 즉시 결행합니다!")
-			for i in intel.size():
-				intel[i] += 1
-			_launch("goal", "resume")
+	if score >= goal and not two_act():
+		_game_over("goal")
 
 
 func _game_over(reason: String) -> void:
@@ -1406,7 +1427,7 @@ func _decoy(p: Dictionary, from: int) -> void:
 
 
 func _draw_occupation() -> void:
-	if not data.balance["occupation"]["enabled"]:
+	if not data.balance["occupation"]["enabled"] or not rule_on("occupation"):
 		return
 	var id := _draw_from(occupation_deck, occupation_discard)
 	if id == "":
@@ -1497,19 +1518,6 @@ func _resolve_choice(value) -> void:
 		"discard":
 			_discard(p, int(value))
 			_run_effects(p, pd["rest"], pd["then"])
-		"tram_dest":
-			var from: Vector2i = p["pos"]
-			p["pos"] = data.stations[int(value)]
-			_push({"kind": "move", "player": p["id"], "from": from, "to": p["pos"], "teleport": true})
-			_log("%s: 전차를 타고 %s 역에 내렸습니다." % [p["name"], _dir_name(p["pos"])])
-		"tram_ride":
-			if value:
-				p["on_tram"] = true
-				_log("%s: 전차에 탔습니다. 다음 차례에 원하는 역에서 출발합니다." % p["name"])
-				steps_left = 0
-				_post_move(p)
-			else:
-				_after_step(p)
 		"ability_target":
 			if int(value) >= 0:
 				p["ability_day"] = rounds_left
@@ -1560,7 +1568,7 @@ func _resolve_choice(value) -> void:
 
 func _expose(n: int) -> void:
 	## 노출 트랙을 움직인다 (1막에서만)
-	if not two_act() or act != 1 or n == 0:
+	if not two_act() or act != 1 or n == 0 or not rule_on("exposure"):
 		return
 	var before := alert_level()
 	exposure = clampi(exposure + n, 0, int(_ta()["exposure"]["max"]))
@@ -1568,6 +1576,8 @@ func _expose(n: int) -> void:
 	if alert_level() > before:
 		_log("노출 %d — 경계가 %d단계로 올랐습니다!" % [exposure, alert_level()])
 		_banner("경계 %d단계" % alert_level(), "warn")
+		_dispatch_from(rng.randi_range(0, data.bases.size() - 1))   # 경계가 오르면 무작위 거점에서 출동
+		_push({"kind": "police"})
 
 
 func _nearest_base(c: Vector2i) -> int:
@@ -1603,8 +1613,8 @@ func _start_vote() -> void:
 			top = i
 	var sd := strike_for_base(top)
 	var name: String = data.text.get("strikes", {}).get(sd.get("id", ""), {}).get("name", "")
-	var prompt := "결행하시겠습니까? 목표: %s — %s (첩보 %d) · 광복수치 %d / %d · 남은 %d일" % [
-		data.base_names[top], name, intel[top], score, goal, rounds_left]
+	var prompt := "결행하시겠습니까? 목표: %s — %s (첩보 %d) · 결행 준비 %d · 경계 %d단계 · 남은 %d일" % [
+		data.base_names[top], name, intel[top], score, alert_level(), rounds_left]
 	_ask(players[0], "launch_vote", prompt,
 		[{"value": true, "label": "결행한다"}, {"value": false, "label": "하루 더 준비한다"}], "begin_turn")
 	pending["votes"] = []
@@ -1612,6 +1622,8 @@ func _start_vote() -> void:
 
 func _launch(reason: String, then: String) -> void:
 	## 결행 선언: 첩보가 가장 많은 거점이 목표. 동수면 방장이 고른다.
+	launch_info = {"reason": reason, "days_left": rounds_left, "score": score, "intel": intel.duplicate(),
+		"exposure": exposure, "alert": alert_level()}
 	act = 2
 	var best := -1
 	for v in intel:
@@ -1620,17 +1632,9 @@ func _launch(reason: String, then: String) -> void:
 	for i in intel.size():
 		if int(intel[i]) == best:
 			tied.append(i)
-	_record("결행 선언 (%s)" % {"vote": "투표", "forced": "작전일 임박", "goal": "준비 완료"}.get(reason, reason), "good")
+	_record("결행 선언 (%s)" % {"vote": "투표", "forced": "작전일 임박"}.get(reason, reason), "good")
 	if tied.size() == 1:
 		_start_strike(tied[0])
-		return
-	if then == "resume":
-		# 차례 도중(목표치 도달)에는 선택 창을 띄우지 않고, 지금 차례 요원에게 가장 가까운 거점으로
-		var pick: int = tied[0]
-		for i in tied:
-			if _manhattan(cur()["pos"], data.bases[i]) < _manhattan(cur()["pos"], data.bases[pick]):
-				pick = i
-		_start_strike(pick)
 		return
 	var opts := []
 	for i in tied:
@@ -1660,6 +1664,18 @@ func _start_strike(bi: int) -> void:
 			strike["bonus"] = mini(int(d["max_bonus"]), iv / step)
 		"hold":
 			strike["need"] = mini(n, maxi(int(d["min_need"]), (n - 1) - iv / step))
+	# 경계가 높을 때 결행하면 거점 경비가 삼엄하다: 판정 목표 +(경계-1), 경계 3이면 필요 횟수 +1
+	var pen: int = alert_level() - 1 if two_act() else 0
+	strike["alert"] = alert_level()
+	match d["kind"]:
+		"assassin", "lockpick":
+			strike["threshold"] = mini(12, int(strike["threshold"]) + pen)
+		"bomb":
+			strike["need"] = int(strike["need"]) + (1 if pen >= 2 else 0)
+		"hold":
+			strike["need"] = mini(n, int(strike["need"]) + (1 if pen >= 2 else 0))
+	if scenario.has("strike_need"):
+		strike["need"] = int(scenario["strike_need"])   # 훈련용
 	var info: Dictionary = data.text.get("strikes", {}).get(d["id"], {})
 	_log("결행! %s — %s" % [data.base_names[bi], info.get("name", "")])
 	_push({"kind": "card", "deck": "strike", "id": d["id"], "player": -1})
@@ -1748,7 +1764,6 @@ func _turn_traitor() -> void:
 	t["mission"] = {}
 	t["move_mod"] = 0
 	t["skip_next"] = false
-	t["on_tram"] = false
 	bomb_supply += int(t["bombs"])   # 들고 있던 폭탄은 보급으로 돌아간다
 	t["bombs"] = 0
 	police.erase(t["id"])
@@ -1896,12 +1911,12 @@ func _police_act(p: Dictionary) -> void:
 
 # ================================================================ 저장 · 불러오기
 
-const SAVE_FIELDS := ["use_stations", "cards_enabled", "board", "tile_deck", "event_deck", "event_discard",
+const SAVE_FIELDS := ["cards_enabled", "board", "tile_deck", "event_deck", "event_discard",
 	"item_deck", "item_discard", "mission_deck", "mission_discard", "occupation_deck", "occupation_discard",
 	"police_bonus_today", "bomb_supply", "players", "police", "score", "goal", "rounds_total", "rounds_left",
 	"current", "phase", "steps_left", "item_uses", "last_roll", "pending", "ending", "history", "scenario",
 	"_evade_ctx", "_check_target", "_cur_event", "_target", "log_lines", "undo_steps",
-	"act", "exposure", "intel", "strike"]
+	"act", "exposure", "intel", "strike", "actions", "launch_info"]
 
 
 func save_state() -> Dictionary:

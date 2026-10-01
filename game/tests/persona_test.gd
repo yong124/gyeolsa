@@ -69,7 +69,7 @@ func _init() -> void:
 			b.events.clear()
 		var sa := a.save_state()
 		var sb := b.save_state()
-		for k in ["log_lines", "history", "undo_steps"]:
+		for k in ["log_lines", "history", "undo_steps", "actions"]:
 			sa.erase(k)
 			sb.erase(k)
 		if var_to_str(sa) != var_to_str(sb):

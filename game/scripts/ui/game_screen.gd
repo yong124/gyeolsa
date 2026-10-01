@@ -58,6 +58,11 @@ func _init(g: GameRules, human_id := 0, meta_info := {}, briefing := true) -> vo
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_build()
+	if _hotseat() and not game.cur()["ai"]:
+		human = game.current
+		_agents.human = human
+		_hand.human = human
+		_board.human_id = human
 	resized.connect(_layout)
 	_layout()
 	_board.sync_from_game()
@@ -78,6 +83,57 @@ func _ready() -> void:
 func _begin() -> void:
 	_started = true
 	_pump()
+
+
+# ================================================================ 핫시트 · 플레이테스트 기록
+
+var _turn_t0 := -1.0      # 사람 차례에서 조작할 수 있게 된 시각 (생각 시간 측정)
+var _turn_pid := -1
+var _turn_a0 := 0         # 그 차례가 시작될 때의 액션 수 (되돌리기 횟수 계산)
+
+
+func _hotseat() -> bool:
+	var n := 0
+	for p in game.players:
+		if not p["ai"]:
+			n += 1
+	return n > 1
+
+
+func _set_human(id: int) -> void:
+	## 화면의 "나"를 바꾼다 (핫시트)
+	human = id
+	_agents.human = id
+	_hand.human = id
+	_board.human_id = id
+	var ab := game.ability_def(game.players[id])
+	_actions.set_ability(ab.get("name", "능력"), ab.get("desc", ""))
+	_refresh()
+
+
+func _hand_over(id: int, why: String) -> void:
+	## 자리 교대: 다음 사람에게 넘기라는 안내 뒤 시점을 바꾼다
+	if id == human or game.players[id]["ai"] or not _hotseat():
+		return
+	_set_human(id)
+	await _notice("자리 교대", "%s의 %s입니다.\n\n컴퓨터를 넘겨 주세요." % [game.players[id]["name"], why])
+
+
+func _log_turn_start() -> void:
+	if _turn_t0 < 0.0 and meta.has("playtest") and not game.cur()["ai"] and game.phase in ["start", "move"]:
+		_turn_t0 = Time.get_ticks_msec() / 1000.0
+		_turn_pid = game.current
+		_turn_a0 = game.actions.size()
+
+
+func _log_turn_end() -> void:
+	if _turn_t0 >= 0.0 and meta.has("playtest"):
+		var undos := 0
+		for i in range(_turn_a0, game.actions.size()):
+			if game.actions[i].get("type", "") == "undo_step":
+				undos += 1
+		PlaytestLog.turn(meta["playtest"], game, _turn_pid, Time.get_ticks_msec() / 1000.0 - _turn_t0, undos)
+	_turn_t0 = -1.0
 
 
 func _process(delta: float) -> void:
@@ -155,7 +211,7 @@ func _build() -> void:
 
 func _subtitle() -> String:
 	if tutorial:
-		return "훈련 · %d인" % game.players.size()
+		return ("2막 훈련" if meta.get("tutorial_id", "") == "tutorial2" else "훈련") + " · %d인" % game.players.size()
 	var cfg: Dictionary = meta.get("cfg", {})
 	var sc: String = cfg.get("scenario", "")
 	if sc == "daily":
@@ -218,12 +274,10 @@ func _request_end_move() -> void:
 
 
 func _on_swap() -> void:
-	## 보조 버튼 자리: 평소엔 미션 교체, 결행 판정을 할 수 있을 때는 "주사위로 이동"(갇혀 있으면 탈옥)
+	## 보조 버튼 자리: 결행 판정을 할 수 있을 때 "주사위로 이동"(갇혀 있으면 탈옥)
 	var me: Dictionary = game.players[human]
 	if game.can_strike(me):
 		_act({"type": "escape" if me["jailed"] else "roll"})
-	else:
-		_act({"type": "swap_mission"})
 
 
 func _pump() -> void:
@@ -231,6 +285,8 @@ func _pump() -> void:
 	for e in game.events:
 		if e["kind"] == "reveal":
 			_board.hidden_tiles[e["pos"]] = true
+		if e["kind"] == "turn" or e["kind"] == "over":
+			_log_turn_end()
 		if e["kind"] == "turn" and game.players[e["player"]]["ai"]:
 			e["intent"] = GameAI.intent(game, game.players[e["player"]])
 		_queue.append(e)
@@ -264,6 +320,7 @@ func _after_queue() -> void:
 		_walk.clear()
 	if tutorial and game.current == human and game.phase in ["start", "move"]:
 		await _tutorial_after_queue()
+	_log_turn_start()
 	if game.phase == "over":
 		_finish_game()
 	elif _ai_to_move():
@@ -298,8 +355,9 @@ func _play_event(e: Dictionary) -> void:
 				await _fx.bubble(_board_pos(e["players_snap"][p["id"]]["pos"]), "%s: %s" % [p["name"].split(" (")[0], e.get("intent", "")], Style.seat(p["id"]), m)
 			else:
 				_skip_ai = false
+				await _hand_over(p["id"], "차례")
 				Sfx.play("card", 0.0, 0.6)
-				await _fx.banner("당신의 차례", "turn", 1.0, "")
+				await _fx.banner("당신의 차례" if not _hotseat() else "%s의 차례" % p["name"].split(" (")[0], "turn", 1.0, "")
 		"move":
 			Sfx.play("step", 0.15)
 			var dur := STEP_TIME * m * (2.0 if e.get("teleport", false) else 1.0)
@@ -341,7 +399,7 @@ func _play_event(e: Dictionary) -> void:
 				_fx.fly(from, _top.pip_center(i) - global_position, Style.SEAL, 0.55 * d)
 			await get_tree().create_timer(0.45 * d).timeout
 			await _top.animate_score(e["score"], 0.35 * d)
-			await _fx.banner("광복수치 %d / %d" % [e["score"], game.goal], "good", m * 0.8)
+			await _fx.banner(("결행 준비 %d" % e["score"]) if game.two_act() else ("광복수치 %d / %d" % [e["score"], game.goal]), "good", m * 0.8)
 			if tutorial:
 				await _tip("score")
 		"intel":
@@ -350,6 +408,8 @@ func _play_event(e: Dictionary) -> void:
 				_fx.fly(_board_pos(e["players_snap"][e["player"]]["pos"]), _board_pos(game.data.bases[e["base"]]), Style.SEAL, 0.5 * m)
 				await get_tree().create_timer(0.45 * m).timeout
 			_board.queue_redraw()
+			if tutorial:
+				await _tip("intel")
 		"traitor":
 			var tp: Dictionary = game.players[e["player"]]
 			Sfx.play("alert")
@@ -363,6 +423,8 @@ func _play_event(e: Dictionary) -> void:
 			if e["kind"] == "strike_progress":
 				Sfx.play("score")
 			_top.refresh()
+			if tutorial:
+				await _tip(e["kind"])
 		"catch":
 			Sfx.play("whistle")
 			if m > 0.0:
@@ -387,6 +449,8 @@ func _play_event(e: Dictionary) -> void:
 			_top.refresh()
 			if e["alert"] >= 3:
 				Music.play("tension")
+			if meta.has("playtest"):
+				PlaytestLog.day(meta["playtest"], game)
 			if tutorial:
 				await _tip("day")
 			elif not game.players[human]["ai"]:
@@ -395,6 +459,8 @@ func _play_event(e: Dictionary) -> void:
 			await _show_card(e, m)
 			if e["deck"] in ["occupation", "strike"]:
 				_top.refresh()
+			if tutorial and e["deck"] == "strike":
+				await _tip("strike")
 			if tutorial and e["player"] == human:
 				await _tip("card")
 		_:
@@ -537,8 +603,8 @@ func _refresh_actions() -> void:
 		"give_on": my_turn and not game.give_options(me).is_empty(),
 		"decoy_on": my_turn and (not game.inform_options(me).is_empty() if me["traitor"] else not game.decoy_options(me).is_empty()),
 		"decoy_label": "밀고" if me["traitor"] else "미끼",
-		"swap_on": my_turn and game.phase == "start" and not me["jailed"] and game.act == 1,
-		"swap_visible": not me["jailed"],
+		"swap_on": false,
+		"swap_visible": false,   # 이 자리는 결행 판정 때 "주사위로 이동"으로만 쓴다 (미션 교체는 자동)
 	}
 	var shown := _vis_cur if _vis_cur >= 0 else game.current
 	if game.phase == "over":
@@ -603,7 +669,7 @@ func _tip(id: String) -> void:
 	## 튜토리얼 안내 창 (같은 안내는 한 번만)
 	if not tutorial or _tips_shown.has(id):
 		return
-	var text: String = game.data.text["tutorial"]["tips"].get(id, "")
+	var text: String = game.data.text[meta.get("tutorial_id", "tutorial")]["tips"].get(id, "")
 	if text == "":
 		return
 	_tips_shown[id] = true
@@ -630,6 +696,8 @@ func _tutorial_after_queue() -> void:
 		await _tip("move")
 	if not game.mission_targets(me).is_empty() and me["mission"].get("type", "") == "assassin":
 		await _tip("target")
+	if game.can_strike(me):
+		await _tip("strike_turn")
 
 
 # ================================================================ 일시정지 · 종료
@@ -654,6 +722,8 @@ func _pause() -> void:
 		["저장하고 메인 메뉴로" if not tutorial else "튜토리얼 그만두기", func():
 			if not tutorial:
 				SaveGame.write(game, meta)
+			if meta.has("playtest"):
+				PlaytestLog.finish(meta["playtest"], game, "paused")
 			back_to_title.emit()],
 	]:
 		var btn := UiKit.button(b[0], b[1], 20, "tab")
@@ -776,10 +846,12 @@ func _on_inform() -> void:
 
 
 signal _notice_closed
+var _noticing := false
 
 
 func _notice(heading: String, body: String) -> void:
 	## 확인 버튼 하나짜리 안내 창
+	_noticing = true
 	var d := UiKit.dossier(560, heading, "통 보")
 	var v: VBoxContainer = d[1]
 	v.add_child(UiKit.text(body, 17, Style.INK))
@@ -790,6 +862,7 @@ func _notice(heading: String, body: String) -> void:
 	v.add_child(ok)
 	_choice.show_with(d[0])
 	await _notice_closed
+	_noticing = false
 
 
 func _show_local_choice(heading: String, prompt: String, opts: Array) -> void:
@@ -810,6 +883,9 @@ func _show_local_choice(heading: String, prompt: String, opts: Array) -> void:
 func _show_choice() -> void:
 	var titles := {"launch_vote": "결행 투표", "strike_target": "결행 목표 선택"}
 	var kind: String = game.pending["kind"]
+	await _hand_over(int(game.pending["player"]), "결행 투표 차례" if kind == "launch_vote" else "선택")
+	if tutorial and kind == "launch_vote":
+		await _tip("vote")
 	var d := _choice_panel(titles[kind], game.pending["prompt"]) if titles.has(kind) else _choice_panel(game.pending["prompt"], "")
 	var v: VBoxContainer = d[1]
 	for o in game.pending["options"]:
@@ -832,19 +908,10 @@ func _option_desc(pd: Dictionary, o: Dictionary) -> String:
 		"discard":
 			if int(val) < p["items"].size():
 				return game.item_def(p["items"][int(val)]).get("effect_text", "")
-		"tram_ride":
-			return "이동을 끝내고, 다음 차례에 4개 역 중 원하는 곳에서 출발" if val else "전차를 타지 않고 계속 이동"
-		"tram_dest":
-			var T := game.mission_targets(p)
-			if not T.is_empty():
-				var st: Vector2i = game.data.stations[int(val)]
-				var best := 99
-				for c in T:
-					best = mini(best, absi(c.x - st.x) + absi(c.y - st.y))
-				return "미션 목표까지 약 %d칸" % best
 		"launch_vote":
-			return "2막 시작 — 결행 목표와 특수 규칙이 공개되고 경계는 3단계로 고정됩니다" if val \
-				else "하루 더 정찰합니다. 8월 13일 아침에는 반드시 결행합니다"
+			return ("2막 시작 — 지금의 경계 %d단계가 2막 내내 이어집니다%s" % [game.alert_level(),
+				"" if game.alert_level() <= 1 else " (경비가 삼엄해 결행 판정이 어려워짐)"]) if val \
+				else "하루 더 정찰해 첩보를 모읍니다. 8월 13일 아침에는 반드시 결행합니다"
 		"strike_target":
 			var sd := game.strike_for_base(int(val))
 			var info: Dictionary = game.data.text["strikes"].get(sd.get("id", ""), {})

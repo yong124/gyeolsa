@@ -87,3 +87,16 @@ godot --headless --path game --script res://tests/faction_test.gd -- 500
 # 인원별(2~4인) 대성공·결행 시점·거점 선택률·사건별 성공률
 godot --headless --path game --script res://tests/act2_test.gd -- 500
 ```
+
+### 플레이테스트 · 규칙 정돈
+```bash
+# 기록 재생: 시드 + 액션 목록으로 다시 두면 같은 결말이 나오는지
+godot --headless --path game --script res://tests/replay_test.gd -- 60
+# 플레이테스트 기록 요약 (폴더를 안 주면 이 컴퓨터의 user://playtests)
+godot --headless --path game --script res://tools/playtest_report.gd -- [폴더] [md=요약.md]
+# 규칙별 사용 빈도와, 하나씩 껐을 때의 승률·판 길이 변화 (보고서용, 오래 걸림)
+godot --headless --path game --script res://tests/rule_audit.gd -- 300 [md=결과.md]
+```
+- 새 작전에서 **사람** 수를 2명 이상으로 고르면 한 컴퓨터에서 돌아가며 두는 핫시트가 됩니다. 사람 차례가 바뀔 때마다 "자리 교대" 안내가 뜹니다.
+- 설정의 **플레이테스트**가 켜져 있으면(기본) 판마다 `user://playtests/날짜_시각.json`에 설정·시드·액션 전부·매일 아침 상태·사람의 생각 시간이 남고, 판이 끝나면 설문을 받습니다. 설정 창의 [기록 폴더 열기]로 파일을 찾을 수 있습니다.
+- 규칙 끄기 실험: `GameRules.scenario["off"]`에 `ability, give, decoy, swap, items, events, occupation, exposure, vote` 중 원하는 것을 넣습니다.

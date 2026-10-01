@@ -58,7 +58,7 @@ func _ready() -> void:
 	var gl := VBoxContainer.new()
 	gl.add_theme_constant_override("separation", -6)
 	gl.alignment = BoxContainer.ALIGNMENT_CENTER
-	var gl1 := UiKit.text("광복수치", 12, Style.INK_2, false, 700)
+	var gl1 := UiKit.text("결행 준비" if game.two_act() else "광복수치", 12, Style.INK_2, false, 700)
 	gl1.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	gl.add_child(gl1)
 	_score_lbl = UiKit.title("", 22, Style.INK, 900)
@@ -127,13 +127,13 @@ func refresh() -> void:
 			_act_lbl.text = "1막 · 정찰"
 			_act_lbl.add_theme_color_override("font_color", Style.INK)
 			_alert_lbl.text = "노출 %d/%d\n경계 %d단계" % [game.exposure, int(ex["max"]), game.alert_level()]
-			_alert.tooltip_text = "노출 %d / %d — 경계 %d단계 (경찰 이동 %d칸)\n매일 아침과 시끄러운 작전(암살·폭파 성공, 검문 실패, 체포)마다 노출이 오릅니다.\n노출 %d부터 2단계, %d부터 3단계." % [
+			_alert.tooltip_text = "노출 %d / %d — 경계 %d단계 (경찰 이동 %d칸)\n시끄러운 일(암살·폭파 성공, 검문 실패, 투옥)마다 노출이 오릅니다.\n노출 %d부터 2단계, %d부터 3단계. 단계가 오를 때마다 경찰이 출동합니다.\n결행할 때의 단계가 2막 내내 이어지고, 2단계 이상이면 결행 판정이 어려워집니다." % [
 				game.exposure, int(ex["max"]), game.alert_level(), game.police_speed(), int(ex["thresholds"][0]), int(ex["thresholds"][1])]
 		else:
 			_act_lbl.text = "2막 · 결행"
 			_act_lbl.add_theme_color_override("font_color", Style.SEAL)
-			_alert_lbl.text = "총력\n경계"
-			_alert.tooltip_text = "결행 중: 경계 3단계 고정, 경찰 이동 %d칸\n매일 아침 결행 거점에서 경찰이 출동합니다." % game.police_speed()
+			_alert_lbl.text = "결행 중\n경계 %d단계" % game.alert_level()
+			_alert.tooltip_text = "결행 중: 결행할 때의 경계 %d단계가 이어집니다. 경찰 이동 %d칸\n매일 아침 결행 거점에서 경찰이 출동합니다." % [game.alert_level(), game.police_speed()]
 	_cal.tooltip_text = "오늘 %s · 8월 15일까지 %d일\n8월 15일이 되면 일본이 항복하며 작전이 끝납니다." % [game.date_label(), game.rounds_left]
 	var occ := game.today_occupation()
 	if game.act == 2 and not game.strike.is_empty():
@@ -255,6 +255,11 @@ func _draw_gauge() -> void:
 			_gauge.draw_rect(fr, Style.SEAL)
 			_gauge.draw_rect(fr.grow(-2), Color(1, 1, 1, 0.1), false, 1.0)
 		_gauge.draw_rect(r, Style.INK_2 if f < 1.0 else Style.SEAL_DARK, false, 1.5)
+	if game.two_act() and game.act == 1:
+		# 결행 투표가 열리는 칸: 금색 눈금과 "투표"
+		var x := 1 + game.launch_min() * 21 - 2.0
+		_gauge.draw_line(Vector2(x, 2), Vector2(x, 42), Style.GOLD, 3.0)
+		_gauge.draw_string(Style.sans(800), Vector2(x + 3, 10), "투표", HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Style.GOLD)
 
 
 func _draw_alert() -> void:

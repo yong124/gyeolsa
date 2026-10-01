@@ -59,6 +59,19 @@ func _ready() -> void:
 		Prefs.save())
 	grid.add_child(rm)
 
+	grid.add_child(_key("플레이테스트"))
+	var pt := HBoxContainer.new()
+	pt.add_theme_constant_override("separation", 10)
+	var pc := CheckBox.new()
+	pc.text = "기록과 판 끝 설문"
+	pc.button_pressed = Prefs.playtest
+	pc.toggled.connect(func(on):
+		Prefs.playtest = on
+		Prefs.save())
+	pt.add_child(pc)
+	pt.add_child(UiKit.button("기록 폴더 열기", func(): OS.shell_open(PlaytestLog.folder()), 14, "paper"))
+	grid.add_child(pt)
+
 	v.add_child(UiKit.hsep())
 	var close := UiKit.button("닫기", func(): closed.emit(), 18, "primary")
 	close.custom_minimum_size = Vector2(0, 48)

@@ -150,8 +150,6 @@ func _chips(p: Dictionary) -> Array:
 			out.append(["경찰 추격", "!", Style.SEAL, "경찰이 이 요원을 쫓고 있습니다. 차례가 끝날 때 경찰이 다가오고, 같은 칸이 되면 체포됩니다.", false])
 		else:
 			out.append(["경찰 대기", "…", Style.WARN, "방금 나타난 경찰입니다. 이번 차례에는 움직이지 않습니다.", false])
-	if p["on_tram"]:
-		out.append(["전차", "⇄", Style.INK_2, "전차에 탔습니다. 다음 차례에 원하는 역에서 출발합니다.", false])
 	if p["move_mod"] != 0:
 		out.append(["다음 이동 %+d" % p["move_mod"], "↑" if p["move_mod"] > 0 else "↓",
 			Style.GOOD if p["move_mod"] > 0 else Style.SEAL, "다음 차례 주사위 이동에 %+d칸" % p["move_mod"], false])

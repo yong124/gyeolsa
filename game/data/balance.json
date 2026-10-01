@@ -36,24 +36,6 @@
 				"name": "조선총독부"
 			}
 		],
-		"stations": [
-			[
-				5,
-				0
-			],
-			[
-				0,
-				5
-			],
-			[
-				10,
-				5
-			],
-			[
-				5,
-				10
-			]
-		],
 		"map": {
 			"image": "res://assets/ui/board.png",
 			"px": 1400,
@@ -64,18 +46,18 @@
 	"tiles": {
 		"normal": {
 			"name": "일반",
-			"count": 28,
+			"count": 45,
 			"texture": "normal"
 		},
 		"event": {
 			"name": "이벤트",
-			"count": 30,
+			"count": 18,
 			"texture": "event",
 			"used_texture": "event_used"
 		},
 		"item": {
 			"name": "아이템",
-			"count": 20,
+			"count": 15,
 			"texture": "item",
 			"used_texture": "item_used"
 		},
@@ -193,13 +175,14 @@
 		},
 		"forced_days_left": 2,
 		"exposure": {
-			"per_day": 1,
+			"per_day": 0,
 			"loud": 1,
 			"thresholds": [
 				3,
 				6
 			],
-			"max": 9
+			"max": 9,
+			"_comment": "노출: 시끄러운 일(암살·폭파 성공, 검문 실패, 투옥)마다 loud만큼, 매일 아침 per_day만큼 오른다. thresholds를 넘을 때마다 경계가 오르고 무작위 거점에서 경찰이 출동한다. 결행할 때의 경계 단계가 2막 내내 이어진다."
 		},
 		"strikes": [
 			{
@@ -238,9 +221,9 @@
 		],
 		"act2_police_bonus": 1,
 		"rounds_by_players": {
-			"2": 18,
+			"2": 17,
 			"3": 12,
-			"4": 9
+			"4": 10
 		},
 		"traitor": {
 			"_comment": "변절자 (기획서 16.10). players 인원에서만 결행 때 한 명이 변절한다.",

@@ -18,7 +18,7 @@ const KNOWN_CONDITIONS := ["alert_max", "alert_min", "jailed", "has_my_police", 
 	"other_items_min"]
 const KNOWN_REACTS := {"evade": ["auto_success"], "event": ["cancel_event"]}
 const KNOWN_SCENARIO := ["rounds", "goal", "police_speed_mod", "start_jailed", "jail_base", "start_items",
-	"first_missions", "tile_order_top", "two_act"]
+	"first_missions", "tile_order_top", "two_act", "launch_min", "start_score", "start_exposure", "start_intel", "strike_need", "off"]
 const KNOWN_ACHIEVEMENT := ["ending", "my_jailed_max", "days_left_min", "my_rescues_min", "my_points_min",
 	"players_min", "difficulty", "tutorial", "scenario", "factions_won", "scenarios_won", "games_min"]
 
@@ -35,7 +35,6 @@ var size := 11
 var start := Vector2i(5, 5)
 var bases: Array[Vector2i] = []
 var base_names: Array[String] = []
-var stations: Array[Vector2i] = []
 
 var _items := {}
 var _events := {}
@@ -68,9 +67,6 @@ func load_dir(dir: String) -> void:
 	for e in b["bases"]:
 		bases.append(_v(e["pos"]))
 		base_names.append(e["name"])
-	stations.clear()
-	for s in b["stations"]:
-		stations.append(_v(s))
 	_items.clear()
 	for it in cards["items"]:
 		_items[it["id"]] = it
@@ -170,7 +166,7 @@ func validate() -> Array[String]:
 	var tile_total := 0
 	for t in balance["tiles"]:
 		tile_total += int(balance["tiles"][t]["count"])
-	var cells := size * size - 1 - bases.size() - stations.size()
+	var cells := size * size - 1 - bases.size()
 	if tile_total > cells:
 		errs.append("타일 %d장이 빈칸 %d칸보다 많습니다." % [tile_total, cells])
 	for s in special_ops():

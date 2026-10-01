@@ -9,7 +9,6 @@ func _init() -> void:
 	var args := OS.get_cmdline_user_args()
 	var games := int(args[0]) if args.size() > 0 else 200
 	var use_cards := args.size() < 2 or args[1] != "0"
-	var use_stations := args.size() < 3 or args[2] != "0"
 	var rounds := {}
 	if args.size() > 3:
 		var r := args[3].split(",")
@@ -19,7 +18,7 @@ func _init() -> void:
 	var errs := data.validate()
 	for e in errs:
 		push_error("데이터 오류: " + e)
-	print("카드 효과 %s / 전차역 %s%s" % ["켬" if use_cards else "끔", "켬" if use_stations else "끔",
+	print("카드 효과 %s%s" % ["켬" if use_cards else "끔",
 		(" / 작전 일수 %s" % rounds) if rounds else ""])
 	var keys := data.faction_keys()
 	var failures := errs.size()
@@ -30,7 +29,6 @@ func _init() -> void:
 		for i in games:
 			var g := GameRules.new()
 			g.cards_enabled = use_cards
-			g.use_stations = use_stations
 			g.rounds_override = rounds
 			var defs := []
 			for k in n:

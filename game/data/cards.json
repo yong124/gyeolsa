@@ -2,22 +2,9 @@
 	"_comment": "카드 정의. 효과 연산(op)·보정(stat)·조건(requires/when) 목록은 data/README.md 참고.",
 	"events": [
 		{
-			"id": "police_call",
-			"name": "경찰출동",
-			"count": 3,
-			"bad": true,
-			"text": "일본군 순사의 불시검문이 떴습니다.\n경찰이 플레이어를 추적합니다.",
-			"effect_text": "다음 차례에 플레이어의 자리에 경찰이 소환됩니다.",
-			"effects": [
-				{
-					"op": "police_next_turn"
-				}
-			]
-		},
-		{
 			"id": "chance",
 			"name": "절호의 기회",
-			"count": 3,
+			"count": 4,
 			"bad": false,
 			"text": "플레이어의 뒤를 밟던 경찰 앞에서 불량배들의 싸움이 벌어졌습니다.\n혼란을 틈타 몸을 숨겼습니다.",
 			"effect_text": "추적 중인 경찰을 맵에서 제외합니다.",
@@ -30,7 +17,7 @@
 		{
 			"id": "riot",
 			"name": "탈옥",
-			"count": 4,
+			"count": 3,
 			"bad": false,
 			"text": "일본군의 횡포에 대규모 소요사태가 일어나 감옥의 경계가 느슨해졌습니다.\n이 기회를 놓치지 말고 탈옥하십시오.",
 			"effect_text": "감옥에 갇힌 모든 플레이어가 경찰의 추적 없이 탈옥합니다.",
@@ -41,23 +28,9 @@
 			]
 		},
 		{
-			"id": "trip",
-			"name": "꽈당",
-			"count": 4,
-			"bad": true,
-			"text": "한눈팔던 소년 노동자와 부딪혔습니다.",
-			"effect_text": "다음 차례 이동 -1",
-			"effects": [
-				{
-					"op": "move_mod",
-					"value": -1
-				}
-			]
-		},
-		{
 			"id": "thugs",
 			"name": "불량배 출현",
-			"count": 3,
+			"count": 4,
 			"bad": true,
 			"text": "대한의 백성을 괴롭히는 일본 불량배들과 마주쳤습니다.\n불량배의 칼에 다리를 베였습니다.",
 			"effect_text": "다음 차례 이동 -2",
@@ -69,23 +42,9 @@
 			]
 		},
 		{
-			"id": "shortcut",
-			"name": "지름길 발견",
-			"count": 4,
-			"bad": false,
-			"text": "주민들만 알던 지름길을 발견했습니다.",
-			"effect_text": "다음 차례 이동 +1",
-			"effects": [
-				{
-					"op": "move_mod",
-					"value": 1
-				}
-			]
-		},
-		{
 			"id": "rickshaw",
 			"name": "딱한 인력거꾼 김첨지",
-			"count": 3,
+			"count": 4,
 			"bad": false,
 			"text": "아내가 아픈데 한 탕도 못 뛰었다는 인력거꾼의 딱한 사정에\n인력거를 타기로 했습니다.",
 			"effect_text": "다음 차례 이동 +2",
@@ -97,35 +56,9 @@
 			]
 		},
 		{
-			"id": "windfall",
-			"name": "횡재",
-			"count": 3,
-			"bad": false,
-			"text": "쓸모 있어 보이는 도구 하나를 주웠습니다.",
-			"effect_text": "아이템 카드를 한 장 뽑습니다.",
-			"effects": [
-				{
-					"op": "draw_item"
-				}
-			]
-		},
-		{
-			"id": "pickpocket",
-			"name": "소매치기",
-			"count": 3,
-			"bad": true,
-			"text": "소매치기를 당했습니다.",
-			"effect_text": "가진 아이템 카드를 한 장 버립니다.",
-			"effects": [
-				{
-					"op": "discard_item"
-				}
-			]
-		},
-		{
 			"id": "secret_letter",
 			"name": "국내 동지의 밀서",
-			"count": 1,
+			"count": 3,
 			"bad": false,
 			"text": "경성 지하조직이 모아 둔 물자와 일본군 순찰로를 건네받았습니다.",
 			"effect_text": "아이템 카드를 한 장 뽑고, 다음 차례 이동 +1",
@@ -142,7 +75,7 @@
 		{
 			"id": "informer",
 			"name": "밀고자",
-			"count": 3,
+			"count": 4,
 			"bad": true,
 			"text": "친일 밀정이 요원의 행방을 헌병대에 알렸습니다.",
 			"effect_text": "지금 이 자리에 경찰이 소환됩니다.",
@@ -151,71 +84,16 @@
 					"op": "summon_police"
 				}
 			]
-		},
-		{
-			"id": "manse",
-			"name": "울려 퍼진 만세 소리",
-			"count": 1,
-			"bad": false,
-			"text": "종로에서 만세 소리가 울려 퍼지자 순사들이 모두 그쪽으로 몰려갔습니다.",
-			"effect_text": "맵의 모든 경찰을 제외합니다.",
-			"effects": [
-				{
-					"op": "remove_all_police"
-				}
-			]
-		},
-		{
-			"id": "detained",
-			"name": "불심검문",
-			"count": 1,
-			"bad": true,
-			"text": "헌병에게 붙들려 신분 조사를 받느라 발이 묶였습니다.",
-			"effect_text": "다음 차례를 쉽니다.",
-			"effects": [
-				{
-					"op": "skip_next_turn"
-				}
-			]
 		}
 	],
 	"items": [
 		{
-			"id": "bribe",
-			"name": "뇌물",
-			"count": 2,
-			"kind": "persistent",
-			"ai_value": 3,
-			"text": "경찰에게 거부할 수 없는 뇌물을 주었습니다.",
-			"effect_text": "(지속) 경계 1단계일 때 사용 가능. 가진 아이템 하나를 버리고 추격 중인 경찰을 맵에서 제외합니다.",
-			"use": {
-				"phases": [
-					"start",
-					"move"
-				],
-				"requires": {
-					"alert_max": 1,
-					"has_my_police": true,
-					"other_items_min": 1
-				},
-				"cost": {
-					"discard_other": 1
-				},
-				"consume": false,
-				"effects": [
-					{
-						"op": "remove_my_police"
-					}
-				]
-			}
-		},
-		{
 			"id": "scope",
 			"name": "망원경",
-			"count": 1,
+			"count": 2,
 			"kind": "persistent",
 			"ai_value": 6,
-			"text": "미국 요원들이 쓰는 최신 망원경입니다.",
+			"text": "미국 요원들이 쓰는 최신 망원경입니다. 먼 거리에서도 표적을 놓치지 않습니다.",
 			"effect_text": "(지속) 암살 판정 +1",
 			"modifiers": [
 				{
@@ -252,59 +130,17 @@
 			}
 		},
 		{
-			"id": "sniper",
-			"name": "저격총",
-			"count": 1,
-			"kind": "persistent",
-			"ai_value": 9,
-			"text": "러시아제 PU 조준경이 달린 저격총입니다.",
-			"effect_text": "(지속) 암살 판정이 7 이상이면 성공. 암살 후 회피 판정은 항상 성공. 이동 -1",
-			"modifiers": [
-				{
-					"stat": "assassin_threshold",
-					"value": 7,
-					"mode": "min"
-				},
-				{
-					"stat": "evade_auto_after_assassin",
-					"value": 1
-				},
-				{
-					"stat": "move_bonus",
-					"value": -1
-				}
-			]
-		},
-		{
-			"id": "silencer",
-			"name": "소음기",
-			"count": 1,
-			"kind": "persistent",
-			"ai_value": 6,
-			"text": "OSS 요원들이 쓰는 소음기입니다.",
-			"effect_text": "(지속) 암살 판정 +1",
-			"modifiers": [
-				{
-					"stat": "assassin_bonus",
-					"value": 1
-				}
-			]
-		},
-		{
 			"id": "fake_id",
 			"name": "위장 신분증",
-			"count": 2,
+			"count": 1,
 			"kind": "persistent",
 			"ai_value": 4,
 			"text": "상해 최고의 기술자가 만든 위장 신분증입니다.",
-			"effect_text": "(지속) 경계 1~2단계일 때, 거점에 들어가도 경찰이 소환되지 않습니다.",
+			"effect_text": "(지속) 거점에 들어가도 경찰이 소환되지 않습니다.",
 			"modifiers": [
 				{
 					"stat": "base_no_police",
-					"value": 1,
-					"when": {
-						"alert_max": 2
-					}
+					"value": 1
 				}
 			]
 		},
@@ -375,24 +211,9 @@
 			}
 		},
 		{
-			"id": "flare",
-			"name": "신호탄",
-			"count": 2,
-			"kind": "consumable",
-			"ai_value": 4,
-			"text": "위기에 빠졌을 때 동료들에게 도움을 청하는 신호탄입니다.",
-			"effect_text": "(소모) 방금 뽑은 이벤트 카드를 무효로 합니다.",
-			"react": {
-				"trigger": "event",
-				"effect": "cancel_event",
-				"consume": true,
-				"prompt": "신호탄을 써서 이 이벤트를 무효로 하겠습니까?"
-			}
-		},
-		{
 			"id": "pin",
 			"name": "옷핀",
-			"count": 2,
+			"count": 3,
 			"kind": "consumable",
 			"ai_value": 5,
 			"text": "숙련된 요원은 옷핀 하나로 무엇이든 열 수 있습니다.",
