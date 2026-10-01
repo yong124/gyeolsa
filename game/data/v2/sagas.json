@@ -310,7 +310,7 @@
 				{
 					"op": "draw_item",
 					"count": 1,
-					"item": "smoke"
+					"item": "smoke_bomb"
 				}
 			],
 			"reward_text": "연막탄 1장",
@@ -488,7 +488,7 @@
 			"reward": [
 				{
 					"op": "move_mod_next",
-					"who": "all",
+					"who": "allies",
 					"value": 1
 				}
 			],
@@ -504,7 +504,7 @@
 				"lose_fail": "스승의 물건들은 그의 짐 속에서 해방을 맞았다.",
 				"traitor": "스승의 물건들은 증거품 창고로 들어갔다."
 			},
-			"_comment": "move_mod_next의 who는 '동료 모두'를 뜻하는 all (본인 제외로 해석)"
+			"_comment": "move_mod_next의 who는 allies(동료 모두, 본인 제외). 3단계에서 all에서 바꿈"
 		},
 		{
 			"id": "sibling_revenge",

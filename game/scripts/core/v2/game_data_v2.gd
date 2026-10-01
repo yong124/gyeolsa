@@ -9,7 +9,7 @@ const DIR := "res://data/v2/"
 const BASE_IDS := ["barracks", "police_hq", "prison", "gg"]
 
 ## 3-1. 대상 (who, target)
-const KNOWN_TARGETS := ["self", "ally", "ally_same_cell", "ally_adjacent", "ally_in_range", "all",
+const KNOWN_TARGETS := ["self", "ally", "ally_same_cell", "ally_adjacent", "ally_in_range", "all", "allies",
 	"isolated", "wanted", "nearest_to_base", "all_jailed"]
 ## 3-2. 효과 op
 const KNOWN_OPS := ["police_dispatch", "police_attach", "police_advance", "police_remove", "police_push",
@@ -433,6 +433,8 @@ func _check_effects(errs: Array[String], who: String, effects: Array) -> void:
 		if op == "intel" and e.has("base"):
 			if not e["base"] in ["nearest", "choose", "entered"] and not e["base"] in BASE_IDS:
 				errs.append("%s: intel의 알 수 없는 base '%s'" % [who, e["base"]])
+		if op == "draw_item" and e.has("item") and not _items.has(e["item"]):
+			errs.append("%s: draw_item의 아이템 '%s'가 없습니다." % [who, e["item"]])
 		if op == "choice":
 			for o in e.get("options", []):
 				_check_effects(errs, who + " 선택", o.get("effects", []))
