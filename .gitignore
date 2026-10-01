@@ -12,3 +12,6 @@
 .DS_Store
 Thumbs.db
 Desktop.ini
+
+# 에이전트 작업 공간
+.claude/worktrees/
