@@ -1,0 +1,13 @@
+{
+	"victory": {"name": "성공"},
+	"fail_final": {"name": "마지막 실패", "text": "마지막에서 멈춤"},
+	"operation": {"name": "실행", "text": "도중에 멈춤"},
+	"history": {"name": "정사", "text": "시작에서 멈춤"},
+	"traitor_won": {"text": "변절자가 이김"},
+	"strikes": {
+		"barracks": {"name": "군영", "ending": "승리"},
+		"police_hq": {"name": "경찰서", "ending": "승리"},
+		"prison": {"name": "형무소", "ending": "승리"},
+		"gg": {"name": "총독부", "ending": "승리"}
+	}
+}

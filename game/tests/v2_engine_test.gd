@@ -1,5 +1,5 @@
 extends SceneTree
-## v2 엔진(2a·2b·3단계) 시험: 합법 액션만 무작위로 고르는 봇으로 판을 끝까지 둔다.
+## v2 엔진 시험: 합법 액션만 무작위로 고르는 봇으로 2막과 엔딩까지 둔다.
 ## 확인: legal_actions()와 apply의 일치 · 잘못된 액션 거부 · 불변식 · 재생 · 저장/불러오기 · 끝남.
 ## 3단계: 사연 · 심문 · 설득 · 결행 순간 선택 · 변절 (4인 전용 장치는 2·3인에서 꺼져 있어야 함).
 ## 실행: godot --headless --path game --script res://tests/v2_engine_test.gd [-- 판수]
@@ -21,12 +21,14 @@ func _init() -> void:
 	var stats := {"days": 0, "forced": 0, "vote": 0, "stub": 0, "stub3": 0, "stub4": 0, "other": 0, "jailed": 0, "actions": 0,
 		"missions": {}, "checks": 0, "rescues": 0, "escapes": 0, "launched": 0,
 		"saga_done": 0, "saga_dealt": {}, "saga_hit": {}, "traitors": 0, "interro_cards": 0, "persuades": 0,
-		"keeps": 0, "saga_players": 0}
+		"keeps": 0, "saga_players": 0, "endings": {}, "scene_breaks": {}, "scene_shown": {},
+		"target_breaks": {}, "target_games": {}, "act2_days": 0, "traitor_games": 0, "traitor_wins": 0}
 	var plain_games := 0
 	var hack_stats := {"days": 0, "forced": 0, "vote": 0, "stub": 0, "stub3": 0, "stub4": 0, "other": 0, "jailed": 0, "actions": 0,
 		"missions": {}, "checks": 0, "rescues": 0, "escapes": 0, "launched": 0,
 		"saga_done": 0, "saga_dealt": {}, "saga_hit": {}, "traitors": 0, "interro_cards": 0, "persuades": 0,
-		"keeps": 0, "saga_players": 0}
+		"keeps": 0, "saga_players": 0, "endings": {}, "scene_breaks": {}, "scene_shown": {},
+		"target_breaks": {}, "target_games": {}, "act2_days": 0, "traitor_games": 0, "traitor_wins": 0}
 	for i in games:
 		var bot := RandomNumberGenerator.new()
 		bot.seed = 910000 + i
@@ -43,7 +45,8 @@ func _init() -> void:
 	var small := {"days": 0, "forced": 0, "vote": 0, "stub": 0, "stub3": 0, "stub4": 0, "other": 0, "jailed": 0, "actions": 0,
 		"missions": {}, "checks": 0, "rescues": 0, "escapes": 0, "launched": 0,
 		"saga_done": 0, "saga_dealt": {}, "saga_hit": {}, "traitors": 0, "interro_cards": 0, "persuades": 0,
-		"keeps": 0, "saga_players": 0}
+		"keeps": 0, "saga_players": 0, "endings": {}, "scene_breaks": {}, "scene_shown": {},
+		"target_breaks": {}, "target_games": {}, "act2_days": 0, "traitor_games": 0, "traitor_wins": 0}
 	var small_games := maxi(games / 10, 6)
 	for i in small_games:
 		var bot2 := RandomNumberGenerator.new()
@@ -81,9 +84,25 @@ func _init() -> void:
 	print("사연별 이룬 비율: ", " · ".join(rows))
 	print("2·3인 판 %d판: 이룬 사연 %d · 심문 %d · 설득 %d · 변절 %d" % [small_games, small["saga_done"], small["interro_cards"],
 		small["persuades"], small["traitors"]])
+	for id in ["victory", "fail_final", "fail_middle", "history"]:
+		print("엔딩 %s: %d/%d (%.1f%%)" % [id, int(stats["endings"].get(id, 0)), plain_games,
+			100.0 * int(stats["endings"].get(id, 0)) / maxi(plain_games, 1)])
+	print("2막 평균 %.2f일 · 변절 판의 요원 승률 %d/%d (%.1f%%)" % [float(stats["act2_days"]) / maxi(stats["launched"], 1),
+		stats["traitor_games"] - stats["traitor_wins"], stats["traitor_games"],
+		100.0 * (stats["traitor_games"] - stats["traitor_wins"]) / maxi(stats["traitor_games"], 1)])
+	for id in GameDataV2.BASE_IDS:
+		print("결행 거점 %s: 돌파 장면 평균 %.2f장 (%d판)" % [id,
+			float(stats["target_breaks"].get(id, 0)) / maxi(int(stats["target_games"].get(id, 0)), 1), stats["target_games"].get(id, 0)])
+	var scene_ids: Array = stats["scene_shown"].keys()
+	scene_ids.sort()
+	for id in scene_ids:
+		print("장면 %s: %d/%d (%.1f%%)" % [id, int(stats["scene_breaks"].get(id, 0)), int(stats["scene_shown"][id]),
+			100.0 * int(stats["scene_breaks"].get(id, 0)) / maxi(int(stats["scene_shown"][id]), 1)])
 	print("(2b 미구현) 호출 %d회 · (3단계 미구현) %d회 · (4단계 미구현) %d회" % [stats["stub"], stats["stub3"], stats["stub4"]])
 	if int(stats["stub"]) > 0:
 		_fail("1막 플레이에서 (2b 미구현) 효과가 %d번 불림" % stats["stub"])
+	if int(stats["stub3"]) > 0 or int(stats["stub4"]) > 0:
+		_fail("미구현 효과가 호출됨")
 	for m in messages.slice(0, 20):
 		print("FAIL: ", m)
 	print("v2 엔진 시험: 실패 %d건" % failures)
@@ -100,7 +119,8 @@ func _mk(chars: Array, seed_value: int, traitor_idx: int) -> RulesV2:
 	## traitor_idx >= 0: 처음부터 2막(act 2)이고 그 요원이 변절자인 판 (변절자의 하루 규칙을 봇으로 시험)
 	var g := RulesV2.new_game(chars, seed_value)
 	if traitor_idx >= 0:
-		g.act = 2
+		g.launch_info = {"target": GameDataV2.BASE_IDS[0], "reason": "test", "day": g.day}
+		g._begin_act2()
 		g.players[traitor_idx]["traitor"] = true
 		g.traitor_id = traitor_idx
 	return g
@@ -121,6 +141,8 @@ func _play(idx: int, chars: Array, seed_value: int, bot: RandomNumberGenerator, 
 			stats["saga_dealt"][id] = int(stats["saga_dealt"].get(id, 0)) + 1
 		stats["saga_players"] += 1
 	var turn_seen := {}
+	var shown := {}
+	var broken := {}
 	var steps := 0
 	var cut := 40 + (idx * 53) % 400
 	var clone: RulesV2 = null
@@ -153,6 +175,10 @@ func _play(idx: int, chars: Array, seed_value: int, bot: RandomNumberGenerator, 
 		steps += 1
 		_check_invariants(g, tag, turn_seen)
 		for e in g.events:
+			if e["kind"] == "scene":
+				shown[e["id"]] = true
+			elif e["kind"] == "scene_break":
+				broken[e["id"]] = true
 			if e["kind"] == "mission_done":
 				var t: String = data.mission(e["id"]).get("type", "?")
 				stats["missions"][t] = int(stats["missions"].get(t, 0)) + 1
@@ -171,18 +197,30 @@ func _play(idx: int, chars: Array, seed_value: int, bot: RandomNumberGenerator, 
 			clone.events.clear()
 	# 끝남
 	var end_id: String = g.ending.get("id", "")
-	if not end_id in ["launch_stub", "time"]:
+	if not end_id in ["victory", "fail_final", "fail_middle", "history"]:
 		_fail("%s: 알 수 없는 결말 '%s'" % [tag, end_id])
-	if end_id == "launch_stub":
+	stats["endings"][end_id] = int(stats["endings"].get(end_id, 0)) + 1
+	if g.act == 2:
 		stats["launched"] += 1
 		stats["days"] += int(g.launch_info.get("day", 0))
 		if g.launch_info.get("reason", "") == "forced":
 			stats["forced"] += 1
 		else:
 			stats["vote"] += 1
+		stats["act2_days"] += g.day - int(g.launch_info.get("day", g.day)) + 1
+		var target := str(g.launch_info.get("target", ""))
+		stats["target_games"][target] = int(stats["target_games"].get(target, 0)) + 1
+		stats["target_breaks"][target] = int(stats["target_breaks"].get(target, 0)) + broken.size()
+	for id in shown:
+		stats["scene_shown"][id] = int(stats["scene_shown"].get(id, 0)) + 1
+	for id in broken:
+		stats["scene_breaks"][id] = int(stats["scene_breaks"].get(id, 0)) + 1
 	stats["actions"] += steps
 	if g.traitor_id >= 0:
 		stats["traitors"] += 1
+		stats["traitor_games"] += 1
+		if g.ending.get("traitor_won", false):
+			stats["traitor_wins"] += 1
 	for q in g.players:
 		stats["jailed"] += int(q["stats"]["jailed"])
 		stats["escapes"] += int(q["stats"]["escapes"])
@@ -190,7 +228,7 @@ func _play(idx: int, chars: Array, seed_value: int, bot: RandomNumberGenerator, 
 			stats["saga_done"] += 1
 			stats["saga_hit"][q["saga_done"]] = int(stats["saga_hit"].get(q["saga_done"], 0)) + 1
 		# 끝났을 때 (이룬 사람을 뺀) 모두가 사연을 하나씩 품고 있어야 한다
-		if end_id == "launch_stub" and q["saga_done"] == "" and not q["traitor"] and q["sagas"].size() > 1:
+		if tr_idx < 0 and g.act == 2 and q["saga_done"] == "" and not q["traitor"] and q["sagas"].size() > 1:
 			_fail("%s: 결행이 끝났는데 요원 %s가 사연을 %d장 들고 있음" % [tag, q["name"], q["sagas"].size()])
 	for l in g.log_lines:
 		if str(l).begins_with("(2b 미구현)") or str(l).begins_with("(알 수 없는 효과)"):
@@ -287,12 +325,23 @@ func _check_invariants(g: RulesV2, tag: String, turn_seen: Dictionary) -> void:
 	var owners := {}
 	for i in g.team_dice.size():
 		var o: int = g.team_dice[i]["owner"]
-		if o >= 0:
+		if o >= 0 and not g.team_dice[i].get("carry", false):
 			if owners.has(o):
 				_fail("%s: 요원 %d이 주사위를 둘 이상 가짐" % [tag, o])
 			owners[o] = i
 			if g.players[o]["die_raw"] != g.team_dice[i]["value"]:
 				_fail("%s: 요원 %d의 주사위 값이 어긋남" % [tag, o])
+	if g.act == 2:
+		if g.scene_index < 0 or g.scene_index >= g.scenes.size():
+			_fail("%s: 장면 번호가 범위를 벗어남" % tag)
+		if g.intel_tokens < 0:
+			_fail("%s: 첩보 토큰이 음수" % tag)
+		if g.phase == "morning" and g.team_dice.any(func(d): return d.get("carry", false)):
+			_fail("%s: 밤이 지났는데 맡은 주사위가 남음" % tag)
+		for part in [g.scene_state] + g.scene_state.get("parts", {}).values():
+			for key in ["pair_ok", "people"]:
+				if g.traitor_id in part.get(key, []):
+					_fail("%s: 변절자가 장면 기록에 들어감" % tag)
 	# 경찰 ≤ 말 수, 미션 줄 ≤ 3, 손패 ≤ 한도
 	if g.police.size() > int(R["police"]["pieces"]):
 		_fail("%s: 경찰 %d개" % [tag, g.police.size()])

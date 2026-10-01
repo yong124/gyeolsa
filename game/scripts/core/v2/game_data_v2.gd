@@ -52,6 +52,7 @@ var missions: Dictionary
 var events: Dictionary
 var items: Dictionary
 var scenes: Dictionary
+var endings: Dictionary
 var sagas: Dictionary
 var characters: Dictionary
 
@@ -93,6 +94,7 @@ func load_dir(dir: String) -> void:
 	events = _read("events.json")
 	items = _read("items.json")
 	scenes = _read("scenes.json")
+	endings = _read("endings.json")
 	sagas = _read("sagas.json")
 	characters = _read("characters.json")
 	_load_board()
@@ -183,9 +185,10 @@ func validate() -> Array[String]:
 	_validate_events(errs)
 	_validate_items(errs)
 	_validate_scenes(errs)
+	_validate_endings(errs)
 	_validate_sagas(errs)
 	_validate_characters(errs)
-	for name in ["rules", "threats", "interrogation", "missions", "events", "items", "scenes", "sagas", "characters"]:
+	for name in ["rules", "threats", "interrogation", "missions", "events", "items", "scenes", "endings", "sagas", "characters"]:
 		_collect_todos(get(name), name)
 	return errs
 
@@ -311,6 +314,21 @@ func _validate_scenes(errs: Array[String]) -> void:
 		_check_count(errs, "경비 강화", reinforce.size(), 4, true)
 		for c in reinforce:
 			_check_scene_card(errs, "경비 강화", c, seen)
+
+
+func _validate_endings(errs: Array[String]) -> void:
+	var strikes: Dictionary = endings.get("strikes", {})
+	for id in BASE_IDS:
+		var entry: Dictionary = strikes.get(id, {})
+		for key in ["name", "ending"]:
+			if str(entry.get(key, "")).strip_edges() == "":
+				errs.append("엔딩 %s: %s이 비었습니다." % [id, key])
+	for id in ["victory", "fail_final", "operation", "history", "traitor_won"]:
+		var entry: Dictionary = endings.get(id, {})
+		var keys := ["text"] if id == "traitor_won" else ["name"] if id == "victory" else ["name", "text"]
+		for key in keys:
+			if str(entry.get(key, "")).strip_edges() == "":
+				errs.append("엔딩 %s: %s이 비었습니다." % [id, key])
 
 
 func _check_scene_card(errs: Array[String], group: String, c: Dictionary, seen: Dictionary) -> void:

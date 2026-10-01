@@ -1,6 +1,6 @@
 class_name RulesV2
 extends RefCounted
-## 「결사 / 광복 IF」 v2 규칙 엔진 (2단계 a: 하루 흐름 · 팀 주사위 · 지도 · 경찰 · 공개 미션).
+## 「결사 / 광복 IF」 v2 규칙 엔진.
 ##
 ## - 수치·카드·캐릭터는 전부 GameDataV2(data/v2/*.json)에서 읽는다. 카드 id나 캐릭터 id를 코드에 쓰지 않는다.
 ##   카드 효과는 `op`, 캐릭터·아이템 특성은 `stat` 이름, 미션은 `types[...].condition.kind`로 움직인다.
@@ -12,6 +12,8 @@ extends RefCounted
 ## 액션
 ##   {"type": "take_die", "player", "die": 인덱스}       (plan) 팀 주사위를 내 이동 주사위로
 ##   {"type": "release_die", "player"}                    (plan) 가진 주사위를 내려놓음
+##   {"type": "carry_die", "player", "die": 인덱스}      (2막 plan) 장면에 바칠 주사위를 맡음
+##   {"type": "drop_carry", "player", "die": 인덱스}     (2막 plan) 맡은 주사위를 내려놓음
 ##   {"type": "start_day", "player"}                      (plan) 하루 시작 (감옥 밖 요원 모두 주사위를 가졌을 때)
 ##   {"type": "begin_turn", "player"}                     (day) 내 차례를 시작 (자유 순서)
 ##   {"type": "step", "player", "to": Vector2i}           (turn) 한 칸 이동
@@ -25,6 +27,9 @@ extends RefCounted
 ##   {"type": "use_spare", "player", "die", "use": "move"|"escape"|"reroll"|"persuade", "target"?}  예비 주사위
 ##                                                         (persuade는 같은 칸 동료의 심문 카드를 떼어 냄, target 필수)
 ##   {"type": "inform", "player", "target"}               (turn, 변절자) 가까운 요원에게 경찰을 붙임 (밀고)
+##   {"type": "scene_check", "player"}                     (2막 turn) 장면 판정
+##   {"type": "scene_pay", "player", "what", "die"?, "index"?}  (2막 turn) 장면에 바침
+##   {"type": "use_intel", "player", "mode": "check"|"dice"}  (2막 turn) 첩보 토큰 사용
 ##   {"type": "choose", "player", "value"}                (choice) 선택지 응답
 ##
 ## 선택(choice)의 종류에는 saga_keep(결행 순간에 남길 사연, 비밀), persuade_look(다방 밀담, 비밀)도 있다.
@@ -33,8 +38,6 @@ extends RefCounted
 
 const DIRS: Array[Vector2i] = [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]
 
-## 1막 효과 op는 모두 이 엔진이 처리한다. 아래는 아직 안 만든 단계(4단계)의 효과 (로그만 남기는 훅).
-const OPS_STAGE4 := ["search", "scene_check_mod_today", "threat_flip", "check_or_jail", "refill_supply"]
 ## 선택 응답을 효과의 인자로 되돌려 주는 pending 종류 (pending["key"]가 인자 이름)
 const PICK_KINDS := ["pick_player", "pick_cell", "pick_die", "pick_tile", "pick_item", "pick_value", "pick_bury"]
 
@@ -75,6 +78,12 @@ var today := {}
 var pending := {}
 var launch_info := {}
 var ending := {}
+var scenes: Array = []
+var scene_index := 0
+var scene_state := {}
+var intel_tokens := 0
+var search_queue: Array = []
+var effect_wait: Array = []
 var check := {}                 # 지금 진행 중인 판정
 var morning_step := 0
 var last_roll: Array = []
@@ -181,6 +190,12 @@ func setup(player_defs: Array, seed_value: int = -1, game_data: GameDataV2 = nul
 	pending = {}
 	launch_info = {}
 	ending = {}
+	scenes = []
+	scene_index = 0
+	scene_state = {}
+	intel_tokens = 0
+	search_queue = []
+	effect_wait = []
 	check = {}
 	last_roll = []
 	actions.clear()
@@ -314,14 +329,14 @@ func spare_dice() -> Array:
 	if not phase in ["day", "turn", "choice"]:
 		return out
 	for i in team_dice.size():
-		if team_dice[i]["owner"] == -1 and not team_dice[i]["spare_used"]:
+		if team_dice[i]["owner"] == -1 and not team_dice[i]["spare_used"] and not team_dice[i].get("carry", false):
 			out.append(i)
 	return out
 
 
 func die_index_of(pid: int) -> int:
 	for i in team_dice.size():
-		if team_dice[i]["owner"] == pid:
+		if team_dice[i]["owner"] == pid and not team_dice[i].get("carry", false):
 			return i
 	return -1
 
@@ -669,6 +684,16 @@ func can_take_die(p: Dictionary, i: int) -> bool:
 	return team_dice[i]["owner"] == -1
 
 
+func can_carry_die(p: Dictionary, i: int) -> bool:
+	return act == 2 and phase == "plan" and not p["traitor"] and i >= 0 and i < team_dice.size() \
+		and team_dice[i]["owner"] == -1
+
+
+func can_drop_carry(p: Dictionary, i: int) -> bool:
+	return act == 2 and phase == "plan" and i >= 0 and i < team_dice.size() \
+		and team_dice[i]["owner"] == p["id"] and team_dice[i].get("carry", false)
+
+
 func can_release_die(p: Dictionary) -> bool:
 	return phase == "plan" and die_index_of(p["id"]) >= 0
 
@@ -704,7 +729,7 @@ func can_end_turn(p: Dictionary) -> bool:
 
 
 func can_escape(p: Dictionary) -> bool:
-	return phase == "turn" and p["id"] == current and p["jailed"]
+	return phase == "turn" and p["id"] == current and p["jailed"] and not p["flags"].get("scene_tried", false)
 
 
 func can_use_item(p: Dictionary, index: int) -> bool:
@@ -878,6 +903,10 @@ func legal_actions() -> Array:
 				for i in team_dice.size():
 					if can_take_die(p, i):
 						out.append({"type": "take_die", "player": p["id"], "die": i})
+					if can_carry_die(p, i):
+						out.append({"type": "carry_die", "player": p["id"], "die": i})
+					if can_drop_carry(p, i):
+						out.append({"type": "drop_carry", "player": p["id"], "die": i})
 				if can_release_die(p):
 					out.append({"type": "release_die", "player": p["id"]})
 				for ii in p["items"].size():
@@ -885,7 +914,8 @@ func legal_actions() -> Array:
 						out.append({"type": "use_item", "player": p["id"], "index": ii})
 				_append_ability_actions(out, p)
 			if can_start_day():
-				out.append({"type": "start_day", "player": 0})
+				for p in players:
+					out.append({"type": "start_day", "player": p["id"]})
 		"day":
 			for p in players:
 				if can_begin_turn(p):
@@ -916,6 +946,7 @@ func legal_actions() -> Array:
 					out.append({"type": "use_spare", "player": current, "die": i, "use": "persuade", "target": t})
 			for t in inform_targets(p):
 				out.append({"type": "inform", "player": current, "target": t})
+			out.append_array(scene_options(p))
 	return out
 
 
@@ -930,6 +961,8 @@ func _append_ability_actions(out: Array, p: Dictionary) -> void:
 # ================================================================ 액션 처리
 
 func apply(action: Dictionary) -> bool:
+	if not action in legal_actions():
+		return false
 	var ok := _apply(action)
 	if ok:
 		actions.append(action.duplicate(true))
@@ -958,6 +991,20 @@ func _apply(a: Dictionary) -> bool:
 			if not can_release_die(p):
 				return false
 			_release_die(p)
+		"carry_die":
+			var i := _int_of(a.get("die", null))
+			if not can_carry_die(p, i):
+				return false
+			team_dice[i]["owner"] = pid
+			team_dice[i]["carry"] = true
+			_push({"kind": "die_carried", "player": pid, "die": i})
+		"drop_carry":
+			var i := _int_of(a.get("die", null))
+			if not can_drop_carry(p, i):
+				return false
+			team_dice[i]["owner"] = -1
+			team_dice[i]["carry"] = false
+			_push({"kind": "die_dropped", "player": pid, "die": i})
 		"start_day":
 			if not can_start_day():
 				return false
@@ -1025,6 +1072,21 @@ func _apply(a: Dictionary) -> bool:
 			if not it in inform_targets(p):
 				return false
 			_inform(p, players[it])
+		"scene_check":
+			if not _scene_can_check(p):
+				return false
+			_scene_check(p)
+		"scene_pay":
+			var what := str(a.get("what", ""))
+			var index := _int_of(a.get("die", null)) if what == "die" else _int_of(a.get("index", null))
+			if not _scene_can_pay(p, what, index):
+				return false
+			_scene_pay(p, what, index)
+		"use_intel":
+			var mode := str(a.get("mode", ""))
+			if not _scene_can_intel(p, mode):
+				return false
+			_scene_use_intel(p, mode)
 		_:
 			return false
 	return true
@@ -1061,18 +1123,27 @@ func _morning_continue() -> void:
 		morning_step += 1
 		match s:
 			1: _morning_threat()
-			2: _morning_vote()
+			2:
+				if act == 1:
+					_morning_vote()
 			3: _morning_traitor_check()
-			4: _fill_mission_row()
+			4:
+				if act == 1:
+					_fill_mission_row()
 			5: _morning_dice()
 
 
 func _morning_threat() -> void:
+	_flip_threat({"then": "morning", "source": "threat"})
+
+
+func _flip_threat(ctx: Dictionary) -> void:
 	if threat_deck.is_empty():
 		threat_deck = threat_discard
 		threat_discard = []
 		_shuffle(threat_deck)
 	if threat_deck.is_empty():
+		_continue(players[leader], ctx)
 		return
 	var id: String = threat_deck.pop_back()
 	threat_discard.append(id)
@@ -1082,7 +1153,7 @@ func _morning_threat() -> void:
 	_record("위협: %s" % card.get("name", id), "warn")
 	_push({"kind": "card", "deck": "threat", "id": id, "player": -1})
 	_push({"kind": "threat", "id": id})
-	_run_effects(players[leader], card.get("effects", []), {"then": "morning", "source": "threat"})
+	_run_effects(players[leader], card.get("effects", []), ctx)
 
 
 func _morning_vote() -> void:
@@ -1148,12 +1219,14 @@ func _roll_die() -> int:
 
 func _morning_dice() -> void:
 	var n: int = players.size() + int(data.rules["team_dice_extra"]) + dice_extra_tomorrow
+	if act == 2:
+		n += int(data.rules["scenes"].get("act2_dice_extra", 0))
 	dice_extra_tomorrow = 0
 	team_dice = []
 	var vals := []
 	for i in n:
 		var v := _roll_die()
-		team_dice.append({"value": v, "owner": -1, "spare_used": false})
+		team_dice.append({"value": v, "owner": -1, "spare_used": false, "carry": false})
 		vals.append(v)
 	if dice_reroll_tomorrow:
 		dice_reroll_tomorrow = false
@@ -1221,6 +1294,8 @@ func _begin_turn(p: Dictionary) -> void:
 	p["flags"]["decoys"] = 0
 	p["flags"]["informs"] = 0
 	p["flags"]["escape_add"] = 0
+	p["flags"].erase("scene_tried")
+	p["flags"].erase("intel_check")
 	_push({"kind": "turn", "player": p["id"]})
 	if p["jailed"]:
 		steps_left = 0
@@ -1239,6 +1314,10 @@ func _finish_turn(p: Dictionary) -> void:
 	if phase == "over":
 		return
 	p["done_today"] = true
+	if act == 2 and not p["jailed"] and not p["traitor"]:
+		_scene_turn_end(p)
+		if phase == "over":
+			return
 	p["flags"]["escape_add"] = 0
 	p["flags"].erase("entry_no_police")     # 한 차례 안에만 쓰는 권리
 	p["flags"]["checkpoint_pass"] = 0
@@ -1272,21 +1351,20 @@ func _night() -> void:
 func _night_end() -> void:
 	if _saga_flush({"then": "night_end"}):
 		return
+	if act == 2:
+		_scene_night()
+		if phase == "over":
+			return
+		for d in team_dice:
+			if d.get("carry", false):
+				d["carry"] = false
+				d["owner"] = -1
 	rounds_left -= 1
 	if rounds_left <= 0:
 		rounds_left = 0
-		_game_over("time")
+		_end_game(false)
 		return
 	_begin_morning(false)
-
-
-func _game_over(reason: String) -> void:
-	phase = "over"
-	pending = {}
-	ending = {"id": reason, "reason": reason}
-	_record("작전 종료 (%s)" % reason, "info")
-	_log("작전 종료 (%s)." % reason)
-	_push({"kind": "over"})
 
 
 # ================================================================ 이동
@@ -1375,7 +1453,9 @@ func _enter_base(p: Dictionary) -> void:
 func _base_finish(p: Dictionary, _ctx: Dictionary) -> void:
 	if phase == "over":
 		return
-	if flag(p, "base_no_police"):
+	if act == 2 and p["pos"] == _base_cell(str(launch_info.get("target", ""))):
+		_log("%s: 결행 거점에서는 경찰이 붙지 않았습니다." % p["name"])
+	elif flag(p, "base_no_police"):
 		_log("%s: 경찰이 오지 않았습니다." % p["name"])
 	elif p["flags"].get("entry_no_police", false):
 		p["flags"].erase("entry_no_police")
@@ -1502,8 +1582,9 @@ func _post_move(p: Dictionary) -> void:
 
 func _start_check(p: Dictionary, name: String, ctx: String, extra: Dictionary = {}) -> void:
 	## name: rules.checks의 판정 이름. 보정은 stat "<name>_bonus" (+ 미션 종류별 보정)
-	var target: int = int(extra.get("target", check_target(name)))
+	var target: int = int(extra["target"]) if extra.has("target") else check_target(name)
 	var bonus: int = stat(p, name + "_bonus")
+	bonus += int(extra.get("intel_bonus", 0))
 	if extra.has("type_bonus") and str(extra["type_bonus"]) != name:
 		bonus += stat(p, str(extra["type_bonus"]) + "_bonus")
 	if name == "escape":
@@ -1513,7 +1594,7 @@ func _start_check(p: Dictionary, name: String, ctx: String, extra: Dictionary = 
 	for k in extra:
 		check[k] = extra[k]
 	# 한 번 쓰는 권리: 판정 보정 (이번 판정에 자동으로 더함)
-	var gi := _grant_index(p, "check_bonus")
+	var gi := _grant_index(p, "check_bonus", ctx == "scene")
 	if gi >= 0:
 		check["bonus"] += int(p["grants"][gi].get("value", 0))
 		p["grants"].remove_at(gi)
@@ -1593,7 +1674,7 @@ func _check_roll(p: Dictionary) -> void:
 		_check_roll(p)
 		return
 	var spares := spare_dice()
-	var gi := _grant_index(p, "reroll")
+	var gi := _grant_index(p, "reroll", str(c.get("ctx", "")) == "scene")
 	if spares.is_empty() and gi < 0:
 		_check_done(p, false)
 		return
@@ -1636,6 +1717,16 @@ func _check_done(p: Dictionary, ok: bool) -> void:
 			_resolve_stop(p)
 		"ambush":
 			_ambush_result(p, c, ok)
+		"scene":
+			_scene_check_result(p, c, ok)
+		"search":
+			if not ok:
+				_summon(p)
+			_search_next()
+		"check_or_jail":
+			if not ok:
+				_jail(p)
+			_stage4_resume()
 		"escape":
 			p["flags"]["escape_add"] = 0
 			if ok:
@@ -1914,6 +2005,8 @@ func _jail(p: Dictionary) -> void:
 	_push({"kind": "jail", "player": p["id"], "from": from, "to": best})
 	_expose(int(data.rules["exposure"]["on_jail"]))
 	_on_jailed(p)
+	if act == 2 and phase != "over":
+		_scene_auto_break()
 
 
 func _on_jailed(p: Dictionary) -> void:
@@ -2103,6 +2196,21 @@ func _run_effects(p: Dictionary, effects: Array, ctx: Dictionary) -> void:
 		if phase == "over":
 			return
 		var e: Dictionary = queue.pop_front()
+		if str(e.get("op", "")) in ["search", "check_or_jail", "threat_flip"]:
+			effect_wait.append({"player": p["id"], "rest": queue, "ctx": ctx})
+			match str(e["op"]):
+				"search":
+					search_queue = []
+					var base := _base_cell(str(launch_info.get("target", "")))
+					for q in players:
+						if not q["jailed"] and not q["traitor"] and _manhattan(q["pos"], base) <= int(e.get("range", 0)):
+							search_queue.append(q["id"])
+					_search_next()
+				"check_or_jail":
+					_start_check(p, str(e.get("check", "evade")), "check_or_jail")
+				"threat_flip":
+					_flip_threat({"then": "stage4_effect"})
+			return
 		if _effect(p, e, ctx, queue):
 			pending["rest"] = queue
 			pending["ctx"] = ctx
@@ -2132,6 +2240,10 @@ func _continue(p: Dictionary, ctx: Dictionary) -> void:
 				_continue(p, nxt)
 		"launch":
 			_launch_continue()
+		"stage4_effect":
+			_stage4_resume()
+		"scene_check_done":
+			_finish_scene_check(p)
 		_:
 			pass   # "resume": 원래 단계로 돌아가 계속 진행
 
@@ -2179,8 +2291,12 @@ func _effect(p: Dictionary, e: Dictionary, ctx: Dictionary, queue: Array) -> boo
 			return _op_persuade(p, e, ctx, queue)
 		"interrogate_discard":
 			return _op_interrogate_discard(p, e, ctx, queue)
-		"search", "scene_check_mod_today", "threat_flip", "check_or_jail", "refill_supply":
-			_op_stub_stage4(op)
+		"scene_check_mod_today":
+			today["scene_mod"] = int(today.get("scene_mod", 0)) + int(e.get("value", 0))
+			_log("오늘 장면 판정 목표 %+d." % int(e.get("value", 0)))
+		"refill_supply":
+			bomb_supply = int(data.rules["bomb_supply"])
+			_log("폭탄 보급을 다시 채웠습니다.")
 		"police_advance":
 			_op_police_advance(e)
 		"police_remove":
@@ -2247,11 +2363,6 @@ func _effect(p: Dictionary, e: Dictionary, ctx: Dictionary, queue: Array) -> boo
 	return false
 
 
-func _op_stub_stage4(op: String) -> void:
-	## 4단계(2막 장면)에서 구현할 효과
-	_log("(4단계 미구현) %s" % op)
-
-
 func _cond_holds(p: Dictionary, cond: String) -> bool:
 	match cond:
 		"chased":
@@ -2285,7 +2396,7 @@ func _op_police_dispatch(_p: Dictionary, e: Dictionary) -> void:
 		else:
 			bi = data.base_index(from)
 		if bi < 0:
-			_log("(4단계 미구현) police_dispatch from=%s (결행 거점 없음)" % from)
+			_log("경찰 출동 거점을 찾지 못했습니다: %s" % from)
 			return
 		used.append(bi)
 		_dispatch_from(bi)
@@ -2762,7 +2873,7 @@ func _die_options(include_values := false) -> Array:
 func _set_die_value(i: int, v: int) -> void:
 	team_dice[i]["value"] = v
 	var o: int = team_dice[i]["owner"]
-	if o >= 0:
+	if o >= 0 and not team_dice[i].get("carry", false):
 		players[o]["die_raw"] = v
 		players[o]["die"] = _effective_die(players[o], v)
 
@@ -3046,7 +3157,7 @@ func _resolve_choice(value) -> void:
 			_ambush(players[int(pd["traitor"])], players[int(value)])
 		"reroll":
 			if str(value) == "grant":
-				var gi := _grant_index(players[check["player"]], "reroll")
+				var gi := _grant_index(players[check["player"]], "reroll", str(check.get("ctx", "")) == "scene")
 				if gi >= 0:
 					players[check["player"]]["grants"].remove_at(gi)
 				_log("%s: 다시 굴릴 권리를 씁니다." % p["name"])
@@ -3127,7 +3238,7 @@ func _launch(reason: String) -> void:
 
 
 func _finish_launch(base_id: String) -> void:
-	## 목표가 정해졌다. 판을 끝내기(_launch_end) 전에 결행 순간의 사연 처리와 변절 확인을 한다 (_launch_continue).
+	## 목표가 정해지면 결행 순간의 사연 처리와 변절 확인을 먼저 한다.
 	launch_info["target"] = base_id
 	launch_step = 1
 	launch_i = 0
@@ -3721,7 +3832,7 @@ func _op_persuade(p: Dictionary, e: Dictionary, ctx: Dictionary, queue: Array) -
 # ---------------------------------------------------------------- 결행 순간 (4절)
 
 func _launch_continue() -> void:
-	## 결행 순간의 순서: 결행 때 세는 조건 → 사연 남기기 → 변절 확인 → 판 끝. 선택이 끼면 멈췄다 이어 간다.
+	## 결행 순간의 순서: 결행 때 세는 조건 → 사연 남기기 → 변절 확인 → 2막. 선택이 끼면 멈췄다 이어 간다.
 	while launch_step < 4 and phase != "over":
 		match launch_step:
 			1:
@@ -3738,7 +3849,7 @@ func _launch_continue() -> void:
 				launch_step = 4
 				_traitor_check("launch")
 	if launch_step >= 4 and phase != "over":
-		_launch_end()
+		_begin_act2()
 
 
 func saga_feasible(p: Dictionary, id: String) -> bool:
@@ -3823,18 +3934,44 @@ func _redraw_feasible_saga(q: Dictionary) -> void:
 	_log("%s: 품을 사연이 남지 않았습니다." % q["name"])
 
 
-func _launch_end() -> void:
-	## 4단계에서 2막으로 이어짐: 지금은 여기서 판을 끝낸다.
+func _begin_act2() -> void:
 	act = 2
-	phase = "over"
-	pending = {}
-	current = -1
-	ending = {"id": "launch_stub", "target": launch_info.get("target", ""), "reason": launch_info.get("reason", ""),
-		"traitor": traitor_id}
-	_log("결행! 목표: %s" % base_name(data.base_index(str(launch_info.get("target", "")))))
+	var target := str(launch_info["target"])
+	threat_deck = data.threat_deck(2)
+	threat_discard = []
+	_shuffle(threat_deck)
+	var priority := []
+	for id in threat_deck:
+		if data.threat(id).get("deck_place", "") == "top_half":
+			priority.append(id)
+	for id in priority:
+		threat_deck.erase(id)
+		var lower := (threat_deck.size() + priority.size()) / 2
+		threat_deck.insert(rng.randi_range(lower, threat_deck.size()), id)
+	mission_row = []
+	mission_deck = []
+	mission_discard = []
+	intel_tokens = int(intel.get(target, 0))
+	var strike: Dictionary = data.strike(target)
+	var middle: Array = strike.get("middle", []).duplicate()
+	_shuffle(middle)
+	scenes = [strike["entry"]["id"]]
+	for i in mini(int(data.rules["scenes"]["middle_draw"]), middle.size()):
+		scenes.append(middle[i]["id"])
+	var reinforce: Array = data.scenes.get("reinforce", []).duplicate()
+	_shuffle(reinforce)
+	var n := int(data.rules["scenes"]["reinforce_by_alert"].get(str(alert_level()), 0))
+	for i in mini(n, reinforce.size()):
+		scenes.insert(rng.randi_range(1, scenes.size()), reinforce[i]["id"])
+	scenes.append(strike["final"]["id"])
+	scene_index = 0
+	scene_state = {}
+	_log("결행! 목표: %s" % base_name(data.base_index(target)))
+	_record("결행: %s" % base_name(data.base_index(target)), "good")
 	_banner("결행!", "good")
-	_push({"kind": "launch", "reason": launch_info.get("reason", ""), "target": launch_info.get("target", "")})
-	_push({"kind": "over"})
+	_push({"kind": "launch", "reason": launch_info.get("reason", ""), "target": target})
+	_scene_reveal()
+	_run_effects(players[leader], strike.get("on_launch", []), {"then": "morning", "source": "launch"})
 
 
 # ---------------------------------------------------------------- 변절 (5절)
@@ -3931,13 +4068,421 @@ func _inform(p: Dictionary, q: Dictionary) -> void:
 	_summon(q)
 
 
+# ================================================================ 2막 장면 · 엔딩
+
+func _scene_card(id: String) -> Dictionary:
+	var strike: Dictionary = data.strike(str(launch_info.get("target", "")))
+	for card in [strike.get("entry", {}), strike.get("final", {})] + strike.get("middle", []) + data.scenes.get("reinforce", []):
+		if card.get("id", "") == id:
+			return card
+	return {}
+
+
+func current_scene() -> Dictionary:
+	if act != 2 or scene_index >= scenes.size():
+		return {}
+	var card := _scene_card(str(scenes[scene_index])).duplicate(true)
+	card["index"] = scene_index
+	card["total"] = scenes.size()
+	card["state"] = scene_state.duplicate(true)
+	return card
+
+
+func _scene_where(cond: Dictionary) -> String:
+	return str(cond.get("where", current_scene().get("where", "inside")))
+
+
+func _scene_at(p: Dictionary, cond: Dictionary, jailed_check := false) -> bool:
+	if p["traitor"]:
+		return false
+	var base := _base_cell(str(launch_info.get("target", "")))
+	if p["jailed"]:
+		return jailed_check and p["pos"] == base
+	var d := _manhattan(p["pos"], base)
+	var where := _scene_where(cond)
+	if where in GameDataV2.BASE_IDS:
+		return d == 0
+	match where:
+		"inside": return d == 0
+		"adjacent": return d == 1
+		"inside_or_adjacent": return d <= 1
+	return false
+
+
+func scene_place_cells() -> Array:
+	var out := []
+	if current_scene().is_empty():
+		return out
+	for y in data.size:
+		for x in data.size:
+			var cell := Vector2i(x, y)
+			var probe := {"pos": cell, "jailed": false, "traitor": false}
+			if _scene_at(probe, {}):
+				out.append(cell)
+	return out
+
+
+func _scene_leaves(cond: Dictionary, path := "") -> Array:
+	var out := []
+	if str(cond.get("kind", "")) in ["any_of", "all_of"]:
+		for i in cond.get("options", []).size():
+			out.append_array(_scene_leaves(cond["options"][i], "%s/%d" % [path, i]))
+	else:
+		out.append({"cond": cond, "path": path})
+	return out
+
+
+func _scene_part(path: String) -> Dictionary:
+	if path == "":
+		if not scene_state.has("paid_dice"):
+			scene_state.merge({"paid_dice": 0, "paid_items": 0, "paid_bombs": 0,
+				"hold_days": 0, "pair_ok": [], "people": [], "dice_reduce": 0, "done": false})
+		return scene_state
+	if not scene_state.has("parts"):
+		scene_state["parts"] = {}
+	if not scene_state["parts"].has(path):
+		scene_state["parts"][path] = {"paid_dice": 0, "paid_items": 0, "paid_bombs": 0,
+			"hold_days": 0, "pair_ok": [], "people": [], "dice_reduce": 0, "done": false}
+	return scene_state["parts"][path]
+
+
+func _scene_part_read(path: String) -> Dictionary:
+	return scene_state if path == "" else scene_state.get("parts", {}).get(path, {})
+
+
+func _scene_complete(cond: Dictionary, path := "") -> bool:
+	var kind := str(cond.get("kind", ""))
+	if kind in ["any_of", "all_of"]:
+		var options: Array = cond.get("options", [])
+		if options.is_empty():
+			return false
+		for i in options.size():
+			var done := _scene_complete(options[i], "%s/%d" % [path, i])
+			if kind == "any_of" and done:
+				return true
+			if kind == "all_of" and not done:
+				return false
+		return kind == "all_of"
+	var state := _scene_part_read(path)
+	match kind:
+		"check": return bool(state.get("done", false))
+		"check_pair": return state.get("pair_ok", []).size() >= int(cond.get("count", 1))
+		"dice": return int(state.get("paid_dice", 0)) >= maxi(0, int(cond.get("sum", 0)) - int(state.get("dice_reduce", 0)))
+		"pay_item": return int(state.get("paid_items", 0)) >= int(cond.get("count", 1))
+		"pay_bomb": return int(state.get("paid_bombs", 0)) >= int(cond.get("count", 1))
+		"people": return state.get("people", []).size() >= int(cond.get("count", 1))
+		"hold": return int(state.get("hold_days", 0)) >= int(cond.get("days", 1))
+		"jailed_here":
+			var base := _base_cell(str(launch_info.get("target", "")))
+			for q in players:
+				if q["jailed"] and not q["traitor"] and q["pos"] == base:
+					return true
+	return false
+
+
+func _scene_reveal() -> void:
+	var card := current_scene()
+	_push({"kind": "scene", "index": scene_index, "id": card["id"]})
+	_log("장면 %d/%d: %s" % [scene_index + 1, scenes.size(), card["name"]])
+	_banner("장면: %s" % card["name"], "info")
+	_scene_auto_break()
+
+
+func _scene_auto_break() -> void:
+	var guard := scenes.size()
+	while phase != "over" and act == 2 and scene_index < scenes.size() and guard > 0:
+		guard -= 1
+		if not _scene_complete(current_scene().get("condition", {})):
+			break
+		_scene_break(-1)
+
+
+func _scene_break(by_pid: int) -> void:
+	var card := current_scene()
+	var id := str(card["id"])
+	_push({"kind": "scene_break", "index": scene_index, "id": id, "player": by_pid})
+	_banner("%s 돌파!" % card["name"], "good")
+	_record("장면 돌파: %s" % card["name"], "good")
+	_log("장면 돌파: %s" % card["name"])
+	var kind := "entry" if scene_index == 0 else "final" if scene_index == scenes.size() - 1 else "middle"
+	var present := []
+	var base := _base_cell(str(launch_info.get("target", "")))
+	for q in players:
+		if not q["jailed"] and not q["traitor"] and q["pos"] == base:
+			present.append(q["id"])
+	saga_strike_event(kind, by_pid, {"strike": launch_info["target"], "present": present})
+	if kind == "final":
+		_end_game(true)
+		return
+	scene_index += 1
+	scene_state = {}
+	_scene_reveal()
+
+
+func _scene_check_leaf(p: Dictionary) -> Dictionary:
+	if act != 2 or phase != "turn" or current != p["id"] or p["traitor"] or p["flags"].get("scene_tried", false):
+		return {}
+	for leaf in _scene_leaves(current_scene().get("condition", {})):
+		if str(leaf["cond"].get("kind", "")) in ["check", "check_pair"] and not _scene_complete(leaf["cond"], str(leaf["path"])) \
+				and _scene_at(p, leaf["cond"], true):
+			return leaf
+	return {}
+
+
+func _scene_can_check(p: Dictionary) -> bool:
+	return not _scene_check_leaf(p).is_empty()
+
+
+func _scene_check(p: Dictionary) -> void:
+	var leaf := _scene_check_leaf(p)
+	var cond: Dictionary = leaf["cond"]
+	p["flags"]["scene_tried"] = true
+	var name := str(cond.get("check", "generic"))
+	var target := (int(cond["target"]) if cond.has("target") else check_target(name)) + int(today.get("scene_mod", 0))
+	var bonus := int(p["flags"].get("intel_check", 0))
+	p["flags"]["intel_check"] = 0
+	_start_check(p, name, "scene", {"target": target, "scene_path": leaf["path"], "scene_id": scenes[scene_index], "intel_bonus": bonus})
+
+
+func _scene_check_result(p: Dictionary, c: Dictionary, ok: bool) -> void:
+	if str(c.get("scene_id", "")) != str(scenes[scene_index]):
+		return
+	if ok:
+		var path := str(c["scene_path"])
+		var part := _scene_part(path)
+		var cond: Dictionary = _scene_cond_at(path)
+		if cond.get("kind", "") == "check_pair":
+			if not p["id"] in part["pair_ok"]:
+				part["pair_ok"].append(p["id"])
+		else:
+			part["done"] = true
+		if _scene_complete(current_scene()["condition"]):
+			_scene_break(p["id"])
+	else:
+		_run_effects(p, current_scene().get("on_fail", []), {"then": "scene_check_done"})
+
+
+func _finish_scene_check(_p: Dictionary) -> void:
+	pass
+
+
+func _scene_cond_at(path: String) -> Dictionary:
+	var cond: Dictionary = current_scene().get("condition", {})
+	for index in path.split("/", false):
+		cond = cond.get("options", [])[int(index)]
+	return cond
+
+
+func _scene_pay_leaf(p: Dictionary, what: String, index: int) -> Dictionary:
+	if act != 2 or phase != "turn" or current != p["id"] or p["jailed"] or p["traitor"]:
+		return {}
+	for leaf in _scene_leaves(current_scene().get("condition", {})):
+		var cond: Dictionary = leaf["cond"]
+		var kind := str(cond.get("kind", ""))
+		if _scene_complete(cond, str(leaf["path"])) or not _scene_at(p, cond):
+			continue
+		if what == "die" and kind == "dice" and index >= 0 and index < team_dice.size():
+			var d: Dictionary = team_dice[index]
+			if (d["owner"] == p["id"] and d.get("carry", false)) or (d["owner"] == -1 and not d["spare_used"]):
+				return leaf
+		if what == "item" and kind == "pay_item" and index >= 0 and index < p["items"].size():
+			return leaf
+		if what == "bomb" and kind == "pay_bomb":
+			var need := int(cond.get("count", 1)) if not cond.get("split", false) else 1
+			if p["bombs"] >= need:
+				return leaf
+	return {}
+
+
+func _scene_can_pay(p: Dictionary, what: String, index: int) -> bool:
+	return not _scene_pay_leaf(p, what, index).is_empty()
+
+
+func _scene_pay(p: Dictionary, what: String, index: int) -> void:
+	var leaf := _scene_pay_leaf(p, what, index)
+	var cond: Dictionary = leaf["cond"]
+	var part := _scene_part(str(leaf["path"]))
+	match what:
+		"die":
+			part["paid_dice"] = int(part["paid_dice"]) + int(team_dice[index]["value"])
+			team_dice[index]["spare_used"] = true
+			team_dice[index]["carry"] = false
+			team_dice[index]["owner"] = -2
+		"item":
+			item_discard.append(p["items"].pop_at(index))
+			part["paid_items"] = int(part["paid_items"]) + 1
+		"bomb":
+			var n := 1 if cond.get("split", false) else int(cond.get("count", 1))
+			p["bombs"] -= n
+			bomb_supply += n
+			part["paid_bombs"] = int(part["paid_bombs"]) + n
+	_log("%s: 장면에 %s을(를) 바쳤습니다." % [p["name"], {"die": "주사위", "item": "아이템", "bomb": "폭탄"}[what]])
+	_scene_auto_break_by(p["id"])
+
+
+func _scene_auto_break_by(pid: int) -> void:
+	if _scene_complete(current_scene().get("condition", {})):
+		_scene_break(pid)
+
+
+func _scene_can_intel(p: Dictionary, mode: String) -> bool:
+	if act != 2 or phase != "turn" or current != p["id"] or p["traitor"] or intel_tokens <= 0:
+		return false
+	for leaf in _scene_leaves(current_scene().get("condition", {})):
+		if _scene_complete(leaf["cond"], str(leaf["path"])):
+			continue
+		if mode == "check" and not p["flags"].get("scene_tried", false) and leaf["cond"].get("kind", "") in ["check", "check_pair"]:
+			return true
+		if mode == "dice" and leaf["cond"].get("kind", "") == "dice":
+			return true
+	return false
+
+
+func _scene_use_intel(p: Dictionary, mode: String) -> void:
+	intel_tokens -= 1
+	if mode == "check":
+		p["flags"]["intel_check"] = int(p["flags"].get("intel_check", 0)) + int(data.rules["intel_token"]["check_bonus"])
+	else:
+		for leaf in _scene_leaves(current_scene().get("condition", {})):
+			if leaf["cond"].get("kind", "") == "dice" and not _scene_complete(leaf["cond"], str(leaf["path"])):
+				var part := _scene_part(str(leaf["path"]))
+				part["dice_reduce"] = int(part["dice_reduce"]) + int(data.rules["intel_token"]["dice_reduce"])
+				break
+		_scene_auto_break_by(p["id"])
+	_log("%s: 첩보 토큰을 썼습니다." % p["name"])
+
+
+func scene_options(p: Dictionary) -> Array:
+	var out := []
+	if _scene_can_check(p):
+		out.append({"type": "scene_check", "player": p["id"]})
+	if act != 2 or phase != "turn" or current != p["id"] or p["traitor"]:
+		return out
+	for i in team_dice.size():
+		if _scene_can_pay(p, "die", i):
+			out.append({"type": "scene_pay", "player": p["id"], "what": "die", "die": i})
+	for i in p["items"].size():
+		if _scene_can_pay(p, "item", i):
+			out.append({"type": "scene_pay", "player": p["id"], "what": "item", "index": i})
+	if _scene_can_pay(p, "bomb", -1):
+		out.append({"type": "scene_pay", "player": p["id"], "what": "bomb"})
+	for mode in ["check", "dice"]:
+		if _scene_can_intel(p, mode):
+			out.append({"type": "use_intel", "player": p["id"], "mode": mode})
+	return out
+
+
+func _scene_turn_end(p: Dictionary) -> void:
+	for leaf in _scene_leaves(current_scene().get("condition", {})):
+		if leaf["cond"].get("kind", "") == "people" and _scene_at(p, leaf["cond"]):
+			var part := _scene_part(str(leaf["path"]))
+			if not p["id"] in part["people"]:
+				part["people"].append(p["id"])
+	_scene_auto_break_by(p["id"])
+
+
+func _scene_night() -> void:
+	for leaf in _scene_leaves(current_scene().get("condition", {})):
+		if leaf["cond"].get("kind", "") == "hold":
+			var count := 0
+			for q in players:
+				if not q["jailed"] and not q["traitor"] and _scene_at(q, leaf["cond"]):
+					count += 1
+			if count >= int(leaf["cond"].get("count", 1)):
+				var part := _scene_part(str(leaf["path"]))
+				part["hold_days"] = int(part["hold_days"]) + 1
+	if _scene_complete(current_scene().get("condition", {})):
+		_scene_break(-1)
+	if phase == "over":
+		return
+	for leaf in _scene_leaves(current_scene().get("condition", {})):
+		var part := _scene_part(str(leaf["path"]))
+		part["pair_ok"] = []
+		part["people"] = []
+	for q in players:
+		q["flags"].erase("scene_tried")
+		q["flags"].erase("intel_check")
+
+
+func scene_need(i := -1) -> Dictionary:
+	if act != 2 or scenes.is_empty():
+		return {}
+	var cond: Dictionary = current_scene().get("condition", {}) if i < 0 else _scene_card(str(scenes[i])).get("condition", {})
+	var out := {}
+	for leaf in _scene_leaves(cond):
+		var c: Dictionary = leaf["cond"]
+		var path := str(leaf["path"])
+		var part: Dictionary = _scene_part_read(path) if i < 0 or i == scene_index else {}
+		match str(c.get("kind", "")):
+			"dice": out["dice"] = maxi(0, int(c.get("sum", 0)) - int(part.get("dice_reduce", 0)) - int(part.get("paid_dice", 0)))
+			"pay_item": out["item"] = maxi(0, int(c.get("count", 1)) - int(part.get("paid_items", 0)))
+			"pay_bomb": out["bomb"] = maxi(0, int(c.get("count", 1)) - int(part.get("paid_bombs", 0)))
+			"check_pair": out["check_pair"] = maxi(0, int(c.get("count", 1)) - part.get("pair_ok", []).size())
+			"people": out["people"] = maxi(0, int(c.get("count", 1)) - part.get("people", []).size())
+			"hold": out["hold"] = maxi(0, int(c.get("days", 1)) - int(part.get("hold_days", 0)))
+	return out
+
+
+func _search_next() -> void:
+	if search_queue.is_empty():
+		_stage4_resume()
+		return
+	var pid: int = search_queue.pop_front()
+	_start_check(players[pid], "evade", "search")
+
+
+func _stage4_resume() -> void:
+	if effect_wait.is_empty():
+		return
+	var wait: Dictionary = effect_wait.pop_back()
+	_run_effects(players[int(wait["player"])], wait["rest"], wait["ctx"])
+
+
+func _end_game(won: bool) -> void:
+	var target := str(launch_info.get("target", "")) if act == 2 else ""
+	var card := current_scene() if act == 2 else {}
+	var id := "victory" if won else "history" if act == 1 or scene_index == 0 else "fail_final" if scene_index == scenes.size() - 1 else "fail_middle"
+	var key := "operation" if id == "fail_middle" else id
+	var def: Dictionary = data.endings.get(key, {})
+	var body := str(data.endings.get("strikes", {}).get(target, {}).get("ending", "")) if won else str(def.get("text", ""))
+	if not won and not card.is_empty():
+		body = str(card.get("stop_text", "")) + "\n" + body
+	if traitor_id >= 0 and not won:
+		body += "\n" + str(data.endings.get("traitor_won", {}).get("text", ""))
+	var epilogues := []
+	for p in players:
+		var result := saga_result(p["id"])
+		var saga_id := str(result.get("saga", ""))
+		var epkey := epilogue_key(p["id"], won)
+		var saga: Dictionary = data.saga(saga_id)
+		var lines: Dictionary = saga.get("epilogue", {})
+		var line = lines.get(epkey)
+		if line == null:
+			epkey = "win_fail" if won else "lose_fail"
+			line = lines.get(epkey, "")
+		var character: Dictionary = char_def(p)
+		var faction := str(data.characters.get("factions", {}).get(character.get("faction", ""), {}).get("name", ""))
+		epilogues.append({"player": p["id"], "saga": saga_id, "key": epkey,
+			"text": "%s %s — %s" % [faction, character.get("name", p["name"]), str(line)],
+			"done": bool(result.get("done", false)), "traitor": bool(result.get("traitor", false))})
+	ending = {"id": id, "won": won, "target": target, "scene": str(card.get("id", "")),
+		"scene_index": scene_index if act == 2 else -1, "title": str(def.get("name", "")), "text": body,
+		"traitor": traitor_id, "traitor_won": traitor_id >= 0 and not won, "epilogues": epilogues}
+	phase = "over"
+	pending = {}
+	_record("작전 종료: %s" % ending["title"], "good" if won else "bad")
+	_log("작전 종료: %s" % ending["title"])
+	_push({"kind": "over"})
+
+
 # ================================================================ 저장 · 불러오기
 
 const SAVE_FIELDS := ["players", "leader", "day", "rounds_total", "rounds_left", "act", "phase", "current",
 	"steps_left", "board", "tile_deck", "police", "exposure", "intel", "ready", "threat_deck", "threat_discard",
 	"threat_today", "mission_deck", "mission_discard", "mission_row", "event_deck", "event_discard",
 	"item_deck", "item_discard", "bomb_supply", "team_dice", "dice_extra_tomorrow", "dice_reroll_tomorrow", "today", "pending",
-	"launch_info", "ending", "check", "morning_step", "last_roll", "saga_decks", "saga_discard", "interro_deck",
+	"launch_info", "ending", "scenes", "scene_index", "scene_state", "intel_tokens", "search_queue", "effect_wait",
+	"check", "morning_step", "last_roll", "saga_decks", "saga_discard", "interro_deck",
 	"interro_discard", "traitor_id", "saga_rewards", "launch_step", "launch_i", "actions", "log_lines", "history"]
 
 

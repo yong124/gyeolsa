@@ -16,6 +16,10 @@ func _init() -> void:
 	print("아이템 %d종 %d장" % [data.items.get("items", []).size(), _sum(data.items.get("items", []))])
 	var s: Dictionary = data.scenes.get("strikes", {})
 	print("결행 %d곳, 경비 강화 %d장" % [s.size(), data.scenes.get("reinforce", []).size()])
+	print("엔딩 %d종, 결행별 성공 문장 %d개" % [5, data.endings.get("strikes", {}).size()])
+	for id in GameDataV2.BASE_IDS:
+		if not data.endings.get("strikes", {}).has(id):
+			errs.append("엔딩에 결행 거점 %s가 없습니다." % id)
 	print("사연 %d장" % data.sagas.get("sagas", []).size())
 	print("캐릭터 %d명" % data.characters.get("characters", []).size())
 	var todos := data.todos()
