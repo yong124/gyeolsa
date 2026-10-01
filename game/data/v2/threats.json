@@ -1,0 +1,294 @@
+{
+	"_comment": "v2 일제 위협 덱. 원문은 카드_목록_v2.md 1절. 1막 24장, 2막 11장. 덱이 떨어지면 버린 카드를 섞어 다시 씀. 동점 대상은 그날의 리더가 고름.",
+	"act1": [
+		{
+			"id": "surprise_search",
+			"name": "불시 수색",
+			"count": 3,
+			"tone": "bad",
+			"text": "무작위 거점에서 경찰이 출동해 그 거점에 가장 가까운 요원을 쫓음",
+			"effects": [
+				{
+					"op": "police_dispatch",
+					"from": "random_base",
+					"count": 1
+				}
+			]
+		},
+		{
+			"id": "mp_reinforce",
+			"name": "헌병 증원",
+			"count": 1,
+			"tone": "bad",
+			"text": "무작위 거점 두 곳에서 각각 출동",
+			"effects": [
+				{
+					"op": "police_dispatch",
+					"from": "random_base",
+					"count": 2
+				}
+			],
+			"_todo": "서로 다른 두 거점에서 각각 출동해야 함. police_dispatch count 2로 적었으나 거점이 겹치지 않게 뽑는 규칙은 코드에서 처리해야 함"
+		},
+		{
+			"id": "arrest_order",
+			"name": "체포령",
+			"count": 2,
+			"tone": "bad",
+			"text": "수배된 요원에게 경찰이 붙음",
+			"effects": [
+				{
+					"op": "police_attach",
+					"who": "wanted"
+				}
+			]
+		},
+		{
+			"id": "tailing",
+			"name": "미행",
+			"count": 2,
+			"tone": "bad",
+			"text": "고립된 요원에게 경찰이 붙음",
+			"effects": [
+				{
+					"op": "police_attach",
+					"who": "isolated"
+				}
+			]
+		},
+		{
+			"id": "mp_patrol",
+			"name": "헌병 순찰",
+			"count": 2,
+			"tone": "bad",
+			"text": "추격 중인 경찰이 모두 즉시 2칸 다가옴",
+			"effects": [
+				{
+					"op": "police_advance",
+					"steps": 2
+				}
+			]
+		},
+		{
+			"id": "checkpoint_add",
+			"name": "검문소 증설",
+			"count": 3,
+			"tone": "bad",
+			"text": "고립된 요원과 수배된 요원의 옆 빈칸에 검문소 하나씩",
+			"effects": [
+				{
+					"op": "checkpoint_place",
+					"near": "isolated",
+					"count": 1
+				},
+				{
+					"op": "checkpoint_place",
+					"near": "wanted",
+					"count": 1
+				}
+			]
+		},
+		{
+			"id": "curfew",
+			"name": "통금령",
+			"count": 2,
+			"tone": "bad",
+			"text": "오늘 모든 이동 주사위 −1 (최소 1)",
+			"effects": [
+				{
+					"op": "dice_mod_today",
+					"value": -1
+				}
+			]
+		},
+		{
+			"id": "special_alert",
+			"name": "특별 경계령",
+			"count": 1,
+			"tone": "bad",
+			"text": "오늘 경찰 이동 +1",
+			"effects": [
+				{
+					"op": "police_speed_today",
+					"value": 1
+				}
+			]
+		},
+		{
+			"id": "monsoon",
+			"name": "장맛비",
+			"count": 1,
+			"tone": "mixed",
+			"text": "오늘 모든 이동 주사위 −1, 경찰 이동 −1",
+			"effects": [
+				{
+					"op": "dice_mod_today",
+					"value": -1
+				},
+				{
+					"op": "police_speed_today",
+					"value": -1
+				}
+			]
+		},
+		{
+			"id": "air_raid",
+			"name": "공습경보",
+			"count": 1,
+			"tone": "relief",
+			"text": "오늘 경찰 이동 −1",
+			"effects": [
+				{
+					"op": "police_speed_today",
+					"value": -1
+				}
+			]
+		},
+		{
+			"id": "persuasion_plot",
+			"name": "회유 공작",
+			"count": 3,
+			"tone": "bad",
+			"text": "고립된 요원(감옥에 있는 요원 포함)이 심문 카드 1장. 사연을 이룬 요원은 빼고 고름",
+			"effects": [
+				{
+					"op": "interrogate",
+					"who": "isolated",
+					"include_jailed": true,
+					"skip_done_saga": true
+				}
+			]
+		},
+		{
+			"id": "calm_day",
+			"name": "평온한 하루",
+			"count": 2,
+			"tone": "relief",
+			"text": "아무 일 없음. 노출 −1",
+			"effects": [
+				{
+					"op": "exposure",
+					"value": -1
+				}
+			]
+		},
+		{
+			"id": "prison_riot",
+			"name": "옥중 소요",
+			"count": 1,
+			"tone": "relief",
+			"text": "감옥에 있는 요원 모두 탈출 (경찰은 붙지 않음)",
+			"effects": [
+				{
+					"op": "free_all_jailed"
+				}
+			]
+		}
+	],
+	"act2": [
+		{
+			"id": "reinforce",
+			"name": "증원",
+			"count": 2,
+			"tone": "bad",
+			"text": "결행 거점에서 경찰이 출동해 가장 가까운 요원을 쫓음",
+			"effects": [
+				{
+					"op": "police_dispatch",
+					"from": "strike_base",
+					"count": 1
+				}
+			]
+		},
+		{
+			"id": "blockade",
+			"name": "봉쇄",
+			"count": 2,
+			"tone": "bad",
+			"text": "결행 거점 옆 빈칸 두 곳에 검문소",
+			"effects": [
+				{
+					"op": "checkpoint_place",
+					"near": "strike_base",
+					"count": 2
+				}
+			]
+		},
+		{
+			"id": "sweep",
+			"name": "수색",
+			"count": 1,
+			"tone": "bad",
+			"text": "결행 거점 3칸 안의 요원 모두 회피 판정. 실패하면 그 요원에게 경찰",
+			"effects": [
+				{
+					"op": "search",
+					"range": 3
+				}
+			]
+		},
+		{
+			"id": "full_alert",
+			"name": "총력 경계",
+			"count": 1,
+			"tone": "bad",
+			"text": "오늘 경찰 이동 +1",
+			"effects": [
+				{
+					"op": "police_speed_today",
+					"value": 1
+				}
+			]
+		},
+		{
+			"id": "emergency_muster",
+			"name": "비상 소집",
+			"count": 1,
+			"tone": "bad",
+			"text": "오늘 지금 장면의 판정 목표 +1",
+			"effects": [
+				{
+					"op": "scene_check_mod_today",
+					"value": 1
+				}
+			]
+		},
+		{
+			"id": "torture",
+			"name": "고문",
+			"count": 1,
+			"tone": "bad",
+			"text": "감옥에 있는 요원은 오늘 탈옥 판정 −2",
+			"effects": [
+				{
+					"op": "escape_mod_today",
+					"value": -2
+				}
+			]
+		},
+		{
+			"id": "persuasion_plot2",
+			"name": "회유 공작",
+			"count": 2,
+			"tone": "bad",
+			"text": "1막과 같음",
+			"effects": [
+				{
+					"op": "interrogate",
+					"who": "isolated",
+					"include_jailed": true,
+					"skip_done_saga": true
+				}
+			],
+			"deck_place": "top_half"
+		},
+		{
+			"id": "chaos",
+			"name": "혼란",
+			"count": 1,
+			"tone": "relief",
+			"text": "아무 일 없음",
+			"effects": []
+		}
+	]
+}

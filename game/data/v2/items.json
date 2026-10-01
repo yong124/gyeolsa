@@ -1,0 +1,155 @@
+{
+	"_comment": "v2 아이템 10종 15장 (기획서 19.10, 장수는 1단계_데이터.md 2-5절). 소모는 effects, 지속은 mods. 원문 표에는 flavor text가 없어 text는 효과 문장.",
+	"items": [
+		{
+			"id": "train_ticket",
+			"name": "승차권",
+			"count": 2,
+			"kind": "consumable",
+			"text": "오늘 내 이동 주사위 +3",
+			"when": "turn",
+			"effects": [
+				{
+					"op": "move_today",
+					"who": "self",
+					"value": 3
+				}
+			]
+		},
+		{
+			"id": "pocket_watch",
+			"name": "회중시계",
+			"count": 1,
+			"kind": "consumable",
+			"text": "아침에 팀 주사위 하나의 눈을 +1 또는 −1",
+			"when": "morning",
+			"effects": [
+				{
+					"op": "team_die_adjust",
+					"value": 1
+				}
+			],
+			"_comment": "value는 ±1 중 고름 (+1 또는 −1)"
+		},
+		{
+			"id": "smoke_bomb",
+			"name": "연막탄",
+			"count": 2,
+			"kind": "consumable",
+			"text": "회피 자동 성공",
+			"when": "react_evade",
+			"effects": [
+				{
+					"op": "grant_once",
+					"kind": "evade_auto",
+					"scope": "any",
+					"who": "self"
+				}
+			]
+		},
+		{
+			"id": "safety_pin",
+			"name": "옷핀",
+			"count": 2,
+			"kind": "consumable",
+			"text": "감옥에서 바로 탈출",
+			"when": "jailed",
+			"effects": [
+				{
+					"op": "grant_once",
+					"kind": "escape_instant",
+					"scope": "any",
+					"who": "self"
+				}
+			]
+		},
+		{
+			"id": "forged_pass",
+			"name": "위조 통행증",
+			"count": 2,
+			"kind": "consumable",
+			"text": "이번 거점 진입이나 검문소 하나에 경찰이 붙지 않음",
+			"when": "turn",
+			"effects": [
+				{
+					"op": "checkpoint_pass",
+					"count": 1
+				}
+			],
+			"_todo": "'거점 진입에도 경찰이 붙지 않음'을 나타내는 op이 없어 검문소 통과(checkpoint_pass)만 적음. 거점 진입 쪽은 코드에서 처리해야 함"
+		},
+		{
+			"id": "cipher_book",
+			"name": "암호 수첩",
+			"count": 1,
+			"kind": "consumable",
+			"text": "내일 위협 카드를 덱 맨 아래로",
+			"when": "morning",
+			"effects": [
+				{
+					"op": "threat_bury",
+					"peek": false
+				}
+			]
+		},
+		{
+			"id": "telegram",
+			"name": "전보",
+			"count": 1,
+			"kind": "consumable",
+			"text": "거리와 상관없이 동료에게 아이템 하나를 보냄",
+			"when": "turn",
+			"effects": [
+				{
+					"op": "send_item"
+				}
+			]
+		},
+		{
+			"id": "comrade_cover",
+			"name": "동지들의 엄호",
+			"count": 1,
+			"kind": "consumable",
+			"text": "모든 경찰 제거. 대신 내일 아침 내 몫 주사위를 못 받음",
+			"when": "turn",
+			"effects": [
+				{
+					"op": "police_remove",
+					"scope": "all"
+				},
+				{
+					"op": "skip_dice_tomorrow",
+					"who": "self"
+				}
+			]
+		},
+		{
+			"id": "telescope",
+			"name": "망원경",
+			"count": 2,
+			"kind": "persistent",
+			"text": "암살 판정 +1",
+			"when": "any",
+			"mods": [
+				{
+					"stat": "assassin_bonus",
+					"value": 1
+				}
+			]
+		},
+		{
+			"id": "western_suit",
+			"name": "양장",
+			"count": 1,
+			"kind": "persistent",
+			"text": "회피 판정 +2",
+			"when": "any",
+			"mods": [
+				{
+					"stat": "evade_bonus",
+					"value": 2
+				}
+			]
+		}
+	]
+}

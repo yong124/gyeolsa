@@ -1,0 +1,194 @@
+{
+	"_comment": "v2 이벤트 카드 10종 18장 (기획서 19.5). 이벤트 타일에 멈춘 사람에게만 일어남. 원문 표에는 flavor text가 없어 text는 효과 문장.",
+	"events": [
+		{
+			"id": "print_shop",
+			"name": "지하 인쇄소",
+			"count": 2,
+			"tone": "good",
+			"text": "가장 가까운 거점에 첩보 +1",
+			"effects": [
+				{
+					"op": "intel",
+					"base": "nearest",
+					"value": 1
+				}
+			]
+		},
+		{
+			"id": "back_alley",
+			"name": "뒷골목 발견",
+			"count": 2,
+			"tone": "good",
+			"text": "옆 빈칸 하나에 일반 타일을 깔고, 그 칸으로 한 칸 더 갈 수 있음",
+			"effects": [
+				{
+					"op": "place_tile",
+					"type": "normal",
+					"near": "self"
+				},
+				{
+					"op": "extra_step",
+					"steps": 1
+				}
+			]
+		},
+		{
+			"id": "hideout",
+			"name": "동지의 은신처",
+			"count": 1,
+			"tone": "good",
+			"text": "이 칸이 은신처가 됨. 앞으로 누구든 여기서 차례를 마치면 쫓던 경찰이 사라짐",
+			"effects": [
+				{
+					"op": "mark_tile",
+					"flag": "hideout"
+				}
+			]
+		},
+		{
+			"id": "into_crowd",
+			"name": "군중 속으로",
+			"count": 2,
+			"tone": "good",
+			"text": "나를 쫓는 경찰 제거. 쫓기고 있지 않으면 노출 −1",
+			"effects": [
+				{
+					"op": "police_remove",
+					"scope": "mine"
+				},
+				{
+					"op": "exposure",
+					"value": -1
+				}
+			],
+			"_todo": "'쫓기고 있지 않을 때만 노출 −1'이라는 조건부 op이 없어 두 효과를 나란히 적음. 코드에서 쫓기지 않을 때만 노출 −1을 적용해야 함"
+		},
+		{
+			"id": "secret_letter",
+			"name": "국내 동지의 밀서",
+			"count": 2,
+			"tone": "good",
+			"text": "아이템 1장",
+			"effects": [
+				{
+					"op": "draw_item",
+					"count": 1
+				}
+			]
+		},
+		{
+			"id": "informer",
+			"name": "밀고자",
+			"count": 2,
+			"tone": "bad",
+			"text": "지금 이 자리에 경찰이 나타남",
+			"effects": [
+				{
+					"op": "police_attach",
+					"who": "self"
+				}
+			],
+			"_todo": "'이 자리에 경찰이 나타남'(이 칸에서 출현)을 나타내는 op이 없어 police_attach self로 대신함"
+		},
+		{
+			"id": "cop_eye",
+			"name": "순사의 눈",
+			"count": 2,
+			"tone": "bad",
+			"text": "이 칸 옆 빈칸 하나에 검문소가 깔림",
+			"effects": [
+				{
+					"op": "checkpoint_place",
+					"near": "self",
+					"count": 1
+				}
+			]
+		},
+		{
+			"id": "student",
+			"name": "쫓기는 학생",
+			"count": 2,
+			"tone": "choice",
+			"text": "숨겨 준다: 노출 +1, 아이템 1장 / 외면한다: 아무 일 없음",
+			"effects": [
+				{
+					"op": "choice",
+					"options": [
+						{
+							"label": "숨겨 준다",
+							"effects": [
+								{
+									"op": "exposure",
+									"value": 1
+								},
+								{
+									"op": "draw_item",
+									"count": 1
+								}
+							]
+						},
+						{
+							"label": "외면한다",
+							"effects": []
+						}
+					]
+				}
+			]
+		},
+		{
+			"id": "rickshaw",
+			"name": "딱한 인력거꾼 김첨지",
+			"count": 2,
+			"tone": "choice",
+			"text": "탄다: 동료 하나의 옆 칸으로 바로 옮겨 감, 노출 +1 / 보낸다: 아무 일 없음",
+			"effects": [
+				{
+					"op": "choice",
+					"options": [
+						{
+							"label": "탄다",
+							"effects": [
+								{
+									"op": "move_to_ally",
+									"adjacent": true
+								},
+								{
+									"op": "exposure",
+									"value": 1
+								}
+							]
+						},
+						{
+							"label": "보낸다",
+							"effects": []
+						}
+					]
+				}
+			]
+		},
+		{
+			"id": "old_comrade",
+			"name": "옛 동지와의 재회",
+			"count": 1,
+			"tone": "good",
+			"text": "4인: 내 심문 카드 1장을 무작위로 버림. 심문 카드가 없거나 4인이 아니면 아이템 1장",
+			"effects": [
+				{
+					"op": "if_players",
+					"players": [
+						4
+					],
+					"then": [],
+					"else": [
+						{
+							"op": "draw_item",
+							"count": 1
+						}
+					]
+				}
+			],
+			"_todo": "'내 심문 카드 1장 무작위 버림'(없으면 아이템 1장)을 나타내는 op이 없어 then을 비워 둠. 4인에서 심문 카드가 없을 때의 아이템 1장 대체도 코드에서 처리해야 함"
+		}
+	]
+}
