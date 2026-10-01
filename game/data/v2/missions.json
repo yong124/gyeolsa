@@ -15,7 +15,7 @@
 		"infiltrate": {
 			"name": "잠입",
 			"how": "그 거점에 들어감 (경찰이 붙음)",
-			"ready": 1,
+			"ready": 2,
 			"loud": false,
 			"condition": {
 				"kind": "enter_base",
@@ -35,7 +35,7 @@
 		"sabotage": {
 			"name": "방해",
 			"how": "방해 타일에서 회피 판정 7 이상",
-			"ready": 1,
+			"ready": 2,
 			"loud": false,
 			"condition": {
 				"kind": "check",

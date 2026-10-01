@@ -48,9 +48,9 @@
 			"story": "이 싸움을 누군가는 기록해야 한다고 믿었다.",
 			"condition": {
 				"kind": "visit_base_adjacent",
-				"count": 3
+				"count": 2
 			},
-			"condition_text": "거점 세 곳의 옆 칸을 밟음",
+			"condition_text": "거점 두 곳의 옆 칸을 밟음",
 			"reward": [
 				{
 					"op": "intel",
@@ -103,9 +103,9 @@
 			"story": "징용을 피해 숨은 사람들이 경성 한가운데에서 길잡이를 기다린다.",
 			"condition": {
 				"kind": "end_turn_at_start",
-				"count": 2
+				"count": 4
 			},
-			"condition_text": "출발점에서 차례를 두 번 마침",
+			"condition_text": "출발점에서 차례를 네 번 마침",
 			"reward": [
 				{
 					"op": "threat_bury",
@@ -131,9 +131,9 @@
 			"condition": {
 				"kind": "visit_tile",
 				"tile": "supply",
-				"count": 3
+				"count": 2
 			},
-			"condition_text": "보급 타일 세 곳을 밟음",
+			"condition_text": "보급 타일 두 곳을 밟음",
 			"reward": [
 				{
 					"op": "gain_bomb",
@@ -274,9 +274,9 @@
 			"story": "동지를 잡아간 순사의 얼굴을 그는 잊지 않았다.",
 			"condition": {
 				"kind": "shake_police",
-				"count": 3
+				"count": 2
 			},
-			"condition_text": "나를 쫓던 경찰을 세 번 따돌리거나 제거",
+			"condition_text": "나를 쫓던 경찰을 두 번 따돌리거나 제거",
 			"reward": [
 				{
 					"op": "police_remove",
@@ -363,9 +363,9 @@
 			"story": "현상금이 붙은 지 삼 년. 그는 쫓기는 데 익숙했다.",
 			"condition": {
 				"kind": "chased_turns_row",
-				"count": 3
+				"count": 2
 			},
-			"condition_text": "경찰에 쫓기는 채로 차례를 세 번 연달아 마침 (잡히지 않고)",
+			"condition_text": "경찰에 쫓기는 채로 차례를 두 번 연달아 마침 (잡히지 않고)",
 			"reward": [
 				{
 					"op": "police_send_far"
@@ -452,9 +452,9 @@
 			"story": "이름이 남지 않아도 좋다. 다만 일이 되기를 바랄 뿐.",
 			"condition": {
 				"kind": "coop_missions",
-				"count": 2
+				"count": 1
 			},
-			"condition_text": "협동 미션에 두 번 참여",
+			"condition_text": "협동 미션에 한 번 참여",
 			"reward": [
 				{
 					"op": "grant_once",
@@ -482,9 +482,9 @@
 			"story": "옛 스승이 남긴 물건들을 필요한 동지들에게 나눠 주라는 부탁을 받았다.",
 			"condition": {
 				"kind": "give_items",
-				"count": 3
+				"count": 2
 			},
-			"condition_text": "동료에게 아이템을 세 번 건넴",
+			"condition_text": "동료에게 아이템을 두 번 건넴",
 			"reward": [
 				{
 					"op": "move_mod_next",
