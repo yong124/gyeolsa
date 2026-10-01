@@ -32,5 +32,7 @@
 	"_comment_bomb_supply": "처음 폭탄 보급 수 (보급 타일에서 하나씩 가져감)",
 	"coop": {"give_range": 1, "decoy_range": 3, "decoy_per_turn": 1, "give_counts_as_item_use": true, "_comment": "건네기 거리(칸), 미끼 거리(칸), 차례당 미끼 횟수, 건네기를 아이템 사용 1회로 셀지"},
 	"hideout_flag": "hideout",
-	"_comment_hideout_flag": "이 표시가 있는 칸에서 차례를 마치면 나를 쫓던 경찰이 사라진다 (mark_tile의 flag 이름)"
+	"_comment_hideout_flag": "이 표시가 있는 칸에서 차례를 마치면 나를 쫓던 경찰이 사라진다 (mark_tile의 flag 이름)",
+	"tile_names": {"normal": "일반", "event": "이벤트", "item": "아이템", "check": "검문소", "supply": "보급", "assassin": "암살 표적", "sabotage": "방해 공작", "bomb": "폭파 지점", "base": "거점", "start": "출발점"},
+	"_comment_tile_names": "타일 종류의 화면·로그용 이름 (타일을 고르거나 깔 때 보여 줌)"
 }

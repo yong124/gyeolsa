@@ -1,5 +1,5 @@
 extends SceneTree
-## v2 엔진(2a) 시험: 합법 액션만 무작위로 고르는 봇으로 판을 끝까지 둔다.
+## v2 엔진(2a·2b) 시험: 합법 액션만 무작위로 고르는 봇으로 판을 끝까지 둔다.
 ## 확인: legal_actions()와 apply의 일치 · 잘못된 액션 거부 · 불변식 · 재생 · 저장/불러오기 · 끝남.
 ## 실행: godot --headless --path game --script res://tests/v2_engine_test.gd [-- 판수]
 
@@ -17,7 +17,7 @@ func _init() -> void:
 			games = int(a)
 	var data := GameDataV2.load_default()
 	var char_ids: Array = data.characters["characters"].map(func(c): return c["id"])
-	var stats := {"days": 0, "forced": 0, "vote": 0, "stub": 0, "other": 0, "jailed": 0, "actions": 0,
+	var stats := {"days": 0, "forced": 0, "vote": 0, "stub": 0, "stub3": 0, "stub4": 0, "other": 0, "jailed": 0, "actions": 0,
 		"missions": {}, "checks": 0, "rescues": 0, "escapes": 0, "launched": 0}
 	for i in games:
 		var bot := RandomNumberGenerator.new()
@@ -35,7 +35,9 @@ func _init() -> void:
 	print("끝난 판 %d/%d · 평균 액션 %.0f · 투옥 %d · 구출 %d · 탈옥 %d" % [launched, games, float(stats["actions"]) / games,
 		stats["jailed"], stats["rescues"], stats["escapes"]])
 	print("미션 성공(종류별): ", stats["missions"])
-	print("2b 미구현 효과 호출 %d회" % stats["stub"])
+	print("(2b 미구현) 호출 %d회 · (3단계 미구현) %d회 · (4단계 미구현) %d회" % [stats["stub"], stats["stub3"], stats["stub4"]])
+	if int(stats["stub"]) > 0:
+		_fail("1막 플레이에서 (2b 미구현) 효과가 %d번 불림" % stats["stub"])
 	for m in messages.slice(0, 20):
 		print("FAIL: ", m)
 	print("v2 엔진 시험: 실패 %d건" % failures)
@@ -115,8 +117,12 @@ func _play(idx: int, chars: Array, seed_value: int, bot: RandomNumberGenerator, 
 		stats["jailed"] += int(q["stats"]["jailed"])
 		stats["escapes"] += int(q["stats"]["escapes"])
 	for l in g.log_lines:
-		if str(l).begins_with("(2b 미구현)"):
+		if str(l).begins_with("(2b 미구현)") or str(l).begins_with("(알 수 없는 효과)"):
 			stats["stub"] += 1
+		elif str(l).begins_with("(3단계 미구현)"):
+			stats["stub3"] += 1
+		elif str(l).begins_with("(4단계 미구현)"):
+			stats["stub4"] += 1
 	# 저장/불러오기: 중간에 복제한 엔진과 끝 상태가 같아야 한다
 	if clone != null:
 		if str(_strip(clone.save_state())) != str(_strip(g.save_state())):

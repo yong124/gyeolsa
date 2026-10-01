@@ -29,11 +29,12 @@ extends RefCounted
 
 const DIRS: Array[Vector2i] = [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]
 
-## 이 단계(2a)에서 실제로 움직이는 효과 op. 나머지는 _op_stub_2b (2b에서 채움) 또는 3단계 훅으로 간다.
-## (grant_once · mark_tile · if · if_players는 2a 해석기가 흐름을 위해 함께 처리한다.)
-const OPS_2A := ["police_dispatch", "police_attach", "exposure", "intel", "ready", "draw_item", "gain_bomb",
-	"choice", "if", "if_players", "grant_once", "mark_tile", "interrogate"]
+## 1막 효과 op는 모두 이 엔진이 처리한다. 아래는 아직 안 만든 단계의 효과 (로그만 남기는 훅).
+## interrogate는 _interrogate(p) 훅을 부른다 (3단계).
 const OPS_STAGE3 := ["persuade", "interrogate_discard"]
+const OPS_STAGE4 := ["search", "scene_check_mod_today", "threat_flip", "check_or_jail", "refill_supply"]
+## 선택 응답을 효과의 인자로 되돌려 주는 pending 종류 (pending["key"]가 인자 이름)
+const PICK_KINDS := ["pick_player", "pick_cell", "pick_die", "pick_tile", "pick_item", "pick_value", "pick_bury"]
 
 var data: GameDataV2
 var rng := RandomNumberGenerator.new()
@@ -67,6 +68,7 @@ var item_discard: Array = []
 var bomb_supply := 0
 var team_dice: Array = []       # [{"value", "owner", "spare_used"}]
 var dice_extra_tomorrow := 0
+var dice_reroll_tomorrow := false   # 내일 아침 팀 주사위를 한 번 더 굴림 (team_dice_reroll_all when: tomorrow)
 var today := {}
 var pending := {}
 var launch_info := {}
@@ -155,6 +157,7 @@ func setup(player_defs: Array, seed_value: int = -1, game_data: GameDataV2 = nul
 	steps_left = 0
 	team_dice = []
 	dice_extra_tomorrow = 0
+	dice_reroll_tomorrow = false
 	today = _new_today()
 	pending = {}
 	launch_info = {}
@@ -174,7 +177,7 @@ func _new_tile(type: String) -> Dictionary:
 
 
 func _new_today() -> Dictionary:
-	return {"dice_mod": 0, "police_speed": 0, "escape_mod": 0, "scene_mod": 0, "move_today": {}, "assassin_wins": []}
+	return {"dice_mod": 0, "police_speed": 0, "escape_mod": 0, "scene_mod": 0, "move_today": {}, "assassin_wins": [], "ends": {}}
 
 
 func _expand(defs: Array) -> Array:
@@ -265,6 +268,22 @@ func tomorrow_threat() -> String:
 	return threat_deck[-1] if not threat_deck.is_empty() else ""
 
 
+func threat_preview(n := -1) -> Array:
+	## 내일부터 뒤집힐 위협 카드 id를 위에서부터 n장 (정 인쇄공 threat_peek: 정보만 볼 뿐 순서는 못 바꿈).
+	## n이 음수이면 요원들이 가진 threat_peek 값 중 가장 큰 수. 덱이 모자라면 있는 만큼만.
+	if n < 0:
+		n = 0
+		for q in players:
+			n = maxi(n, stat(q, "threat_peek"))
+	var out := []
+	for i in n:
+		var idx := threat_deck.size() - 1 - i
+		if idx < 0:
+			break
+		out.append(threat_deck[idx])
+	return out
+
+
 func leader_player() -> Dictionary:
 	return players[leader]
 
@@ -325,6 +344,11 @@ func mission_feasible(id: String, simulate_bombs := true) -> bool:
 	var type: String = m.get("type", "")
 	var kind := _cond_kind(type)
 	if kind == "" or kind == "enter_base":
+		if type == "coop":
+			var cc := _coop_cond(id)
+			if str(cc.get("kind", "")) == "same_day_assassin":
+				var at := _assassin_type()
+				return at != "" and _tile_count(mission_tile(at)) >= int(cc.get("count", 2))
 		return true
 	var tile := mission_tile(type)
 	if kind == "deliver_bomb":
@@ -341,6 +365,39 @@ func mission_feasible(id: String, simulate_bombs := true) -> bool:
 	if kind == "check":
 		return _tile_available(tile)
 	return true
+
+
+func _tile_count(tile: String) -> int:
+	## 깔린 칸과 더미에 있는 그 종류 타일의 수
+	var n := tile_deck.count(tile)
+	for c in board:
+		if board[c]["type"] == tile:
+			n += 1
+	return n
+
+
+func _coop_cond(id: String) -> Dictionary:
+	## 카드가 직접 갖는 협동 조건 (types가 아니라 카드에 있는 condition)
+	var c = data.mission(id).get("condition", null)
+	return c if typeof(c) == TYPE_DICTIONARY else {}
+
+
+func _coop_ids(kind: String) -> Array:
+	var out := []
+	for id in mission_row:
+		if str(_coop_cond(id).get("kind", "")) == kind:
+			out.append(id)
+	return out
+
+
+func _assassin_type() -> String:
+	## 암살 판정(check == "assassin")으로 이뤄지는 미션 종류 이름 (데이터에서 찾음)
+	var types: Dictionary = data.missions.get("types", {})
+	for t in types:
+		var cond = types[t].get("condition", null)
+		if typeof(cond) == TYPE_DICTIONARY and cond.get("kind", "") == "check" and cond.get("check", "") == "assassin":
+			return str(t)
+	return ""
 
 
 func _tile_available(tile: String) -> bool:
@@ -410,6 +467,10 @@ func _stop_tiles(p: Dictionary) -> Array:
 			var tile := mission_tile(type)
 			if not tile in out:
 				out.append(tile)
+	if not _coop_ids("same_day_assassin").is_empty() and _assassin_type() != "":
+		var at := mission_tile(_assassin_type())
+		if not at in out:
+			out.append(at)
 	return out
 
 
@@ -629,6 +690,8 @@ func _item_usable_now(p: Dictionary, id: String) -> bool:
 	var it: Dictionary = item_def(id)
 	if not it.has("effects"):
 		return false   # 지속 카드는 가지고만 있으면 된다
+	if not _cost_ok(p, it["effects"], 1):
+		return false
 	match str(it.get("when", "")):
 		"morning":
 			return phase == "plan"
@@ -637,6 +700,21 @@ func _item_usable_now(p: Dictionary, id: String) -> bool:
 		"jailed":
 			return phase == "turn" and p["id"] == current and p["jailed"]
 	return false   # react_evade는 회피 판정 직전에 묻는다
+
+
+func _cost_ok(p: Dictionary, effects: Array, items_used: int) -> bool:
+	## 효과가 아이템을 내야 하는데(버리기·건네기·보내기) 낼 아이템이 모자라면 못 쓴다.
+	## items_used: 이 효과 자신이 이미 손에서 빠지는 아이템 수 (아이템 카드를 쓸 때 1)
+	var have: int = p["items"].size() - items_used
+	for e in effects:
+		match str(e.get("op", "")):
+			"discard_item":
+				if have < int(e.get("count", 1)):
+					return false
+			"give_item", "send_item":
+				if have < 1:
+					return false
+	return true
 
 
 func ability_def(p: Dictionary) -> Dictionary:
@@ -657,6 +735,8 @@ func ability_targets(p: Dictionary) -> Array:
 				return []
 		_:
 			return []
+	if not _cost_ok(p, a.get("effects", []), 0):
+		return []
 	var req: Dictionary = a.get("requires", {})
 	if req.has("near_tile"):
 		var near := false
@@ -1023,6 +1103,14 @@ func _morning_dice() -> void:
 		var v := _roll_die()
 		team_dice.append({"value": v, "owner": -1, "spare_used": false})
 		vals.append(v)
+	if dice_reroll_tomorrow:
+		dice_reroll_tomorrow = false
+		vals = []
+		for i in n:
+			var v2 := _roll_die()
+			team_dice[i]["value"] = v2
+			vals.append(v2)
+		_log("팀 주사위를 전부 다시 굴렸습니다.")
 	_log("팀 주사위 %d개: %s" % [n, " ".join(vals.map(func(x): return str(x)))])
 	_push({"kind": "dice_rolled", "values": vals})
 	phase = "plan"
@@ -1098,10 +1186,19 @@ func _finish_turn(p: Dictionary) -> void:
 		return
 	p["done_today"] = true
 	p["flags"]["escape_add"] = 0
+	p["flags"].erase("entry_no_police")     # 한 차례 안에만 쓰는 권리
+	p["flags"]["checkpoint_pass"] = 0
 	steps_left = 0
 	phase = "day"
 	current = -1
-	_coop_turn_end(p)
+	if _coop_turn_end(p):
+		return   # 협동 미션 보상을 처리하는 중 (끝나면 _after_turn으로 이어짐)
+	_after_turn()
+
+
+func _after_turn() -> void:
+	if phase == "over":
+		return
 	for q in players:
 		if not q["done_today"]:
 			return
@@ -1110,7 +1207,12 @@ func _finish_turn(p: Dictionary) -> void:
 
 func _night() -> void:
 	_push({"kind": "night", "day": day})
-	_coop_night()
+	if _coop_night():
+		return   # 협동 미션 보상을 처리하는 중 (끝나면 _night_end로 이어짐)
+	_night_end()
+
+
+func _night_end() -> void:
 	rounds_left -= 1
 	if rounds_left <= 0:
 		rounds_left = 0
@@ -1196,7 +1298,7 @@ func _enter_base(p: Dictionary) -> void:
 		if _cond_kind(m.get("type", "")) == "enter_base" and str(m.get("base", "")) == GameDataV2.BASE_IDS[bi]:
 			ids.append(id)
 	var ctx := {"then": "base_finish", "entered_base": bi}
-	_coop_enter_base(p, bi)
+	ids.append_array(_coop_enter_base(p, bi))
 	if not ids.is_empty():
 		_complete_missions(p, ids, ctx)
 	else:
@@ -1223,10 +1325,7 @@ func _resolve_stop(p: Dictionary) -> void:
 	steps_left = 0
 	var tile: Dictionary = board.get(p["pos"], {})
 	var t: String = tile.get("type", "")
-	if tile.get("flags", []).has(str(data.rules["hideout_flag"])) and police.has(p["id"]):
-		police.erase(p["id"])
-		_log("%s: 은신처에 숨어 추적하던 경찰을 따돌렸습니다." % p["name"])
-		_push({"kind": "police"})
+	_check_hideout(p)
 	if t == "event" and not tile["used"]:
 		tile["used"] = true
 		tile["type"] = "normal"
@@ -1240,8 +1339,15 @@ func _resolve_stop(p: Dictionary) -> void:
 	elif t == "supply":
 		_run_effects(p, [{"op": "gain_bomb", "count": 1}], {"then": "post_move", "source": "tile"})
 		return
-	_end_move_hop(p)
-	_post_move(p)
+	_finish_move(p)
+
+
+func _check_hideout(p: Dictionary) -> void:
+	var tile: Dictionary = board.get(p["pos"], {})
+	if tile.get("flags", []).has(str(data.rules["hideout_flag"])) and police.has(p["id"]):
+		police.erase(p["id"])
+		_log("%s: 은신처에 숨어 추적하던 경찰을 따돌렸습니다." % p["name"])
+		_push({"kind": "police"})
 
 
 func _draw_event(p: Dictionary) -> bool:
@@ -1257,9 +1363,60 @@ func _draw_event(p: Dictionary) -> bool:
 	return true
 
 
-func _end_move_hop(_p: Dictionary) -> void:
-	## 훅 (2b): end_move_hop_to_ally — 이동이 끝날 때 동료 옆 깔린 빈칸으로 한 칸
-	pass
+func _inert_tile(c: Vector2i) -> bool:
+	## 깔려 있고, 옮겨 가 서도 아무 효과가 없는 칸 (거점·검문소·미션 타일은 아님)
+	if not board.has(c):
+		return false
+	var t: String = board[c]["type"]
+	if t == "base" or t == "check":
+		return false
+	for type in data.missions.get("types", {}):
+		if mission_tile(type) == t and _cond_kind(type) in ["check", "deliver_bomb"]:
+			return false
+	return true
+
+
+func _teleport(p: Dictionary, to: Vector2i) -> void:
+	var from: Vector2i = p["pos"]
+	p["pos"] = to
+	_push({"kind": "move", "player": p["id"], "from": from, "to": to, "jump": true})
+
+
+func hop_cells(p: Dictionary) -> Array:
+	## end_move_hop_to_ally: 한 칸 옮겨 동료 옆에 설 수 있는 깔린 빈칸
+	var out := []
+	for d in DIRS:
+		var n: Vector2i = p["pos"] + d
+		if not _inert_tile(n) or occupied_by_other(p, n):
+			continue
+		for q in players:
+			if q["id"] != p["id"] and not q["jailed"] and _manhattan(q["pos"], n) == 1:
+				out.append(n)
+				break
+	return out
+
+
+func _end_move_hop(p: Dictionary) -> bool:
+	## 이동이 끝날 때 동료 옆 깔린 빈칸으로 한 칸 옮길지 묻는다 (end_move_hop_to_ally). 물었으면 true.
+	if phase == "over" or p["jailed"] or not flag(p, "end_move_hop_to_ally"):
+		return false
+	var cells := hop_cells(p)
+	if cells.is_empty():
+		return false
+	var opts := [{"value": "no", "label": "그대로 있는다"}]
+	for c in cells:
+		opts.append({"value": c, "label": "(%d, %d)칸으로 옮긴다" % [c.x, c.y]})
+	_ask(p, "hop", "동료 옆으로 한 칸 옮기시겠습니까?", opts, {})
+	return true
+
+
+func _finish_move(p: Dictionary) -> void:
+	## 이동과 도착 효과가 끝난 뒤: 한 칸 더 갈 수 있으면 계속, 아니면 (이 차장 도약) → 경찰 이동 → 차례 종료
+	if phase == "turn" and steps_left > 0 and not p["jailed"] and p["id"] == current:
+		return
+	if _end_move_hop(p):
+		return
+	_post_move(p)
 
 
 func _post_move(p: Dictionary) -> void:
@@ -1423,7 +1580,11 @@ func _try_missions(p: Dictionary, tile: String) -> bool:
 		var kind := _cond_kind(type)
 		if (kind == "check" or kind == "deliver_bomb") and mission_tile(type) == tile:
 			by_kind[id] = kind
-	if by_kind.is_empty():
+	# 암살 타일에서 성공해야 이뤄지는 협동 미션(same_day_assassin)이 줄에 있으면, 그 타일에서도 판정을 한다
+	var assassin_type := _assassin_type()
+	var coop_check: bool = assassin_type != "" and mission_tile(assassin_type) == tile \
+		and not _coop_ids("same_day_assassin").is_empty()
+	if by_kind.is_empty() and not coop_check:
 		return false
 	var check_ids := []
 	var bomb_ids := []
@@ -1438,14 +1599,14 @@ func _try_missions(p: Dictionary, tile: String) -> bool:
 		_log("%s: 폭탄을 설치했습니다!" % p["name"])
 		_complete_missions(p, bomb_ids, {"then": "stop", "source": "mission"})
 		return true
-	if check_ids.is_empty():
+	if check_ids.is_empty() and not coop_check:
 		return false   # 폭탄이 없으면 그냥 지나가는 칸
 	steps_left = 0
-	var type: String = data.mission(check_ids[0]).get("type", "")
+	var type: String = data.mission(check_ids[0]).get("type", "") if not check_ids.is_empty() else assassin_type
 	var cond: Dictionary = mission_type_def(type)["condition"]
 	var name: String = str(cond["check"])
 	_start_check(p, name, "mission_check", {"ids": check_ids, "target": int(cond.get("target", check_target(name))),
-		"type_bonus": type, "tile_type": tile})
+		"type_bonus": type, "tile_type": tile, "mission_type": type})
 	return true
 
 
@@ -1458,7 +1619,7 @@ func _mission_check_result(p: Dictionary, c: Dictionary, ok: bool) -> void:
 			p["stats"]["assassinations"] += 1
 			today["assassin_wins"].append({"player": p["id"], "cell": p["pos"]})
 			_summon(p)
-		_complete_missions(p, c["ids"], {"then": "stop", "source": "mission"})
+		_complete_missions(p, c["ids"], {"then": "stop", "source": "mission"}, str(c.get("mission_type", "")))
 	elif risky:
 		_log("%s: 실패! 회피 판정으로 빠져나가야 합니다." % p["name"])
 		_banner("%s 실패 — 탈출하라!" % _check_label(c), "bad", p)
@@ -1470,10 +1631,13 @@ func _mission_check_result(p: Dictionary, c: Dictionary, ok: bool) -> void:
 		_resolve_stop(p)
 
 
-func _complete_missions(p: Dictionary, ids: Array, ctx: Dictionary) -> void:
+func _complete_missions(p: Dictionary, ids: Array, ctx: Dictionary, loud_type := "") -> void:
 	## 한 번의 행동으로 채운 미션들을 모두 이룬다. 보상은 효과 목록으로 만들어 해석기에 넘긴다.
+	## loud_type: 줄의 미션은 못 이뤘어도 이 종류의 판정에 성공했을 때 시끄러움을 셈 (협동 미션만 있는 암살 타일)
 	var effects := []
 	var loud := false
+	if ids.is_empty() and loud_type != "" and bool(mission_type_def(loud_type).get("loud", false)):
+		loud = true
 	for id in ids:
 		var m: Dictionary = data.mission(id)
 		var type: String = m.get("type", "")
@@ -1491,6 +1655,9 @@ func _complete_missions(p: Dictionary, ids: Array, ctx: Dictionary) -> void:
 		var bonus := stat(p, "mission_intel_bonus", type)
 		if bonus > 0 and m.get("intel", null) != null:
 			effects.append({"op": "intel", "base": m["intel"], "value": bonus})
+		var ex := stat(p, type + "_exposure")   # 예: 문 선전대원의 sabotage_exposure −1 (방해 성공 시 노출)
+		if ex != 0:
+			effects.append({"op": "exposure", "value": ex})
 		effects.append_array(m.get("rewards", []))
 		var ld = m["loud"] if m.has("loud") else td.get("loud", false)
 		if ld != null and bool(ld):
@@ -1500,19 +1667,98 @@ func _complete_missions(p: Dictionary, ids: Array, ctx: Dictionary) -> void:
 	_run_effects(p, effects, ctx)
 
 
-func _coop_enter_base(_p: Dictionary, _bi: int) -> void:
-	## 훅 (2b): 협동 미션 — 거점 진입 때 확인 (cover_entry)
-	pass
+func _base_cell(base_id: String) -> Vector2i:
+	var bi := data.base_index(base_id)
+	return data.bases[bi] if bi >= 0 else Vector2i(-999, -999)
 
 
-func _coop_turn_end(_p: Dictionary) -> void:
-	## 훅 (2b): 협동 미션 — 차례 끝에 확인 (people, opposite_edges)
-	pass
+func _where_match(c: Vector2i, cond: Dictionary) -> bool:
+	## 협동 조건의 where(+ base): 그 거점의 안 / 옆 칸 / 안이거나 옆 칸. where가 거점 id면 그 거점 안.
+	var where := str(cond.get("where", "inside"))
+	var base_id := str(cond.get("base", ""))
+	if where in GameDataV2.BASE_IDS:
+		return c == _base_cell(where)
+	if base_id == "":
+		return false
+	var d := _manhattan(c, _base_cell(base_id))
+	match where:
+		"inside":
+			return d == 0
+		"adjacent":
+			return d == 1
+		"inside_or_adjacent":
+			return d <= 1
+	return false
 
 
-func _coop_night() -> void:
-	## 훅 (2b): 협동 미션 — 밤에 확인 (same_day_assassin 등)
-	pass
+func _coop_enter_base(p: Dictionary, bi: int) -> Array:
+	## 협동 미션 — 거점에 들어갈 때 확인 (cover_entry: 다른 한 명이 그 거점 옆 칸). 이뤄진 미션 id 목록.
+	var out := []
+	for id in _coop_ids("cover_entry"):
+		for q in players:
+			if q["id"] != p["id"] and not q["jailed"] and _manhattan(q["pos"], data.bases[bi]) == 1:
+				out.append(id)
+				break
+	return out
+
+
+func _coop_turn_end(p: Dictionary) -> bool:
+	## 협동 미션 — 차례 끝에 확인 (people, opposite_edges). 보상 처리를 시작했으면 true.
+	if not p["jailed"]:
+		today["ends"][p["id"]] = p["pos"]
+	var ids := []
+	for id in mission_row:
+		var cond := _coop_cond(id)
+		match str(cond.get("kind", "")):
+			"people":
+				var n := 0
+				for pid in today["ends"]:
+					if not players[pid]["jailed"] and _where_match(today["ends"][pid], cond):
+						n += 1
+				if n >= int(cond.get("count", 2)):
+					ids.append(id)
+			"opposite_edges":
+				if _opposite_edges():
+					ids.append(id)
+	if ids.is_empty():
+		return false
+	_complete_missions(p, ids, {"then": "after_turn", "source": "mission"})
+	return true
+
+
+func _opposite_edges() -> bool:
+	## 오늘 두 명이 보드의 서로 반대쪽 가장자리에서 차례를 마쳤는가
+	var last := data.size - 1
+	var ends: Dictionary = today["ends"]
+	for a in ends:
+		for b in ends:
+			if a == b or players[a]["jailed"] or players[b]["jailed"]:
+				continue
+			var ca: Vector2i = ends[a]
+			var cb: Vector2i = ends[b]
+			if (ca.x == 0 and cb.x == last) or (ca.y == 0 and cb.y == last):
+				return true
+	return false
+
+
+func _coop_night() -> bool:
+	## 협동 미션 — 밤에 확인 (same_day_assassin: 오늘 서로 다른 두 사람이 서로 다른 암살 타일에서 성공). 처리를 시작했으면 true.
+	var ids := []
+	for id in _coop_ids("same_day_assassin"):
+		var need := int(_coop_cond(id).get("count", 2))
+		var who := {}
+		var cells := {}
+		for w in today["assassin_wins"]:
+			who[w["player"]] = true
+			cells[w["cell"]] = true
+		if who.size() >= need and cells.size() >= need:
+			ids.append(id)
+	if ids.is_empty():
+		return false
+	var wins: Array = today["assassin_wins"]
+	var p: Dictionary = players[int(wins[-1]["player"])]
+	_complete_missions(p, ids, {"then": "night_end", "source": "mission"})
+	return true
 
 
 # ================================================================ 탈옥
@@ -1539,9 +1785,27 @@ func _summon(p: Dictionary) -> void:
 	_push({"kind": "police"})
 
 
-func _block_police(_p: Dictionary) -> bool:
-	## 훅 (2b): block_police_with_evade — 경찰이 붙을 때 회피 판정으로 막기
-	return false
+func _block_police(p: Dictionary) -> bool:
+	## block_police_with_evade: 내게 경찰이 붙을 때 회피 판정을 해서 성공하면 붙지 않는다.
+	## (곧바로 끝나는 판정: 다시 굴리기 선택은 없고, 타고난 회피 자동 성공·회피 보정은 따른다)
+	if not flag(p, "block_police_with_evade"):
+		return false
+	var ok := false
+	if flag(p, "evade_auto"):
+		ok = true
+	else:
+		var r := _d2()
+		var bonus := stat(p, "evade_bonus")
+		var target := check_target("evade")
+		ok = r + bonus >= target
+		_push({"kind": "dice", "what": "회피", "dice": last_roll.duplicate(), "bonus": bonus, "target": target,
+			"player": p["id"], "ok": ok})
+		_log("%s: 경찰을 따돌리려 회피 판정 %d%s (목표 %d) → %s" % [p["name"], r,
+			(" %+d" % bonus) if bonus != 0 else "", target, "성공" if ok else "실패"])
+	if ok:
+		_log("%s: 경찰이 붙는 것을 막았습니다." % p["name"])
+		_banner("경찰을 따돌렸다", "good", p)
+	return ok
 
 
 func _jail(p: Dictionary) -> void:
@@ -1575,13 +1839,19 @@ func _on_jailed(_p: Dictionary) -> void:
 func _police_act(p: Dictionary) -> void:
 	if not police_active(p["id"]) or p["jailed"]:
 		return
+	_police_approach(p, police_speed())
+
+
+func _police_approach(p: Dictionary, sp: int) -> void:
+	## 이 요원을 쫓는 경찰이 sp칸 다가온다 (따라잡으면 체포, 너무 멀면 따돌림)
+	if not police.has(p["id"]) or p["jailed"]:
+		return
 	var pol: Dictionary = police[p["id"]]
 	var path = tile_path(pol["pos"], p["pos"])
 	if path == null:
 		police.erase(p["id"])
 		_push({"kind": "police"})
 		return
-	var sp := police_speed()
 	if path.size() <= sp:
 		pol["pos"] = p["pos"]
 		_log("%s: 경찰에게 체포되었습니다!" % p["name"])
@@ -1715,11 +1985,13 @@ func _use_spare(p: Dictionary, die: int, use: String) -> void:
 	d["spare_used"] = true
 	match use:
 		"move":
-			steps_left += int(d["value"])
-			_log("%s: 예비 주사위 %d로 이동을 %d칸 늘립니다 (남은 이동 %d)." % [p["name"], d["value"], d["value"], steps_left])
+			var mv: int = int(d["value"]) + stat(p, "spare_die_bonus")
+			steps_left += mv
+			_log("%s: 예비 주사위 %d로 이동을 %d칸 늘립니다 (남은 이동 %d)." % [p["name"], d["value"], mv, steps_left])
 		"escape":
-			p["flags"]["escape_add"] = int(p["flags"].get("escape_add", 0)) + int(d["value"])
-			_log("%s: 예비 주사위 %d를 탈옥 판정에 보탭니다." % [p["name"], d["value"]])
+			var ev: int = int(d["value"]) + stat(p, "spare_die_bonus")
+			p["flags"]["escape_add"] = int(p["flags"].get("escape_add", 0)) + ev
+			_log("%s: 예비 주사위 %d를 탈옥 판정에 보탭니다 (+%d)." % [p["name"], d["value"], ev])
 		"reroll":
 			_log("%s: 예비 주사위를 써서 판정을 다시 굴립니다." % p["name"])
 			var pd := pending
@@ -1753,8 +2025,11 @@ func _continue(p: Dictionary, ctx: Dictionary) -> void:
 		"morning":
 			_morning_continue()
 		"post_move":
-			_end_move_hop(p)
-			_post_move(p)
+			_finish_move(p)
+		"after_turn":
+			_after_turn()
+		"night_end":
+			_night_end()
 		"stop":
 			_resolve_stop(p)
 		"base_finish":
@@ -1797,26 +2072,89 @@ func _effect(p: Dictionary, e: Dictionary, ctx: Dictionary, queue: Array) -> boo
 			for i in range(br.size() - 1, -1, -1):
 				queue.push_front(br[i])
 		"grant_once":
-			_op_grant_once(p, e, ctx)
+			return _op_grant_once(p, e, ctx, queue)
 		"mark_tile":
 			_op_mark_tile(p, e)
 		"interrogate":
 			return _op_interrogate(p, e, queue)
 		"persuade", "interrogate_discard":
 			_op_stub_stage3(op)
+		"search", "scene_check_mod_today", "threat_flip", "check_or_jail", "refill_supply":
+			_op_stub_stage4(op)
+		"police_advance":
+			_op_police_advance(e)
+		"police_remove":
+			_op_police_remove(p, e)
+		"police_push":
+			_op_police_push(p, e)
+		"police_send_far":
+			_op_police_send_far(p)
+		"checkpoint_place":
+			return _op_checkpoint_place(p, e, ctx, queue)
+		"dice_mod_today":
+			today["dice_mod"] = int(today.get("dice_mod", 0)) + int(e.get("value", 0))
+			_log("오늘 모든 이동 주사위 %+d (최소 %d)." % [int(e.get("value", 0)), int(data.rules["min_die"])])
+		"police_speed_today":
+			today["police_speed"] = int(today.get("police_speed", 0)) + int(e.get("value", 0))
+			_log("오늘 경찰 이동 %+d." % int(e.get("value", 0)))
+		"escape_mod_today":
+			today["escape_mod"] = int(today.get("escape_mod", 0)) + int(e.get("value", 0))
+			_log("오늘 탈옥 판정 %+d." % int(e.get("value", 0)))
+		"free_all_jailed":
+			_op_free_all_jailed(p)
+		"discard_item":
+			return _op_discard_item(p, e, queue)
+		"move_mod_next", "move_today":
+			return _op_move(p, e, ctx, queue)
+		"team_dice_extra_tomorrow":
+			dice_extra_tomorrow += int(e.get("count", 1))
+			_log("내일 아침 팀 주사위가 %d개 늘어납니다." % int(e.get("count", 1)))
+		"team_die_reroll", "team_die_adjust", "team_die_set":
+			return _op_team_die(p, e, queue)
+		"team_dice_reroll_all":
+			_op_team_dice_reroll_all(e)
+		"threat_bury":
+			return _op_threat_bury(p, e, queue)
+		"place_tile":
+			return _op_place_tile(p, e, queue)
+		"extra_step":
+			if p["id"] == current and phase == "turn":
+				steps_left += int(e.get("steps", 1))
+				_log("%s: %d칸 더 갈 수 있습니다." % [p["name"], int(e.get("steps", 1))])
+		"move_to_ally":
+			return _op_move_to_ally(p, e, ctx, queue)
+		"pull_ally":
+			return _op_pull_ally(p, e, ctx, queue)
+		"give_item":
+			return _op_transfer_item(p, e, ctx, queue, str(e.get("who", "ally_in_range")), false, bool(e.get("free", false)))
+		"send_item":
+			return _op_transfer_item(p, e, ctx, queue, "ally", true, true)
+		"skip_dice_tomorrow":
+			var ids = _resolve_who(p, e, ctx, queue, str(e.get("who", "self")))
+			if ids == null:
+				return true
+			for id in ids:
+				players[id]["skip_dice_tomorrow"] = true
+				_log("%s: 내일 아침에는 주사위를 받지 못합니다." % players[id]["name"])
+		"checkpoint_pass":
+			p["flags"]["checkpoint_pass"] = int(p["flags"].get("checkpoint_pass", 0)) + int(e.get("count", 1))
+			_log("%s: 이번 차례에 검문소 %d곳을 판정 없이 지나갈 수 있습니다." % [p["name"], int(e.get("count", 1))])
+		"entry_no_police":
+			p["flags"]["entry_no_police"] = true
+			_log("%s: 이번 거점 진입에는 경찰이 붙지 않습니다." % p["name"])
 		_:
-			_op_stub_2b(p, e, ctx)
+			_log("(알 수 없는 효과) %s" % op)
 	return false
-
-
-func _op_stub_2b(_p: Dictionary, e: Dictionary, _ctx: Dictionary) -> void:
-	## 2b에서 구현할 효과. 지금은 로그만 남기고 아무 일도 하지 않는다.
-	_log("(2b 미구현) %s" % e.get("op", "?"))
 
 
 func _op_stub_stage3(op: String) -> void:
 	## 3단계(변절·설득)에서 구현할 효과
 	_log("(3단계 미구현) %s" % op)
+
+
+func _op_stub_stage4(op: String) -> void:
+	## 4단계(2막 장면)에서 구현할 효과
+	_log("(4단계 미구현) %s" % op)
 
 
 func _interrogate(p: Dictionary) -> void:
@@ -1857,7 +2195,7 @@ func _op_police_dispatch(_p: Dictionary, e: Dictionary) -> void:
 		else:
 			bi = data.base_index(from)
 		if bi < 0:
-			_log("(2b 미구현) police_dispatch from=%s" % from)
+			_log("(4단계 미구현) police_dispatch from=%s (결행 거점 없음)" % from)
 			return
 		used.append(bi)
 		_dispatch_from(bi)
@@ -1873,6 +2211,24 @@ func _who_pick(p: Dictionary, who: String, e: Dictionary) -> Array:
 			return [int(e["pid"])]
 		"all":
 			return players.filter(func(q): return not q["jailed"]).map(func(q): return q["id"])
+		"all_jailed":
+			return players.filter(func(q): return q["jailed"]).map(func(q): return q["id"])
+		"nearest_to_base":
+			var bi := _resolve_base_ref(str(e.get("base", "strike_base")))
+			if bi < 0:
+				return []
+			var near_d := 9999
+			var near_ids := []
+			for q in players:
+				if q["jailed"] and not include_jailed:
+					continue
+				var dd := _manhattan(q["pos"], data.bases[bi])
+				if dd < near_d:
+					near_d = dd
+					near_ids = [q["id"]]
+				elif dd == near_d:
+					near_ids.append(q["id"])
+			return near_ids
 		"isolated":
 			var best := -1
 			var ids := []
@@ -1905,10 +2261,9 @@ func _who_pick(p: Dictionary, who: String, e: Dictionary) -> Array:
 
 
 func _op_police_attach(p: Dictionary, e: Dictionary, queue: Array) -> bool:
-	var who: String = str(e.get("who", "self"))
-	var ids := _who_pick(p, who, e)
-	if ids.size() > 1 and who in ["isolated", "wanted"]:
-		return _ask_leader_pick(e, ids, queue)
+	var ids = _resolve_who(p, e, {}, queue, str(e.get("who", "self")))
+	if ids == null:
+		return true
 	for id in ids:
 		_log("%s: 경찰이 나타나 쫓기 시작합니다!" % players[id]["name"])
 		_summon(players[id])
@@ -1916,22 +2271,80 @@ func _op_police_attach(p: Dictionary, e: Dictionary, queue: Array) -> bool:
 
 
 func _ask_leader_pick(e: Dictionary, ids: Array, queue: Array) -> bool:
-	## 동점은 그날의 리더가 고른다. 고른 뒤 같은 효과를 그 요원으로 다시 처리한다.
+	## 동점은 그날의 리더가 고른다. 고른 뒤 같은 효과를 그 요원으로(e["pid"]) 다시 처리한다.
+	return _ask_pick(players[leader], e, queue, "pid", "pick_player", "동점입니다. 리더가 대상을 고르세요.", _player_options(ids))
+
+
+func _player_options(ids: Array) -> Array:
 	var opts := []
 	for id in ids:
 		opts.append({"value": id, "label": players[id]["name"]})
-	var e2: Dictionary = e.duplicate()
-	e2["who"] = "player"
-	queue.push_front(e2)
-	_ask(players[leader], "pick_player", "동점입니다. 리더가 대상을 고르세요.", opts, {})
+	return opts
+
+
+func _ask_pick(asker: Dictionary, e: Dictionary, queue: Array, key: String, kind: String, prompt: String,
+		options: Array) -> bool:
+	## 효과 e에 필요한 값(key)을 asker에게 묻는다. 고르면 e에 key를 채워 같은 효과를 다시 처리한다. 항상 true.
+	queue.push_front(e.duplicate())
+	_ask(asker, kind, prompt, options, {})
+	pending["key"] = key
 	return true
 
 
-func _op_interrogate(p: Dictionary, e: Dictionary, queue: Array) -> bool:
-	var who: String = str(e.get("who", "self"))
+func _resolve_base_ref(ref: String) -> int:
+	## "strike_base"(결행 거점) 또는 거점 id → 거점 번호 (없으면 -1)
+	if ref == "strike_base":
+		return data.base_index(str(launch_info.get("target", "")))
+	return data.base_index(ref)
+
+
+func _ally_candidates(p: Dictionary, who: String, e: Dictionary, include_jailed := false) -> Array:
+	var out := []
+	for q in players:
+		if q["id"] == p["id"] or (q["jailed"] and not include_jailed):
+			continue
+		var d := _manhattan(q["pos"], p["pos"])
+		match who:
+			"ally":
+				out.append(q["id"])
+			"ally_same_cell":
+				if d == 0:
+					out.append(q["id"])
+			"ally_adjacent":
+				if d <= 1:
+					out.append(q["id"])
+			"ally_in_range":
+				if d <= int(e.get("range", 1)):
+					out.append(q["id"])
+	return out
+
+
+func _resolve_who(p: Dictionary, e: Dictionary, ctx: Dictionary, queue: Array, who: String, include_jailed := false) -> Variant:
+	## 효과의 대상 요원 id 목록. 고를 사람이 필요해 물었으면 null (호출한 효과는 true를 돌려주고 멈춘다).
+	## - 동료 고르기(ally*): 능력이면 능력에서 고른 대상, 아니면 쓰는 사람이 고름
+	## - 동점(isolated · wanted · nearest_to_base): 그날의 리더가 고름
+	if e.has("pid"):
+		return [int(e["pid"])]
+	if who.begins_with("ally"):
+		var t := int(ctx.get("target", -1))
+		if ctx.get("source", "") == "ability" and t >= 0 and t < players.size():
+			return [t]
+		var cands := _ally_candidates(p, who, e, include_jailed)
+		if cands.size() <= 1:
+			return cands
+		_ask_pick(p, e, queue, "pid", "pick_player", "대상 동료를 고르세요.", _player_options(cands))
+		return null
 	var ids := _who_pick(p, who, e)
-	if ids.size() > 1 and who in ["isolated", "wanted"]:
-		return _ask_leader_pick(e, ids, queue)
+	if ids.size() > 1 and who in ["isolated", "wanted", "nearest_to_base"]:
+		_ask_leader_pick(e, ids, queue)
+		return null
+	return ids
+
+
+func _op_interrogate(p: Dictionary, e: Dictionary, queue: Array) -> bool:
+	var ids = _resolve_who(p, e, {}, queue, str(e.get("who", "self")))
+	if ids == null:
+		return true
 	for id in ids:
 		_interrogate(players[id])
 	return false
@@ -2028,18 +2441,18 @@ func _op_choice(p: Dictionary, e: Dictionary) -> bool:
 	return true
 
 
-func _op_grant_once(p: Dictionary, e: Dictionary, ctx: Dictionary) -> void:
-	## 한 번 쓰는 권리를 준다 (판정에서 자동으로 쓰임). who: self | 능력·아이템의 대상
-	var who: String = str(e.get("who", "self"))
-	var q: Dictionary = p
-	if who != "self":
-		var t: int = int(ctx.get("target", -1))
-		if t < 0 or t >= players.size():
-			_log("(2b 미구현) grant_once 대상 없음")
-			return
-		q = players[t]
-	q["grants"].append({"kind": e.get("kind", ""), "value": int(e.get("value", 0)), "scope": e.get("scope", "any")})
-	_log("%s: 한 번 쓰는 권리를 얻었습니다 (%s)." % [q["name"], e.get("kind", "")])
+func _op_grant_once(p: Dictionary, e: Dictionary, ctx: Dictionary, queue: Array) -> bool:
+	## 한 번 쓰는 권리를 준다 (판정에서 자동으로 쓰임). who: self | 동료 고르기(능력이면 능력의 대상)
+	var ids = _resolve_who(p, e, ctx, queue, str(e.get("who", "self")))
+	if ids == null:
+		return true
+	if ids.is_empty():
+		_log("한 번 쓰는 권리를 줄 대상이 없습니다.")
+	for id in ids:
+		var q: Dictionary = players[id]
+		q["grants"].append({"kind": e.get("kind", ""), "value": int(e.get("value", 0)), "scope": e.get("scope", "any")})
+		_log("%s: 한 번 쓰는 권리를 얻었습니다 (%s)." % [q["name"], e.get("kind", "")])
+	return false
 
 
 func _op_mark_tile(p: Dictionary, e: Dictionary) -> void:
@@ -2050,6 +2463,431 @@ func _op_mark_tile(p: Dictionary, e: Dictionary) -> void:
 	if not tile["flags"].has(f):
 		tile["flags"].append(f)
 	_log("%s: 이 칸에 표시를 남겼습니다 (%s)." % [p["name"], f])
+
+
+# ---- 2b 효과들
+
+func _op_police_advance(e: Dictionary) -> void:
+	var steps: int = int(e.get("steps", 1))
+	_log("추격 중인 경찰이 모두 %d칸 다가옵니다!" % steps)
+	for pid in police.keys():
+		if police.has(pid):
+			_police_approach(players[pid], steps)
+	_push({"kind": "police"})
+
+
+func _police_ids_sorted() -> Array:
+	var ids := police.keys()
+	ids.sort()
+	return ids
+
+
+func _op_police_remove(p: Dictionary, e: Dictionary) -> void:
+	match str(e.get("scope", "mine")):
+		"mine":
+			if police.has(p["id"]):
+				police.erase(p["id"])
+				_log("%s: 쫓던 경찰이 사라졌습니다." % p["name"])
+		"all":
+			if not police.is_empty():
+				police.clear()
+				_log("모든 경찰이 물러났습니다.")
+		"cell":
+			var pick := -1
+			if police.has(p["id"]) and police[p["id"]]["pos"] == p["pos"]:
+				pick = p["id"]
+			else:
+				for pid in _police_ids_sorted():
+					if police[pid]["pos"] == p["pos"]:
+						pick = pid
+						break
+			if pick >= 0:
+				police.erase(pick)
+				_log("%s: 이 칸의 경찰을 제압했습니다." % p["name"])
+			else:
+				_log("%s: 이 칸에는 경찰이 없습니다." % p["name"])
+	_push({"kind": "police"})
+
+
+func _op_police_push(p: Dictionary, e: Dictionary) -> void:
+	## 내 옆 칸(같은 칸 포함)의 경찰 1개를 steps칸 물러나게 한다 (나에게서 멀어지는 쪽으로)
+	var pick := -1
+	if police.has(p["id"]) and _manhattan(police[p["id"]]["pos"], p["pos"]) <= 1:
+		pick = p["id"]
+	else:
+		for pid in _police_ids_sorted():
+			if _manhattan(police[pid]["pos"], p["pos"]) <= 1:
+				pick = pid
+				break
+	if pick < 0:
+		_log("%s: 옆 칸에 경찰이 없습니다." % p["name"])
+		return
+	var pos: Vector2i = police[pick]["pos"]
+	for i in int(e.get("steps", 1)):
+		var best := pos
+		var bd := _manhattan(pos, p["pos"])
+		for d in DIRS:
+			var n: Vector2i = pos + d
+			if board.has(n) and _manhattan(n, p["pos"]) > bd:
+				best = n
+				bd = _manhattan(n, p["pos"])
+		pos = best
+	police[pick]["pos"] = pos
+	_log("%s: 경찰이 물러났습니다." % p["name"])
+	_push({"kind": "police"})
+
+
+func _op_police_send_far(p: Dictionary) -> void:
+	if not police.has(p["id"]):
+		return
+	var far := 0
+	var fd := -1
+	for i in data.bases.size():
+		var d := _manhattan(data.bases[i], p["pos"])
+		if d > fd:
+			fd = d
+			far = i
+	police[p["id"]]["pos"] = data.bases[far]
+	_log("%s: 쫓던 경찰이 %s로 돌아갔습니다." % [p["name"], base_name(far)])
+	_push({"kind": "police"})
+
+
+func _free_neighbors(c: Vector2i) -> Array:
+	## 아직 타일이 안 깔린 옆 칸
+	var out := []
+	for d in DIRS:
+		var n: Vector2i = c + d
+		if in_bounds(n) and not board.has(n):
+			out.append(n)
+	return out
+
+
+func _lay_tile(c: Vector2i, type: String) -> void:
+	## 더미에서 그 종류 한 장을 빼 (있으면) c에 깐다
+	tile_deck.erase(type)
+	board[c] = _new_tile(type)
+	_push({"kind": "reveal", "pos": c, "tile": type})
+	_log("%s 타일이 (%d, %d)에 깔렸습니다." % [tile_label(type), c.x, c.y])
+
+
+func tile_label(type: String) -> String:
+	return str(data.rules.get("tile_names", {}).get(type, type))
+
+
+func _op_checkpoint_place(p: Dictionary, e: Dictionary, ctx: Dictionary, queue: Array) -> bool:
+	## near의 옆 빈칸에 검문소를 깐다 (빈칸이 여럿이면 무작위)
+	var near := str(e.get("near", "self"))
+	var cells := []
+	if near == "strike_base":
+		var bi := _resolve_base_ref("strike_base")
+		if bi >= 0:
+			cells.append(data.bases[bi])
+	else:
+		var ids = _resolve_who(p, e, ctx, queue, near)
+		if ids == null:
+			return true
+		for id in ids:
+			cells.append(players[id]["pos"])
+	for k in int(e.get("count", 1)):
+		for c in cells:
+			var free := _free_neighbors(c)
+			if free.is_empty():
+				_log("검문소를 깔 빈칸이 없습니다.")
+				continue
+			_lay_tile(free[rng.randi_range(0, free.size() - 1)], "check")
+	return false
+
+
+func _op_free_all_jailed(p: Dictionary) -> void:
+	var any := false
+	for q in players:
+		if q["jailed"]:
+			q["jailed"] = false
+			any = true
+			_log("%s: 감옥에서 풀려났습니다 (경찰은 붙지 않음)." % q["name"])
+			_push({"kind": "free", "player": q["id"]})
+	if any:
+		_banner("감옥 폭동! 모두 탈출", "good", p)
+
+
+func _op_discard_item(p: Dictionary, e: Dictionary, queue: Array) -> bool:
+	## 비용: 아이템을 버린다 (여러 장이면 하나씩 고름, 한 장뿐이면 그대로)
+	var count: int = int(e.get("count", 1))
+	if count > 1:
+		var rest_e: Dictionary = e.duplicate()
+		rest_e["count"] = count - 1
+		queue.push_front(rest_e)
+	if p["items"].is_empty():
+		_log("%s: 버릴 아이템이 없습니다." % p["name"])
+		return false
+	if p["items"].size() == 1:
+		var id: String = p["items"].pop_back()
+		item_discard.append(id)
+		_log("%s: [%s]을(를) 버렸습니다." % [p["name"], item_def(id)["name"]])
+		return false
+	var opts := []
+	for i in p["items"].size():
+		opts.append({"value": i, "label": item_def(p["items"][i])["name"]})
+	_ask(p, "discard", "버릴 아이템을 고르세요.", opts, {})
+	return true
+
+
+func _op_move(p: Dictionary, e: Dictionary, ctx: Dictionary, queue: Array) -> bool:
+	## move_mod_next: 다음 이동 ±, move_today: 오늘 이동 ± (지금 이동 중이면 남은 칸에 바로 더함)
+	var ids = _resolve_who(p, e, ctx, queue, str(e.get("who", "self")))
+	if ids == null:
+		return true
+	var v: int = int(e.get("value", 0))
+	for id in ids:
+		var q: Dictionary = players[id]
+		if str(e["op"]) == "move_mod_next":
+			q["move_mod_next"] += v
+			_log("%s: 다음 이동 %+d." % [q["name"], v])
+		else:
+			today["move_today"][id] = int(today["move_today"].get(id, 0)) + v
+			if phase == "turn" and id == current:
+				steps_left = maxi(steps_left + v, 0)
+			_log("%s: 오늘 이동 %+d." % [q["name"], v])
+	return false
+
+
+func _die_options(include_values := false) -> Array:
+	var opts := []
+	for i in team_dice.size():
+		var d: Dictionary = team_dice[i]
+		var own := " (%s)" % players[d["owner"]]["name"] if d["owner"] >= 0 else ""
+		opts.append({"value": i, "label": "주사위 %d: %d%s" % [i + 1, d["value"], own]})
+	return opts
+
+
+func _set_die_value(i: int, v: int) -> void:
+	team_dice[i]["value"] = v
+	var o: int = team_dice[i]["owner"]
+	if o >= 0:
+		players[o]["die_raw"] = v
+		players[o]["die"] = _effective_die(players[o], v)
+
+
+func _op_team_die(p: Dictionary, e: Dictionary, queue: Array) -> bool:
+	## team_die_reroll(count) · team_die_adjust(value ±) · team_die_set: 팀 주사위 하나를 골라 손봄
+	var op := str(e["op"])
+	if team_dice.is_empty():
+		_log("손볼 팀 주사위가 없습니다.")
+		return false
+	var sides := int(data.rules["die_sides"])
+	if op == "team_die_adjust":
+		if not e.has("sel"):
+			var mag := absi(int(e.get("value", 1)))
+			var opts := []
+			for i in team_dice.size():
+				for sign in [1, -1]:
+					var nv: int = int(team_dice[i]["value"]) + sign * mag
+					if nv >= 1 and nv <= sides:
+						opts.append({"value": "%d:%d" % [i, sign * mag],
+							"label": "주사위 %d: %d → %d" % [i + 1, team_dice[i]["value"], nv]})
+			if opts.is_empty():
+				return false
+			return _ask_pick(p, e, queue, "sel", "pick_die", "어느 주사위를 어떻게 바꿀까요?", opts)
+		var parts: PackedStringArray = str(e["sel"]).split(":")
+		var di := int(parts[0])
+		_set_die_value(di, clampi(int(team_dice[di]["value"]) + int(parts[1]), 1, sides))
+		_log("팀 주사위 %d의 눈이 %d이(가) 되었습니다." % [di + 1, team_dice[di]["value"]])
+		return false
+	if not e.has("die"):
+		if team_dice.size() == 1:
+			e = e.duplicate()
+			e["die"] = 0
+		else:
+			return _ask_pick(p, e, queue, "die", "pick_die", "어느 주사위를 고르시겠습니까?", _die_options())
+	var i2 := int(e["die"])
+	if op == "team_die_set":
+		if not e.has("val"):
+			var vopts := []
+			for v in range(1, sides + 1):
+				vopts.append({"value": v, "label": "눈 %d" % v})
+			return _ask_pick(p, e, queue, "val", "pick_value", "원하는 눈을 고르세요.", vopts)
+		_set_die_value(i2, clampi(int(e["val"]), 1, sides))
+		_log("팀 주사위 %d의 눈을 %d(으)로 정했습니다." % [i2 + 1, team_dice[i2]["value"]])
+		return false
+	var nv2 := _roll_die()
+	_set_die_value(i2, nv2)
+	_log("팀 주사위 %d을(를) 다시 굴려 %d이(가) 나왔습니다." % [i2 + 1, nv2])
+	_push({"kind": "dice_rolled", "values": team_dice.map(func(d): return d["value"])})
+	var left: int = int(e.get("count", 1)) - 1
+	if left > 0:
+		var e3: Dictionary = e.duplicate()
+		e3.erase("die")
+		e3["count"] = left
+		queue.push_front(e3)
+	return false
+
+
+func _op_team_dice_reroll_all(e: Dictionary) -> void:
+	if str(e.get("when", "")) == "tomorrow":
+		dice_reroll_tomorrow = true
+		_log("내일 아침 팀 주사위를 전부 다시 굴립니다.")
+		return
+	for i in team_dice.size():
+		_set_die_value(i, _roll_die())
+	_log("팀 주사위를 전부 다시 굴렸습니다.")
+	_push({"kind": "dice_rolled", "values": team_dice.map(func(d): return d["value"])})
+
+
+func _op_threat_bury(p: Dictionary, e: Dictionary, queue: Array) -> bool:
+	## 내일 위협 카드(덱 맨 위)를 덱 맨 아래로. peek이면 먼저 보고 묻는다.
+	if threat_deck.size() < 2:
+		_log("내일 위협을 바꿀 수 없습니다.")
+		return false
+	if bool(e.get("peek", false)) and not e.has("bury"):
+		var top: String = threat_deck[-1]
+		return _ask_pick(p, e, queue, "bury", "pick_bury", "내일 위협은 「%s」입니다. 덱 맨 아래로 보내시겠습니까?" % data.threat(top).get("name", top),
+			[{"value": true, "label": "맨 아래로 보낸다"}, {"value": false, "label": "그대로 둔다"}])
+	if e.has("bury") and not bool(e["bury"]):
+		return false
+	var c: String = threat_deck.pop_back()
+	threat_deck.push_front(c)
+	_log("%s: 내일 위협 카드를 덱 맨 아래로 보냈습니다." % p["name"])
+	return false
+
+
+func _tile_type_options() -> Array:
+	var types := []
+	for t in tile_deck:
+		if not t in types:
+			types.append(t)
+	types.sort()
+	var opts := []
+	for t in types:
+		opts.append({"value": t, "label": "%s (%d장)" % [tile_label(t), tile_deck.count(t)]})
+	return opts
+
+
+func _op_place_tile(p: Dictionary, e: Dictionary, queue: Array) -> bool:
+	## 내 옆 빈칸에 타일을 깐다. type: normal | choose(더미에서 종류를 골라 깔고 shuffle_after면 더미를 섞음)
+	var type := str(e.get("type", "normal"))
+	if type == "choose" and not e.has("tile"):
+		var opts := _tile_type_options()
+		if opts.is_empty():
+			_log("더미에 타일이 없습니다.")
+			return false
+		return _ask_pick(p, e, queue, "tile", "pick_tile", "더미에서 깔 타일을 고르세요.", opts)
+	var kind: String = str(e["tile"]) if type == "choose" else type
+	var free := _free_neighbors(p["pos"])
+	if free.is_empty():
+		_log("%s: 타일을 깔 옆 빈칸이 없습니다." % p["name"])
+		return false
+	if free.size() > 1 and not e.has("cell"):
+		var copts := []
+		for c in free:
+			copts.append({"value": c, "label": "(%d, %d)" % [c.x, c.y]})
+		return _ask_pick(p, e, queue, "cell", "pick_cell", "타일을 깔 칸을 고르세요.", copts)
+	var cell: Vector2i = e["cell"] if e.has("cell") else free[0]
+	if board.has(cell) or _manhattan(cell, p["pos"]) != 1:
+		return false
+	_lay_tile(cell, kind)
+	if bool(e.get("shuffle_after", false)):
+		_shuffle(tile_deck)
+		_log("타일 더미를 다시 섞었습니다.")
+	return false
+
+
+func _adjacent_landing_cells(p: Dictionary, anchor: Vector2i) -> Array:
+	## p가 anchor 옆(거리 1)에 설 수 있는 깔린 빈칸
+	var out := []
+	for d in DIRS:
+		var n: Vector2i = anchor + d
+		if _inert_tile(n) and not occupied_by_other(p, n):
+			out.append(n)
+	return out
+
+
+func _op_move_to_ally(p: Dictionary, e: Dictionary, ctx: Dictionary, queue: Array) -> bool:
+	## 동료 하나를 골라 그 옆 칸(adjacent)이나 그 칸으로 바로 옮겨 간다
+	var ids = _resolve_who(p, e, ctx, queue, "ally")
+	if ids == null:
+		return true
+	if ids.is_empty():
+		_log("%s: 찾아갈 동료가 없습니다." % p["name"])
+		return false
+	var q: Dictionary = players[ids[0]]
+	var cells: Array
+	if bool(e.get("adjacent", false)):
+		cells = _adjacent_landing_cells(p, q["pos"])
+	else:
+		cells = [q["pos"]] if not occupied_by_other(p, q["pos"]) else []
+	if cells.is_empty():
+		_log("%s: %s 곁에 설 자리가 없습니다." % [p["name"], q["name"]])
+		return false
+	if cells.size() > 1 and not e.has("cell"):
+		var opts := []
+		for c in cells:
+			opts.append({"value": c, "label": "(%d, %d)" % [c.x, c.y]})
+		return _ask_pick(p, e, queue, "cell", "pick_cell", "%s 곁의 어느 칸으로 갈까요?" % q["name"], opts)
+	var to: Vector2i = e["cell"] if e.has("cell") else cells[0]
+	if not to in cells:
+		return false
+	_teleport(p, to)
+	_log("%s: %s 곁으로 단숨에 이동했습니다." % [p["name"], q["name"]])
+	return false
+
+
+func _op_pull_ally(p: Dictionary, e: Dictionary, ctx: Dictionary, queue: Array) -> bool:
+	## 동료 하나를 내 옆 칸으로 데려온다
+	var ids = _resolve_who(p, e, ctx, queue, "ally")
+	if ids == null:
+		return true
+	if ids.is_empty():
+		return false
+	var q: Dictionary = players[ids[0]]
+	var cells := []
+	for c in _adjacent_landing_cells(q, p["pos"]):
+		if c != q["pos"]:
+			cells.append(c)
+	if cells.is_empty():
+		_log("%s: %s을(를) 데려올 옆 칸이 없습니다." % [p["name"], q["name"]])
+		return false
+	if cells.size() > 1 and not e.has("cell"):
+		var opts := []
+		for c in cells:
+			opts.append({"value": c, "label": "(%d, %d)" % [c.x, c.y]})
+		return _ask_pick(p, e, queue, "cell", "pick_cell", "%s을(를) 어느 칸으로 데려올까요?" % q["name"], opts)
+	var to: Vector2i = e["cell"] if e.has("cell") else cells[0]
+	if not to in cells:
+		return false
+	_teleport(q, to)
+	_log("%s: %s을(를) 곁으로 데려왔습니다." % [p["name"], q["name"]])
+	return false
+
+
+func _op_transfer_item(p: Dictionary, e: Dictionary, ctx: Dictionary, queue: Array, who: String,
+		include_jailed: bool, free: bool) -> bool:
+	## give_item(range) · send_item: 아이템 한 장을 동료에게. 받는 쪽 손패가 넘치면 받는 사람이 버릴 카드를 고른다.
+	var ids = _resolve_who(p, e, ctx, queue, who, include_jailed)
+	if ids == null:
+		return true
+	if ids.is_empty() or p["items"].is_empty():
+		_log("%s: 건넬 상대나 아이템이 없습니다." % p["name"])
+		return false
+	var q: Dictionary = players[ids[0]]
+	if p["items"].size() > 1 and not e.has("item"):
+		var opts := []
+		for i in p["items"].size():
+			opts.append({"value": i, "label": item_def(p["items"][i])["name"]})
+		return _ask_pick(p, e, queue, "item", "pick_item", "%s에게 줄 아이템을 고르세요." % q["name"], opts)
+	var idx: int = int(e["item"]) if e.has("item") else 0
+	if idx < 0 or idx >= p["items"].size():
+		return false
+	var id: String = p["items"][idx]
+	p["items"].remove_at(idx)
+	q["items"].append(id)
+	if not free and bool(data.rules["coop"]["give_counts_as_item_use"]):
+		p["item_uses"] += 1
+	p["stats"]["gives"] += 1
+	_log("%s: [%s]을(를) %s에게 건넸습니다." % [p["name"], item_def(id)["name"], q["name"]])
+	if q["items"].size() > hand_limit(q):
+		_ask_discard(q)
+		return true
+	return false
 
 
 # ================================================================ 선택
@@ -2137,10 +2975,16 @@ func _resolve_choice(value) -> void:
 		"effect_choice":
 			var picked: Array = pd["effects"][int(value)]
 			_run_effects(actor, picked + pd["rest"], pd["ctx"])
-		"pick_player":
+		"pick_player", "pick_cell", "pick_die", "pick_tile", "pick_item", "pick_value", "pick_bury":
 			if not pd["rest"].is_empty():
-				pd["rest"][0]["pid"] = int(value)
+				pd["rest"][0][str(pd.get("key", "pid"))] = value
 			_run_effects(actor, pd["rest"], pd["ctx"])
+		"hop":
+			if value is Vector2i:
+				_teleport(p, value)
+				_log("%s: 동료 곁으로 한 칸 옮겼습니다." % p["name"])
+				_check_hideout(p)
+			_post_move(p)
 		"intel_base":
 			_add_intel(data.base_index(str(value)), int(pd["amount"]))
 			_run_effects(actor, pd["rest"], pd["ctx"])
@@ -2182,7 +3026,7 @@ func _finish_launch(base_id: String) -> void:
 const SAVE_FIELDS := ["players", "leader", "day", "rounds_total", "rounds_left", "act", "phase", "current",
 	"steps_left", "board", "tile_deck", "police", "exposure", "intel", "ready", "threat_deck", "threat_discard",
 	"threat_today", "mission_deck", "mission_discard", "mission_row", "event_deck", "event_discard",
-	"item_deck", "item_discard", "bomb_supply", "team_dice", "dice_extra_tomorrow", "today", "pending",
+	"item_deck", "item_discard", "bomb_supply", "team_dice", "dice_extra_tomorrow", "dice_reroll_tomorrow", "today", "pending",
 	"launch_info", "ending", "check", "morning_step", "last_roll", "actions", "log_lines", "history"]
 
 

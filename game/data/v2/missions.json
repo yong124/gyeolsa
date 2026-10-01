@@ -303,8 +303,8 @@
 				"count": 2
 			},
 			"ready": 3,
-			"loud": true,
-			"_comment": "암살 두 번이라 시끄러움 (노출은 각 암살마다 +1)"
+			"loud": false,
+			"_comment": "암살 두 번이라 시끄럽지만 노출은 각 암살 성공 때(암살 타일에서) +1씩 이미 올랐으므로 카드 보상에서는 더 올리지 않는다 (loud false)"
 		},
 		{
 			"id": "m_prison_visit",
