@@ -1,0 +1,14 @@
+{
+	"_comment": "검증기 자체 시험용 작은 예시",
+	"act1": [
+		{"id": "curfew", "name": "통금령", "count": 2, "tone": "bad", "text": "오늘 모든 이동 주사위 −1 (최소 1)",
+		 "effects": [{"op": "dice_mod_today", "value": -1}]},
+		{"id": "raid", "name": "일제 검거", "tone": "bad", "text": "무작위 군영에서 경찰 출동",
+		 "effects": [{"op": "police_dispatch", "from": "random_base", "count": 1}],
+		 "_todo": "시험용 경고"}
+	],
+	"act2": [
+		{"id": "lure", "name": "회유 공작", "tone": "bad", "text": "고립된 요원에게 심문", "deck_place": "top_half",
+		 "effects": [{"op": "interrogate", "who": "isolated", "include_jailed": true, "skip_done_saga": true}]}
+	]
+}

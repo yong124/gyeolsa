@@ -1,0 +1,6 @@
+{
+	"cards": [
+		{"id": "held", "name": "버텼다", "count": 7, "shaken": false, "text": "그는 이름 하나 대지 않았다."},
+		{"id": "shaken", "name": "흔들렸다", "count": 5, "shaken": true, "text": "어머니 얘기가 나오자 그의 눈이 흔들렸다."}
+	]
+}

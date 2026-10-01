@@ -1,0 +1,11 @@
+{
+	"types": {
+		"assassin": {"name": "암살", "how": "암살 타일에서 판정", "ready": 2, "loud": true, "condition": null},
+		"coop": {"name": "협동", "how": "함께 해낸다", "ready": 1, "loud": false, "condition": null}
+	},
+	"missions": [
+		{"id": "kill_a", "name": "암살 A", "type": "assassin", "intel": "nearest", "rewards": [{"op": "ready", "value": 1}], "text": "결행 준비 +1"},
+		{"id": "coop_a", "name": "협동 A", "type": "coop", "intel": null, "ready": 2, "rewards": [],
+		 "condition": {"kind": "people", "count": 2, "where": "inside_or_adjacent", "same_day": true}, "text": "둘이 함께"}
+	]
+}

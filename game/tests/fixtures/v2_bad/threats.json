@@ -1,0 +1,12 @@
+{
+	"_comment": "일부러 틀린 예: op 오타, 어휘 밖 who, 중복 id, 중첩된 오타",
+	"act1": [
+		{"id": "bad_op", "name": "오타", "count": 1, "tone": "bad", "text": "경찰 출동",
+		 "effects": [{"op": "police_dispach", "from": "random_base"}]},
+		{"id": "bad_op", "name": "중복", "count": 1, "tone": "bad", "text": "중복 id",
+		 "effects": [{"op": "exposure", "value": 1, "who": "nobody"}]},
+		{"id": "nested", "name": "중첩", "count": 1, "tone": "mixed", "text": "중첩 오타",
+		 "effects": [{"op": "choice", "options": [{"label": "x", "effects": [{"op": "no_such_op"}]}]}]}
+	],
+	"act2": []
+}

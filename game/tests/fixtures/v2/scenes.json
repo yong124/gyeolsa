@@ -1,0 +1,15 @@
+{
+	"strikes": {
+		"prison": {"name": "형무소 해방", "base": "prison", "on_launch": [],
+			"entry": {"id": "p_entry", "name": "정문", "where": "adjacent", "condition": {"kind": "check", "check": "generic", "target": 8}, "on_fail": [], "stop_text": "문이 열리지 않았다."},
+			"middle": [
+				{"id": "p_m1", "name": "복도", "where": "inside", "condition": {"kind": "any_of", "options": [{"kind": "pay_item", "count": 1}, {"kind": "dice", "sum": 10}]}, "on_fail": [{"op": "exposure", "value": 1}], "stop_text": "복도가 막혔다."}
+			],
+			"final": {"id": "p_final", "name": "감방", "where": "inside", "condition": {"kind": "jailed_here"}, "on_fail": [], "stop_text": "감방은 비어 있었다."}
+		},
+		"police_hq": {"name": "경찰서 습격", "base": "police_hq", "on_launch": [{"op": "refill_supply"}]}
+	},
+	"reinforce": [
+		{"id": "r1", "name": "순찰 증가", "where": "inside_or_adjacent", "condition": {"kind": "hold", "where": "police_hq", "days": 1}, "on_fail": [], "stop_text": "순찰이 늘었다."}
+	]
+}
