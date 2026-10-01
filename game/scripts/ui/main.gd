@@ -24,6 +24,8 @@ func _ready() -> void:
 		add_child(load("res://tests/v2_ui_test.gd").new())   # v2 화면 시험 (개발용)
 	elif "tour" in args:
 		add_child(load("res://tools/tour.gd").new())   # 개발용 화면 캡처 (빌드에는 없음)
+	elif "v2" in args:
+		_show_v2_setup()   # 새 규칙 v2 바로 시작 (게임_실행_v2.bat)
 	elif "autostart" in args:
 		var title := TitleScreen.new(data)
 		var cfg := {"defs": title.make_players(4, 0), "difficulty": 0}
