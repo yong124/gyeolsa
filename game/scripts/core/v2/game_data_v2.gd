@@ -225,7 +225,9 @@ func _validate_interrogation(errs: Array[String]) -> void:
 			shaken += int(c.get("count", 1))
 	if not interrogation.is_empty():
 		_check_count(errs, "심문 카드", _sum_count(cards), 12, true)
-		_check_count(errs, "심문 흔들렸다", shaken, 5, true)
+		# "흔들렸다" 장수는 밸런스 레버라 정해 두지 않는다 (변절 빈도로 맞춤). 두 종류가 다 있어야만 한다.
+		if shaken <= 0 or shaken >= _sum_count(cards):
+			errs.append("[장수] 심문 카드: 버텼다와 흔들렸다가 모두 있어야 합니다 (흔들렸다 %d장)" % shaken)
 
 
 func _validate_missions(errs: Array[String]) -> void:

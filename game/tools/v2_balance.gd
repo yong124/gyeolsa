@@ -1,5 +1,7 @@
 extends SceneTree
 ## v2 AI 판의 지표를 같은 시드 묶음으로 측정한다.
+## 옵션: games= seed= players= set=경로=값 sweep=경로=값1,값2 (값에 쉼표가 있으면 set으로 따로 실행)
+##       force_strike= force_char= out= data=데이터 폴더(기본 res://data/v2, 수치 실험용 사본)
 
 const ACTION_CAP := 6000
 
@@ -42,8 +44,9 @@ func _init() -> void:
 func _run(opt: Dictionary, sets: Array) -> Dictionary:
 	var source := GameDataV2.load_default()
 	var data := GameDataV2.new()
-	data.load_dir(GameDataV2.DIR)
-	data.rules = source.rules.duplicate(true)
+	var dir := str(opt.get("data", ""))
+	data.load_dir(dir if dir != "" else GameDataV2.DIR)
+	data.rules = data.rules.duplicate(true) if dir != "" else source.rules.duplicate(true)
 	for assignment in sets:
 		var pair: Array = str(assignment).split("=", false, 1)
 		if pair.size() != 2:

@@ -1,0 +1,497 @@
+{
+	"_comment": "결행 장면 24장 + 경비 강화 4장 (카드 목록 v2 4절). 결행마다 진입 1·중간 4(무작위 2장)·마지막 1. where는 장면이 벌어지는 곳(따로 없으면 결행 거점 안). 바치기 장면은 실패 없음. stop_text는 8월 15일에 그 장면에서 멈췄을 때 결말 문장 (마지막 장면은 '한 걸음이 모자랐다 —' 뒤의 문장). 실패한 요원에게 경찰은 police_attach who=self.",
+	"strikes": {
+		"prison": {
+			"name": "형무소 해방",
+			"base": "prison",
+			"on_launch": [],
+			"entry": {
+				"id": "prison_wall",
+				"name": "담 넘기",
+				"where": "adjacent",
+				"condition": {
+					"kind": "dice",
+					"sum": 7
+				},
+				"on_fail": [],
+				"stop_text": "높은 담 앞에서 날이 밝았다.",
+				"_comment": "바치기라 실패 없음"
+			},
+			"middle": [
+				{
+					"id": "prison_guards",
+					"name": "간수 제압",
+					"where": "inside",
+					"condition": {
+						"kind": "check_pair",
+						"check": "evade",
+						"count": 2,
+						"same_day": true,
+						"where": "prison"
+					},
+					"on_fail": [
+						{
+							"op": "police_attach",
+							"who": "self"
+						}
+					],
+					"stop_text": "간수들의 고함이 울렸고, 옥문은 끝내 열리지 않았다."
+				},
+				{
+					"id": "prison_keys",
+					"name": "열쇠 꾸러미",
+					"where": "inside",
+					"condition": {
+						"kind": "pay_item",
+						"count": 1
+					},
+					"on_fail": [],
+					"stop_text": "열쇠 꾸러미는 간수장의 허리춤에 그대로 매달려 있었다."
+				},
+				{
+					"id": "prison_search",
+					"name": "감방 수색",
+					"where": "inside",
+					"condition": {
+						"kind": "hold",
+						"where": "inside",
+						"days": 1,
+						"count": 1
+					},
+					"on_fail": [],
+					"stop_text": "어느 감방에 동지들이 있는지 끝내 알 수 없었다."
+				},
+				{
+					"id": "prison_bell",
+					"name": "비상종",
+					"where": "inside",
+					"condition": {
+						"kind": "check",
+						"check": "generic",
+						"target": 9
+					},
+					"on_fail": [
+						{
+							"op": "threat_flip"
+						}
+					],
+					"stop_text": "비상종이 울리자 경성 전체가 깨어났다."
+				}
+			],
+			"final": {
+				"id": "prison_door",
+				"name": "옥문",
+				"where": "inside",
+				"condition": {
+					"kind": "check",
+					"check": "lock",
+					"target": 10
+				},
+				"on_fail": [
+					{
+						"op": "police_dispatch",
+						"from": "strike_base",
+						"count": 1
+					}
+				],
+				"stop_text": "옥문 너머에서 동지들이 이름을 불렀다. 문은 열리지 않았다."
+			}
+		},
+		"barracks": {
+			"name": "사령관 암살",
+			"base": "barracks",
+			"on_launch": [],
+			"entry": {
+				"id": "barracks_wire",
+				"name": "철조망",
+				"where": "adjacent",
+				"condition": {
+					"kind": "any_of",
+					"options": [
+						{
+							"kind": "dice",
+							"sum": 7
+						},
+						{
+							"kind": "pay_item",
+							"count": 1
+						}
+					]
+				},
+				"on_fail": [],
+				"stop_text": "철조망 너머로 군영의 불빛만 보았다.",
+				"_comment": "아침 주사위 합 7 이상을 바치거나, 아이템 1장을 버림"
+			},
+			"middle": [
+				{
+					"id": "barracks_shift",
+					"name": "보초 교대",
+					"where": "adjacent",
+					"condition": {
+						"kind": "hold",
+						"where": "adjacent",
+						"days": 1,
+						"count": 1
+					},
+					"on_fail": [],
+					"stop_text": "보초는 끝내 자리를 비우지 않았다.",
+					"_comment": "교대 시간을 기다림"
+				},
+				{
+					"id": "barracks_ammo",
+					"name": "탄약고",
+					"where": "inside",
+					"condition": {
+						"kind": "pay_bomb",
+						"count": 1
+					},
+					"on_fail": [],
+					"stop_text": "탄약고는 무사했고, 군영은 평소처럼 아침을 맞았다."
+				},
+				{
+					"id": "barracks_officers",
+					"name": "장교 숙소",
+					"where": "inside",
+					"condition": {
+						"kind": "check",
+						"check": "generic",
+						"target": 9
+					},
+					"on_fail": [
+						{
+							"op": "police_dispatch",
+							"from": "strike_base",
+							"count": 1
+						}
+					],
+					"stop_text": "장교 숙소의 문 앞에서 발소리가 멈췄다."
+				},
+				{
+					"id": "barracks_dogs",
+					"name": "군견",
+					"where": "inside",
+					"condition": {
+						"kind": "check_pair",
+						"check": "evade",
+						"count": 2,
+						"same_day": true,
+						"where": "barracks"
+					},
+					"on_fail": [
+						{
+							"op": "police_attach",
+							"who": "self"
+						}
+					],
+					"stop_text": "군견이 짖기 시작했고, 작전은 거기서 끝났다."
+				}
+			],
+			"final": {
+				"id": "barracks_commander",
+				"name": "사령관실",
+				"where": "inside",
+				"condition": {
+					"kind": "check",
+					"check": "assassin",
+					"target": 10
+				},
+				"on_fail": [
+					{
+						"op": "check_or_jail",
+						"check": "evade"
+					}
+				],
+				"stop_text": "사령관은 그날 밤 숙소를 옮겼다."
+			}
+		},
+		"police_hq": {
+			"name": "경찰서 폭파",
+			"base": "police_hq",
+			"on_launch": [
+				{
+					"op": "refill_supply"
+				}
+			],
+			"entry": {
+				"id": "police_back_door",
+				"name": "뒷문 잠입",
+				"where": "adjacent",
+				"condition": {
+					"kind": "people",
+					"count": 2,
+					"where": "adjacent",
+					"same_day": true
+				},
+				"on_fail": [],
+				"stop_text": "뒷문은 끝내 열리지 않았다."
+			},
+			"middle": [
+				{
+					"id": "police_duty",
+					"name": "당직 순사",
+					"where": "inside",
+					"condition": {
+						"kind": "check",
+						"check": "generic",
+						"target": 9
+					},
+					"on_fail": [
+						{
+							"op": "police_dispatch",
+							"from": "strike_base",
+							"count": 1
+						}
+					],
+					"stop_text": "당직 순사가 호루라기를 불었다."
+				},
+				{
+					"id": "police_alarm",
+					"name": "경보 차단",
+					"where": "inside",
+					"condition": {
+						"kind": "dice",
+						"sum": 8
+					},
+					"on_fail": [],
+					"stop_text": "경보선은 그대로 이어져 있었다."
+				},
+				{
+					"id": "police_records",
+					"name": "서류 창고",
+					"where": "inside",
+					"condition": {
+						"kind": "pay_item",
+						"count": 1
+					},
+					"on_fail": [],
+					"stop_text": "서류 창고에는 동지들의 이름이 그대로 남았다.",
+					"_comment": "서류에 불을 붙임"
+				},
+				{
+					"id": "police_cells",
+					"name": "지하 유치장",
+					"where": "inside",
+					"condition": {
+						"kind": "any_of",
+						"options": [
+							{
+								"kind": "jailed_here"
+							},
+							{
+								"kind": "check",
+								"check": "generic",
+								"target": 9
+							}
+						]
+					},
+					"on_fail": [],
+					"stop_text": "지하 유치장의 동지들은 폭음을 듣지 못했다.",
+					"_comment": "경찰서 감옥에 갇힌 요원이 있으면 바로 돌파, 없으면 판정 9 이상"
+				}
+			],
+			"final": {
+				"id": "police_bomb",
+				"name": "폭탄 설치",
+				"where": "inside",
+				"condition": {
+					"kind": "pay_bomb",
+					"count": 2,
+					"split": true
+				},
+				"on_fail": [],
+				"stop_text": "도화선은 짧았고, 폭탄은 하나가 모자랐다.",
+				"_comment": "여러 요원이 나눠 바쳐도 됨"
+			}
+		},
+		"gg": {
+			"name": "총독부 점거",
+			"base": "gg",
+			"on_launch": [],
+			"entry": {
+				"id": "gg_gate",
+				"name": "정문",
+				"where": "inside",
+				"condition": {
+					"kind": "any_of",
+					"options": [
+						{
+							"kind": "check",
+							"check": "generic",
+							"target": 9
+						},
+						{
+							"kind": "pay_item",
+							"count": 1
+						}
+					]
+				},
+				"on_fail": [
+					{
+						"op": "police_dispatch",
+						"from": "strike_base",
+						"count": 1
+					}
+				],
+				"stop_text": "정문의 헌병은 서류를 두 번 들여다보았다.",
+				"_comment": "판정 9 이상, 또는 아이템 1장을 버림 (위조 출입증)"
+			},
+			"middle": [
+				{
+					"id": "gg_corridor",
+					"name": "회랑",
+					"where": "inside",
+					"condition": {
+						"kind": "people",
+						"count": 2,
+						"where": "inside",
+						"same_day": true
+					},
+					"on_fail": [],
+					"stop_text": "끝없는 회랑에서 길을 잃었다."
+				},
+				{
+					"id": "gg_comms",
+					"name": "통신실",
+					"where": "inside",
+					"condition": {
+						"kind": "dice",
+						"sum": 8
+					},
+					"on_fail": [],
+					"stop_text": "통신실의 전보는 본국으로 날아갔다."
+				},
+				{
+					"id": "gg_archive",
+					"name": "문서고",
+					"where": "inside",
+					"condition": {
+						"kind": "hold",
+						"where": "inside",
+						"days": 1,
+						"count": 1
+					},
+					"on_fail": [],
+					"stop_text": "문서고의 기록은 불타지 않았다."
+				},
+				{
+					"id": "gg_guard",
+					"name": "근위대",
+					"where": "inside",
+					"condition": {
+						"kind": "check_pair",
+						"check": "evade",
+						"count": 2,
+						"same_day": true,
+						"where": "gg"
+					},
+					"on_fail": [
+						{
+							"op": "police_attach",
+							"who": "self"
+						}
+					],
+					"stop_text": "근위대의 총검이 계단을 막았다."
+				}
+			],
+			"final": {
+				"id": "gg_flag",
+				"name": "깃발",
+				"where": "inside",
+				"condition": {
+					"kind": "hold",
+					"where": "inside",
+					"days": 1,
+					"count": 2
+				},
+				"on_fail": [],
+				"stop_text": "태극기는 끝내 깃대에 오르지 못했다.",
+				"_comment": "두 명 이상이 총독부에 모인 채 하루를 넘김"
+			}
+		}
+	},
+	"reinforce": [
+		{
+			"id": "reinforce_post",
+			"name": "초소",
+			"where": "inside_or_adjacent",
+			"condition": {
+				"kind": "any_of",
+				"options": [
+					{
+						"kind": "check",
+						"check": "generic",
+						"target": 9
+					},
+					{
+						"kind": "people",
+						"count": 2,
+						"where": "inside_or_adjacent",
+						"same_day": true
+					}
+				]
+			},
+			"on_fail": [
+				{
+					"op": "police_dispatch",
+					"from": "strike_base",
+					"count": 1
+				}
+			],
+			"stop_text": "새로 생긴 초소가 길을 막았다.",
+			"_comment": "판정 9 이상, 또는 두 명이 같은 칸에서 차례를 마침 (결행 거점 안이나 옆 칸으로 봄)"
+		},
+		{
+			"id": "reinforce_searchlight",
+			"name": "탐조등",
+			"where": "inside",
+			"condition": {
+				"kind": "any_of",
+				"options": [
+					{
+						"kind": "dice",
+						"sum": 6
+					},
+					{
+						"kind": "pay_item",
+						"count": 1
+					}
+				]
+			},
+			"on_fail": [],
+			"stop_text": "탐조등 불빛이 밤새 거리를 쓸었다.",
+			"_comment": "아침 주사위 합 6 이상을 바치거나, 아이템 1장을 버림"
+		},
+		{
+			"id": "reinforce_dogs",
+			"name": "군견대",
+			"where": "inside",
+			"condition": {
+				"kind": "check_pair",
+				"check": "evade",
+				"count": 2,
+				"same_day": true
+			},
+			"on_fail": [
+				{
+					"op": "police_attach",
+					"who": "self"
+				}
+			],
+			"stop_text": "군견대가 골목을 하나씩 뒤졌다."
+		},
+		{
+			"id": "reinforce_gate",
+			"name": "철문",
+			"where": "inside_or_adjacent",
+			"condition": {
+				"kind": "hold",
+				"where": "inside_or_adjacent",
+				"days": 1,
+				"count": 1
+			},
+			"on_fail": [],
+			"stop_text": "철문은 아침이 되어도 열리지 않았다.",
+			"_comment": "결행 거점이나 옆 칸에서 하루를 넘김"
+		}
+	]
+}

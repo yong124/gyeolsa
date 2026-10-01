@@ -1,0 +1,378 @@
+{
+	"_comment": "v2 공개 미션 20장 (카드_목록_v2.md 3절). 비협동 미션의 결행 준비·소리는 types 기본값을 따르고, rewards는 추가 보상만. 협동은 ready, loud, condition을 카드에 직접 가짐 (ready는 rewards에 중복해 넣지 않음).",
+	"types": {
+		"assassin": {
+			"name": "암살",
+			"how": "암살 타일에서 판정 9 이상",
+			"ready": 2,
+			"loud": true,
+			"condition": {
+				"kind": "check",
+				"check": "assassin",
+				"target": 9
+			}
+		},
+		"infiltrate": {
+			"name": "잠입",
+			"how": "그 거점에 들어감 (경찰이 붙음)",
+			"ready": 1,
+			"loud": false,
+			"condition": {
+				"kind": "enter_base",
+				"base": "card"
+			}
+		},
+		"bomb": {
+			"name": "폭파",
+			"how": "보급 타일에서 폭탄을 얻고 폭파 타일로",
+			"ready": 1,
+			"loud": true,
+			"condition": {
+				"kind": "deliver_bomb",
+				"tile": "bomb"
+			}
+		},
+		"sabotage": {
+			"name": "방해",
+			"how": "방해 타일에서 회피 판정 7 이상",
+			"ready": 1,
+			"loud": false,
+			"condition": {
+				"kind": "check",
+				"check": "evade",
+				"target": 7
+			}
+		},
+		"coop": {
+			"name": "협동",
+			"how": "카드에 적힌 조건 (두 명)",
+			"ready": null,
+			"loud": null,
+			"condition": null,
+			"_comment": "ready, loud, condition은 카드마다 직접 가짐"
+		}
+	},
+	"missions": [
+		{
+			"id": "m_police_chief",
+			"name": "순사 부장 암살",
+			"type": "assassin",
+			"intel": "police_hq",
+			"rewards": [
+				{
+					"op": "intel",
+					"base": "police_hq",
+					"value": 1
+				}
+			],
+			"text": "경찰서 첩보 +1"
+		},
+		{
+			"id": "m_mp_captain",
+			"name": "헌병 대위 암살",
+			"type": "assassin",
+			"intel": "barracks",
+			"rewards": [
+				{
+					"op": "intel",
+					"base": "barracks",
+					"value": 1
+				}
+			],
+			"text": "군영 첩보 +1"
+		},
+		{
+			"id": "m_collab_official",
+			"name": "친일 관료 처단",
+			"type": "assassin",
+			"intel": "gg",
+			"rewards": [
+				{
+					"op": "intel",
+					"base": "gg",
+					"value": 1
+				}
+			],
+			"text": "총독부 첩보 +1"
+		},
+		{
+			"id": "m_informant",
+			"name": "밀정 처단",
+			"type": "assassin",
+			"intel": "nearest",
+			"rewards": [
+				{
+					"op": "intel",
+					"base": "nearest",
+					"value": 1
+				}
+			],
+			"text": "가장 가까운 거점 첩보 +1"
+		},
+		{
+			"id": "m_bribe_guard",
+			"name": "형무소 간수 매수",
+			"type": "infiltrate",
+			"intel": "prison",
+			"rewards": [
+				{
+					"op": "intel",
+					"base": "prison",
+					"value": 1
+				}
+			],
+			"text": "형무소 첩보 +1",
+			"base": "prison"
+		},
+		{
+			"id": "m_police_docs",
+			"name": "경찰서 문서 탈취",
+			"type": "infiltrate",
+			"intel": "police_hq",
+			"rewards": [
+				{
+					"op": "intel",
+					"base": "police_hq",
+					"value": 1
+				}
+			],
+			"text": "경찰서 첩보 +1",
+			"base": "police_hq"
+		},
+		{
+			"id": "m_gg_blueprint",
+			"name": "총독부 설계도 입수",
+			"type": "infiltrate",
+			"intel": "gg",
+			"rewards": [
+				{
+					"op": "intel",
+					"base": "gg",
+					"value": 1
+				}
+			],
+			"text": "총독부 첩보 +1",
+			"base": "gg"
+		},
+		{
+			"id": "m_supply_ledger",
+			"name": "군영 보급 장부 입수",
+			"type": "infiltrate",
+			"intel": "barracks",
+			"rewards": [
+				{
+					"op": "intel",
+					"base": "barracks",
+					"value": 1
+				}
+			],
+			"text": "군영 첩보 +1",
+			"base": "barracks"
+		},
+		{
+			"id": "m_rail_bomb",
+			"name": "철로 폭파",
+			"type": "bomb",
+			"intel": "barracks",
+			"rewards": [
+				{
+					"op": "intel",
+					"base": "barracks",
+					"value": 1
+				}
+			],
+			"text": "군영 첩보 +1"
+		},
+		{
+			"id": "m_telegraph_bomb",
+			"name": "전신선 폭파",
+			"type": "bomb",
+			"intel": "police_hq",
+			"rewards": [
+				{
+					"op": "intel",
+					"base": "police_hq",
+					"value": 1
+				}
+			],
+			"text": "경찰서 첩보 +1"
+		},
+		{
+			"id": "m_substation_bomb",
+			"name": "변전소 폭파",
+			"type": "bomb",
+			"intel": "gg",
+			"rewards": [
+				{
+					"op": "intel",
+					"base": "gg",
+					"value": 1
+				}
+			],
+			"text": "총독부 첩보 +1"
+		},
+		{
+			"id": "m_leaflets",
+			"name": "전단 살포",
+			"type": "sabotage",
+			"intel": null,
+			"rewards": [
+				{
+					"op": "exposure",
+					"value": -1
+				}
+			],
+			"text": "노출 −1"
+		},
+		{
+			"id": "m_burn_conscript",
+			"name": "징용 명단 불태우기",
+			"type": "sabotage",
+			"intel": "prison",
+			"rewards": [
+				{
+					"op": "intel",
+					"base": "prison",
+					"value": 1
+				}
+			],
+			"text": "형무소 첩보 +1"
+		},
+		{
+			"id": "m_open_rice",
+			"name": "쌀 창고 열기",
+			"type": "sabotage",
+			"intel": null,
+			"rewards": [
+				{
+					"op": "exposure",
+					"value": -1
+				},
+				{
+					"op": "draw_item",
+					"count": 1
+				}
+			],
+			"text": "노출 −1, 아이템 1장"
+		},
+		{
+			"id": "m_raise_flag",
+			"name": "태극기 게양",
+			"type": "sabotage",
+			"intel": "nearest",
+			"rewards": [
+				{
+					"op": "intel",
+					"base": "nearest",
+					"value": 1
+				}
+			],
+			"text": "가장 가까운 거점 첩보 +1"
+		},
+		{
+			"id": "m_cover_entry",
+			"name": "엄호 잠입",
+			"type": "coop",
+			"intel": "entered",
+			"rewards": [
+				{
+					"op": "intel",
+					"base": "entered",
+					"value": 2
+				},
+				{
+					"op": "entry_no_police"
+				}
+			],
+			"text": "한 명이 거점에 들어가는 차례에 다른 한 명이 그 옆 칸에 있음 → 그 거점 첩보 +2, 경찰이 붙지 않음, 결행 준비 +1",
+			"condition": {
+				"kind": "cover_entry"
+			},
+			"ready": 1,
+			"loud": false
+		},
+		{
+			"id": "m_simul_strike",
+			"name": "동시 습격",
+			"type": "coop",
+			"intel": null,
+			"rewards": [],
+			"text": "같은 날 두 명이 각각 다른 암살 타일에서 성공 → 결행 준비 +3 (첩보 없음)",
+			"condition": {
+				"kind": "same_day_assassin",
+				"count": 2
+			},
+			"ready": 3,
+			"loud": false,
+			"_comment": "암살 두 번이라 시끄럽지만 노출은 각 암살 성공 때(암살 타일에서) +1씩 이미 올랐으므로 카드 보상에서는 더 올리지 않는다 (loud false)"
+		},
+		{
+			"id": "m_prison_visit",
+			"name": "형무소 면회",
+			"type": "coop",
+			"intel": "prison",
+			"rewards": [
+				{
+					"op": "intel",
+					"base": "prison",
+					"value": 2
+				}
+			],
+			"text": "두 명이 같은 날 형무소 옆 칸에서 차례를 마침 → 형무소 첩보 +2, 결행 준비 +1",
+			"condition": {
+				"kind": "people",
+				"count": 2,
+				"where": "adjacent",
+				"base": "prison",
+				"same_day": true
+			},
+			"ready": 1,
+			"loud": false
+		},
+		{
+			"id": "m_link_line",
+			"name": "연락선 잇기",
+			"type": "coop",
+			"intel": null,
+			"rewards": [
+				{
+					"op": "exposure",
+					"value": -1
+				}
+			],
+			"text": "두 명이 같은 날 보드의 서로 반대쪽 가장자리에서 차례를 마침 → 결행 준비 +2, 노출 −1",
+			"condition": {
+				"kind": "opposite_edges"
+			},
+			"ready": 2,
+			"loud": false
+		},
+		{
+			"id": "m_gg_rally",
+			"name": "총독부 앞 집회",
+			"type": "coop",
+			"intel": "gg",
+			"rewards": [
+				{
+					"op": "intel",
+					"base": "gg",
+					"value": 2
+				},
+				{
+					"op": "exposure",
+					"value": 1
+				}
+			],
+			"text": "두 명이 같은 날 총독부 옆 칸에서 차례를 마침 → 총독부 첩보 +2, 결행 준비 +1, 노출 +1",
+			"condition": {
+				"kind": "people",
+				"count": 2,
+				"where": "adjacent",
+				"base": "gg",
+				"same_day": true
+			},
+			"ready": 1,
+			"loud": false
+		}
+	]
+}

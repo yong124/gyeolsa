@@ -10,6 +10,7 @@ const START := Vector2i(5, 5)
 
 
 func _init() -> void:
+	_test_fixture_in_sync()
 	_test_plan_dice()
 	_test_gaeddong_dice()
 	_test_free_order_and_night()
@@ -47,9 +48,49 @@ func ok(cond: bool, label: String) -> void:
 		print("FAIL ", label)
 
 
+## 규칙 시험은 고정 수치 사본(tests/fixtures/v2_base, 4단계 끝의 데이터)으로 돈다.
+## 밸런스 조정으로 data/v2의 수치가 바뀌어도 규칙 시험의 기대값은 그대로다.
+## 카드를 더하거나 빼면 이 사본도 함께 맞춘다 (진짜 데이터의 검증은 v2_data_test가 한다).
+const BASE_DIR := "res://tests/fixtures/v2_base/"
+static var _fixed_cache: GameDataV2
+
+
+static func _fixed_data() -> GameDataV2:
+	if _fixed_cache == null:
+		_fixed_cache = GameDataV2.new()
+		_fixed_cache.load_dir(BASE_DIR)
+	return _fixed_cache
+
+
+func _ids(v, out: Array) -> void:
+	## JSON 안의 모든 "id" 값을 모은다
+	if v is Dictionary:
+		if v.has("id"):
+			out.append(str(v["id"]))
+		for k in v:
+			_ids(v[k], out)
+	elif v is Array:
+		for x in v:
+			_ids(x, out)
+
+
+func _test_fixture_in_sync() -> void:
+	## 고정 수치 사본과 진짜 데이터의 카드 구성(id)이 같아야 "빠짐없이" 검사가 진짜 카드를 덮는다
+	var real := GameDataV2.load_default()
+	var fixed := _fixed_data()
+	for name in ["threats", "interrogation", "missions", "events", "items", "scenes", "sagas", "characters"]:
+		var a := []
+		var b := []
+		_ids(real.get(name), a)
+		_ids(fixed.get(name), b)
+		a.sort()
+		b.sort()
+		ok(a == b, "고정 수치 사본: %s 카드 구성이 진짜 데이터와 같음" % name)
+
+
 func _gd(tweak: Callable = Callable()) -> GameDataV2:
 	var gd := GameDataV2.new()
-	gd.load_dir(GameDataV2.DIR)
+	gd.load_dir(BASE_DIR)
 	if tweak.is_valid():
 		tweak.call(gd)
 	return gd
@@ -60,7 +101,7 @@ func _new(chars: Array, gd: GameDataV2 = null, seed_value := 1) -> RulesV2:
 	var defs := []
 	for c in chars:
 		defs.append({"name": "요원 " + c, "character": c})
-	g.setup(defs, seed_value, gd if gd else GameDataV2.load_default())
+	g.setup(defs, seed_value, gd if gd else _fixed_data())
 	return _blank(g)
 
 
@@ -216,7 +257,7 @@ func _test_free_order_and_night() -> void:
 	for pid in [3, 0, 1]:
 		_turn(g, pid, 1)
 		g.apply({"type": "end_move", "player": pid})
-	ok(g.day == 2 and g.leader == 1 and g.rounds_left == 9, "밤: 모두 마치면 다음 날 아침 (리더가 옆 사람으로, 남은 날 -1)")
+	ok(g.day == 2 and g.leader == 1 and g.rounds_left == int(g.data.rules["rounds"]) - 1, "밤: 모두 마치면 다음 날 아침 (리더가 옆 사람으로, 남은 날 -1)")
 	ok(g.phase in ["plan", "choice"] , "밤: 다음 날 아침이 계획 단계(또는 선택)에 이름")
 	# 마지막 날 밤
 	var g2 := _new(["park", "han", "oh", "seo"])
@@ -1826,7 +1867,7 @@ func _test_ops_misc() -> void:
 # ------------------------------------------------------------------ 전부 시험했는가
 
 func _test_coverage() -> void:
-	var gd := GameDataV2.load_default()
+	var gd := _fixed_data()
 	for c in gd.threats.get("act1", []):
 		ok(covered.has("threat:" + c["id"]), "빠짐없이: 위협 %s" % c["id"])
 	for c in gd.events.get("events", []):
@@ -2005,7 +2046,7 @@ func _with_char(g: RulesV2, char_id: String) -> Dictionary:
 # ------------------------------------------------------------------ 사연 20장 각각
 
 func _test_saga_cards() -> void:
-	var gd := GameDataV2.load_default()
+	var gd := _fixed_data()
 	# 어머니의 소식: 종로경찰서 3칸 안, 쫓기지 않고 차례를 마침
 	var g := _new(CH)
 	_give(g, 0, ["mother"])
@@ -2369,7 +2410,7 @@ func _test_saga_cards() -> void:
 
 
 func _test_saga_coverage() -> void:
-	var gd := GameDataV2.load_default()
+	var gd := _fixed_data()
 	for c in gd.sagas.get("sagas", []):
 		ok(covered.has("saga:" + c["id"]), "빠짐없이: 사연 %s" % c["id"])
 
@@ -3204,12 +3245,12 @@ func _run_4_tests() -> void:
 func _test_scene_all_cards() -> void:
 	var count := 0
 	for target in GameDataV2.BASE_IDS:
-		var strike: Dictionary = GameDataV2.load_default().strike(target)
+		var strike: Dictionary = _fixed_data().strike(target)
 		var cards: Array = [strike["entry"]] + strike["middle"] + [strike["final"]]
 		for card in cards:
 			_test_one_scene(target, card)
 			count += 1
-	for card in GameDataV2.load_default().scenes["reinforce"]:
+	for card in _fixed_data().scenes["reinforce"]:
 		_test_one_scene(GameDataV2.BASE_IDS[0], card)
 		count += 1
 	ok(count == 28, "빠짐없이: 결행 장면 24장과 경비 강화 4장")
@@ -3275,7 +3316,7 @@ func _test_one_scene(target: String, card: Dictionary) -> void:
 
 
 func _test_scene_boundaries() -> void:
-	var data := GameDataV2.load_default()
+	var data := _fixed_data()
 	var card: Dictionary = data.strike("prison")["entry"]
 	var g := _scene_fixture("prison", card)
 	g.team_dice = [{"value": 3, "owner": 0, "carry": true, "spare_used": false},
@@ -3293,6 +3334,7 @@ func _test_scene_boundaries() -> void:
 	ok(g.apply({"type": "scene_pay", "player": 0, "what": "die", "die": 0}) and g.ending.get("won", false), "첩보: 줄어든 합에 닿으면 돌파")
 	card = data.strike("police_hq")["final"]
 	g = _scene_fixture("police_hq", card)
+	g.data = _gd(func(d): d.scenes["strikes"]["police_hq"]["final"]["condition"]["count"] = 2)
 	g.players[0]["bombs"] = 1
 	g.players[1]["bombs"] = 1
 	_turn(g, 0, 1)
@@ -3304,6 +3346,7 @@ func _test_scene_boundaries() -> void:
 	g = _scene_fixture("police_hq", card.duplicate(true))
 	g.data = _gd()
 	# 조건의 split을 끄고 한꺼번에 필요한 수를 확인한다.
+	g.data.scenes["strikes"]["police_hq"]["final"]["condition"]["count"] = 2
 	g.data.scenes["strikes"]["police_hq"]["final"]["condition"]["split"] = false
 	g.players[0]["bombs"] = 1
 	_turn(g, 0, 1)
@@ -3376,10 +3419,10 @@ func _test_act2_endings() -> void:
 		ok(g.ending["id"] == want and g.ending["scene"] == g.scenes[index] and g.ending["epilogues"].size() == 4,
 			"엔딩: %s와 요원 4명 후일담" % want)
 		ok(g._scene_card(g.scenes[index])["stop_text"] in g.ending["text"], "엔딩: 멈춘 장면 문장 포함")
-	var win := _scene_fixture("prison", GameDataV2.load_default().strike("prison")["final"])
+	var win := _scene_fixture("prison", _fixed_data().strike("prison")["final"])
 	win._end_game(true)
 	ok(win.ending["id"] == "victory" and win.ending["won"] and win.ending["epilogues"].size() == 4, "엔딩: 승리와 후일담")
-	var tr := _scene_fixture("prison", GameDataV2.load_default().strike("prison")["final"])
+	var tr := _scene_fixture("prison", _fixed_data().strike("prison")["final"])
 	tr.traitor_id = 1
 	tr.players[1]["traitor"] = true
 	tr._end_game(false)
@@ -3387,14 +3430,14 @@ func _test_act2_endings() -> void:
 
 
 func _test_act2_effects() -> void:
-	var g := _scene_fixture("prison", GameDataV2.load_default().strike("prison")["final"])
+	var g := _scene_fixture("prison", _fixed_data().strike("prison")["final"])
 	g.players[0]["pos"] = g._base_cell("prison")
 	g.today["scene_mod"] = 0
 	g._run_effects(g.players[0], [{"op": "scene_check_mod_today", "value": 1}], {"then": "resume"})
 	ok(g.today["scene_mod"] == 1, "위협: 비상 소집 판정 목표 +1")
 	g._run_effects(g.players[0], [{"op": "threat_flip"}], {"then": "resume"})
 	ok(g.threat_discard.size() >= 1, "위협: 추가 카드 즉시 공개")
-	g = _scene_fixture("prison", GameDataV2.load_default().strike("prison")["final"])
+	g = _scene_fixture("prison", _fixed_data().strike("prison")["final"])
 	g.players[0]["pos"] = g._base_cell("prison")
 	g.data = _gd(func(d): d.rules["checks"]["evade"] = 99)
 	g._run_effects(g.players[0], [{"op": "check_or_jail", "check": "evade"}], {"then": "resume"})
@@ -3402,7 +3445,7 @@ func _test_act2_effects() -> void:
 
 
 func _test_act2_edges() -> void:
-	var data := GameDataV2.load_default()
+	var data := _fixed_data()
 	var g := _scene_fixture("prison", data.strike("prison")["middle"][0])
 	g.players[0]["pos"] = g._base_cell("prison")
 	g.players[0]["grants"] = [{"kind": "check_bonus", "value": 99}, {"kind": "check_bonus", "value": 99}]
@@ -3468,7 +3511,7 @@ func _test_act2_edges() -> void:
 
 
 func _test_act2_sagas_and_failures() -> void:
-	var data := GameDataV2.load_default()
+	var data := _fixed_data()
 	var g := _scene_fixture("prison", data.strike("prison")["entry"])
 	g.scenes = [data.strike("prison")["entry"]["id"], data.strike("prison")["final"]["id"]]
 	g.scene_index = 0
