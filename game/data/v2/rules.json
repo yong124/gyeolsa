@@ -8,7 +8,7 @@
 	"act2_personal_dice_extra": 1,
 	"_comment_act2_personal_dice_extra": "2막 아침에 요원마다 더 굴리는 작전 주사위 수",
 	"op_check_dice": 1,
-	"_comment_op_check_dice": "작전 판정(암살·방해·탈옥·장면)에서 고른 주사위의 눈에 더해 새로 굴리는 주사위 수",
+	"_comment_op_check_dice": "작전 판정(암살·탈옥·장면)에서 고른 주사위의 눈에 더해 새로 굴리는 주사위 수",
 	"give_per_day": 1,
 	"give_range": 0,
 	"_comment_give": "주사위 건네기: 하루 횟수, 거리(0 = 같은 칸)",
@@ -24,8 +24,31 @@
 	"hand_limit": 2,
 	"item_uses_per_turn": 1,
 	"bomb_slots": 1,
-	"checks": {"assassin": 9, "evade": 7, "escape": 8, "sabotage": 7, "_comment": "판정 목표 눈금"},
-	"tiles": {"normal": 45, "event": 18, "item": 15, "check": 5, "supply": 5, "assassin": 6, "sabotage": 3, "bomb": 3, "_comment": "타일 장수. 합계는 빈칸 수(121-1-4=116) 이하여야 한다"},
+	"checks": {"assassin": 9, "evade": 7, "escape": 8, "_comment": "판정 목표 눈금"},
+	"tiles": {"normal": 42, "event": 16, "item": 14, "check": 6, "supply": 5, "alley": 6, "watchtower": 4, "market": 4, "tavern": 3, "_comment": "타일 장수 (규칙서 100장). 합계는 빈칸 수(121-1-4=116) 이하여야 한다. normal이 「길」"},
+	"tile_effects": {
+		"event": {"once": "normal", "on_stop": [{"op": "event_card"}], "text": "이벤트 카드 1장. 한 번 쓰면 길이 됨"},
+		"item": {"once": "normal", "on_stop": [{"op": "draw_item", "count": 1}], "text": "아이템 1장. 한 번 쓰면 길이 됨"},
+		"supply": {"on_stop": [{"op": "gain_bomb", "count": 1}], "text": "폭탄 1개 (보급에 남아 있고 손에 자리가 있으면)"},
+		"alley": {"on_stop": [{"op": "police_back", "steps": 2}], "text": "이동을 마치면 나를 쫓는 경찰이 2칸 물러남 (5칸 넘게 벌어지면 따돌림). 「숨기」 가능"},
+		"watchtower": {"on_stop": [{"op": "exposure", "value": 1}], "text": "이동을 마치면 노출 +1 (지나가기만 하면 괜찮음)"},
+		"tavern": {"on_turn_end": [{"op": "exposure", "value": -1}], "needs": "ally_here", "once_per_day": true, "text": "동료와 같은 칸에서 차례를 마치면 노출 −1 (하루 한 번). 「숨기」 가능"},
+		"market": {"text": "「장터」 행동을 할 수 있는 칸 (값은 군자금이 생기면 정함)"},
+		"_comment": "타일 효과. on_stop: 이동을 마칠 때(같은 칸은 한 차례에 한 번), on_turn_end: 차례를 마칠 때 (needs ally_here = 같은 칸에 동료, once_per_day = 하루에 한 번만). once = 한 번 쓰면 그 종류의 타일로 바뀜. 검문소·거점·출발점은 엔진이 따로 처리한다"
+	},
+	"ops": {
+		"days": [2, 4, 6, 8],
+		"trend_max": 6,
+		"block": [{"op": "exposure", "value": -1}],
+		"penalties": [
+			{"min": 0, "effects": []},
+			{"min": 2, "effects": [{"op": "exposure", "value": 1}]},
+			{"min": 4, "effects": [{"op": "exposure", "value": 1}, {"op": "police_dispatch", "from": "marker", "count": 1}]},
+			{"min": 6, "effects": [{"op": "exposure", "value": 1}, {"op": "police_dispatch", "from": "marker", "count": 1}, {"op": "ready", "value": -1}]}
+		],
+		"reinforce_by_trend": [{"min": 3, "count": 1}, {"min": 5, "count": 2}],
+		"_comment": "일제 작전: 1막 days일째 아침마다 작전 카드 1장을 뒤집어 마커를 놓고 동향(0~trend_max)을 1 올림. 막으면 block을 받고, 못 막으면 카드의 missed에 동향 단계별 추가 벌칙(penalties 중 min이 가장 큰 칸)이 붙고 동향이 1 더 오름. 결행하면 남은 작전을 치우고, 동향이 reinforce_by_trend의 min 이상이면 2막 위협 덱에 증원 카드를 count장 더 섞음"
+	},
 	"scenes": {"middle_draw": 2, "reinforce_by_alert": {"1": 0, "2": 1, "3": 1}, "_comment": "중간 장면 뽑는 수, 경계 단계별 경비 강화 장수"},
 	"intel_token": {"check_bonus": 1, "dice_reduce": 2, "_comment": "첩보 토큰 사용 효과"},
 	"saga": {"deal_per_pile": 1, "_comment": "더미마다 나눠 주는 개인 사연 수"},
@@ -49,9 +72,9 @@
 		{"id": "funds", "name": "군자금 +3", "text": "군자금 3을 얻는다", "enabled": false, "effects": []}
 	], "_comment": "결행 대상 후보의 첩보 문턱, 결행 혜택 (결행 준비가 launch_min을 넘는 1점마다 하나, 같은 것은 한 번). enabled false는 숨김 (군자금은 D단계에서 켠다)"},
 	"counter": {"target": 7, "_comment": "반격을 막는 작전 판정 목표 (버티기 장면이 펼쳐진 날). 못 막으면 그날은 세지 않고 자리에 선 요원이 회피 판정(checks.evade)을 한다"},
-	"ai": {"launch_target": {"intel": 2.0, "saga": 1.5, "distance": 0.15}, "vote_ready_margin": 1, "_comment": "AI 결행 투표: 대상 점수 = 첩보 x intel + 내 사연과 맞으면 saga − 거리 x distance. 준비가 launch_min + vote_ready_margin 이상이면 첩보가 모자라도 찬성"},
+	"ai": {"launch_target": {"intel": 2.0, "saga": 1.5, "distance": 0.15}, "vote_ready_margin": 1, "mission": {"ready": 1.0, "intel": 0.6, "exposure": 0.5, "item": 0.7, "bomb": 0.5, "police": 0.4, "peek": 0.2, "grant": 0.7, "penalty": 0.8, "urgent": 1.0, "informer_detour": 6}, "_comment": "AI 결행 투표: 대상 점수 = 첩보 x intel + 내 사연과 맞으면 saga − 거리 x distance. 준비가 launch_min + vote_ready_margin 이상이면 첩보가 모자라도 찬성"},
 	"hideout_flag": "hideout",
 	"_comment_hideout_flag": "이 표시가 있는 칸에서 차례를 마치면 나를 쫓던 경찰이 사라진다 (mark_tile의 flag 이름)",
-	"tile_names": {"normal": "일반", "event": "이벤트", "item": "아이템", "check": "검문소", "supply": "보급", "assassin": "암살 표적", "sabotage": "방해 공작", "bomb": "폭파 지점", "base": "거점", "start": "출발점"},
+	"tile_names": {"normal": "길", "event": "이벤트", "item": "아이템", "check": "검문소", "supply": "보급", "alley": "골목", "watchtower": "감시탑", "market": "장터", "tavern": "주막", "base": "거점", "start": "출발점"},
 	"_comment_tile_names": "타일 종류의 화면·로그용 이름 (타일을 고르거나 깔 때 보여 줌)"
 }

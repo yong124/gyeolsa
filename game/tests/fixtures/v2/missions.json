@@ -1,11 +1,20 @@
 {
 	"types": {
-		"assassin": {"name": "암살", "how": "암살 타일에서 판정", "ready": 2, "loud": true, "condition": null},
-		"coop": {"name": "협동", "how": "함께 해낸다", "ready": 1, "loud": false, "condition": null}
+		"assassin": {"name": "암살", "loud": true},
+		"coop": {"name": "협동", "loud": false}
 	},
 	"missions": [
-		{"id": "kill_a", "name": "암살 A", "type": "assassin", "intel": "nearest", "rewards": [{"op": "ready", "value": 1}], "text": "결행 준비 +1"},
-		{"id": "coop_a", "name": "협동 A", "type": "coop", "intel": null, "ready": 2, "rewards": [],
-		 "condition": {"kind": "people", "count": 2, "where": "inside_or_adjacent", "same_day": true}, "text": "둘이 함께"}
+		{"id": "kill_a", "name": "암살 A", "type": "assassin", "intel": "nearest",
+		 "condition": {"kind": "assassinate", "check": "assassin", "target": 9, "risky": true},
+		 "markers": [{"role": "target", "around": "start", "min": 2, "max": 3, "move": 1}],
+		 "deadline": 4, "missed": [{"op": "exposure", "value": 1}],
+		 "ready": 1, "rewards": [{"op": "ready", "value": 1}], "where": "시내 2~3칸", "how": "표적 칸에서 판정", "text": "결행 준비 +1"},
+		{"id": "coop_a", "name": "협동 A", "type": "coop", "intel": null, "ready": 2, "rewards": [], "markers": [],
+		 "condition": {"kind": "people", "count": 2, "where": "inside_or_adjacent", "same_day": true}, "where": "아무 곳", "how": "둘이 함께", "text": "둘이 함께"}
+	],
+	"ops": [
+		{"id": "op_a", "name": "작전 A", "type": "op", "condition": {"kind": "lurk", "days": 1, "adjacent": true},
+		 "markers": [{"role": "spot", "around": "start", "min": 2, "max": 4}], "deadline": 2,
+		 "missed": [{"op": "exposure", "value": 1}], "where": "시내", "how": "차례를 마침", "text": "막으면 노출 −1"}
 	]
 }

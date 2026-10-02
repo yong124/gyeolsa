@@ -25,6 +25,8 @@ func _init() -> void:
 	var used := {}
 	var abilities := {}
 	var choices := {}
+	var done_types := {}
+	var ops_blocked := 0
 	var total := 0
 	for i in 220:
 		var n := 4 if i < 200 else 2 + i % 2
@@ -68,6 +70,11 @@ func _init() -> void:
 					confiscated += e["items"].size()
 				if e.get("kind", "") == "ability":
 					abilities[g.players[int(e["player"])]["character"]] = true
+				if e.get("kind", "") == "mission_done":
+					var mt := str(data.mission(str(e["id"])).get("type", ""))
+					done_types[mt] = int(done_types.get(mt, 0)) + 1
+				if e.get("kind", "") == "op_blocked":
+					ops_blocked += 1
 			g.events.clear()
 		if g.phase != "over":
 			errors.append("%d판: 멈춤 (%s, %d동작)" % [i, g.phase, step])
@@ -87,11 +94,17 @@ func _init() -> void:
 		errors.append("AI 대체 액션 %d회" % GameAIV2.fallback_count)
 	if confiscated == 0:
 		errors.append("투옥 압수가 한 번도 없음")
-	for k in ["launch_vote", "launch_target", "strike_target", "launch_benefit"]:
+	for k in ["launch_vote", "launch_target", "strike_target", "launch_benefit", "mission_gear"]:
 		if not choices.has(k) and k != "strike_target":
 			errors.append("AI가 한 번도 답하지 않은 결행 선택: " + k)
 	print("선택 종류: ", choices.keys())
-	for t in ["move_die", "step", "end_move", "end_turn", "mission_check", "escape", "scout", "scene_check", "scene_pay"]:
+	for t in ["assassin", "infiltrate", "bomb", "work", "contact", "lurk", "coop"]:
+		if int(done_types.get(t, 0)) == 0:
+			errors.append("AI가 한 번도 이루지 못한 미션 종류: " + t)
+	if ops_blocked == 0:
+		errors.append("AI가 일제 작전을 한 번도 막지 못함")
+	print("AI가 이룬 미션(종류별): ", done_types, " · 막은 일제 작전 ", ops_blocked)
+	for t in ["move_die", "step", "end_move", "end_turn", "mission_check", "work_give", "escape", "scout", "scene_check", "scene_pay"]:
 		if int(used.get(t, 0)) == 0:
 			errors.append("AI가 한 번도 안 쓴 행동: " + t)
 	if int(used.get("end_turn", 0)) + total < int(used.get("begin_turn", 0)):

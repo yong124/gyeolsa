@@ -19,13 +19,13 @@ func _init() -> void:
 	var data := GameDataV2.load_default()
 	var char_ids: Array = data.characters["characters"].map(func(c): return c["id"])
 	var stats := {"days": 0, "forced": 0, "vote": 0, "stub": 0, "stub3": 0, "stub4": 0, "other": 0, "jailed": 0, "actions": 0,
-		"missions": {}, "checks": 0, "rescues": 0, "escapes": 0, "launched": 0,
+		"missions": {}, "missed": 0, "ops_blocked": 0, "ops_missed": 0, "ops_seen": 0, "checks": 0, "rescues": 0, "escapes": 0, "launched": 0,
 		"saga_done": 0, "saga_dealt": {}, "saga_hit": {}, "confiscated": 0,
 		"keeps": 0, "saga_players": 0, "endings": {}, "scene_breaks": {}, "scene_shown": {},
 		"target_breaks": {}, "target_games": {}, "act2_days": 0}
 	var plain_games := 0
 	var fast_stats := {"days": 0, "forced": 0, "vote": 0, "stub": 0, "stub3": 0, "stub4": 0, "other": 0, "jailed": 0, "actions": 0,
-		"missions": {}, "checks": 0, "rescues": 0, "escapes": 0, "launched": 0,
+		"missions": {}, "missed": 0, "ops_blocked": 0, "ops_missed": 0, "ops_seen": 0, "checks": 0, "rescues": 0, "escapes": 0, "launched": 0,
 		"saga_done": 0, "saga_dealt": {}, "saga_hit": {}, "confiscated": 0,
 		"keeps": 0, "saga_players": 0, "endings": {}, "scene_breaks": {}, "scene_shown": {},
 		"target_breaks": {}, "target_games": {}, "act2_days": 0}
@@ -43,7 +43,7 @@ func _init() -> void:
 		_play(i, chars, 5000 + i, bot, data, fast_stats if fast else stats, fast)
 	# 2·3인 판: 사연이 켜져 있어야 한다
 	var small := {"days": 0, "forced": 0, "vote": 0, "stub": 0, "stub3": 0, "stub4": 0, "other": 0, "jailed": 0, "actions": 0,
-		"missions": {}, "checks": 0, "rescues": 0, "escapes": 0, "launched": 0,
+		"missions": {}, "missed": 0, "ops_blocked": 0, "ops_missed": 0, "ops_seen": 0, "checks": 0, "rescues": 0, "escapes": 0, "launched": 0,
 		"saga_done": 0, "saga_dealt": {}, "saga_hit": {}, "confiscated": 0,
 		"keeps": 0, "saga_players": 0, "endings": {}, "scene_breaks": {}, "scene_shown": {},
 		"target_breaks": {}, "target_games": {}, "act2_days": 0}
@@ -66,7 +66,7 @@ func _init() -> void:
 			float(stats["days"]) / launched, stats["forced"], launched, 100.0 * stats["forced"] / launched, stats["vote"]])
 	print("끝난 판 %d/%d · 평균 액션 %.0f · 투옥 %d · 구출 %d · 탈옥 %d" % [launched, plain_games, float(stats["actions"]) / maxi(plain_games, 1),
 		stats["jailed"], stats["rescues"], stats["escapes"]])
-	print("미션 성공(종류별): ", stats["missions"])
+	print("미션 성공(종류별): ", stats["missions"], " · 놓친 미션 ", stats["missed"], " · 일제 작전 ", stats["ops_seen"], "번 (막음 ", stats["ops_blocked"], " · 놓침 ", stats["ops_missed"], ")")
 	print("판당 이룬 사연 %.2f · 판당 압수당한 아이템 %.2f장" % [
 		float(stats["saga_done"]) / maxi(plain_games, 1), float(stats["confiscated"]) / maxi(plain_games, 1)])
 	print("2막 직행 시험 %d판 (2막으로 꾸밈): 끝난 판 %d · 평균 액션 %.0f · 투옥 %d" % [games - plain_games, fast_launched,
@@ -173,6 +173,14 @@ func _play(idx: int, chars: Array, seed_value: int, bot: RandomNumberGenerator, 
 			if e["kind"] == "mission_done":
 				var t: String = data.mission(e["id"]).get("type", "?")
 				stats["missions"][t] = int(stats["missions"].get(t, 0)) + 1
+			elif e["kind"] == "mission_missed":
+				stats["missed"] += 1
+			elif e["kind"] == "op_appear":
+				stats["ops_seen"] += 1
+			elif e["kind"] == "op_blocked":
+				stats["ops_blocked"] += 1
+			elif e["kind"] == "op_missed":
+				stats["ops_missed"] += 1
 			elif e["kind"] == "rescue":
 				stats["rescues"] += 1
 			elif e["kind"] == "confiscate":
@@ -346,6 +354,46 @@ func _check_invariants(g: RulesV2, tag: String, turn_seen: Dictionary) -> void:
 	if g.phase == "day" and g.current != -1:
 		_fail("%s: day인데 current가 있음" % tag)
 	_check_stage3(g, tag)
+	_check_markers(g, tag)
+
+
+func _check_markers(g: RulesV2, tag: String) -> void:
+	## C단계 불변식: 마커는 줄에 있는 카드의 것 · 보드 안 · 칸이 겹치지 않음 · 진행 상태가 줄과 맞음 · 동향 범위
+	var rows := g.mission_row + g.op_row
+	if g.act == 2 and (not g.markers.is_empty() or not rows.is_empty() or not g.mission_state.is_empty()):
+		_fail("%s: 2막인데 1막 미션·마커가 남음" % tag)
+	for id in rows:
+		if not g.mission_state.has(id):
+			_fail("%s: 줄의 카드 %s에 진행 상태가 없음" % [tag, id])
+	for id in g.mission_state:
+		if not id in rows:
+			_fail("%s: 줄에 없는 카드 %s의 진행 상태가 남음" % [tag, id])
+	if g.op_row.size() > g.data.op_deck().size():
+		_fail("%s: 일제 작전이 너무 많음" % tag)
+	var seen := {}
+	for m in g.markers:
+		if not str(m["id"]) in rows:
+			_fail("%s: 줄에 없는 카드의 마커 %s" % [tag, m["id"]])
+		if not g.in_bounds(m["pos"]):
+			_fail("%s: 마커가 보드 밖 %s" % [tag, m["pos"]])
+		var spec: Dictionary = g.data.marker_card(str(m["id"])).get("markers", [])[int(m["spec"])]
+		if not spec.has("at"):
+			if m["pos"] == g.data.start or m["pos"] in g.data.bases:
+				_fail("%s: 마커가 거점·출발점 위에 있음 %s" % [tag, m["pos"]])
+			if seen.has(m["pos"]):
+				_fail("%s: 마커 두 개가 같은 칸 %s" % [tag, m["pos"]])
+			seen[m["pos"]] = true
+		if str(m["role"]) not in GameDataV2.KNOWN_MARKER_ROLES:
+			_fail("%s: 알 수 없는 마커 역할 %s" % [tag, m["role"]])
+	if g.trend < 0 or g.trend > int(g.data.rules["ops"]["trend_max"]):
+		_fail("%s: 일제 동향 %d" % [tag, g.trend])
+	for id in g.mission_state:
+		var st: Dictionary = g.mission_state[id]
+		var h := int(st["holder"])
+		if h >= 0 and (h >= g.players.size() or g.players[h]["jailed"]):
+			_fail("%s: 갇혔거나 없는 요원이 물건을 들고 있음" % tag)
+		if int(st["days"]) == 0 or int(st["days"]) < -1:
+			_fail("%s: 카드 %s의 남은 날이 %d" % [tag, id, int(st["days"])])
 
 
 func _check_stage3(g: RulesV2, tag: String) -> void:

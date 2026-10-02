@@ -188,15 +188,15 @@
 			"gender": "f",
 			"origin": "전단을 뿌리던 여학생 출신 선전대원",
 			"persona": "careful",
-			"trait_text": "방해 판정 +2, 성공하면 노출 −1",
+			"trait_text": "공작에서 바칠 것 하나를 줄임(합 −2 또는 조합 눈 하나). 이루면 노출 −1",
 			"trait": {
 				"mods": [
 					{
-						"stat": "sabotage_bonus",
+						"stat": "work_reduce",
 						"value": 2
 					},
 					{
-						"stat": "sabotage_exposure",
+						"stat": "work_exposure",
 						"value": -1
 					}
 				]

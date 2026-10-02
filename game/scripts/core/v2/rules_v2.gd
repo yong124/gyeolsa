@@ -10,7 +10,7 @@ extends RefCounted
 ## - legal_actions()는 apply가 받아들이는 액션과 정확히 같다.
 ##
 ## 낮 (11·12단계): 주사위 1개 = 행동 1개. 차례를 시작하면 「행동 고르기」가 이어지고, end_turn으로 마친다.
-##   행동(주사위 하나를 낸다): move_die · mission_check · escape · scene_check · scene_pay · give_die · give_item · decoy · hide · scout · market
+##   행동(주사위 하나를 낸다): move_die · mission_check · work_give · escape · scene_check · scene_pay · give_die · give_item · decoy · hide · scout · market
 ##   공짜(주사위 없이): use_item(차례에 1장) · ability(하루 1번, cost "die"인 능력은 주사위를 냄) · use_intel · end_move · end_turn
 ##
 ## 액션
@@ -19,7 +19,8 @@ extends RefCounted
 ##   {"type": "move_die", "player", "die"}                (turn) 주사위 하나로 그 눈만큼 걷기 시작 (걷는 중에는 다른 행동 못 함)
 ##   {"type": "step", "player", "to": Vector2i}           (turn) 한 칸 이동 (경찰이 있는 칸은 못 들어감)
 ##   {"type": "end_move", "player"}                       (turn, 이동 중) 남은 칸을 버리고 멈춤. 멈춘 칸의 효과를 받는다 (같은 칸은 한 차례에 한 번)
-##   {"type": "mission_check", "player", "die", "cell"}   (turn) 미션 타일(암살 표적 등)에서 작전 판정: 낸 눈 + 새 주사위
+##   {"type": "mission_check", "player", "die", "cell"}   (turn) 암살 표적 마커(옆 칸이면 저격수 오)에서 작전 판정: 낸 눈 + 새 주사위
+##   {"type": "work_give", "player", "die"}               (turn) 내 칸의 공작 마커에 주사위를 바침 (합 · 눈 조합 · 마커마다 하나)
 ##   {"type": "escape", "player", "die"}                  (turn, 갇힘) 탈옥 작전 판정
 ##   {"type": "scene_check", "player", "die"}             (2막 turn) 장면 작전 판정
 ##   {"type": "scene_pay", "player", "what", "die"?, "index"?, "with"?}  (2막 turn) 장면에 바침 (아이템·폭탄은 with로 주사위 하나를 냄)
@@ -102,6 +103,16 @@ var human := -1                 # 사람이 맡은 요원 (-1이면 AI끼리). �
 var vote_state := {}            # 결행 투표 중: {"forced", "order", "votes": {요원: 찬반}, "targets": {요원: 거점}} (모두 낼 때까지 비공개)
 var counter := {}               # 반격: {"day", "blocked"} (버티기 장면이 펼쳐진 날)
 var counter_queue: Array = []   # 밤에 반격 회피 판정을 기다리는 요원
+var markers: Array = []         # 보드 위 마커 [{"uid", "id", "role", "pos", "move", "spec"}] (미션·일제 작전)
+var mission_state := {}         # 마커가 놓인 카드(미션·일제 작전) id -> 진행 {"days", "sum", "left", "holder", "lurk", ...}
+var op_row: Array = []          # 마커가 놓여 있는 일제 작전 카드
+var op_deck: Array = []         # 일제 작전 덱 (맨 위 = 맨 뒤)
+var op_discard: Array = []
+var trend := 0                  # 일제 동향 0~rules.ops.trend_max
+var peek_bonus := 0             # 위협 덱을 더 미리 보는 장수 (「경찰서 감시」 보상, 이번 판 동안)
+var bonus_wait: Array = []      # 결행 때 판정하는 미션 보너스 [{"player", "base", "reward"}]
+var expire_queue: Array = []    # 아침에 기한이 다 된 카드 (벌칙 처리 대기)
+var marker_seq := 0
 
 var actions: Array = []
 var events: Array = []
@@ -153,6 +164,17 @@ func setup(player_defs: Array, seed_value: int = -1, game_data: GameDataV2 = nul
 	mission_deck = _expand(data.missions.get("missions", []))
 	mission_discard = []
 	mission_row = []
+	markers = []
+	mission_state = {}
+	op_row = []
+	op_deck = data.op_deck()
+	_shuffle(op_deck)
+	op_discard = []
+	trend = 0
+	peek_bonus = 0
+	bonus_wait = []
+	expire_queue = []
+	marker_seq = 0
 	event_deck = _expand(data.events.get("events", []))
 	event_discard = []
 	item_deck = _expand(data.items.get("items", []))
@@ -223,7 +245,7 @@ func _new_tile(type: String) -> Dictionary:
 
 
 func _new_today() -> Dictionary:
-	return {"dice_mod": 0, "police_speed": 0, "escape_mod": 0, "scene_mod": 0, "move_today": {}, "assassin_wins": [], "ends": {}}
+	return {"dice_mod": 0, "police_speed": 0, "escape_mod": 0, "scene_mod": 0, "move_today": {}, "ends": {}, "once": {}}
 
 
 func _expand(defs: Array) -> Array:
@@ -321,6 +343,7 @@ func threat_preview(n := -1) -> Array:
 		n = 0
 		for q in players:
 			n = maxi(n, stat(q, "threat_peek"))
+		n += peek_bonus
 	var out := []
 	for i in n:
 		var idx := threat_deck.size() - 1 - i
@@ -348,9 +371,9 @@ func die_value(i: int) -> int:
 
 
 func move_value(p: Dictionary, i: int) -> int:
-	## 이 주사위를 이동에 쓰면 몇 칸인가 (포수의 1·2→3, 오늘 이동 주사위 보정, 최소 min_die)
+	## 이 주사위를 이동에 쓰면 몇 칸인가 (포수의 1·2→3, 오늘 이동 주사위 보정, 무거운 물건 -1, 최소 min_die)
 	var raw := maxi(die_value(i), stat(p, "move_min3"))
-	return maxi(int(data.rules["min_die"]), raw + int(today.get("dice_mod", 0)))
+	return maxi(int(data.rules["min_die"]), raw + int(today.get("dice_mod", 0)) - heavy_count(p))
 
 
 func police_on(c: Vector2i) -> bool:
@@ -390,97 +413,116 @@ func walk_dist(a: Vector2i, b: Vector2i) -> int:
 	return int(d[b]) if d.has(b) else 100 + _manhattan(a, b)
 
 
-func missions_in_row(type: String) -> Array:
+# ---- 미션 · 일제 작전 마커 조회
+
+func card_def(id: String) -> Dictionary:
+	## 보드에 마커를 놓는 카드 (미션 또는 일제 작전)
+	return data.marker_card(id)
+
+
+func card_cond(id: String) -> Dictionary:
+	var c = data.marker_card(id).get("condition", {})
+	return c if typeof(c) == TYPE_DICTIONARY else {}
+
+
+func markers_at(c: Vector2i) -> Array:
 	var out := []
-	for id in mission_row:
-		if data.mission(id).get("type", "") == type:
-			out.append(id)
+	for m in markers:
+		if m["pos"] == c:
+			out.append(m)
 	return out
 
 
-func mission_tile(type: String) -> String:
-	## 이 종류 미션이 이뤄지는 타일 종류 (types에 tile이 있으면 그것, 없으면 종류 이름이 곧 타일 이름)
-	var t: Dictionary = mission_type_def(type)
-	var cond = t.get("condition", null)
-	if typeof(cond) == TYPE_DICTIONARY and cond.has("tile"):
-		return str(cond["tile"])
-	return str(t.get("tile", type))
+func marker_at(c: Vector2i) -> Dictionary:
+	for m in markers:
+		if m["pos"] == c:
+			return m
+	return {}
 
 
-func _cond_kind(type: String) -> String:
-	var cond = mission_type_def(type).get("condition", null)
-	return str(cond.get("kind", "")) if typeof(cond) == TYPE_DICTIONARY else ""
+func markers_of(id: String, role := "") -> Array:
+	var out := []
+	for m in markers:
+		if m["id"] == id and (role == "" or m["role"] == role):
+			out.append(m)
+	return out
 
 
-func mission_feasible(id: String, simulate_bombs := true) -> bool:
-	## 남은 타일(깔린 것 + 더미)로 이룰 수 있는 미션인가
-	var m: Dictionary = data.mission(id)
-	var type: String = m.get("type", "")
-	var kind := _cond_kind(type)
-	if kind == "" or kind == "enter_base":
-		if type == "coop":
-			var cc := _coop_cond(id)
-			if str(cc.get("kind", "")) == "same_day_assassin":
-				var at := _assassin_type()
-				return at != "" and _tile_count(mission_tile(at)) >= int(cc.get("count", 2))
-		return true
-	var tile := mission_tile(type)
-	if kind == "deliver_bomb":
-		if not _tile_available(tile):
-			return false
-		if simulate_bombs:
-			var holds := false
-			for q in players:
-				if q["bombs"] > 0:
-					holds = true
-			if not holds and not (bomb_supply > 0 and _tile_available("supply")):
-				return false
-		return true
-	if kind == "check":
-		return _tile_available(tile)
-	return true
+func card_days_left(id: String) -> int:
+	## 기한까지 남은 날 (기한이 없으면 -1)
+	return int(mission_state.get(id, {}).get("days", -1))
 
 
-func _tile_count(tile: String) -> int:
-	## 깔린 칸과 더미에 있는 그 종류 타일의 수
-	var n := tile_deck.count(tile)
-	for c in board:
-		if board[c]["type"] == tile:
+func has_bomb_card() -> bool:
+	## 폭탄을 들고 가야 하는 미션이 줄에 있는가
+	for id in mission_row:
+		if str(card_cond(id).get("kind", "")) == "bomb":
+			return true
+	return false
+
+
+func heavy_count(p: Dictionary) -> int:
+	## 내가 들고 있는 무거운 물건 수 (하나마다 이동 눈 -1)
+	var n := 0
+	for id in mission_row:
+		if bool(card_cond(id).get("heavy", false)) and int(mission_state.get(id, {}).get("holder", -1)) == p["id"]:
 			n += 1
 	return n
 
 
+func card_status(id: String) -> String:
+	## 지금까지의 진행 한 줄 (화면용). 없으면 ""
+	var st: Dictionary = mission_state.get(id, {})
+	var cond := card_cond(id)
+	match str(cond.get("kind", "")):
+		"work":
+			match str(cond.get("mode", "")):
+				"sum":
+					return "바친 합 %d / %d" % [int(st.get("sum", 0)), int(st.get("need", 0))]
+				"combo":
+					var left := []
+					for v in st.get("left", []):
+						left.append(str(v))
+					return "남은 눈 " + "·".join(left)
+				"each":
+					return "남은 마커 %d개" % markers_of(id, "work").size()
+		"lurk":
+			return "잠복 %d / %d일" % [int(st.get("lurk", 0)), int(cond.get("days", 1))]
+		"contact":
+			var h := int(st.get("holder", -1))
+			return ("%s이(가) 들고 있음" % players[h]["name"]) if h >= 0 else "아직 받지 않음"
+		"assassinate":
+			return "동선 파악됨 (표적이 멈춤)" if bool(st.get("informed", false)) else ""
+	return ""
+
+
 func _coop_cond(id: String) -> Dictionary:
-	## 카드가 직접 갖는 협동 조건 (types가 아니라 카드에 있는 condition)
-	var c = data.mission(id).get("condition", null)
-	return c if typeof(c) == TYPE_DICTIONARY else {}
+	## 협동 미션의 조건 (카드의 condition)
+	return card_cond(id)
 
 
 func _coop_ids(kind: String) -> Array:
+	## 줄에 있는 이 kind의 협동 미션
 	var out := []
 	for id in mission_row:
-		if str(_coop_cond(id).get("kind", "")) == kind:
+		if str(card_cond(id).get("kind", "")) == kind:
 			out.append(id)
 	return out
 
 
-func _assassin_type() -> String:
-	## 암살 판정(check == "assassin")으로 이뤄지는 미션 종류 이름 (데이터에서 찾음)
-	var types: Dictionary = data.missions.get("types", {})
-	for t in types:
-		var cond = types[t].get("condition", null)
-		if typeof(cond) == TYPE_DICTIONARY and cond.get("kind", "") == "check" and cond.get("check", "") == "assassin":
-			return str(t)
-	return ""
-
-
-func _tile_available(tile: String) -> bool:
-	if tile in tile_deck:
-		return true
-	for c in board:
-		if board[c]["type"] == tile:
-			return true
-	return false
+func _stop_cells(p: Dictionary) -> Array:
+	## 마커 때문에 들어가면 이동이 끝나는 칸: 암살 표적, 폭탄을 들었으면 폭파 지점, 물건을 들었으면 주기 마커
+	var out := []
+	for m in markers:
+		var kind := str(card_cond(str(m["id"])).get("kind", ""))
+		match str(m["role"]):
+			"target":
+				if kind == "assassinate" or (kind == "bomb" and p["bombs"] > 0):
+					out.append(m["pos"])
+			"dropoff":
+				if int(mission_state.get(m["id"], {}).get("holder", -1)) == p["id"]:
+					out.append(m["pos"])
+	return out
 
 
 # ---- 보정치 (캐릭터 특성 + 가진 지속 아이템)
@@ -531,23 +573,6 @@ func legal_steps(p: Dictionary) -> Array:
 	return out
 
 
-func _stop_tiles(p: Dictionary) -> Array:
-	## 지금 줄에 있는 미션 때문에 들어가면 이동이 끝나는 타일 종류
-	var out := []
-	for id in mission_row:
-		var type: String = data.mission(id).get("type", "")
-		var kind := _cond_kind(type)
-		if kind == "check" or (kind == "deliver_bomb" and p["bombs"] > 0):
-			var tile := mission_tile(type)
-			if not tile in out:
-				out.append(tile)
-	if not _coop_ids("same_day_assassin").is_empty() and _assassin_type() != "":
-		var at := mission_tile(_assassin_type())
-		if not at in out:
-			out.append(at)
-	return out
-
-
 func path_to(p: Dictionary, goal: Vector2i) -> Dictionary:
 	## 현재 위치에서 goal까지의 최단 경로 (이동 미리보기용).
 	## {"path": [칸...], "steps": int, "reachable": bool, "reason": String, "checks": int, "unknown": int}
@@ -558,7 +583,7 @@ func path_to(p: Dictionary, goal: Vector2i) -> Dictionary:
 	if police_on(goal):
 		out["reason"] = "경찰이 있는 칸"
 		return out
-	var stops := _stop_tiles(p)
+	var stops := _stop_cells(p)
 	var prev := {start: start}
 	var q: Array[Vector2i] = [start]
 	var head := 0
@@ -568,7 +593,7 @@ func path_to(p: Dictionary, goal: Vector2i) -> Dictionary:
 		if c == goal:
 			break
 		# 이동이 끝나는 칸은 지나갈 수 없다 (목적지로만)
-		if c != start and (tile_type(c) == "base" or tile_type(c) in stops or not board.has(c)):
+		if c != start and (tile_type(c) == "base" or c in stops or not board.has(c)):
 			continue
 		for d in DIRS:
 			var n: Vector2i = c + d
@@ -815,31 +840,8 @@ func can_market(p: Dictionary) -> bool:
 	return tile != "" and _acting(p) and not p["jailed"] and tile_type(p["pos"]) == tile and not my_dice(p["id"]).is_empty()
 
 
-func _check_mission_ids(tile: String) -> Array:
-	## 이 타일 종류에서 작전 판정으로 이뤄지는, 줄에 있는 미션 id
-	var out := []
-	for id in mission_row:
-		var type: String = data.mission(id).get("type", "")
-		if _cond_kind(type) == "check" and mission_tile(type) == tile:
-			out.append(id)
-	return out
-
-
-func _coop_check_at(tile: String) -> bool:
-	## 암살 타일에서 성공해야 이뤄지는 협동 미션(same_day_assassin)이 줄에 있는가
-	var at := _assassin_type()
-	return at != "" and mission_tile(at) == tile and not _coop_ids("same_day_assassin").is_empty()
-
-
-func _mission_check_type(tile: String) -> String:
-	var ids := _check_mission_ids(tile)
-	if not ids.is_empty():
-		return str(data.mission(ids[0]).get("type", ""))
-	return _assassin_type() if _coop_check_at(tile) else ""
-
-
 func mission_check_cells(p: Dictionary) -> Array:
-	## 작전 판정을 할 수 있는 미션 칸: 내 칸, 그리고 옆 칸에서도 암살 판정을 할 수 있는 요원(assassin_adjacent)은 옆 칸의 표적
+	## 작전 판정을 할 수 있는 표적 마커 칸: 내 칸, 그리고 옆 칸에서도 암살 판정을 할 수 있는 요원(assassin_adjacent)은 옆 칸의 표적
 	var out := []
 	if not _acting(p) or p["jailed"] or my_dice(p["id"]).is_empty():
 		return out
@@ -848,15 +850,40 @@ func mission_check_cells(p: Dictionary) -> Array:
 		for d in DIRS:
 			cells.append(p["pos"] + d)
 	for c in cells:
-		if not board.has(c):
+		var m := marker_at(c)
+		if m.is_empty() or str(m["role"]) != "target":
 			continue
-		var type := _mission_check_type(tile_type(c))
-		if type == "":
+		var cond := card_cond(str(m["id"]))
+		if str(cond.get("kind", "")) != "assassinate":
 			continue
-		if c != p["pos"] and str(mission_type_def(type)["condition"].get("check", "")) != "assassin":
+		if c != p["pos"] and str(cond.get("check", "")) != "assassin":
 			continue
 		out.append(c)
 	return out
+
+
+func work_ok(id: String, value: int) -> bool:
+	## 이 공작 카드에 이 눈을 바칠 수 있는가 (합이 남았나 · 조합에 필요한 눈인가 · 마커마다 하나)
+	var st: Dictionary = mission_state.get(id, {})
+	var cond := card_cond(id)
+	if st.is_empty() or str(cond.get("kind", "")) != "work":
+		return false
+	match str(cond.get("mode", "")):
+		"sum":
+			return int(st["sum"]) < int(st["need"])
+		"combo":
+			return value in st["left"]
+		"each":
+			return true
+	return false
+
+
+func can_work_give(p: Dictionary, die: int) -> bool:
+	## 내 칸에 공작 마커가 있고, 이 주사위를 바칠 수 있는가
+	if not _acting(p) or p["jailed"] or not die in my_dice(p["id"]):
+		return false
+	var m := marker_at(p["pos"])
+	return not m.is_empty() and str(m["role"]) == "work" and work_ok(str(m["id"]), die_value(die))
 
 
 func can_use_item(p: Dictionary, index: int) -> bool:
@@ -1064,6 +1091,8 @@ func _turn_actions(p: Dictionary) -> Array:
 			out.append({"type": "scout", "player": pid, "die": i})
 		for c in mission_check_cells(p):
 			out.append({"type": "mission_check", "player": pid, "die": i, "cell": c})
+		if can_work_give(p, i):
+			out.append({"type": "work_give", "player": pid, "die": i})
 		for o in give_options(p):
 			out.append({"type": "give_item", "player": pid, "die": i, "index": o["index"], "to": o["to"]})
 		for from in decoy_options(p):
@@ -1150,6 +1179,11 @@ func _apply(a: Dictionary) -> bool:
 			if not md in my_dice(pid) or not mc in mission_check_cells(p):
 				return false
 			_begin_mission_check(p, mc, md)
+		"work_give":
+			var wd := _int_of(a.get("die", null))
+			if not can_work_give(p, wd):
+				return false
+			_work_give(p, wd)
 		"counter_check":
 			var cd := _int_of(a.get("die", null))
 			if not can_counter_check(p) or not cd in my_dice(pid):
@@ -1262,21 +1296,24 @@ func _begin_morning(first: bool) -> void:
 
 
 func _morning_continue() -> void:
-	## 아침 순서(기획서 19.3): 위협 → 투표 → 미션 줄 → 작전 주사위. 선택이 끼면 멈췄다 이어간다.
-	while morning_step <= 4 and phase == "morning":
+	## 아침 순서(규칙서): 위협 → 일제 작전(짝수 날) → 표적 이동·기한 → 투표 → 미션 줄 → 작전 주사위. 선택이 끼면 멈췄다 이어간다.
+	## 일제 작전, 표적 이동·기한, 투표, 미션 줄은 1막에서만 한다.
+	while morning_step <= 6 and phase == "morning":
 		var s := morning_step
 		morning_step += 1
 		match s:
 			1: _morning_threat()
-			2:
+			2: _morning_ops()
+			3: _morning_markers()
+			4:
 				if act == 1:
 					_morning_vote()
-			3:
+			5:
 				if act == 1:
 					_fill_mission_row()
 				else:
 					_counter_refresh()
-			4: _morning_dice()
+			6: _morning_dice()
 
 
 func _morning_threat() -> void:
@@ -1379,15 +1416,7 @@ func _vote_resolve() -> void:
 
 
 func _fill_mission_row() -> void:
-	# 남은 타일로 이룰 수 없는 미션은 줄에서 뺀다
-	var keep := []
-	for id in mission_row:
-		if mission_feasible(id):
-			keep.append(id)
-		else:
-			mission_discard.append(id)
-			_log("남은 타일로 이룰 수 없는 미션 「%s」을(를) 줄에서 뺐습니다." % data.mission(id).get("name", id))
-	mission_row = keep
+	## 공개 미션이 줄 수만큼 되도록 채우고, 새 미션의 마커를 보드에 놓는다
 	var want := int(data.rules["mission_row"])
 	var guard := mission_deck.size() + mission_discard.size() + 1
 	while mission_row.size() < want and guard > 0:
@@ -1399,10 +1428,8 @@ func _fill_mission_row() -> void:
 			if mission_deck.is_empty():
 				break
 		var id: String = mission_deck.pop_back()
-		if not mission_feasible(id):
-			mission_discard.append(id)
-			continue
 		mission_row.append(id)
+		_place_card(id)
 		_push({"kind": "card", "deck": "mission", "id": id, "player": -1})
 	_log("공개 미션: %s" % ", ".join(mission_row.map(func(i): return data.mission(i).get("name", i))))
 
@@ -1504,6 +1531,7 @@ func _end_turn_continue(p: Dictionary) -> void:
 	if phase == "over":
 		return
 	if not p["jailed"]:
+		_turn_end_tile(p)
 		_check_hideout(p)
 		if p["hidden"]:
 			_log("%s: 몸을 숨겨 경찰이 다가오지 못했습니다." % p["name"])
@@ -1528,8 +1556,8 @@ func _finish_turn(p: Dictionary) -> void:
 	phase = "day"
 	current = -1
 	_saga_turn_end(p)
-	if _coop_turn_end(p):
-		return   # 협동 미션 보상을 처리하는 중 (끝나면 _after_turn으로 이어짐)
+	if _turn_end_missions(p):
+		return   # 협동·잠복 미션 보상을 처리하는 중 (끝나면 _after_turn으로 이어짐)
 	_after_turn()
 
 
@@ -1546,8 +1574,6 @@ func _after_turn() -> void:
 
 func _night() -> void:
 	_push({"kind": "night", "day": day})
-	if _coop_night():
-		return   # 협동 미션 보상을 처리하는 중 (끝나면 _night_end로 이어짐)
 	_night_end()
 
 
@@ -1610,7 +1636,7 @@ func _arrive(p: Dictionary, to: Vector2i) -> void:
 		steps_left = 0
 		_enter_base(p)
 		return
-	if _try_missions(p, t):
+	if _marker_arrive(p, to):
 		return
 	_after_step(p)
 
@@ -1631,22 +1657,31 @@ func _enter_base(p: Dictionary) -> void:
 			q["jailed"] = false
 			q["move_mod_next"] += stat(p, "rescued_move_bonus")
 			p["stats"]["rescues"] += 1
+			p["flags"]["rescued_turn"] = p["turns"]
 			_saga_note(p, "rescue_or_escape", {"what": "rescue", "rescued": q["id"]})
 			_log("%s: %s을(를) 구출했습니다!" % [p["name"], q["name"]])
 			_record("%s — %s 구출" % [p["name"], q["name"]], "good")
 			_banner("%s 구출!" % q["name"], "good", p)
 			_push({"kind": "rescue", "player": p["id"], "rescued": q["id"]})
+	for m in markers_at(p["pos"]):
+		if str(m["role"]) == "pickup":
+			_pickup(p, m)
 	var ids := []
 	for id in mission_row:
-		var m: Dictionary = data.mission(id)
-		if _cond_kind(m.get("type", "")) == "enter_base" and str(m.get("base", "")) == GameDataV2.BASE_IDS[bi]:
+		var cond := card_cond(id)
+		if str(cond.get("kind", "")) == "infiltrate" and str(cond.get("base", "")) == GameDataV2.BASE_IDS[bi]:
 			ids.append(id)
 	var ctx := {"then": "base_finish", "entered_base": bi}
 	ids.append_array(_coop_enter_base(p, bi))
-	if not ids.is_empty():
-		_complete_missions(p, ids, ctx)
-	else:
+	if ids.is_empty():
 		_base_finish(p, ctx)
+		return
+	for id in ids:
+		var gear = card_cond(id).get("gear")
+		if typeof(gear) == TYPE_DICTIONARY and not p["items"].is_empty():
+			_ask_gear(p, gear, {"kind": "base", "ids": ids, "ctx": ctx})
+			return
+	_complete_missions(p, ids, ctx)
 
 
 func _base_finish(p: Dictionary, _ctx: Dictionary) -> void:
@@ -1675,21 +1710,36 @@ func _resolve_stop(p: Dictionary) -> void:
 		return
 	p["fx_cells"].append(cell)
 	var tile: Dictionary = board.get(cell, {})
-	var t: String = tile.get("type", "")
-	if t == "event" and not tile["used"]:
-		tile["used"] = true
-		tile["type"] = "normal"
-		if _draw_event(p):
-			return
-	elif t == "item" and not tile["used"]:
-		tile["used"] = true
-		tile["type"] = "normal"
-		_run_effects(p, [{"op": "draw_item", "count": 1}], {"then": "post_move", "source": "tile"})
-		return
-	elif t == "supply":
-		_run_effects(p, [{"op": "gain_bomb", "count": 1}], {"then": "post_move", "source": "tile"})
+	var fx: Dictionary = data.rules.get("tile_effects", {}).get(str(tile.get("type", "")), {})
+	if fx.has("on_stop") and not (fx.has("once") and bool(tile.get("used", false))):
+		if fx.has("once"):
+			tile["used"] = true
+			tile["type"] = str(fx["once"])
+		_run_effects(p, fx["on_stop"], {"then": "post_move", "source": "tile"})
 		return
 	_finish_move(p)
+
+
+func _turn_end_tile(p: Dictionary) -> void:
+	## 차례를 마친 칸의 타일 효과 (rules.tile_effects의 on_turn_end): 주막은 같은 칸에 동료가 있으면 하루 한 번 노출 -1
+	var t := tile_type(p["pos"])
+	var fx: Dictionary = data.rules.get("tile_effects", {}).get(t, {})
+	if not fx.has("on_turn_end"):
+		return
+	if str(fx.get("needs", "")) == "ally_here":
+		var any := false
+		for q in players:
+			if q["id"] != p["id"] and not q["jailed"] and q["pos"] == p["pos"]:
+				any = true
+		if not any:
+			return
+	if bool(fx.get("once_per_day", false)):
+		if today["once"].has(t):
+			return
+		today["once"][t] = true
+	_log("%s: %s 칸의 효과를 받습니다." % [p["name"], tile_label(t)])
+	_push({"kind": "tile_fx", "player": p["id"], "tile": t})
+	_run_effects(p, fx["on_turn_end"], {"then": "resume", "source": "tile"})
 
 
 func _check_hideout(p: Dictionary) -> void:
@@ -1700,30 +1750,14 @@ func _check_hideout(p: Dictionary) -> void:
 		_push({"kind": "police"})
 
 
-func _draw_event(p: Dictionary) -> bool:
-	## 이벤트 카드 한 장. 효과를 처리하기 시작했으면 true (이어서 알아서 post_move로 간다)
-	var id := _draw_from(event_deck, event_discard)
-	if id == "":
-		return false
-	event_discard.append(id)
-	var ev: Dictionary = data.event(id)
-	_log("%s: 이벤트 [%s] - %s" % [p["name"], ev.get("name", id), ev.get("text", "")])
-	_push({"kind": "card", "deck": "event", "id": id, "player": p["id"]})
-	_run_effects(p, ev.get("effects", []), {"then": "post_move", "source": "event"})
-	return true
-
-
 func _inert_tile(c: Vector2i) -> bool:
-	## 깔려 있고, 옮겨 가 서도 아무 효과가 없는 칸 (거점·검문소·미션 타일은 아님)
+	## 깔려 있고, 옮겨 가 서도 아무 효과가 없는 칸 (거점·검문소·마커가 있는 칸은 아님)
 	if not board.has(c):
 		return false
 	var t: String = board[c]["type"]
 	if t == "base" or t == "check":
 		return false
-	for type in data.missions.get("types", {}):
-		if mission_tile(type) == t and _cond_kind(type) in ["check", "deliver_bomb"]:
-			return false
-	return true
+	return markers_at(c).is_empty()
 
 
 func _teleport(p: Dictionary, to: Vector2i) -> void:
@@ -1816,6 +1850,9 @@ func _start_check(p: Dictionary, name: String, ctx: String, extra: Dictionary = 
 				[{"value": true, "label": "%s 사용" % item_def(react)["name"]}, {"value": false, "label": "주사위로 판정"}], {})
 			pending["item"] = react
 			return
+	if check.has("gear") and not p["items"].is_empty():
+		_ask_gear(p, check["gear"], {"kind": "check"})
+		return
 	_check_roll(p)
 
 
@@ -1825,14 +1862,13 @@ func check_preview(p: Dictionary, a: Dictionary) -> Dictionary:
 	var out := {"target": 99, "bonus": 0}
 	match str(a.get("type", "")):
 		"mission_check":
-			var tile := tile_type(_cell_of(a.get("cell", null)))
-			var type := _mission_check_type(tile)
-			if type == "":
+			var m := marker_at(_cell_of(a.get("cell", null)))
+			if m.is_empty():
 				return out
-			var cond: Dictionary = mission_type_def(type)["condition"]
+			var cond: Dictionary = card_cond(str(m["id"]))
 			var name := str(cond["check"])
-			out["target"] = int(cond.get("target", check_target(name)))
-			out["bonus"] = stat(p, name + "_bonus") + (stat(p, type + "_bonus") if type != name else 0)
+			out["target"] = int(cond["target"])
+			out["bonus"] = stat(p, name + "_bonus") + (int(cond.get("informed_bonus", 0)) if bool(mission_state.get(m["id"], {}).get("informed", false)) else 0)
 		"escape":
 			out["target"] = check_target("escape")
 			out["bonus"] = stat(p, "escape_bonus") + int(today.get("escape_mod", 0)) + int(p["flags"].get("escape_add", 0))
@@ -1939,7 +1975,7 @@ func _check_roll(p: Dictionary) -> void:
 
 
 func _check_label(c: Dictionary) -> String:
-	return {"evade": "회피", "assassin": "암살", "escape": "탈옥", "sabotage": "방해"}.get(c["what"], str(c["what"]))
+	return {"evade": "회피", "assassin": "암살", "escape": "탈옥", "generic": "작전"}.get(c["what"], str(c["what"]))
 
 
 func _check_done(p: Dictionary, ok: bool) -> void:
@@ -2003,49 +2039,354 @@ func _check_done(p: Dictionary, ok: bool) -> void:
 				_log("%s: 탈옥 실패." % p["name"])
 
 
-# ================================================================ 공개 미션
+# ================================================================ 미션 · 일제 작전 (보드 위 마커)
+##
+## 미션 카드와 일제 작전 카드는 보드에 마커를 놓는다 (markers). 종류는 condition.kind로 움직인다:
+##   assassinate 표적 칸에서 작전 판정(mission_check) · infiltrate 거점에 들어감 · bomb 폭탄을 들고 마커 칸에 들어감 ·
+##   work 마커 칸에서 바치기(work_give) · contact 받기 마커를 지나 주기 마커에 들어감 · lurk 마커 곁에서 쫓기지 않고 차례를 마침.
+## 카드마다의 진행(바친 눈, 잠복 날, 든 요원, 동선 파악)은 mission_state[id]에 있다.
 
-func _try_missions(p: Dictionary, tile: String) -> bool:
-	## 방금 들어간 칸이 줄에 있는 미션의 타일이면 처리하고 true (이동이 끝남).
-	## 폭탄 미션은 폭탄을 든 채 들어가면 바로 이뤄진다. 판정 미션(암살 등)은 표적 칸에서 이동이 멈추고,
-	## 판정은 따로 행동(mission_check)으로 한다.
-	var bomb_ids := []
-	for id in mission_row:
-		var type: String = data.mission(id).get("type", "")
-		if _cond_kind(type) == "deliver_bomb" and mission_tile(type) == tile:
-			bomb_ids.append(id)
-	if not bomb_ids.is_empty() and p["bombs"] > 0:
-		steps_left = 0
-		p["bombs"] -= 1
-		_log("%s: 폭탄을 설치했습니다!" % p["name"])
-		_complete_missions(p, bomb_ids, {"then": "stop", "source": "mission"})
+func _center(id: String) -> Vector2i:
+	## 마커를 놓는 기준 칸: 거점 id 또는 start
+	return data.start if id == "start" else _base_cell(id)
+
+
+func _marker_blocked(c: Vector2i, level := 0) -> bool:
+	## 마커를 놓거나 옮길 수 없는 칸: 거점, 출발점, 다른 마커가 있는 칸, (level 0) 요원·경찰이 있는 칸. 덮인 칸은 괜찮다.
+	if c == data.start or c in data.bases or not marker_at(c).is_empty():
 		return true
-	if not _check_mission_ids(tile).is_empty() or _coop_check_at(tile):
+	if level == 0:
+		if police_on(c):
+			return true
+		for q in players:
+			if q["pos"] == c:
+				return true
+	return false
+
+
+func _marker_pos(spec: Dictionary) -> Vector2i:
+	## 마커 하나를 놓을 칸: at이면 그 칸, around이면 그곳에서 min~max칸(맨해튼) 떨어진 칸 중 게임이 무작위로 고름
+	if spec.has("at"):
+		return _center(str(spec["at"]))
+	var ctr := _center(str(spec["around"]))
+	for level in 2:
+		var cands := []
+		for x in data.size:
+			for y in data.size:
+				var c := Vector2i(x, y)
+				var d := _manhattan(c, ctr)
+				if d >= int(spec["min"]) and d <= int(spec["max"]) and not _marker_blocked(c, level):
+					cands.append(c)
+		if not cands.is_empty():
+			return cands[rng.randi_range(0, cands.size() - 1)]
+	return ctr
+
+
+func _in_region(c: Vector2i, spec: Dictionary) -> bool:
+	if not spec.has("around"):
+		return false
+	var d := _manhattan(c, _center(str(spec["around"])))
+	return d >= int(spec["min"]) and d <= int(spec["max"])
+
+
+func _place_card(id: String) -> void:
+	## 미션·일제 작전 카드가 나오면 진행 상태를 만들고 마커를 놓는다
+	var card: Dictionary = data.marker_card(id)
+	var cond: Dictionary = card.get("condition", {})
+	var left := []
+	if str(cond.get("kind", "")) == "work" and str(cond.get("mode", "")) == "combo":
+		for v in cond["values"]:
+			left.append(int(v))
+	mission_state[id] = {"placed": day, "days": int(card["deadline"]) if card.has("deadline") else -1,
+		"informed": false, "holder": -1, "picked_day": -1, "chased": false,
+		"sum": 0, "need": int(cond.get("target", 0)), "left": left, "by": [], "work_days": [], "reduced": false,
+		"lurk": 0, "lurk_day": -1, "lurk_pids": [], "doubled": false}
+	var k := 0
+	for spec in card.get("markers", []):
+		for n in int(spec.get("count", 1)):
+			marker_seq += 1
+			markers.append({"uid": marker_seq, "id": id, "role": str(spec["role"]), "pos": _marker_pos(spec),
+				"move": int(spec.get("move", 0)), "spec": k})
+		k += 1
+	_push({"kind": "markers", "id": id, "placed": true})
+
+
+func _remove_card(id: String) -> void:
+	## 이루었거나 놓쳤거나 막은 카드의 마커와 진행을 치우고 버린다
+	markers = markers.filter(func(m): return m["id"] != id)
+	mission_state.erase(id)
+	mission_row.erase(id)
+	op_row.erase(id)
+	if data.is_op(id):
+		op_discard.append(id)
+	else:
+		mission_discard.append(id)
+	_push({"kind": "markers", "id": id, "placed": false})
+
+
+# ---------------------------------------------------------------- 아침: 일제 작전 · 표적 이동 · 기한
+
+func _morning_ops() -> void:
+	## 1막 rules.ops.days일째 아침: 일제 작전 카드 1장을 뒤집어 마커를 놓고 동향을 1 올린다
+	if act != 1:
+		return
+	var due := false
+	for d in data.rules["ops"]["days"]:
+		if int(d) == day:
+			due = true
+	if not due:
+		return
+	if op_deck.is_empty():
+		op_deck = op_discard
+		op_discard = []
+		_shuffle(op_deck)
+	if op_deck.is_empty():
+		return
+	var id: String = op_deck.pop_back()
+	op_row.append(id)
+	_place_card(id)
+	trend = mini(trend + 1, int(data.rules["ops"]["trend_max"]))
+	var card: Dictionary = data.op_card(id)
+	_log("[일제 작전] %s — %s (일제 동향 %d)" % [card.get("name", id), card.get("how", ""), trend])
+	_record("일제 작전: %s" % card.get("name", id), "warn")
+	_banner("일제 작전: %s" % card.get("name", id), "warn")
+	_push({"kind": "op_appear", "id": id})
+	_push({"kind": "trend", "value": trend})
+
+
+func _trend_penalty() -> Array:
+	## 지금 동향에서 못 막았을 때 카드의 벌칙에 더 붙는 효과 (rules.ops.penalties 중 min이 동향 이하인 가장 큰 칸)
+	var out: Array = []
+	for row in data.rules["ops"]["penalties"]:
+		if trend >= int(row["min"]):
+			out = row["effects"].duplicate(true)
+	return out
+
+
+func _trend_reinforce() -> int:
+	## 결행할 때의 동향이 정하는 2막 위협 덱의 증원 카드 장수
+	var n := 0
+	for row in data.rules["ops"]["reinforce_by_trend"]:
+		if trend >= int(row["min"]):
+			n = int(row["count"])
+	return n
+
+
+func _morning_markers() -> void:
+	## 1막 아침: 움직이는 표적을 옮기고, 기한이 있는 카드의 남은 날을 1 줄이고, 0이 된 것은 놓친 것으로 처리한다.
+	## 오늘 새로 나온 카드는 오늘 줄이지 않는다.
+	if act != 1:
+		return
+	_move_markers()
+	var ids := []
+	ids.append_array(mission_row)
+	ids.append_array(op_row)
+	for id in ids:
+		var st: Dictionary = mission_state.get(id, {})
+		if int(st.get("days", -1)) < 0 or int(st.get("placed", -1)) == day:
+			continue
+		st["days"] = int(st["days"]) - 1
+		if int(st["days"]) <= 0:
+			expire_queue.append(id)
+	if not expire_queue.is_empty():
+		_morning_expire()
+
+
+func _move_markers() -> void:
+	## 움직이는 표적(move > 0)을 매일 아침 지역 안에서 무작위로 옮긴다. 정보원으로 동선을 알아낸 표적은 멈춘다.
+	for m in markers:
+		if int(m["move"]) <= 0 or str(m["role"]) != "target":
+			continue
+		if bool(mission_state.get(m["id"], {}).get("informed", false)):
+			continue
+		var spec: Dictionary = data.marker_card(str(m["id"])).get("markers", [])[int(m["spec"])]
+		var from: Vector2i = m["pos"]
+		for k in int(m["move"]):
+			var opts := []
+			for d in DIRS:
+				var n: Vector2i = m["pos"] + d
+				if in_bounds(n) and not _marker_blocked(n) and _in_region(n, spec):
+					opts.append(n)
+			if opts.is_empty():
+				break
+			m["pos"] = opts[rng.randi_range(0, opts.size() - 1)]
+		if m["pos"] != from:
+			_push({"kind": "marker_moved", "id": m["id"], "from": from, "to": m["pos"]})
+
+
+func _morning_expire() -> void:
+	## 기한이 다 된 카드를 하나씩 놓친 것으로 처리한다 (벌칙에 선택이 끼면 멈췄다 이어 감). 일제 작전은 동향이 1 더 오른다.
+	if expire_queue.is_empty():
+		_morning_continue()
+		return
+	var id: String = expire_queue.pop_front()
+	var card: Dictionary = data.marker_card(id)
+	var is_op := data.is_op(id)
+	var cell: Vector2i = data.start
+	var at := markers_of(id)
+	if not at.is_empty():
+		cell = at[0]["pos"]
+	var effects: Array = card.get("missed", []).duplicate(true)
+	if is_op:
+		effects.append_array(_trend_penalty())
+	_log("%s 「%s」을(를) 놓쳤습니다!%s" % ["일제 작전" if is_op else "미션", card.get("name", id), (" (일제 동향 %d)" % trend) if is_op else ""])
+	_record("%s 「%s」 놓침" % ["일제 작전" if is_op else "미션", card.get("name", id)], "bad")
+	_banner("%s 놓침" % card.get("name", id), "bad")
+	_push({"kind": "op_missed" if is_op else "mission_missed", "id": id})
+	if is_op:
+		trend = mini(trend + 1, int(data.rules["ops"]["trend_max"]))
+		_push({"kind": "trend", "value": trend})
+	_remove_card(id)
+	_run_effects(players[leader], effects, {"then": "morning_expire", "source": "mission", "cell": cell})
+
+
+# ---------------------------------------------------------------- 마커 칸에 들어갈 때
+
+func _marker_arrive(p: Dictionary, cell: Vector2i) -> bool:
+	## 방금 들어간 칸의 마커. 암살 표적 칸에서는 이동이 멈춘다 (판정은 따로 행동으로). 정보원에 들르면 동선을 알아내고,
+	## 받기 마커를 지나가면 물건을 들고, 폭탄을 들고 폭파 지점에 들어가거나 물건을 들고 주기 마커에 들어가면 이룬다.
+	## 미션을 이뤄 보상 처리를 시작했으면 true.
+	var done := []
+	var stop := false
+	for m in markers_at(cell):
+		var id := str(m["id"])
+		var kind := str(card_cond(id).get("kind", ""))
+		match str(m["role"]):
+			"target":
+				if kind == "assassinate":
+					stop = true
+				elif kind == "bomb" and p["bombs"] > 0 and not id in done:
+					p["bombs"] -= 1
+					_log("%s: 폭탄을 설치했습니다!" % p["name"])
+					done.append(id)
+			"informer":
+				_use_informer(p, m)
+			"pickup":
+				_pickup(p, m)
+			"dropoff":
+				if int(mission_state.get(id, {}).get("holder", -1)) == p["id"] and not id in done:
+					done.append(id)
+	if not done.is_empty():
+		steps_left = 0
+		_complete_missions(p, done, {"then": "stop", "source": "mission"})
+		return true
+	if stop:
 		steps_left = 0
 	return false
 
 
+func _use_informer(p: Dictionary, m: Dictionary) -> void:
+	## 정보원 마커에 들름: 표적의 동선을 알아내 표적이 멈추고 판정이 쉬워진다. 마커는 사라진다.
+	var id := str(m["id"])
+	var st: Dictionary = mission_state.get(id, {})
+	if st.is_empty() or bool(st["informed"]):
+		return
+	st["informed"] = true
+	markers = markers.filter(func(x): return x["uid"] != m["uid"])
+	_log("%s: 정보원에게서 「%s」 표적의 동선을 알아냈습니다. 표적이 멈추고 판정이 쉬워집니다." % [p["name"], card_def(id).get("name", id)])
+	_banner("동선 파악!", "info", p)
+	_push({"kind": "informed", "id": id, "player": p["id"]})
+
+
+func _pickup(p: Dictionary, m: Dictionary) -> void:
+	## 받기 마커를 지나감: 물건을 든다 (이미 누가 들고 있으면 안 됨)
+	var id := str(m["id"])
+	var st: Dictionary = mission_state.get(id, {})
+	if st.is_empty() or int(st["holder"]) >= 0:
+		return
+	st["holder"] = p["id"]
+	st["picked_day"] = day
+	st["chased"] = false
+	_log("%s: 「%s」의 물건을 들었습니다%s." % [p["name"], card_def(id).get("name", id), " (무거움: 이동 눈 -1)" if bool(card_cond(id).get("heavy", false)) else ""])
+	_banner("물건을 들었다", "info", p)
+	_push({"kind": "pickup", "id": id, "player": p["id"]})
+
+
+func _drop_contacts(p: Dictionary) -> void:
+	## 투옥되면 든 물건은 받기 마커로 돌아간다
+	for id in mission_row:
+		var st: Dictionary = mission_state.get(id, {})
+		if int(st.get("holder", -1)) == p["id"]:
+			st["holder"] = -1
+			st["picked_day"] = -1
+			_log("%s: 들고 있던 「%s」의 물건이 받기 마커로 돌아갔습니다." % [p["name"], card_def(id).get("name", id)])
+			_push({"kind": "item_lost", "id": id, "player": p["id"]})
+
+
+# ---------------------------------------------------------------- 돈 대신 아이템 (gear) · 공작 · 판정
+
+func _ask_gear(p: Dictionary, gear: Dictionary, flow: Dictionary) -> void:
+	## 아이템 1장을 내고 판정이나 거점 진입에 도움을 받을지 묻는다 (군자금이 생기면 D단계에서 값을 군자금으로 바꾼다)
+	var opts := [{"value": -1, "label": "쓰지 않는다"}]
+	for i in p["items"].size():
+		opts.append({"value": i, "label": "[%s]을(를) 버린다" % item_def(p["items"][i])["name"]})
+	_ask(p, "mission_gear", str(gear.get("text", "")), opts, {})
+	pending["gear"] = gear
+	pending["flow"] = flow
+
+
+func _work_give(p: Dictionary, die: int) -> void:
+	## 공작 마커에 주사위 하나를 바친다 (판정 없음). 합 N은 눈을 더하고, 조합은 필요한 눈 하나를 채우고,
+	## 마커마다 하나는 이 마커를 치운다. 문 선전대원(work_reduce)은 카드마다 한 번 바칠 것을 줄인다.
+	var m := marker_at(p["pos"])
+	var id := str(m["id"])
+	var st: Dictionary = mission_state[id]
+	var cond := card_cond(id)
+	var v := die_value(die)
+	_use_die(p, die, "work")
+	if not p["id"] in st["by"]:
+		st["by"].append(p["id"])
+	if not day in st["work_days"]:
+		st["work_days"].append(day)
+	var cutn := stat(p, "work_reduce")
+	var done := false
+	match str(cond.get("mode", "")):
+		"sum":
+			if cutn > 0 and not st["reduced"]:
+				st["reduced"] = true
+				st["need"] = maxi(0, int(st["need"]) - cutn)
+				_log("%s: 공작에서 바칠 합이 %d 줄었습니다." % [p["name"], cutn])
+			st["sum"] = int(st["sum"]) + v
+			done = int(st["sum"]) >= int(st["need"])
+		"combo":
+			st["left"].erase(v)
+			if cutn > 0 and not st["reduced"] and not st["left"].is_empty():
+				st["reduced"] = true
+				var big: int = st["left"].max()
+				st["left"].erase(big)
+				_log("%s: 공작에서 바칠 눈 %d이(가) 줄었습니다." % [p["name"], big])
+			done = st["left"].is_empty()
+		"each":
+			markers = markers.filter(func(x): return x["uid"] != m["uid"])
+			done = markers_of(id, "work").is_empty()
+	var status := card_status(id)
+	_log("%s: 「%s」에 주사위 %d을(를) 바쳤습니다.%s" % [p["name"], card_def(id).get("name", id), v, (" (%s)" % status) if status != "" and not done else ""])
+	_push({"kind": "work_give", "id": id, "player": p["id"], "value": v})
+	if done:
+		_complete_missions(p, [id], {"then": "resume", "source": "mission"})
+
+
 func _begin_mission_check(p: Dictionary, cell: Vector2i, die: int) -> void:
-	## 미션 타일에서 작전 판정 행동 (낸 눈 + 새 주사위). 지나갈 수 없는 표적 칸(옆 칸에서 쏘는 경우 포함)의 미션을 이룬다.
-	var tile := tile_type(cell)
-	var type := _mission_check_type(tile)
-	var cond: Dictionary = mission_type_def(type)["condition"]
-	var name: String = str(cond["check"])
-	_start_check(p, name, "mission_check", {"ids": _check_mission_ids(tile), "target": int(cond.get("target", check_target(name))),
-		"type_bonus": type, "tile_type": tile, "mission_type": type, "cell": cell, "die_i": die})
+	## 표적 마커에서 작전 판정 행동 (낸 눈 + 새 주사위). 동선을 알아냈으면 판정이 쉽고, 무기 조달(gear)은 판정 직전에 묻는다.
+	var m := marker_at(cell)
+	var id := str(m["id"])
+	var cond := card_cond(id)
+	var extra := {"ids": [id], "target": int(cond["target"]), "cell": cell, "die_i": die,
+		"intel_bonus": int(cond.get("informed_bonus", 0)) if bool(mission_state.get(id, {}).get("informed", false)) else 0}
+	if cond.has("gear"):
+		extra["gear"] = cond["gear"]
+	_start_check(p, str(cond["check"]), "mission_check", extra)
 
 
 func _mission_check_result(p: Dictionary, c: Dictionary, ok: bool) -> void:
-	## 미션 판정 결과. 회피(evade)로 하는 미션은 실패가 곧 경찰, 그 밖의 판정(암살 등)은
-	## 성공하면 소란이 나서 경찰이 붙고 실패하면 회피 판정으로 도망쳐야 한다.
-	var risky: bool = c["what"] != "evade"
+	## 표적 마커 판정 결과. 성공하면 미션을 이루고 (시끄러운 미션은 경찰이 붙음), 실패하면 회피 판정(강제)으로 빠져나가야 한다.
+	var id := str(c["ids"][0])
+	var cond := card_cond(id)
 	if ok:
-		if risky:
+		if str(cond.get("check", "")) == "assassin":
 			p["stats"]["assassinations"] += 1
-			today["assassin_wins"].append({"player": p["id"], "cell": c.get("cell", p["pos"])})
-			_summon(p)
-		_complete_missions(p, c["ids"], {"then": "stop", "source": "mission"}, str(c.get("mission_type", "")))
-	elif risky:
+		_complete_missions(p, c["ids"], {"then": "resume", "source": "mission"})
+	elif bool(cond.get("risky", true)):
 		_log("%s: 실패! 회피 판정으로 빠져나가야 합니다." % p["name"])
 		_banner("%s 실패 — 탈출하라!" % _check_label(c), "bad", p)
 		_start_check(p, "evade", "mission_evade")
@@ -2056,21 +2397,70 @@ func _mission_check_result(p: Dictionary, c: Dictionary, ok: bool) -> void:
 		_finish_move(p)
 
 
-func _complete_missions(p: Dictionary, ids: Array, ctx: Dictionary, loud_type := "") -> void:
-	## 한 번의 행동으로 채운 미션들을 모두 이룬다. 보상은 효과 목록으로 만들어 해석기에 넘긴다.
-	## loud_type: 줄의 미션은 못 이뤘어도 이 종류의 판정에 성공했을 때 시끄러움을 셈 (협동 미션만 있는 암살 타일)
+# ---------------------------------------------------------------- 이룸 · 막음
+
+func _bonus_holds(p: Dictionary, id: String, cond: Dictionary) -> bool:
+	## 미션 보너스 조건 (규칙서 부록 · 미션). 이루는 순간, 경찰이 붙기 전에 확인한다.
+	var st: Dictionary = mission_state.get(id, {})
+	match str(cond.get("kind", "")):
+		"not_chased":
+			return not police.has(p["id"])
+		"faction":
+			return str(char_def(p).get("faction", "")) == str(cond.get("faction", ""))
+		"days_left":
+			return card_days_left(id) >= int(cond.get("min", 1))
+		"rescued_this_turn":
+			return int(p["flags"].get("rescued_turn", -1)) == p["turns"]
+		"ally_adjacent":
+			for q in players:
+				if q["id"] != p["id"] and not q["jailed"] and _manhattan(q["pos"], p["pos"]) <= 1:
+					return true
+			return false
+		"same_day":
+			if str(card_cond(id).get("kind", "")) == "contact":
+				return int(st.get("picked_day", -1)) == day
+			return st.get("work_days", []).size() <= 1
+		"contributors":
+			return st.get("by", []).size() >= int(cond.get("min", 2))
+		"carrier_clean":
+			return not bool(st.get("chased", false)) and not police.has(p["id"])
+	return false
+
+
+func _complete_missions(p: Dictionary, ids: Array, ctx: Dictionary) -> void:
+	## 한 번의 행동으로 채운 미션(과 막은 일제 작전)들을 모두 이룬다. 보너스는 이루는 순간 조건을 확인하고,
+	## 시끄러운 미션은 노출 +1에 경찰이 붙는다 (보너스로 「경찰이 붙지 않음」이면 안 붙음). 보상은 효과 목록으로 해석기에 넘긴다.
 	var effects := []
 	var loud := false
-	if ids.is_empty() and loud_type != "" and bool(mission_type_def(loud_type).get("loud", false)):
-		loud = true
+	var no_police := false
 	for id in ids:
-		var m: Dictionary = data.mission(id)
+		var m: Dictionary = data.marker_card(id)
+		if data.is_op(id):
+			_log("%s: 일제 작전 「%s」을(를) 막았습니다!" % [p["name"], m.get("name", id)])
+			_record("%s — 일제 작전 %s 저지" % [p["name"], m.get("name", id)], "good")
+			_banner("%s 저지!" % m.get("name", id), "good", p)
+			_push({"kind": "op_blocked", "id": id, "player": p["id"]})
+			effects.append_array(data.rules["ops"]["block"].duplicate(true))
+			_remove_card(id)
+			continue
 		var type: String = m.get("type", "")
 		var td: Dictionary = mission_type_def(type)
+		var bonus_fx := []
+		var b = m.get("bonus")
+		if typeof(b) == TYPE_DICTIONARY:
+			var bc: Dictionary = b["if"]
+			if str(bc.get("kind", "")) == "launch_target":
+				bonus_wait.append({"player": p["id"], "base": str(bc["base"]), "reward": b["reward"].duplicate(true)})   # 결행 때 판정
+			elif _bonus_holds(p, id, bc):
+				_log("%s: 보너스! %s" % [p["name"], b.get("text", "")])
+				for be in b["reward"]:
+					if str(be.get("op", "")) == "entry_no_police":
+						no_police = true
+					else:
+						bonus_fx.append(be)
 		for pid in _coop_participants(id, p, ctx):
 			_saga_note(players[pid], "coop_missions")
-		mission_row.erase(id)
-		mission_discard.append(id)
+		_remove_card(id)
 		p["stats"]["missions"] += 1
 		_log("%s: 미션 「%s」 성공!" % [p["name"], m.get("name", id)])
 		_saga_note(p, "mission_done_by_me", {"id": id})
@@ -2083,14 +2473,19 @@ func _complete_missions(p: Dictionary, ids: Array, ctx: Dictionary, loud_type :=
 		var bonus := stat(p, "mission_intel_bonus", type)
 		if bonus > 0 and m.get("intel", null) != null:
 			effects.append({"op": "intel", "base": m["intel"], "value": bonus})
-		var ex := stat(p, type + "_exposure")   # 예: 문 선전대원의 sabotage_exposure −1 (방해 성공 시 노출)
+		var ex := stat(p, type + "_exposure")   # 문 선전대원의 work_exposure −1 (공작을 이루면 노출)
 		if ex != 0:
 			effects.append({"op": "exposure", "value": ex})
 		effects.append_array(m.get("rewards", []))
+		effects.append_array(bonus_fx)
 		var ld = m["loud"] if m.has("loud") else td.get("loud", false)
 		if ld != null and bool(ld):
 			loud = true
 	if loud:
+		if no_police:
+			_log("%s: 망을 봐 준 동료 덕에 경찰이 붙지 않았습니다." % p["name"])
+		else:
+			_summon(p)
 		effects.append({"op": "exposure", "value": int(data.rules["exposure"]["loud"])})
 	_run_effects(p, effects, ctx)
 
@@ -2130,14 +2525,49 @@ func _coop_enter_base(p: Dictionary, bi: int) -> Array:
 	return out
 
 
-func _coop_turn_end(p: Dictionary) -> bool:
-	## 협동 미션 — 차례 끝에 확인 (people, opposite_edges). 보상 처리를 시작했으면 true.
+func _lurk_count(p: Dictionary, id: String, cond: Dictionary, st: Dictionary) -> bool:
+	## 잠복: 마커 칸(adjacent이면 옆 칸 포함)에서 쫓기지 않고 차례를 마친 날을 센다. 같은 날은 한 번이고,
+	## double_with명이 같은 날 하면 그날은 2일로 친다. 날이 다 차면 true.
+	if p["jailed"] or police.has(p["id"]):
+		return false
+	var spot := markers_of(id, "spot")
+	if spot.is_empty():
+		return false
+	if _manhattan(p["pos"], spot[0]["pos"]) > (1 if bool(cond.get("adjacent", true)) else 0):
+		return false
+	var first := int(st["lurk_day"]) != day
+	if first:
+		st["lurk_day"] = day
+		st["lurk_pids"] = []
+		st["doubled"] = false
+		st["lurk"] = int(st["lurk"]) + 1
+	if not p["id"] in st["lurk_pids"]:
+		st["lurk_pids"].append(p["id"])
+		if not first and int(cond.get("double_with", 0)) > 0 and st["lurk_pids"].size() >= int(cond["double_with"]) and not st["doubled"]:
+			st["doubled"] = true
+			st["lurk"] = int(st["lurk"]) + 1
+			_log("두 요원이 같은 날 잠복해 그날은 2일로 칩니다.")
+	_log("%s: 「%s」 잠복 %d / %d일" % [p["name"], card_def(id).get("name", id), int(st["lurk"]), int(cond.get("days", 1))])
+	_push({"kind": "lurk", "id": id, "player": p["id"]})
+	return int(st["lurk"]) >= int(cond.get("days", 1))
+
+
+func _turn_end_missions(p: Dictionary) -> bool:
+	## 차례를 마칠 때: 물건을 든 요원이 쫓기면 기록하고, 잠복 날을 세고, 협동 미션(people · opposite_edges)을 확인한다.
+	## 이뤄진 미션(막은 일제 작전)의 보상 처리를 시작했으면 true.
 	if not p["jailed"]:
 		today["ends"][p["id"]] = p["pos"]
 	var ids := []
-	for id in mission_row:
-		var cond := _coop_cond(id)
+	for id in mission_row + op_row:
+		var cond := card_cond(id)
+		var st: Dictionary = mission_state.get(id, {})
 		match str(cond.get("kind", "")):
+			"contact":
+				if int(st.get("holder", -1)) == p["id"] and police.has(p["id"]):
+					st["chased"] = true
+			"lurk":
+				if _lurk_count(p, id, cond, st):
+					ids.append(id)
 			"people":
 				var n := 0
 				for pid in today["ends"]:
@@ -2167,26 +2597,6 @@ func _opposite_edges() -> bool:
 			if (ca.x == 0 and cb.x == last) or (ca.y == 0 and cb.y == last):
 				return true
 	return false
-
-
-func _coop_night() -> bool:
-	## 협동 미션 — 밤에 확인 (same_day_assassin: 오늘 서로 다른 두 사람이 서로 다른 암살 타일에서 성공). 처리를 시작했으면 true.
-	var ids := []
-	for id in _coop_ids("same_day_assassin"):
-		var need := int(_coop_cond(id).get("count", 2))
-		var who := {}
-		var cells := {}
-		for w in today["assassin_wins"]:
-			who[w["player"]] = true
-			cells[w["cell"]] = true
-		if who.size() >= need and cells.size() >= need:
-			ids.append(id)
-	if ids.is_empty():
-		return false
-	var wins: Array = today["assassin_wins"]
-	var p: Dictionary = players[int(wins[-1]["player"])]
-	_complete_missions(p, ids, {"then": "night_end", "source": "mission"})
-	return true
 
 
 # ================================================================ 탈옥
@@ -2267,6 +2677,7 @@ func _jail(p: Dictionary) -> void:
 	p["jail_count"] += 1
 	p["stats"]["jailed"] += 1
 	_police_off(p["id"], "jail")
+	_drop_contacts(p)
 	_saga_reset(p, "chased_turns_row")
 	var name := base_name(data.bases.find(best))
 	_record("%s — %s 감옥에 투옥" % [p["name"], name], "bad")
@@ -2532,6 +2943,8 @@ func _continue(p: Dictionary, ctx: Dictionary) -> void:
 			_finish_scene_check(p)
 		"act2_scenes":
 			_act2_scenes()
+		"morning_expire":
+			_morning_expire()
 		_:
 			pass   # "resume": 원래 단계로 돌아가 계속 진행
 
@@ -2541,7 +2954,14 @@ func _effect(p: Dictionary, e: Dictionary, ctx: Dictionary, queue: Array) -> boo
 	var op: String = str(e.get("op", ""))
 	match op:
 		"police_dispatch":
-			_op_police_dispatch(p, e)
+			_op_police_dispatch(p, e, ctx)
+		"event_card":
+			_op_event_card(p, queue)
+		"police_back":
+			_op_police_back(p, e)
+		"threat_peek_bonus":
+			peek_bonus += int(e.get("value", 1))
+			_log("이번 판 동안 위협 카드를 %d장 더 미리 봅니다." % int(e.get("value", 1)))
 		"police_attach":
 			return _op_police_attach(p, e, queue)
 		"exposure":
@@ -2664,7 +3084,7 @@ func _cond_holds(p: Dictionary, cond: String) -> bool:
 
 # ---- 2a 효과들
 
-func _op_police_dispatch(_p: Dictionary, e: Dictionary) -> void:
+func _op_police_dispatch(_p: Dictionary, e: Dictionary, ctx: Dictionary = {}) -> void:
 	var count: int = int(e.get("count", 1))
 	var from: String = str(e.get("from", "random_base"))
 	var distinct: bool = bool(e.get("distinct", false))
@@ -2681,6 +3101,8 @@ func _op_police_dispatch(_p: Dictionary, e: Dictionary) -> void:
 			bi = pool[rng.randi_range(0, pool.size() - 1)]
 		elif from == "strike_base":
 			bi = data.base_index(str(launch_info.get("target", "")))
+		elif from == "marker":
+			bi = _nearest_base(ctx["cell"] if ctx.has("cell") else data.start)
 		else:
 			bi = data.base_index(from)
 		if bi < 0:
@@ -2844,6 +3266,15 @@ func _resolve_base(p: Dictionary, base, ctx: Dictionary) -> int:
 		return int(ctx["entered_base"])
 	if b == "nearest" or b == "entered":
 		return _nearest_base(p["pos"])
+	if b == "highest":
+		var top := -1
+		for id in GameDataV2.BASE_IDS:
+			top = maxi(top, int(intel[id]))
+		var tops := []
+		for id in GameDataV2.BASE_IDS:
+			if int(intel[id]) == top:
+				tops.append(id)
+		return data.base_index(tops[0] if tops.size() == 1 else tops[rng.randi_range(0, tops.size() - 1)])
 	return data.base_index(b)
 
 
@@ -3041,6 +3472,60 @@ func _op_police_push(p: Dictionary, e: Dictionary) -> void:
 	_push({"kind": "police"})
 
 
+func _op_event_card(p: Dictionary, queue: Array) -> void:
+	## 이벤트 카드 한 장을 뽑아 그 효과를 이어서 처리한다 (이벤트 타일)
+	var id := _draw_from(event_deck, event_discard)
+	if id == "":
+		return
+	event_discard.append(id)
+	var ev: Dictionary = data.event(id)
+	_log("%s: 이벤트 [%s] - %s" % [p["name"], ev.get("name", id), ev.get("text", "")])
+	_push({"kind": "card", "deck": "event", "id": id, "player": p["id"]})
+	var fx: Array = ev.get("effects", [])
+	for n in range(fx.size() - 1, -1, -1):
+		queue.push_front(fx[n])
+
+
+func tile_has_op(t: String, op: String) -> bool:
+	## 이 종류 타일에서 이동을 마칠 때 받는 효과(rules.tile_effects)에 이 op가 있는가 (보급 = gain_bomb, 아이템 = draw_item)
+	for fe in data.rules.get("tile_effects", {}).get(t, {}).get("on_stop", []):
+		if str(fe.get("op", "")) == op:
+			return true
+	return false
+
+
+func _op_police_back(p: Dictionary, e: Dictionary) -> void:
+	## 경찰을 steps칸 물러나게 한다 (scope mine: 나를 쫓는 경찰, all: 모든 경찰). 깔린 칸을 따라 쫓는 요원에게서 멀어지는 쪽으로
+	## 가고, 따돌림 거리를 넘으면 사라진다 (골목 타일, 전신선 폭파)
+	var owners := []
+	if str(e.get("scope", "mine")) == "all":
+		owners = _police_ids_sorted()
+	elif police.has(p["id"]):
+		owners = [p["id"]]
+	if owners.is_empty():
+		_log("%s: 물러날 경찰이 없습니다." % p["name"])
+		return
+	for pid in owners:
+		var target: Vector2i = players[pid]["pos"]
+		var pos: Vector2i = police[pid]["pos"]
+		var d: Dictionary = _dist_from(target)
+		for i in int(e.get("steps", 1)):
+			var best := pos
+			var bd := int(d.get(pos, 0))
+			for dir in DIRS:
+				var n: Vector2i = pos + dir
+				if d.has(n) and int(d[n]) > bd and not police_on(n):
+					best = n
+					bd = int(d[n])
+			pos = best
+		police[pid]["pos"] = pos
+		_log("%s를 쫓던 경찰이 물러났습니다." % players[pid]["name"])
+		if walk_dist(pos, target) > int(data.rules["police"]["escape_distance"]):
+			_police_off(pid, "shake")
+			_log("%s: 경찰을 따돌렸습니다." % players[pid]["name"])
+	_push({"kind": "police"})
+
+
 func _op_police_send_far(p: Dictionary) -> void:
 	if not police.has(p["id"]):
 		return
@@ -3122,6 +3607,11 @@ func _op_discard_item(p: Dictionary, e: Dictionary, queue: Array) -> bool:
 			return true
 		if ids.is_empty():
 			return false
+		if ids.size() > 1 and str(e["who"]) in ["all", "everyone"]:
+			for k in range(ids.size() - 1, 0, -1):
+				var more: Dictionary = e.duplicate()
+				more["pid"] = ids[k]
+				queue.push_front(more)
 		e = e.duplicate()
 		e["pid"] = ids[0]
 	var holder: Dictionary = players[int(e["pid"])] if e.has("pid") else p
@@ -3496,6 +3986,22 @@ func _resolve_choice(value) -> void:
 		"saga_keep":
 			_keep_saga(p, str(value))
 			_launch_continue()
+		"mission_gear":
+			var gear: Dictionary = pd["gear"]
+			var flow: Dictionary = pd["flow"]
+			if int(value) >= 0:
+				var gid: String = p["items"][int(value)]
+				p["items"].remove_at(int(value))
+				item_discard.append(gid)
+				_log("%s: [%s]을(를) 버렸습니다 — %s" % [p["name"], item_def(gid)["name"], gear.get("text", "")])
+				if gear.has("check_bonus") and not check.is_empty():
+					check["bonus"] = int(check["bonus"]) + int(gear["check_bonus"])
+				for ge in gear.get("effects", []):
+					_effect(p, ge, {"then": "resume"}, [])
+			if str(flow["kind"]) == "check":
+				_check_roll(p)
+			else:
+				_complete_missions(p, flow["ids"], flow["ctx"])
 		"reroll":
 			if str(value) == "grant":
 				var gi := _grant_index(players[check["player"]], "reroll", str(check.get("ctx", "")) == "scene")
@@ -3896,10 +4402,6 @@ func _coop_participants(id: String, p: Dictionary, ctx: Dictionary) -> Array:
 					if q["id"] != p["id"] and not q["jailed"] \
 							and _manhattan(q["pos"], data.bases[bi]) == 1:
 						out.append(q["id"])
-		"same_day_assassin":
-			for w in today["assassin_wins"]:
-				if not w["player"] in out:
-					out.append(w["player"])
 		"people":
 			for pid in today["ends"]:
 				if not players[pid]["jailed"] and _where_match(today["ends"][pid], cond):
@@ -4150,6 +4652,16 @@ func _begin_act2() -> void:
 	## 결행 혜택의 선택이 끼는 동안에는 아직 1막 상태(act 1)이고, 장면을 깔 때 act를 2로 바꾼다 (_act2_scenes)
 	var target := str(launch_info["target"])
 	threat_deck = data.threat_deck(2)
+	var extra := _trend_reinforce()
+	launch_info["trend"] = trend
+	launch_info["reinforce"] = extra
+	if extra > 0:
+		for card in data.threats.get("act2", []):
+			if bool(card.get("trend_extra", false)):
+				for i in extra:
+					threat_deck.append(card["id"])
+				break
+		_log("일제 동향 %d — 2막 위협 덱에 증원 %d장을 더 섞습니다." % [trend, extra])
 	threat_discard = []
 	_shuffle(threat_deck)
 	var priority := []
@@ -4163,6 +4675,10 @@ func _begin_act2() -> void:
 	mission_row = []
 	mission_deck = []
 	mission_discard = []
+	markers = []
+	mission_state = {}
+	op_row = []
+	expire_queue = []
 	intel_tokens = int(intel.get(target, 0))
 	launch_info["no_reinforce"] = false
 	_log("결행! 목표: %s" % base_name(data.base_index(target)))
@@ -4170,7 +4686,17 @@ func _begin_act2() -> void:
 	_banner("결행!", "good")
 	_push({"kind": "launch", "reason": launch_info.get("reason", ""), "target": target})
 	# 결행 혜택의 효과 (경비 강화 빼기·첩보 토큰·주사위·위협 덱 보기)를 먼저 적용한 뒤 장면을 깐다
-	_run_effects(players[leader], _benefit_effects(), {"then": "act2_scenes", "source": "launch"})
+	var wait_fx := []
+	for w in bonus_wait:
+		if str(w["base"]) == target:
+			for re in w["reward"]:
+				var one: Dictionary = re.duplicate(true)
+				if str(one.get("op", "")) == "grant_once":
+					one["who"] = "player"
+					one["pid"] = int(w["player"])
+				wait_fx.append(one)
+	bonus_wait = []
+	_run_effects(players[leader], wait_fx + _benefit_effects(), {"then": "act2_scenes", "source": "launch"})
 
 
 func _act2_scenes() -> void:
@@ -4701,7 +5227,9 @@ const SAVE_FIELDS := ["players", "leader", "day", "rounds_total", "rounds_left",
 	"item_deck", "item_discard", "bomb_supply", "op_dice", "today", "pending",
 	"launch_info", "ending", "scenes", "scene_index", "scene_state", "intel_tokens", "search_queue", "effect_wait",
 	"check", "morning_step", "last_roll", "saga_decks", "saga_discard",
-	"saga_rewards", "launch_step", "launch_i", "human", "vote_state", "counter", "counter_queue", "actions", "log_lines", "history"]
+	"saga_rewards", "launch_step", "launch_i", "human", "vote_state", "counter", "counter_queue",
+	"markers", "mission_state", "op_row", "op_deck", "op_discard", "trend", "peek_bonus", "bonus_wait", "expire_queue", "marker_seq",
+	"actions", "log_lines", "history"]
 
 
 func save_state() -> Dictionary:

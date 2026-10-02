@@ -21,7 +21,7 @@ const KNOWN_OPS := ["police_dispatch", "police_attach", "police_advance", "polic
 	"mark_tile", "move_to_ally", "pull_ally", "give_item", "send_item",
 	"checkpoint_pass", "refill_supply", "choice", "if_players",
 	"if", "threat_flip", "check_or_jail", "entry_no_police",
-	"no_reinforce", "intel_token_bonus", "threat_look_discard"]
+	"no_reinforce", "intel_token_bonus", "threat_look_discard", "police_back", "threat_peek_bonus", "event_card"]
 ## if op의 cond
 const KNOWN_IF_CONDS := ["chased", "not_chased"]
 ## 능력 사용 조건 (ability.requires)
@@ -30,7 +30,17 @@ const KNOWN_REQUIRES := ["near_tile", "base_in_range"]
 const KNOWN_COSTS := ["die"]
 ## 3-3. 장면·협동 조건 kind
 const KNOWN_SCENE_CONDITIONS := ["enter_base", "deliver_bomb", "check", "check_pair", "dice", "pay_item", "pay_bomb", "people", "hold",
-	"jailed_here", "any_of", "all_of", "sequence", "cover_entry", "same_day_assassin", "opposite_edges"]
+	"jailed_here", "any_of", "all_of", "sequence"]
+## 3-3b. 미션·일제 작전 조건 kind (condition.kind). 협동은 cover_entry · people · opposite_edges
+const KNOWN_MISSION_KINDS := ["assassinate", "infiltrate", "bomb", "work", "contact", "lurk", "cover_entry", "people", "opposite_edges"]
+## 마커 역할 (markers[].role)과 놓을 자리의 기준 (around · at은 거점 id 또는 start)
+const KNOWN_MARKER_ROLES := ["target", "informer", "base", "pickup", "dropoff", "work", "spot"]
+const MARKER_CENTERS := ["barracks", "police_hq", "prison", "gg", "start"]
+## 공작 방식: 합 N · 눈 조합 · 마커마다 하나
+const KNOWN_WORK_MODES := ["sum", "combo", "each"]
+## 미션 보너스 조건 (bonus.if.kind)
+const KNOWN_BONUS_CONDS := ["not_chased", "faction", "days_left", "rescued_this_turn", "ally_adjacent", "same_day",
+	"contributors", "carrier_clean", "launch_target"]
 ## 3-4. 사연 조건 kind
 const KNOWN_SAGA_CONDITIONS := ["end_turn_near_base", "visit_base_adjacent", "touch_edge", "end_turn_at_start",
 	"visit_tile", "hold_items", "rolled_value", "give_dice", "shake_police", "pass_checkpoint",
@@ -38,7 +48,7 @@ const KNOWN_SAGA_CONDITIONS := ["end_turn_near_base", "visit_base_adjacent", "to
 	"coop_missions", "give_items", "strike_final_by_me", "present_at_final", "strike_entry_by_me", "mission_done_by_me"]
 ## 3-5. 캐릭터 특성·아이템 지속 효과 stat
 const KNOWN_STATS := ["evade_auto", "escape_bonus", "rescued_move_bonus", "assassin_rerolls", "bomb_slots",
-	"sabotage_bonus", "sabotage_exposure", "move_min3", "hand_limit", "item_draw_choice",
+	"work_reduce", "work_exposure", "move_min3", "hand_limit", "item_draw_choice",
 	"mission_intel_bonus", "threat_peek", "block_police_with_evade", "end_move_hop_to_ally",
 	"spare_die_bonus", "assassin_bonus", "evade_bonus", "move_bonus", "base_no_police", "assassin_adjacent"]
 ## where는 이 값 말고 거점 id도 쓸 수 있다.
@@ -69,6 +79,7 @@ var _dir := DIR
 var _missing: Array[String] = []
 var _unreadable: Array[String] = []
 var _missions := {}
+var _ops := {}
 var _events := {}
 var _items := {}
 var _sagas := {}
@@ -100,6 +111,7 @@ func load_dir(dir: String) -> void:
 	characters = _read("characters.json")
 	_load_board()
 	_missions = _index(missions.get("missions", []))
+	_ops = _index(missions.get("ops", []))
 	_events = _index(events.get("events", []))
 	_items = _index(items.get("items", []))
 	_sagas = _index(sagas.get("sagas", []))
@@ -136,6 +148,28 @@ func threat(id: String) -> Dictionary:
 
 func mission(id: String) -> Dictionary:
 	return _missions.get(id, {})
+
+
+func op_card(id: String) -> Dictionary:
+	## 일제 작전 카드
+	return _ops.get(id, {})
+
+
+func is_op(id: String) -> bool:
+	return _ops.has(id)
+
+
+func marker_card(id: String) -> Dictionary:
+	## 보드에 마커를 놓는 카드 (미션 또는 일제 작전)
+	return _missions[id] if _missions.has(id) else _ops.get(id, {})
+
+
+func op_deck() -> Array:
+	## 일제 작전 카드 id 목록 (섞지 않음)
+	var out := []
+	for c in missions.get("ops", []):
+		out.append(c["id"])
+	return out
 
 
 func event(id: String) -> Dictionary:
@@ -202,6 +236,10 @@ func _validate_rules(errs: Array[String]) -> void:
 	var cells := size * size - 1 - bases.size()
 	if tile_total > cells:
 		errs.append("타일 %d장이 빈칸 %d칸보다 많습니다." % [tile_total, cells])
+	if tiles.is_empty() or tile_total != 100:
+		errs.append("[장수] 타일: %d장 (기준 100장)" % tile_total)
+	_validate_tile_effects(errs, tiles)
+	_validate_ops_rules(errs)
 	var hide = rules.get("hide", null)
 	if typeof(hide) != TYPE_DICTIONARY or typeof(hide.get("tiles", null)) != TYPE_ARRAY or typeof(hide.get("flags", null)) != TYPE_ARRAY:
 		errs.append("rules.hide에 tiles와 flags(목록)가 있어야 합니다.")
@@ -238,9 +276,75 @@ func _validate_rules(errs: Array[String]) -> void:
 		errs.append("rules.police에 escape_distance와 rejoin_distance(1 이상)가 있어야 합니다.")
 
 
+func _validate_tile_effects(errs: Array[String], tiles: Dictionary) -> void:
+	var te = rules.get("tile_effects", null)
+	if typeof(te) != TYPE_DICTIONARY:
+		errs.append("rules.tile_effects(타일 효과)가 있어야 합니다.")
+		return
+	for t in te:
+		if t.begins_with("_"):
+			continue
+		var who := "타일 효과 %s" % t
+		if not tiles.has(t):
+			errs.append("%s: rules.tiles에 없는 타일 종류입니다." % who)
+		var def = te[t]
+		if typeof(def) != TYPE_DICTIONARY:
+			errs.append("%s: 객체가 아닙니다." % who)
+			continue
+		for k in def:
+			if not k in ["on_stop", "on_turn_end", "needs", "once_per_day", "once", "text"]:
+				errs.append("%s: 알 수 없는 키 '%s'" % [who, k])
+		if def.has("once") and not tiles.has(def["once"]):
+			errs.append("%s: once '%s'는 rules.tiles에 없는 타일 종류입니다." % [who, def["once"]])
+		if def.has("needs") and not def["needs"] in ["ally_here"]:
+			errs.append("%s: 알 수 없는 needs '%s'" % [who, def["needs"]])
+		for k in ["on_stop", "on_turn_end"]:
+			if def.has(k):
+				if typeof(def[k]) != TYPE_ARRAY:
+					errs.append("%s: %s는 효과 목록이어야 합니다." % [who, k])
+				else:
+					_check_effects(errs, who + " " + k, def[k])
+
+
+func _validate_ops_rules(errs: Array[String]) -> void:
+	var o = rules.get("ops", null)
+	if typeof(o) != TYPE_DICTIONARY:
+		errs.append("rules.ops(일제 동향)가 있어야 합니다.")
+		return
+	if typeof(o.get("days", null)) != TYPE_ARRAY or o["days"].is_empty():
+		errs.append("rules.ops.days(일제 작전이 나오는 날 목록)가 있어야 합니다.")
+	if int(o.get("trend_max", 0)) < 1:
+		errs.append("rules.ops.trend_max는 1 이상이어야 합니다.")
+	if typeof(o.get("block", null)) != TYPE_ARRAY:
+		errs.append("rules.ops.block(작전을 막았을 때 효과 목록)이 있어야 합니다.")
+	else:
+		_check_effects(errs, "rules.ops.block", o["block"])
+	var pen = o.get("penalties", null)
+	if typeof(pen) != TYPE_ARRAY or pen.is_empty():
+		errs.append("rules.ops.penalties(동향 단계별 추가 벌칙)가 있어야 합니다.")
+	else:
+		var last := -1
+		for i in pen.size():
+			var row = pen[i]
+			if typeof(row) != TYPE_DICTIONARY or typeof(row.get("effects", null)) != TYPE_ARRAY:
+				errs.append("rules.ops.penalties[%d]: min과 effects가 있어야 합니다." % i)
+				continue
+			if int(row.get("min", -1)) <= last or (i == 0 and int(row.get("min", -1)) != 0):
+				errs.append("rules.ops.penalties[%d]: min은 0에서 시작해 커져야 합니다." % i)
+			last = int(row.get("min", -1))
+			_check_effects(errs, "rules.ops.penalties[%d]" % i, row["effects"])
+	var rb = o.get("reinforce_by_trend", null)
+	if typeof(rb) != TYPE_ARRAY:
+		errs.append("rules.ops.reinforce_by_trend(동향별 증원 장수)가 있어야 합니다.")
+	else:
+		for row in rb:
+			if typeof(row) != TYPE_DICTIONARY or int(row.get("count", 0)) < 1 or int(row.get("min", -1)) < 0:
+				errs.append("rules.ops.reinforce_by_trend: min(0 이상)과 count(1 이상)가 있어야 합니다.")
+
+
 func _validate_threats(errs: Array[String]) -> void:
 	var seen := {}
-	for act in [["act1", 24], ["act2", 11]]:
+	for act in [["act1", 21], ["act2", 11]]:
 		var cards: Array = threats.get(act[0], [])
 		_check_count(errs, "위협 " + act[0], _sum_count(cards), act[1], not threats.is_empty())
 		for c in cards:
@@ -264,16 +368,126 @@ func _validate_missions(errs: Array[String]) -> void:
 		var intel = c.get("intel")
 		if intel != null and not intel in ["nearest", "entered"] and not intel in BASE_IDS:
 			errs.append("%s: intel '%s'는 거점 id가 아닙니다." % [who, intel])
-		if c.has("base") and not c["base"] in BASE_IDS:
-			errs.append("%s: base '%s'는 거점 id가 아닙니다." % [who, c["base"]])
-		_check_effects(errs, who, c.get("rewards", []))
-		_check_scene_cond(errs, who, c.get("condition"))
-	for t in types:
-		if not t.begins_with("_") and typeof(types[t]) == TYPE_DICTIONARY:
-			_check_scene_cond(errs, "미션 종류 " + t, types[t].get("condition"))
+		_check_marker_card(errs, who, c, false)
+	var ops: Array = missions.get("ops", [])
+	for c in ops:
+		var who: String = "일제 작전 %s" % c.get("id", "?")
+		_check_card(errs, who, c, seen, true)
+		if c.get("type") != "op":
+			errs.append("%s: type은 op여야 합니다." % who)
+		_check_marker_card(errs, who, c, true)
 	if not missions.is_empty():
 		_check_count(errs, "미션", cards.size(), 20, true)
-		_check_count(errs, "협동 미션", coop, 5, true)
+		_check_count(errs, "협동 미션", coop, 3, true)
+		_check_count(errs, "일제 작전", ops.size(), 4, true)
+
+
+func _check_marker_card(errs: Array[String], who: String, c: Dictionary, is_op: bool) -> void:
+	## 미션·일제 작전 카드 하나: 조건 · 마커 · 기한 · 놓침 · 보너스 · 보상
+	for k in ["where", "how"]:
+		if str(c.get(k, "")).strip_edges() == "":
+			errs.append("%s: %s가 비었습니다." % [who, k])
+	var cond = c.get("condition")
+	var kind := ""
+	if typeof(cond) != TYPE_DICTIONARY or not cond.get("kind") in KNOWN_MISSION_KINDS:
+		errs.append("%s: 알 수 없는 조건 kind '%s'" % [who, cond.get("kind") if typeof(cond) == TYPE_DICTIONARY else cond])
+		cond = {}
+	else:
+		kind = str(cond["kind"])
+	if cond.has("where") and not _where_ok(cond["where"]):
+		errs.append("%s: 조건의 알 수 없는 where '%s'" % [who, cond["where"]])
+	if cond.has("base") and not cond["base"] in BASE_IDS:
+		errs.append("%s: 조건의 base '%s'는 거점 id가 아닙니다." % [who, cond["base"]])
+	if is_op and kind in ["cover_entry", "people", "opposite_edges"]:
+		errs.append("%s: 일제 작전에는 협동 조건을 쓸 수 없습니다." % who)
+	# 마커
+	var markers = c.get("markers")
+	if typeof(markers) != TYPE_ARRAY:
+		errs.append("%s: markers(목록)가 있어야 합니다." % who)
+		markers = []
+	var roles := {}
+	for m in markers:
+		if typeof(m) != TYPE_DICTIONARY or not m.get("role") in KNOWN_MARKER_ROLES:
+			errs.append("%s: 알 수 없는 마커 role '%s'" % [who, m.get("role") if typeof(m) == TYPE_DICTIONARY else m])
+			continue
+		roles[m["role"]] = int(roles.get(m["role"], 0)) + int(m.get("count", 1))
+		if m.has("at") == m.has("around"):
+			errs.append("%s: 마커 %s에는 at이나 around 중 하나만 있어야 합니다." % [who, m["role"]])
+		for k in ["at", "around"]:
+			if m.has(k) and not m[k] in MARKER_CENTERS:
+				errs.append("%s: 마커 %s의 %s '%s'는 거점 id나 start가 아닙니다." % [who, m["role"], k, m[k]])
+		if m.has("around") and (int(m.get("min", -1)) < 0 or int(m.get("max", -1)) < int(m.get("min", 0))):
+			errs.append("%s: 마커 %s의 min·max가 바르지 않습니다." % [who, m["role"]])
+		if int(m.get("count", 1)) < 1 or int(m.get("move", 0)) < 0:
+			errs.append("%s: 마커 %s의 count(1 이상)나 move(0 이상)가 바르지 않습니다." % [who, m["role"]])
+	var need_roles := []
+	match kind:
+		"assassinate":
+			need_roles = ["target"]
+			if str(cond.get("check", "")) == "" or int(cond.get("target", 0)) < 1:
+				errs.append("%s: assassinate에는 check와 target(1 이상)이 있어야 합니다." % who)
+			if roles.has("informer") and int(cond.get("informed_bonus", 0)) < 1:
+				errs.append("%s: 정보원 마커가 있으면 informed_bonus(1 이상)가 있어야 합니다." % who)
+		"infiltrate":
+			need_roles = ["base"]
+		"bomb":
+			need_roles = ["target"]
+		"work":
+			need_roles = ["work"]
+			var mode := str(cond.get("mode", ""))
+			if not mode in KNOWN_WORK_MODES:
+				errs.append("%s: 알 수 없는 공작 방식 '%s'" % [who, mode])
+			if mode == "sum" and int(cond.get("target", 0)) < 1:
+				errs.append("%s: 합 공작에는 target(1 이상)이 있어야 합니다." % who)
+			if mode == "combo" and (typeof(cond.get("values", null)) != TYPE_ARRAY or cond["values"].is_empty()):
+				errs.append("%s: 조합 공작에는 values(눈 목록)가 있어야 합니다." % who)
+		"contact":
+			need_roles = ["pickup", "dropoff"]
+		"lurk":
+			need_roles = ["spot"]
+			if int(cond.get("days", 0)) < 1:
+				errs.append("%s: lurk에는 days(1 이상)가 있어야 합니다." % who)
+	for r in need_roles:
+		if not roles.has(r):
+			errs.append("%s: %s 조건에는 %s 마커가 있어야 합니다." % [who, kind, r])
+	if kind in ["cover_entry", "people", "opposite_edges"] and not markers.is_empty():
+		errs.append("%s: 협동 미션에는 마커가 없습니다." % who)
+	if kind == "infiltrate" and not str(cond.get("base", "")) in BASE_IDS:
+		errs.append("%s: infiltrate에는 base(거점 id)가 있어야 합니다." % who)
+	# 기한 · 놓침
+	if c.has("deadline"):
+		if int(c["deadline"]) < 1:
+			errs.append("%s: deadline은 1 이상이어야 합니다." % who)
+		if typeof(c.get("missed", null)) != TYPE_ARRAY or c["missed"].is_empty():
+			errs.append("%s: 기한이 있으면 놓쳤을 때(missed) 효과가 있어야 합니다." % who)
+	elif is_op:
+		errs.append("%s: 일제 작전에는 deadline이 있어야 합니다." % who)
+	_check_effects(errs, who + " missed", c.get("missed", []))
+	if is_op and typeof(c.get("missed", null)) != TYPE_ARRAY:
+		errs.append("%s: missed(못 막았을 때 벌칙)가 있어야 합니다." % who)
+	# 보너스 · 보상 · 돈 대신 아이템(gear)
+	var b = c.get("bonus")
+	if b != null:
+		if typeof(b) != TYPE_DICTIONARY or typeof(b.get("if", null)) != TYPE_DICTIONARY or not b["if"].get("kind") in KNOWN_BONUS_CONDS:
+			errs.append("%s: bonus.if의 kind가 어휘에 없습니다." % who)
+		else:
+			if b["if"]["kind"] == "launch_target" and not str(b["if"].get("base", "")) in BASE_IDS:
+				errs.append("%s: launch_target 보너스에는 base(거점 id)가 있어야 합니다." % who)
+			if str(b.get("text", "")).strip_edges() == "":
+				errs.append("%s: bonus.text가 비었습니다." % who)
+			_check_effects(errs, who + " bonus", b.get("reward", []))
+	if not is_op:
+		if typeof(c.get("ready", null)) != TYPE_INT and typeof(c.get("ready", null)) != TYPE_FLOAT:
+			errs.append("%s: ready(결행 준비 수치)가 있어야 합니다." % who)
+		_check_effects(errs, who, c.get("rewards", []))
+	var gear = cond.get("gear")
+	if gear != null:
+		if typeof(gear) != TYPE_DICTIONARY or str(gear.get("cost", "")) != "item" or int(gear.get("count", 0)) < 1 or str(gear.get("text", "")) == "":
+			errs.append("%s: gear에는 cost(item), count(1 이상), text가 있어야 합니다." % who)
+		elif not gear.has("check_bonus") and not gear.has("effects"):
+			errs.append("%s: gear에는 check_bonus나 effects가 있어야 합니다." % who)
+		else:
+			_check_effects(errs, who + " gear", gear.get("effects", []))
 
 
 func _validate_events(errs: Array[String]) -> void:
@@ -471,10 +685,10 @@ func _check_effects(errs: Array[String], who: String, effects: Array) -> void:
 		if op == "police_attach" and e.has("at") and e["at"] != "here":
 			errs.append("%s: police_attach의 알 수 없는 at '%s'" % [who, e["at"]])
 		if op == "police_dispatch" and e.has("from"):
-			if not e["from"] in ["random_base", "strike_base"] and not e["from"] in BASE_IDS:
+			if not e["from"] in ["random_base", "strike_base", "marker"] and not e["from"] in BASE_IDS:
 				errs.append("%s: police_dispatch의 알 수 없는 from '%s'" % [who, e["from"]])
 		if op == "intel" and e.has("base"):
-			if not e["base"] in ["nearest", "choose", "entered"] and not e["base"] in BASE_IDS:
+			if not e["base"] in ["nearest", "choose", "entered", "highest"] and not e["base"] in BASE_IDS:
 				errs.append("%s: intel의 알 수 없는 base '%s'" % [who, e["base"]])
 		if op == "draw_item" and e.has("item") and not _items.has(e["item"]):
 			errs.append("%s: draw_item의 아이템 '%s'가 없습니다." % [who, e["item"]])

@@ -90,6 +90,57 @@ func _init() -> void:
 	var e6 := r6.validate()
 	_check(_has(e6, "미션 'm_nobody'가 없습니다") and _has(e6, "sequence에는 단계"), "사연의 or 조건 미션 id와 장면 sequence 단계 수를 잡는다")
 	_check("sequence" in GameDataV2.KNOWN_SCENE_CONDITIONS and "mission_done_by_me" in GameDataV2.KNOWN_SAGA_CONDITIONS and "everyone" in GameDataV2.KNOWN_TARGETS, "새 어휘(sequence, mission_done_by_me, everyone)")
+	# C단계 어휘: 미션 마커 · 조건 · 보너스 · 일제 동향 · 타일 효과
+	var m1 := GameDataV2.new()
+	m1.load_dir("res://data/v2/")
+	m1.mission("m_police_chief")["markers"][0]["role"] = "nobody"
+	m1.mission("m_leaflets")["markers"] = []
+	m1.mission("m_rail_bomb")["bonus"]["if"]["kind"] = "lucky"
+	m1.mission("m_decode")["condition"]["mode"] = "pile"
+	m1.mission("m_secret_docs").erase("missed")
+	m1.mission("m_mp_captain")["condition"]["gear"]["cost"] = "gold"
+	m1.mission("m_informant")["condition"]["kind"] = "dance"
+	m1.mission("m_gg_blueprint")["bonus"]["if"]["base"] = "moon"
+	var em := m1.validate()
+	_check(_has(em, "알 수 없는 마커 role 'nobody'") and _has(em, "work 조건에는 work 마커가 있어야") and _has(em, "bonus.if의 kind가 어휘에 없습니다")
+		and _has(em, "알 수 없는 공작 방식 'pile'") and _has(em, "기한이 있으면 놓쳤을 때(missed)") and _has(em, "gear에는 cost(item)")
+		and _has(em, "알 수 없는 조건 kind 'dance'") and _has(em, "launch_target 보너스에는 base"), "미션 마커·조건·보너스·기한·돈 대신 아이템의 오타와 누락을 잡는다")
+	var m2 := GameDataV2.new()
+	m2.load_dir("res://data/v2/")
+	m2.missions["ops"][0]["markers"][0]["at"] = "start"
+	m2.missions["ops"][1].erase("deadline")
+	m2.missions["ops"][2]["type"] = "coop"
+	m2.missions["ops"][3]["markers"][0]["around"] = "moon"
+	m2.mission("m_cover_entry")["markers"] = [{"role": "spot", "at": "start"}]
+	var e2 := m2.validate()
+	_check(_has(e2, "at이나 around 중 하나만") and _has(e2, "일제 작전에는 deadline이 있어야") and _has(e2, "type은 op여야") and _has(e2, "거점 id나 start가 아닙니다") and _has(e2, "협동 미션에는 마커가 없습니다"),
+		"일제 작전의 마커·기한·종류와 협동 미션의 마커를 잡는다")
+	var m3 := GameDataV2.new()
+	m3.load_dir("res://data/v2/")
+	m3.rules.erase("ops")
+	m3.rules["tile_effects"]["alley"]["on_stop"] = [{"op": "no_such_tile_op"}]
+	m3.rules["tile_effects"]["tavern"]["needs"] = "lonely"
+	m3.rules["tile_effects"]["watchtower"]["on_turn_end"] = "oops"
+	m3.rules["tile_effects"]["nowhere"] = {"on_stop": []}
+	m3.rules["tiles"]["normal"] = 40
+	var e3c := m3.validate()
+	_check(_has(e3c, "rules.ops(일제 동향)") and _has(e3c, "알 수 없는 op 'no_such_tile_op'") and _has(e3c, "알 수 없는 needs 'lonely'") and _has(e3c, "on_turn_end는 효과 목록")
+		and _has(e3c, "rules.tiles에 없는 타일 종류") and _has(e3c, "[장수] 타일: 98장"), "타일 효과와 일제 동향 규칙·타일 장수의 오타와 누락을 잡는다")
+	var m4 := GameDataV2.new()
+	m4.load_dir("res://data/v2/")
+	m4.rules["ops"]["penalties"][0]["min"] = 1
+	m4.rules["ops"]["reinforce_by_trend"] = [{"min": 3}]
+	m4.rules["ops"]["block"] = [{"op": "no_such_block"}]
+	var e4 := m4.validate()
+	_check(_has(e4, "min은 0에서 시작해") and _has(e4, "reinforce_by_trend") and _has(e4, "알 수 없는 op 'no_such_block'"), "동향 벌칙 단계표·증원표·막았을 때 효과의 오류를 잡는다")
+	var m5 := GameDataV2.new()
+	m5.load_dir("res://data/v2/")
+	m5.threats["act1"][0]["count"] = 9
+	_check(_has(m5.validate(), "[장수] 위협 act1"), "1막 위협 덱 장수(21장)를 확인한다")
+	_check("work" in GameDataV2.KNOWN_MISSION_KINDS and "contact" in GameDataV2.KNOWN_MISSION_KINDS and "target" in GameDataV2.KNOWN_MARKER_ROLES
+		and "launch_target" in GameDataV2.KNOWN_BONUS_CONDS and "combo" in GameDataV2.KNOWN_WORK_MODES, "새 어휘(미션 kind·마커 역할·공작 방식·보너스 조건)가 등록돼 있다")
+	_check("police_back" in GameDataV2.KNOWN_OPS and "threat_peek_bonus" in GameDataV2.KNOWN_OPS and "event_card" in GameDataV2.KNOWN_OPS
+		and "work_reduce" in GameDataV2.KNOWN_STATS and not "sabotage_bonus" in GameDataV2.KNOWN_STATS, "새 op(police_back·threat_peek_bonus·event_card)와 stat(work_reduce·work_exposure)이 등록돼 있고 방해 stat은 없다")
 	_check("assassin_adjacent" in GameDataV2.KNOWN_STATS and "die" in GameDataV2.KNOWN_COSTS, "새 어휘(assassin_adjacent, cost die)가 등록돼 있다")
 
 	print("v2 검증기 자체 시험: %s" % ("통과" if _fail == 0 else "%d건 실패" % _fail))

@@ -13,7 +13,7 @@ const PERSONA := {
 	"careful": {"risk": 1.4, "vote": 1.2},
 	"support": {"risk": 0.8, "vote": 1.0},
 }
-const CHOICE_KINDS := ["launch_vote", "launch_target", "launch_benefit", "threat_look", "strike_target", "saga_keep", "reroll", "react_evade",
+const CHOICE_KINDS := ["launch_vote", "launch_target", "launch_benefit", "threat_look", "strike_target", "saga_keep", "reroll", "react_evade", "mission_gear",
 	"discard", "draw_pick", "effect_choice", "pick_player", "pick_cell", "pick_die", "pick_tile", "pick_item",
 	"pick_value", "pick_bury", "hop", "intel_base"]
 
@@ -142,6 +142,7 @@ static func _choice(g: RulesV2, p: Dictionary, legal: Array, policy: Dictionary)
 			"reroll":
 				score = _check_option_score(g, p, str(v))
 			"react_evade": score = 10.0 if bool(v) else 0.0
+			"mission_gear": score = _gear_score(g, p, int(v))
 			"discard": score = -float(g.item_def(str(p["items"][int(v)])).get("ai_value", 3))
 			"draw_pick": score = float(g.item_def(str(g.pending.get("cards", [])[int(v)])).get("ai_value", 3))
 			"pick_bury": score = 10.0 if bool(v) else 0.0
@@ -163,12 +164,12 @@ static func _choice(g: RulesV2, p: Dictionary, legal: Array, policy: Dictionary)
 				var goal_h := _goal(g, p, policy)
 				score = -float(_dist(v, goal_h)) if v is Vector2i else -float(_dist(p["pos"], goal_h)) + 0.01
 			"pick_tile":
-				if int(g.scene_need().get("bomb", 0)) > 0 and str(v) == "supply":
+				if int(g.scene_need().get("bomb", 0)) > 0 and g.tile_has_op(str(v), "gain_bomb"):
 					score = 3.0
 				elif int(g.scene_need().get("item", 0)) > 0 and str(v) == "item":
 					score = 2.0
 				else:
-					score = 1.0 if str(v) == "item" else 0.0
+					score = 1.0 if g.tile_has_op(str(v), "draw_item") else 0.0
 			"effect_choice": score = _effects_value(g, p, g.pending.get("effects", [])[int(v)]) if typeof(v) == TYPE_INT else 0.0
 			_:
 				if typeof(v) == TYPE_BOOL:
@@ -225,6 +226,24 @@ static func _threat_harm(g: RulesV2, i: int) -> float:
 		return 0.0
 	var card: Dictionary = g.data.threat(str(g.threat_deck[idx]))
 	return (2.0 if str(card.get("tone", "bad")) == "bad" else 0.0) + float(card.get("effects", []).size())
+
+
+static func _gear_score(g: RulesV2, p: Dictionary, index: int) -> float:
+	## 아이템 1장을 내고 판정을 쉽게(무기 조달) 하거나 경찰이 안 붙게(간수 매수) 할지. 쓰지 않으면 0점.
+	if index < 0:
+		return 0.0
+	var cost := float(g.item_def(str(p["items"][index])).get("ai_value", 3)) * 0.06
+	var gear: Dictionary = g.pending.get("gear", {})
+	var gain := 0.0
+	if gear.has("check_bonus") and not g.check.is_empty():
+		var c: Dictionary = g.check.duplicate()
+		var die := int(c.get("die_value", 0))
+		var before := g.check_chance(c, die)
+		c["bonus"] = int(c["bonus"]) + int(gear["check_bonus"])
+		gain = g.check_chance(c, die) - before
+	elif gear.has("effects"):
+		gain = 0.25 if g.alert_level() >= 2 else 0.1   # 경찰이 안 붙으면 이동이 자유롭다
+	return gain - cost
 
 
 static func _effects_value(g: RulesV2, p: Dictionary, effects: Array) -> float:
@@ -292,6 +311,9 @@ static func _turn(g: RulesV2, p: Dictionary, legal: Array, policy: Dictionary) -
 	var chk := _check_action(g, p, legal, "mission_check")
 	if not chk.is_empty():
 		return chk
+	var work := _work_action(g, p, legal)
+	if not work.is_empty():
+		return work
 	var pay_die := _scene_pay_die(g, p, legal)
 	if not pay_die.is_empty():
 		return pay_die
@@ -360,9 +382,9 @@ static func _jailed_turn(g: RulesV2, p: Dictionary, legal: Array) -> Dictionary:
 
 static func _walk(g: RulesV2, p: Dictionary, legal: Array, policy: Dictionary) -> Dictionary:
 	## 걷는 중: 보급·아이템 칸에서 필요하면 멈추고, 아니면 가려는 곳에 가까워지는 칸으로
-	if g.tile_type(p["pos"]) == "supply" and p["bombs"] < g.bomb_slots(p) and (_bombs_short(g) > 0 or not g.missions_in_row("bomb").is_empty()):
+	if g.tile_has_op(g.tile_type(p["pos"]), "gain_bomb") and p["bombs"] < g.bomb_slots(p) and (_bombs_short(g) > 0 or g.has_bomb_card()):
 		return _find(legal, "end_move")
-	if g.tile_type(p["pos"]) == "item" and not g.board[p["pos"]].get("used", false) and int(g.scene_need().get("item", 0)) > 0:
+	if g.tile_has_op(g.tile_type(p["pos"]), "draw_item") and not g.board[p["pos"]].get("used", false) and int(g.scene_need().get("item", 0)) > 0:
 		return _find(legal, "end_move")
 	var free := _free_use(g, p, legal, policy)
 	if not free.is_empty():
@@ -401,7 +423,7 @@ static func _free_use(g: RulesV2, p: Dictionary, legal: Array, policy: Dictionar
 				if op == "place_tile" and g.act == 2 and int(g.scene_need().get("bomb", 0)) > 0:
 					var supply_found := false
 					for c in g.board:
-						if g.tile_type(c) == "supply":
+						if g.tile_has_op(g.tile_type(c), "gain_bomb"):
 							supply_found = true
 					if not supply_found:
 						return a
@@ -461,6 +483,24 @@ static func _check_action(g: RulesV2, p: Dictionary, legal: Array, kind: String)
 	return best
 
 
+static func _work_action(g: RulesV2, p: Dictionary, legal: Array) -> Dictionary:
+	## 공작 바치기: 합은 남은 몫을 한 번에 채우는 가장 작은 눈(없으면 가장 큰 눈), 조합·마커마다 하나는 가장 작은 눈
+	var gives := legal.filter(func(a): return a["type"] == "work_give")
+	if gives.is_empty():
+		return {}
+	gives.sort_custom(func(a, b): return g.die_value(int(a["die"])) < g.die_value(int(b["die"])))
+	var id := str(g.marker_at(p["pos"]).get("id", ""))
+	var cond: Dictionary = g.card_cond(id)
+	if str(cond.get("mode", "")) == "sum":
+		var st: Dictionary = g.mission_state.get(id, {})
+		var need := int(st.get("need", 0)) - int(st.get("sum", 0))
+		for a in gives:
+			if g.die_value(int(a["die"])) >= need:
+				return a
+		return gives.back()
+	return gives[0]
+
+
 static func _give_die_action(g: RulesV2, p: Dictionary, legal: Array) -> Dictionary:
 	## 남는 주사위를 동료에게: 감옥의 동료(탈옥에 씀)가 먼저, 다음은 아직 차례를 안 한 동료. 가장 큰 눈을 준다.
 	var best: Dictionary = {}
@@ -515,14 +555,11 @@ static func _move_die(g: RulesV2, p: Dictionary, legal: Array, goal: Vector2i) -
 
 
 static func _check_ahead(g: RulesV2, p: Dictionary, goal: Vector2i) -> bool:
-	## 목표 칸에서 작전 판정(암살·방해 미션 타일, 2막 장면 판정)을 하게 되는가
+	## 목표 칸에서 작전 판정(암살 표적 마커, 2막 장면 판정)을 하게 되는가
 	if g.act == 2:
 		return g.scene_need().has("check_pair") or _scene_has_check(g)
-	var t := g.tile_type(goal)
-	for type in g.data.missions.get("types", {}):
-		if g.mission_tile(type) == t and str(g.mission_type_def(type).get("condition", {}).get("kind", "")) == "check":
-			return true
-	return false
+	var m: Dictionary = g.marker_at(goal)
+	return not m.is_empty() and str(m["role"]) == "target" and str(g.card_cond(str(m["id"])).get("kind", "")) == "assassinate"
 
 
 static func _scene_has_check(g: RulesV2) -> bool:
@@ -572,7 +609,7 @@ static func _goal(g: RulesV2, p: Dictionary, policy: Dictionary) -> Vector2i:
 		if _bomb_runner(g, p):
 			var supply := []
 			for c in g.board:
-				if g.tile_type(c) == "supply" and c != p["pos"]:
+				if g.tile_has_op(g.tile_type(c), "gain_bomb") and c != p["pos"]:
 					supply.append(c)
 			if not supply.is_empty():
 				return _nearest(p["pos"], supply)
@@ -587,39 +624,14 @@ static func _goal(g: RulesV2, p: Dictionary, policy: Dictionary) -> Vector2i:
 		return _nearest(p["pos"], open) if not open.is_empty() else p["pos"]
 	var best: Vector2i = p["pos"]
 	var best_score := -1.0
-	for id in g.mission_row:
-		if not g.mission_feasible(str(id)):
-			continue
-		var m: Dictionary = g.mission_def(str(id))
-		var td: Dictionary = g.mission_type_def(str(m.get("type", "")))
-		var cond: Dictionary = m.get("condition", td.get("condition", {}))
-		if cond.is_empty():
-			continue
-		var cells := []
-		match str(cond.get("kind", "")):
-			"enter_base":
-				var bi := g.data.base_index(str(m.get("base", "")))
-				if bi >= 0:
-					if g.data.bases[bi] != p["pos"] and not g.police_on(g.data.bases[bi]):
-						cells.append(g.data.bases[bi])
-			"check", "deliver_bomb":
-				var tile := g.mission_tile(str(m.get("type", "")))
-				for c in g.board:
-					if g.tile_type(c) == tile and not g.board[c].get("used", false):
-						cells.append(c)
-			_:
-				pass
+	for t in _mission_targets(g, p):
+		var cells: Array = t[0]
 		if cells.is_empty():
 			continue
 		var near: Vector2i = _nearest(p["pos"], cells)
 		var path: Dictionary = g.path_to(p, near)
 		var distance := int(path["steps"]) if not path["path"].is_empty() else _dist(p["pos"], near)
-		var value := 3.0 if cond.get("kind", "") == "enter_base" else 2.0
-		if g.intel.get(str(m.get("intel", "")), 0) >= 2:
-			value -= 0.5
-		var score := value / float(1 + distance)
-		if cond.get("kind", "") == "enter_base" and g.data.base_index(str(m.get("base", ""))) == int(p["id"]) % g.data.bases.size():
-			score += 0.2
+		var score: float = float(t[1]) / float(1 + distance)
 		if score > best_score:
 			best_score = score
 			best = near
@@ -641,6 +653,173 @@ static func _goal(g: RulesV2, p: Dictionary, policy: Dictionary) -> Vector2i:
 	if best_score >= 0.0:
 		return best
 	return g.data.bases[int(p["id"]) % g.data.bases.size()]
+
+
+static func _fx_value(effects: Array, w: Dictionary) -> float:
+	## 효과 목록의 값 (좋은 것은 +, 벌칙은 −). 가중치는 rules.ai.mission
+	var v := 0.0
+	for e in effects:
+		var n := float(e.get("value", e.get("count", 1)))
+		match str(e.get("op", "")):
+			"ready": v += n * float(w["ready"])
+			"intel": v += n * float(w["intel"])
+			"exposure": v -= n * float(w["exposure"])
+			"draw_item": v += float(e.get("count", 1)) * float(w["item"])
+			"gain_bomb": v += float(e.get("count", 1)) * float(w["bomb"])
+			"police_remove", "police_back": v += float(w["police"])
+			"threat_peek_bonus", "threat_bury": v += float(w["peek"])
+			"grant_once": v += float(w["grant"])
+			"discard_item": v -= float(e.get("count", 1)) * float(w["item"])
+			"police_dispatch": v -= float(w["police"])
+	return v
+
+
+static func _card_value(g: RulesV2, id: String) -> float:
+	## 미션·일제 작전의 가치. 미션은 결행 준비와 보상, 일제 작전은 못 막았을 때의 벌칙 크기(동향 단계 포함). 기한이 짧을수록 높다.
+	var w: Dictionary = g.data.rules["ai"]["mission"]
+	var card: Dictionary = g.card_def(id)
+	var v := 0.0
+	if g.data.is_op(id):
+		v = -float(w["penalty"]) * (_fx_value(card.get("missed", []), w) + _fx_value(g._trend_penalty(), w))
+		v += _fx_value(g.data.rules["ops"]["block"], w)
+	else:
+		v = float(card.get("ready", 0)) * float(w["ready"]) + _fx_value(card.get("rewards", []), w)
+		var b = card.get("bonus")
+		if typeof(b) == TYPE_DICTIONARY:
+			v += 0.5 * _fx_value(b.get("reward", []), w)
+		v -= 0.5 * float(w["penalty"]) * _fx_value(card.get("missed", []), w)
+	var days := g.card_days_left(id)
+	if days > 0:
+		v *= 1.0 + float(w["urgent"]) / float(days)
+	return maxf(v, 0.3)
+
+
+static func _target_chance(g: RulesV2, p: Dictionary, cond: Dictionary, informed: bool) -> float:
+	## 내 가장 큰 눈으로 표적 판정에 성공할 확률
+	var best := 1
+	for i in g.my_dice(p["id"]):
+		best = maxi(best, g.die_value(i))
+	var bonus := g.stat(p, str(cond["check"]) + "_bonus") + (int(cond.get("informed_bonus", 0)) if informed else 0)
+	return g.check_chance({"target": int(cond["target"]), "bonus": bonus}, best)
+
+
+static func _mission_targets(g: RulesV2, p: Dictionary) -> Array:
+	## 미션·일제 작전을 하러 갈 칸 후보: [[칸들, 가치]]. 카드 id는 보지 않고 condition.kind와 마커 역할로만 고른다.
+	## 연락은 받기 → 주기 두 걸음으로 경로를 짜고, 협동은 요원마다 맡을 자리를 나눠 함께 움직인다.
+	var out := []
+	var ids := []
+	ids.append_array(g.mission_row)
+	ids.append_array(g.op_row)
+	for id in ids:
+		var cond: Dictionary = g.card_cond(str(id))
+		var st: Dictionary = g.mission_state.get(id, {})
+		var value := _card_value(g, str(id))
+		var cells := []
+		match str(cond.get("kind", "")):
+			"assassinate":
+				var targets: Array = g.markers_of(str(id), "target")
+				if targets.is_empty():
+					continue
+				var informers: Array = g.markers_of(str(id), "informer")
+				if not informers.is_empty() and _dist(p["pos"], informers[0]["pos"]) <= int(g.data.rules["ai"]["mission"]["informer_detour"]):
+					cells.append(informers[0]["pos"])   # 정보원에 먼저 들러 표적을 멈추고 판정을 쉽게 한다
+				else:
+					cells.append(targets[0]["pos"])
+				value *= 0.4 + 0.6 * _target_chance(g, p, cond, bool(st.get("informed", false)))
+			"infiltrate":
+				var bi: int = g.data.base_index(str(cond.get("base", "")))
+				if bi >= 0 and g.data.bases[bi] != p["pos"] and not g.police_on(g.data.bases[bi]):
+					cells.append(g.data.bases[bi])
+			"bomb":
+				var spots: Array = g.markers_of(str(id), "target")
+				if spots.is_empty():
+					continue
+				if p["bombs"] > 0:
+					cells.append(spots[0]["pos"])
+				elif p["bombs"] < g.bomb_slots(p) and g.bomb_supply > 0:
+					for c in g.board:
+						if g.tile_has_op(g.tile_type(c), "gain_bomb") and c != p["pos"]:
+							cells.append(c)   # 폭탄부터 구하러 간다
+					value *= 0.7
+			"work":
+				for m in g.markers_of(str(id), "work"):
+					cells.append(m["pos"])
+				var useful := false
+				for i in g.my_dice(p["id"]):
+					if g.work_ok(str(id), g.die_value(i)):
+						useful = true
+				if not useful:
+					value *= 0.3   # 바칠 눈이 없으면 서둘러 가지 않는다
+			"contact":
+				var holder := int(st.get("holder", -1))
+				if holder == p["id"]:
+					for m in g.markers_of(str(id), "dropoff"):
+						cells.append(m["pos"])
+					value *= 1.5
+				elif holder < 0:
+					for m in g.markers_of(str(id), "pickup"):
+						if m["pos"] != p["pos"] and not g.police_on(m["pos"]):
+							cells.append(m["pos"])
+			"lurk":
+				for m in g.markers_of(str(id), "spot"):
+					cells.append(m["pos"])
+				if g.police.has(p["id"]):
+					value *= 0.2   # 쫓기는 요원은 잠복을 못 센다
+			"cover_entry", "people", "opposite_edges":
+				cells = _coop_cells(g, p, cond)
+		if not cells.is_empty():
+			out.append([cells, value])
+	return out
+
+
+static func _coop_cells(g: RulesV2, p: Dictionary, cond: Dictionary) -> Array:
+	## 협동 미션에서 내가 갈 칸 (맡을 자리가 없으면 []): 거점 옆에서 만나기(people), 반대쪽 가장자리(opposite_edges),
+	## 가까운 한 명은 거점에 들어가고 그다음 가까운 한 명은 옆 칸에서 망을 본다(cover_entry)
+	var out := []
+	var live := g.players.filter(func(q): return not q["jailed"])
+	if live.size() < 2 or p["jailed"]:
+		return out
+	match str(cond.get("kind", "")):
+		"people":
+			var b: Vector2i = g._base_cell(str(cond.get("base", "")))
+			var ranked := live.duplicate()
+			ranked.sort_custom(func(x, y): return _dist(x["pos"], b) < _dist(y["pos"], b) or (_dist(x["pos"], b) == _dist(y["pos"], b) and x["id"] < y["id"]))
+			var need := int(cond.get("count", 2))
+			for k in mini(need, ranked.size()):
+				if ranked[k]["id"] == p["id"]:
+					for d in RulesV2.DIRS:
+						var c: Vector2i = b + d
+						if g.in_bounds(c) and not c in g.data.bases:
+							out.append(c)
+		"opposite_edges":
+			var order := live.map(func(q): return int(q["id"]))
+			order.sort()
+			var last := g.data.size - 1
+			if p["id"] == order[0]:
+				out.append(Vector2i(0, p["pos"].y))
+			elif p["id"] == order[1]:
+				out.append(Vector2i(last, p["pos"].y))
+		"cover_entry":
+			var base: Vector2i = g.data.bases[g._nearest_base(p["pos"])]
+			var ranked2 := live.duplicate()
+			ranked2.sort_custom(func(x, y): return _dist(x["pos"], base) < _dist(y["pos"], base) or (_dist(x["pos"], base) == _dist(y["pos"], base) and x["id"] < y["id"]))
+			var rank := -1
+			for k in ranked2.size():
+				if ranked2[k]["id"] == p["id"]:
+					rank = k
+			if rank == 0:
+				var covered := false
+				for q in live:
+					if q["id"] != p["id"] and _dist(q["pos"], base) == 1:
+						covered = true
+				if covered and not g.police_on(base):
+					out.append(base)
+			if rank >= 0 and rank <= 1 and out.is_empty():
+				for d in RulesV2.DIRS:
+					var c2: Vector2i = base + d
+					if g.in_bounds(c2) and not c2 in g.data.bases:
+						out.append(c2)
+	return out
 
 
 static func _bombs_short(g: RulesV2) -> int:
@@ -665,7 +844,7 @@ static func _bomb_runner(g: RulesV2, p: Dictionary) -> bool:
 		return false
 	var supply := []
 	for c in g.board:
-		if g.tile_type(c) == "supply":
+		if g.tile_has_op(g.tile_type(c), "gain_bomb"):
 			supply.append(c)
 	if supply.is_empty():
 		return false
@@ -738,11 +917,10 @@ static func _saga_targets(g: RulesV2, p: Dictionary) -> Array:
 				var tile := str(cond.get("tile", ""))
 				if cond.get("kind", "") == "pass_checkpoint":
 					tile = "check"
-				elif cond.get("kind", "") == "hold_items":
-					tile = "item"
 				var seen: Array = tr.get("cells", [])
 				for c in g.board:
-					if g.tile_type(c) == tile and not c in seen and c != p["pos"] and not g.board[c].get("used", false):
+					var hit: bool = g.tile_has_op(g.tile_type(c), "draw_item") if cond.get("kind", "") == "hold_items" else g.tile_type(c) == tile
+					if hit and not c in seen and c != p["pos"] and not g.board[c].get("used", false):
 						cells.append(c)
 			"same_cell_turns", "give_items", "give_dice":
 				for q in g.players:

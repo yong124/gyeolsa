@@ -1,10 +1,10 @@
 {
-	"_comment": "v2 일제 위협 덱. 원문은 카드_목록_v2.md 1절. 1막 24장, 2막 11장. 덱이 떨어지면 버린 카드를 섞어 다시 씀. 동점 대상은 그날의 리더가 고름.",
+	"_comment": "v2 일제 위협 덱. 원문은 카드_목록_v2.md 1절. 1막 21장(일제 작전 3장은 일제 동향으로 옮김), 2막 11장 + 동향에 따라 증원(trend_extra). 덱이 떨어지면 버린 카드를 섞어 다시 씀. 동점 대상은 그날의 리더가 고름.",
 	"act1": [
 		{
 			"id": "surprise_search",
 			"name": "불시 수색",
-			"count": 3,
+			"count": 2,
 			"tone": "bad",
 			"text": "무작위 거점에서 경찰이 출동해 그 거점에 가장 가까운 요원을 쫓음",
 			"effects": [
@@ -46,7 +46,7 @@
 		{
 			"id": "tailing",
 			"name": "미행",
-			"count": 2,
+			"count": 1,
 			"tone": "bad",
 			"text": "고립된 요원에게 경찰이 붙음",
 			"effects": [
@@ -72,7 +72,7 @@
 		{
 			"id": "checkpoint_add",
 			"name": "검문소 증설",
-			"count": 3,
+			"count": 2,
 			"tone": "bad",
 			"text": "고립된 요원과 수배된 요원의 옆 빈칸에 검문소 하나씩",
 			"effects": [
@@ -190,6 +190,7 @@
 			"id": "reinforce",
 			"name": "증원",
 			"count": 2,
+			"trend_extra": true,
 			"tone": "bad",
 			"text": "결행 거점에서 경찰이 출동해 가장 가까운 요원을 쫓음",
 			"effects": [
