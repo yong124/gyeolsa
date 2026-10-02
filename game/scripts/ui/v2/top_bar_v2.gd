@@ -17,6 +17,9 @@ var _gauge_lbl: Label
 var _gauge: Control
 var _alert: Control
 var _alert_lbl: Label
+var _trend_box: Control
+var _trend_lbl: Label
+var _trend: Control
 
 
 func _init(g: RulesV2) -> void:
@@ -89,6 +92,19 @@ func _ready() -> void:
 	h.add_child(_gauge)
 	h.add_child(_vsep())
 
+	_trend_box = VBoxContainer.new()
+	_trend_box.add_theme_constant_override("separation", -6)
+	_trend_box.mouse_filter = Control.MOUSE_FILTER_PASS
+	_trend_lbl = UiKit.text("", 12, Style.INK_2, false, 700)
+	_trend_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_trend_box.add_child(_trend_lbl)
+	_trend = Control.new()
+	_trend.draw.connect(_draw_trend)
+	_trend.mouse_filter = Control.MOUSE_FILTER_PASS
+	_trend_box.add_child(_trend)
+	h.add_child(_trend_box)
+	h.add_child(_vsep())
+
 	_alert = Control.new()
 	_alert.custom_minimum_size = Vector2(84, 40)
 	_alert.draw.connect(_draw_alert)
@@ -151,6 +167,21 @@ func refresh() -> void:
 		_gauge.custom_minimum_size = Vector2(maxi(game.intel_tokens, 1) * 24 + 2, 44)
 		_gauge.tooltip_text = "결행 거점의 첩보가 토큰이 되었습니다. 1개로 장면 판정 +%d, 또는 주사위 조건 −%d." % [
 			int(game.data.rules["intel_token"]["check_bonus"]), int(game.data.rules["intel_token"]["dice_reduce"])]
+	# 일제 동향 (1막만)
+	_trend_box.visible = game.act == 1
+	var tmax := int(game.data.rules["ops"]["trend_max"])
+	_trend_lbl.text = "일제 동향 %d / %d" % [game.trend, tmax]
+	_trend.custom_minimum_size = Vector2(tmax * 17 + 2, 26)
+	var pen := []
+	for e in game._trend_penalty():
+		match str(e.get("op", "")):
+			"exposure": pen.append("노출 %+d" % int(e["value"]))
+			"police_dispatch": pen.append("가까운 거점에서 경찰이 출동해 가장 가까운 요원을 쫓음")
+			"ready": pen.append("결행 준비 %+d" % int(e["value"]))
+	var rf := game._trend_reinforce()
+	_trend_box.tooltip_text = "일제 동향 %d / %d — 일제 작전이 나올 때마다 1, 못 막으면 1 더 오릅니다 (막아도 내려가지 않음).\n지금 못 막으면 카드 벌칙에 더해: %s\n결행하면 남은 작전은 치우고, 지금 동향이면 2막 위협 덱에 증원 %d장을 더 섞습니다." % [
+		game.trend, tmax, ", ".join(pen) if not pen.is_empty() else "없음", rf]
+	_trend.tooltip_text = _trend_box.tooltip_text
 	var th: Array = game.data.rules["exposure"]["thresholds"]
 	_alert_lbl.text = "노출 %d\n경계 %d단계" % [game.exposure, game.alert_level()]
 	_alert.tooltip_text = "노출 %d — 경계 %d단계 · 경찰 이동 %d칸\n노출 %d부터 2단계, %d부터 3단계. 결행할 때 경계가 높으면 「경비 강화」 장면이 늘어납니다." % [
@@ -158,6 +189,7 @@ func refresh() -> void:
 	_cal.queue_redraw()
 	_gauge.queue_redraw()
 	_alert.queue_redraw()
+	_trend.queue_redraw()
 
 
 func _short(pid: int) -> String:
@@ -235,6 +267,22 @@ func _draw_gauge() -> void:
 				_gauge.draw_arc(c, 9, 0, TAU, 20, Style.SEAL_DARK, 1.5, true)
 			else:
 				_gauge.draw_arc(c, 8, 0, TAU, 20, Color(Style.INK_2, 0.4), 1.5, true)
+
+
+func _draw_trend() -> void:
+	## 일제 동향 칸 (벌칙이 커지는 문턱마다 금색 선)
+	var tmax := int(game.data.rules["ops"]["trend_max"])
+	for i in tmax:
+		var r := Rect2(1 + i * 17, 5, 15, 20)
+		_trend.draw_rect(r, Color(1, 1, 1, 0.3))
+		if i < game.trend:
+			_trend.draw_rect(r, Style.SEAL)
+		_trend.draw_rect(r, Style.INK_2 if i >= game.trend else Style.SEAL_DARK, false, 1.5)
+	for row in game.data.rules["ops"]["penalties"]:
+		var mn := int(row["min"])
+		if mn > 0 and mn < tmax:
+			var x := 1 + mn * 17 - 1.0
+			_trend.draw_line(Vector2(x, 1), Vector2(x, 25), Style.GOLD, 2.0)
 
 
 func _draw_alert() -> void:

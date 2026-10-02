@@ -24,6 +24,10 @@ var hidden_tiles := {}
 var _reveal := {}
 var _pulse := 0.0
 var _preview := {}
+var marker_trails := {}          # 카드 id -> {"from", "to", "age"}: 표적이 움직인 자리 (잠깐 보임)
+
+const ROLE_GLYPH := {"target": "표", "informer": "정", "pickup": "받", "dropoff": "주", "work": "공", "spot": "잠", "base": "입"}
+const TRAIL_SECONDS := 9.0
 
 var _v1: GameData
 var _tex := {}
@@ -61,6 +65,10 @@ func faction_texture(f: String) -> Texture2D:
 
 func _process(delta: float) -> void:
 	_pulse += delta
+	for id in marker_trails.keys():
+		marker_trails[id]["age"] = float(marker_trails[id]["age"]) + delta
+		if float(marker_trails[id]["age"]) > TRAIL_SECONDS:
+			marker_trails.erase(id)
 	if game and game.phase != "over":
 		queue_redraw()
 
@@ -80,6 +88,11 @@ func sync_from_game() -> void:
 	hidden_tiles.clear()
 	_reveal.clear()
 	_update_preview()
+	queue_redraw()
+
+
+func note_marker_moved(id: String, from: Vector2i, to: Vector2i) -> void:
+	marker_trails[id] = {"from": from, "to": to, "age": 0.0}
 	queue_redraw()
 
 
@@ -237,7 +250,10 @@ func _tooltip(c: Vector2i) -> String:
 	if c.x < 0:
 		return ""
 	if not game.board.has(c) or hidden_tiles.has(c):
-		return "미탐색 지역"
+		var cover := "미탐색 지역"
+		for m in game.markers_at(c):
+			cover += "\n" + _marker_text(m)
+		return cover
 	var t: String = game.board[c]["type"]
 	var name := game.tile_label(t)
 	var bi := game.data.bases.find(c)
@@ -254,7 +270,27 @@ func _tooltip(c: Vector2i) -> String:
 		name += "\n은신처: 여기서 차례를 마치면 쫓던 경찰이 사라짐"
 	if _can_hide_at(c):
 		name += "\n숨기 가능: 주사위 하나로 숨으면 이번 차례 끝에 경찰이 다가오지 않음"
+	var fx: Dictionary = game.data.rules.get("tile_effects", {}).get(t, {})
+	if fx.has("text"):
+		name += "\n" + str(fx["text"])
+	for m in game.markers_at(c):
+		name += "\n" + _marker_text(m)
 	return name
+
+
+func _marker_text(m: Dictionary) -> String:
+	## 마커 한 개의 설명: 어느 미션·작전의 무엇인가, 남은 날, 진행
+	var id := str(m["id"])
+	var card: Dictionary = game.card_def(id)
+	var role: String = {"target": "표적", "informer": "정보원", "pickup": "받기", "dropoff": "주기", "work": "공작 자리", "spot": "잠복 자리", "base": "잠입 거점"}.get(str(m["role"]), str(m["role"]))
+	var s := "%s · %s %s" % ["일제 작전" if game.data.is_op(id) else "미션", card.get("name", ""), role]
+	var days := game.card_days_left(id)
+	if days >= 0:
+		s += " · 남은 %d일" % days
+	var st := game.card_status(id)
+	if st != "":
+		s += " · " + st
+	return s
 
 
 # ------------------------------------------------------------------ 그리기
@@ -272,6 +308,7 @@ func _draw() -> void:
 	_draw_preview()
 	_draw_players()
 	_draw_police()
+	_draw_markers()
 	_draw_targets()
 	_draw_preview_label()
 
@@ -288,6 +325,7 @@ func _draw_tiles() -> void:
 			continue
 		var def := _v1.tile(t)
 		if def.is_empty():
+			_draw_plain_tile(c, t)
 			continue
 		var key: String = def.get("used_texture", def["texture"]) if info.get("used", false) else def["texture"]
 		var r := cell_rect(c).grow(-3.0 * s)
@@ -318,6 +356,38 @@ func _draw_tiles() -> void:
 			draw_rect(Rect2(lp.x - 5, lp.y - fs * 0.95, w + 10, fs * 1.3), Style.INK)
 			draw_string(font, lp, label, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Style.PAPER)
 			_draw_intel(r, bi)
+
+
+func _draw_plain_tile(c: Vector2i, t: String) -> void:
+	## 그림이 아직 없는 새 타일(골목·감시탑·장터·주막)은 글자로 그린다 (제대로 된 그림은 F단계)
+	var s := _scale()
+	var r := cell_rect(c).grow(-3.0 * s)
+	if _reveal.has(c):
+		var t01: float = _reveal[c]
+		var w := absf(cos(t01 * PI))
+		var lift := sin(t01 * PI) * r.size.y * 0.12
+		r = Rect2(r.get_center().x - r.size.x * w / 2.0, r.position.y - lift, r.size.x * w, r.size.y)
+		if t01 < 0.5:
+			draw_texture_rect(_tex["back"], r, false)
+			return
+	var col := Color.from_hsv(float(t.hash() % 360) / 360.0, 0.5, 0.55)
+	draw_rect(Rect2(r.position + Vector2(1, 4), r.size), Color(0, 0, 0, 0.35))
+	draw_rect(r, Style.PAPER_HI)
+	draw_rect(r.grow(-3.0), col, false, 3.0)
+	var label: String = game.tile_label(t)
+	var font := Style.serif(900)
+	var fs := maxi(16, int(r.size.x * 0.46))
+	var g := label.substr(0, 1)
+	var gw := font.get_string_size(g, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+	draw_string(font, r.get_center() + Vector2(-gw / 2.0, fs * 0.2), g, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col)
+	var sf := maxi(9, int(r.size.x * 0.15))
+	var lw := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, sf).x
+	draw_string(font, Vector2(r.get_center().x - lw / 2.0, r.end.y - 5.0), label, HORIZONTAL_ALIGNMENT_LEFT, -1, sf, col.darkened(0.2))
+	if _can_hide_at(c) and not _reveal.has(c):
+		var bf := maxi(10, int(r.size.x * 0.16))
+		var bw := font.get_string_size("숨", HORIZONTAL_ALIGNMENT_LEFT, -1, bf).x + 6
+		draw_rect(Rect2(r.position + Vector2(2, 2), Vector2(bw, bf * 1.3)), Color(Style.GOOD, 0.9))
+		draw_string(font, r.position + Vector2(5, bf * 1.05 + 2), "숨", HORIZONTAL_ALIGNMENT_LEFT, -1, bf, Color.WHITE)
 
 
 func _can_hide_at(c: Vector2i) -> bool:
@@ -392,25 +462,53 @@ func _flag(r: Rect2, tag: String, col: Color, wave: float) -> void:
 
 
 func mission_targets() -> Dictionary:
-	## 공개 미션 줄의 목표 칸 {칸: 미션 이름}
+	## 거점 자체가 마커인 미션(잠입)의 목표 칸 {칸: 이름}
 	var out := {}
 	if game.act != 1:
 		return out
-	for id in game.mission_row:
-		var m: Dictionary = game.mission_def(str(id))
-		var td: Dictionary = game.mission_type_def(str(m.get("type", "")))
-		var cond: Dictionary = m.get("condition", td.get("condition", {}))
-		match str(cond.get("kind", "")):
-			"enter_base":
-				var bi := game.data.base_index(str(m.get("base", "")))
-				if bi >= 0:
-					out[game.data.bases[bi]] = "미션"
-			"check", "deliver_bomb":
-				var tile := game.mission_tile(str(m.get("type", "")))
-				for c in game.board:
-					if game.tile_type(c) == tile and not game.board[c].get("used", false):
-						out[c] = "미션"
+	for m in game.markers:
+		if str(m["role"]) == "base":
+			out[m["pos"]] = "미션"
 	return out
+
+
+func _draw_markers() -> void:
+	## 보드 위 마커: 역할 글자가 든 동그라미(미션은 파랑 계열, 일제 작전은 붉은색), 기한이 있으면 남은 날, 표적이 움직인 자리
+	if game.act != 1 or game.phase == "over":
+		return
+	var font := Style.sans(900)
+	for id in marker_trails:
+		var tr: Dictionary = marker_trails[id]
+		var a := 1.0 - float(tr["age"]) / TRAIL_SECONDS
+		draw_dashed_line(cell_center(tr["from"]), cell_center(tr["to"]), Color(Style.SEAL, 0.7 * a), 4.0, 8.0)
+		draw_circle(cell_center(tr["from"]), cell_rect(tr["from"]).size.x * 0.08, Color(Style.SEAL, 0.6 * a))
+	for m in game.markers:
+		var role := str(m["role"])
+		if role == "base":
+			continue
+		var id := str(m["id"])
+		var is_op := game.data.is_op(id)
+		var col: Color = Style.SEAL if is_op else Style.MISSION
+		var r := cell_rect(m["pos"])
+		var rad := r.size.x * 0.2
+		var ctr := r.position + Vector2(r.size.x * 0.27, r.size.y * 0.3)
+		var held := role == "pickup" and int(game.mission_state.get(id, {}).get("holder", -1)) >= 0
+		var alpha := 0.45 if held else 1.0
+		draw_circle(ctr + Vector2(1, 3), rad + 2, Color(0, 0, 0, 0.4 * alpha))
+		draw_circle(ctr, rad + 2, Color(Style.PAPER_HI, alpha))
+		draw_circle(ctr, rad, Color(col, alpha))
+		var fs := maxi(10, int(rad * 1.25))
+		var g: String = str(ROLE_GLYPH.get(role, "?"))
+		var gw := font.get_string_size(g, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+		draw_string(font, ctr + Vector2(-gw / 2.0, fs * 0.36), g, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color.WHITE)
+		var days := game.card_days_left(id)
+		if days >= 0 and role in ["target", "work", "spot", "pickup"]:
+			var dc := ctr + Vector2(rad * 0.95, -rad * 0.95)
+			var dfs := maxi(9, int(rad * 0.95))
+			draw_circle(dc, dfs * 0.62, Color(Style.INK, alpha))
+			var dt := str(days)
+			var dw := font.get_string_size(dt, HORIZONTAL_ALIGNMENT_LEFT, -1, dfs).x
+			draw_string(font, dc + Vector2(-dw / 2.0, dfs * 0.36), dt, HORIZONTAL_ALIGNMENT_LEFT, -1, dfs, Color.WHITE)
 
 
 func _draw_targets() -> void:

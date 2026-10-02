@@ -13,7 +13,8 @@ const GAP := 8.0
 const AI_DELAY := 0.28
 const SECONDARY_MAX := 3          # 행동 패널의 보조 버튼 수 (나머지는 「더 보기」)
 const MISSION_ART := {"assassin": "res://assets/tiles/assassin.png", "infiltrate": "res://assets/tiles/base.png",
-	"bomb": "res://assets/tiles/bomb.png", "sabotage": "res://assets/tiles/sabotage.png", "coop": "res://assets/tiles/start.png"}
+	"bomb": "res://assets/tiles/bomb.png", "work": "res://assets/tiles/sabotage.png", "contact": "res://assets/tiles/station.png",
+	"lurk": "res://assets/tiles/check.png", "coop": "res://assets/tiles/start.png", "op": "res://assets/tiles/assassin.png"}
 const SAGA_COL := Color("#6b4f8a")
 const BOMB_COL := Color("#b86a1e")
 
@@ -42,6 +43,7 @@ var _rows: Array = []
 var _mid_title: Label
 var _mid_hint: Label
 var _mid_box: Container
+var _ops_row: HBoxContainer
 var _hand_hint: Label
 var _hand_row: HBoxContainer
 var _act_title: Label
@@ -127,6 +129,9 @@ func _build() -> void:
 	_mid_box = HBoxContainer.new()
 	_mid_box.add_theme_constant_override("separation", 8)
 	mid[1].add_child(_mid_box)
+	_ops_row = HBoxContainer.new()
+	_ops_row.add_theme_constant_override("separation", 8)
+	mid[1].add_child(_ops_row)
 
 	# 내 손패
 	var hand := _panel("내 손 패", "")
@@ -303,6 +308,9 @@ func _chips(p: Dictionary) -> Array:
 		out.append([", ".join(names) if me else "아이템", str(p["items"].size()), Style.ITEM, "아이템: " + ", ".join(names), false])
 	if p["bombs"] > 0:
 		out.append(["폭탄", str(p["bombs"]), BOMB_COL, "폭탄: 폭파 미션이나 장면에 씁니다.", false])
+	for cid in game.mission_row:
+		if int(game.mission_state.get(cid, {}).get("holder", -1)) == p["id"]:
+			out.append(["물건 · %s" % game.mission_def(str(cid)).get("name", ""), "물", Style.MISSION, "연락 미션의 물건을 들고 있습니다. 주기 마커에 들어가면 미션을 이룹니다. 잡히면 받기 마커로 돌아갑니다.", false])
 	if p["saga_done"] != "":
 		out.append(["사연 이룸 · %s" % game.data.saga(p["saga_done"]).get("name", ""), "✓", SAGA_COL, str(game.data.saga(p["saga_done"]).get("story", "")), false])
 	elif me:
@@ -354,19 +362,24 @@ func _refresh_mid() -> void:
 			var m: Dictionary = game.mission_def(str(id))
 			var type := str(m.get("type", ""))
 			var td: Dictionary = game.mission_type_def(type)
-			var coop := td.get("ready") == null
-			var ready := int(m.get("ready", td.get("ready", 0)))
-			var band := "%s%s" % [_spaced(str(td.get("name", "미션"))), (" · +%d" % ready) if not coop else ""]
+			var coop := type == "coop"
+			var band := "%s · +%d" % [_spaced(str(td.get("name", "미션"))), int(m.get("ready", 0))]
 			var desc := str(m.get("text", ""))
-			if not coop:
-				desc = "%s\n%s" % [td.get("how", ""), desc]
+			var days := game.card_days_left(str(id))
+			if days >= 0:
+				band += " · %d일" % days
+			var status := game.card_status(str(id))
+			if status != "":
+				desc += "\n" + status
 			var card := CardView.face(band, Color("#2f7f7a") if coop else Style.MISSION, load(MISSION_ART.get(type, MISSION_ART["coop"])),
 				str(m.get("name", "")), desc, 164, 112)
 			_peek.attach(card, _mission_info(str(id)))
 			_mid_box.add_child(card)
 		if game.mission_row.is_empty():
 			_mid_box.add_child(UiKit.text("아침에 미션 줄을 채웁니다.", 14, Style.INK_3))
+		_refresh_ops()
 		return
+	_ops_row.visible = false
 	var strike: Dictionary = game.data.strike(str(game.launch_info.get("target", "")))
 	_mid_title.text = "결 행 · %s" % _spaced(str(strike.get("name", "")))
 	_mid_hint.text = "장면을 하나씩 돌파 · 마지막을 뚫으면 대성공"
@@ -410,6 +423,29 @@ func _refresh_mid() -> void:
 		_peek.attach(box, _scene_info(card, i))
 		box.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		_mid_box.add_child(box)
+
+
+func _refresh_ops() -> void:
+	## 일제 작전 줄: 마커가 놓인 작전 (이름 · 남은 날 · 못 막으면)
+	UiKit.clear(_ops_row)
+	_ops_row.visible = not game.op_row.is_empty()
+	if game.op_row.is_empty():
+		return
+	_ops_row.add_child(UiKit.title("일제 작전", 13, Style.SEAL))
+	for id in game.op_row:
+		var oc: Dictionary = game.data.op_card(str(id))
+		var chip := PanelContainer.new()
+		chip.add_theme_stylebox_override("panel", Style.flat(Color("#fbe9e4"), Style.SEAL, 2, 2, 5))
+		var v := VBoxContainer.new()
+		v.add_theme_constant_override("separation", 0)
+		chip.add_child(v)
+		v.add_child(UiKit.title("%s · %d일" % [oc.get("name", ""), game.card_days_left(str(id))], 13, Style.SEAL))
+		var how := str(oc.get("how", ""))
+		var status := game.card_status(str(id))
+		v.add_child(UiKit.text(how + ((" · " + status) if status != "" else ""), 11, Style.INK_2, false))
+		chip.mouse_filter = Control.MOUSE_FILTER_PASS
+		_peek.attach(chip, _op_info(str(id)))
+		_ops_row.add_child(chip)
 
 
 func _scene_card_dict(id: String) -> Dictionary:
@@ -466,7 +502,7 @@ func _refresh_hand() -> void:
 	for i in me["bombs"]:
 		var card := CardView.face("폭 탄", BOMB_COL, load("res://assets/cards/bomb.png"), "폭탄", "폭파 미션이나 장면에 씀", W, H)
 		_peek.attach(card, {"band": "폭 탄", "color": BOMB_COL, "art": load("res://assets/cards/bomb.png"), "name": "폭탄",
-			"sections": [["쓰는 곳", "1막: 폭파 미션의 목표 타일까지 들고 가면 미션을 이룹니다.\n2막: 폭탄을 요구하는 장면에 바칩니다."]]})
+			"sections": [["쓰는 곳", "1막: 폭파 미션의 마커 칸까지 들고 가면 미션을 이룹니다.\n2막: 폭탄을 요구하는 장면에 바칩니다."]]})
 		_hand_row.add_child(card)
 	var empty: int = game.hand_limit(me) - me["items"].size()
 	for i in mini(empty, 2):
@@ -542,6 +578,8 @@ func _refresh_actions() -> void:
 					hint += " · 반격! 자리에 선 요원이 작전 판정 %d에 성공해야 오늘 밤 버틴 날로 칩니다" % int(game.data.rules["counter"]["target"])
 				if game.steps_left == 0:
 					primary = _best_check(mine)
+					if primary.is_empty():
+						primary = GameAIV2._work_action(game, me, mine)
 					if primary.is_empty():
 						for t in ["scene_pay"]:
 							primary = _take_die_type(mine, t)
@@ -710,7 +748,7 @@ func _icon(a: Dictionary) -> String:
 		"start_day", "move_die", "scene_check", "use_intel", "mission_check", "counter_check": return "dice"
 		"hide": return "escape"
 		"give_die": return "give"
-		"begin_turn", "end_move", "end_turn", "scene_pay": return "end"
+		"begin_turn", "end_move", "end_turn", "scene_pay", "work_give": return "end"
 		"escape": return "escape"
 		"ability": return "ability"
 		"give_item": return "give"
@@ -991,6 +1029,30 @@ func _play_event(e: Dictionary) -> void:
 			Sfx.play("success")
 		"launch":
 			Music.play("tension")
+		"op_appear":
+			Sfx.play("alert")
+			var oc: Dictionary = game.data.op_card(str(e["id"]))
+			await _fx.banner("일제 작전 · " + str(oc.get("name", "")), "bad", m, "%s\n막는 법: %s · 기한 %d일 · %s" % [oc.get("where", ""), oc.get("how", ""), int(oc.get("deadline", 0)), oc.get("missed_text", "")])
+		"op_blocked":
+			Sfx.play("success")
+			_fx.toast("일제 작전 저지 · %s (%s)" % [game.data.op_card(str(e["id"])).get("name", ""), _name(int(e["player"]))], "good")
+		"op_missed", "mission_missed":
+			Sfx.play("fail")
+		"marker_moved":
+			_board.note_marker_moved(str(e["id"]), e["from"], e["to"])
+		"informed":
+			Sfx.play("click")
+			_fx.toast("정보원 · %s의 표적이 멈췄습니다 (판정이 쉬워짐)" % game.card_def(str(e["id"])).get("name", ""), "good")
+		"pickup":
+			Sfx.play("click")
+			_fx.toast("%s: 물건을 들었습니다 · %s" % [_name(int(e["player"])), game.card_def(str(e["id"])).get("name", "")], "info")
+		"item_lost":
+			Sfx.play("fail")
+			_fx.toast("%s: 잡혀서 물건이 받기 마커로 돌아갔습니다" % _name(int(e["player"])), "bad")
+		"work_give":
+			Sfx.play("click")
+		"tile_fx":
+			Sfx.play("click")
 		"vote_reveal":
 			Sfx.play("click")
 			var yes := 0
@@ -1036,7 +1098,8 @@ func _play_event(e: Dictionary) -> void:
 	if e.has("players_snap"):
 		_board.apply_players_snap(e["players_snap"])
 	if k in ["morning", "threat", "dice_rolled", "die_used", "die_given", "day_start", "mission_done", "launch", "scene", "scene_break", "confiscate",
-			"saga_done", "jail", "rescue", "intel", "ready", "exposure", "turn", "night"]:
+			"saga_done", "jail", "rescue", "intel", "ready", "exposure", "turn", "night", "markers", "trend", "op_appear", "op_blocked", "op_missed",
+			"mission_missed", "pickup", "item_lost", "work_give", "lurk", "informed", "marker_moved"]:
 		_refresh_panels()
 	_ticker.refresh()
 
@@ -1144,7 +1207,10 @@ func _label(a: Dictionary) -> String:
 		"end_move": return "이동 마치기"
 		"end_turn": return "차례 마치기"
 		"escape": return "탈옥 판정 (주사위 %d · 성공 %d%%)" % [game.die_value(int(a["die"])), _chance(a)]
-		"mission_check": return "미션 판정 (주사위 %d · 성공 %d%%)" % [game.die_value(int(a["die"])), _chance(a)]
+		"mission_check": return "표적 판정 (주사위 %d · 성공 %d%%)" % [game.die_value(int(a["die"])), _chance(a)]
+		"work_give":
+			var wm := game.marker_at(me["pos"])
+			return "공작 바치기: 주사위 %d → 「%s」" % [game.die_value(int(a["die"])), game.card_def(str(wm.get("id", ""))).get("name", "")]
 		"counter_check": return "반격 막기 (주사위 %d · 성공 %d%%)" % [game.die_value(int(a["die"])), _chance(a)]
 		"hide": return "숨기 (주사위 %d)" % game.die_value(int(a["die"]))
 		"scout": return "정찰 (주사위 %d: %d칸 안의 덮인 칸 %d곳)" % [game.die_value(int(a["die"])), game.die_value(int(a["die"])), int(game.data.rules["scout"]["count"])]
@@ -1196,7 +1262,7 @@ func _show_choice() -> void:
 	var panel := UiKit.paper_panel(22)
 	panel.custom_minimum_size = Vector2(560, 0)
 	panel.add_child(box)
-	box.add_child(UiKit.title({"launch_vote": "결행 투표", "launch_target": "결행 대상 투표", "strike_target": "결행 대상 (리더)", "launch_benefit": "결행 혜택", "threat_look": "위협 덱 보기", "saga_keep": "남길 사연", "reroll": "다시 하기", "discard": "버릴 아이템"}.get(kind, "선택"), Style.FS_H3))
+	box.add_child(UiKit.title({"launch_vote": "결행 투표", "launch_target": "결행 대상 투표", "strike_target": "결행 대상 (리더)", "launch_benefit": "결행 혜택", "mission_gear": "아이템을 낼까요?", "threat_look": "위협 덱 보기", "saga_keep": "남길 사연", "reroll": "다시 하기", "discard": "버릴 아이템"}.get(kind, "선택"), Style.FS_H3))
 	box.add_child(UiKit.text(str(pd.get("prompt", "")), Style.FS_BODY))
 	if kind in ["pick_cell", "hop"]:
 		box.add_child(UiKit.text("보드에서 빨간 점선 칸을 눌러도 됩니다.", 14, Style.INK_3))
@@ -1259,7 +1325,8 @@ func _show_rules() -> void:
 	panel.add_child(box)
 	box.add_child(UiKit.title("v2 규칙 요약", Style.FS_H3))
 	var lines := [
-		"하루: 아침에 위협 카드 → (1막) 결행 투표 → 공개 미션 줄 채우기 → 요원마다 작전 주사위 굴리기 → 낮 → 밤. 남은 주사위는 밤에 사라집니다.",
+		"하루: 아침에 위협 카드 → (1막 짝수 날) 일제 작전 → (1막) 표적 이동·기한 → 결행 투표 → 공개 미션 줄 채우기 → 요원마다 작전 주사위 굴리기 → 낮 → 밤. 남은 주사위는 밤에 사라집니다.",
+		"미션은 보드 위 마커로 이뤄집니다: 암살(표적 칸에서 판정, 표적은 매일 움직임) · 잠입(거점에 들어감) · 폭파(폭탄을 들고 마커 칸에) · 공작(마커 칸에서 주사위 바치기) · 연락(받기 → 주기) · 잠복(마커 곁에서 쫓기지 않고 차례를 마침) · 협동. 일제 작전은 기한 안에 막지 못하면 벌칙이 있고, 일제 동향이 높을수록 벌칙이 커집니다.",
 		"낮: 요원마다 한 차례씩, 순서는 자유입니다 (한 번에 한 요원). 주사위 1개 = 행동 1개: 이동 · 작전 판정 · 바치기 · 건네기 · 미끼 · 숨기 · 정찰 · 장터. 아이템 1장과 능력 1번은 공짜. 원하면 언제든 「차례 마치기」.",
 		"요원끼리는 같은 칸에 설 수 있고, 경찰이 있는 칸에는 못 들어갑니다. 같은 칸의 효과는 한 차례에 한 번만 받습니다. 거리는 깔린 길을 따라 걷는 칸 수입니다. 경찰은 쫓기는 요원이 차례를 마칠 때 다가옵니다 (숨기를 하면 안 옴).",
 		"1막: 공개 미션을 이뤄 결행 준비를 %d까지 올리면 아침에 결행 투표가 열립니다. 남은 날이 %d일이 되면 강제로 결행합니다." % [int(game.data.rules["launch_min"]), int(game.data.rules["forced_launch_days_left"])],
@@ -1328,17 +1395,48 @@ func _mission_info(id: String) -> Dictionary:
 	var m: Dictionary = game.mission_def(id)
 	var type := str(m.get("type", ""))
 	var td: Dictionary = game.mission_type_def(type)
-	var coop := td.get("ready") == null
-	var ready := int(m.get("ready", td.get("ready", 0)))
-	var secs := [["이루는 법", str(m.get("how", td.get("how", "")))], ["보상", str(m.get("text", ""))]]
-	if not coop:
-		secs.append(["결행 준비", "+%d · 결행 준비가 %d가 되면 아침마다 결행 투표가 열립니다." % [ready, int(game.data.rules["launch_min"])]])
+	var coop := type == "coop"
+	var secs := [["이루는 법", str(m.get("how", ""))], ["자리", str(m.get("where", ""))]]
+	var b = m.get("bonus")
+	if typeof(b) == TYPE_DICTIONARY:
+		secs.append(["보너스", str(b.get("text", "")), Style.GOOD])
+	var days := game.card_days_left(id)
+	if days >= 0:
+		secs.append(["기한", "남은 %d일 · %s" % [days, m.get("missed_text", "")], Style.SEAL])
+	var status := game.card_status(id)
+	if status != "":
+		secs.append(["진행", status, Style.GOOD])
+	secs.append(["보상", str(m.get("text", ""))])
+	if coop:
+		secs.append(["협동 미션", "두 명이 함께 채웁니다. 결행 준비 +%d" % int(m.get("ready", 0))])
 	else:
-		secs.append(["협동 미션", "결행 준비는 오르지 않지만 모두에게 도움이 되는 보상을 줍니다."])
+		secs.append(["결행 준비", "+%d · 결행 준비가 %d가 되면 아침마다 결행 투표가 열립니다." % [int(m.get("ready", 0)), int(game.data.rules["launch_min"])]])
 	if bool(m.get("loud", td.get("loud", false))):
-		secs.append(["시끄러움", "이루면 노출이 오릅니다.", Style.SEAL])
+		secs.append(["시끄러움", "이루면 노출 +1, 경찰이 붙습니다.", Style.SEAL])
 	return {"band": "미 션 · " + str(td.get("name", "")), "color": Color("#2f7f7a") if coop else Style.MISSION,
 		"art": load(MISSION_ART.get(type, MISSION_ART["coop"])), "name": str(m.get("name", "")), "sections": secs}
+
+
+func _fx_text(effects: Array) -> String:
+	var parts := []
+	for e in effects:
+		match str(e.get("op", "")):
+			"exposure": parts.append("노출 %+d" % int(e["value"]))
+			"police_dispatch": parts.append("가까운 거점에서 경찰이 출동해 가장 가까운 요원을 쫓음")
+			"ready": parts.append("결행 준비 %+d" % int(e["value"]))
+	return ", ".join(parts) if not parts.is_empty() else "없음"
+
+
+func _op_info(id: String) -> Dictionary:
+	var oc: Dictionary = game.data.op_card(id)
+	var secs := [["막는 법", str(oc.get("how", ""))], ["자리", str(oc.get("where", ""))],
+		["기한", "남은 %d일 · %s" % [game.card_days_left(id), oc.get("missed_text", "")], Style.SEAL],
+		["지금 동향 %d의 추가 벌칙" % game.trend, _fx_text(game._trend_penalty()), Style.SEAL],
+		["막으면", "노출 −1 (동향은 내려가지 않음)", Style.GOOD]]
+	var status := game.card_status(id)
+	if status != "":
+		secs.append(["진행", status, Style.GOOD])
+	return {"band": "일 제 작 전", "color": Style.SEAL, "art": load(MISSION_ART["op"]), "name": str(oc.get("name", "")), "sections": secs}
 
 
 func _scene_info(card: Dictionary, i: int) -> Dictionary:
