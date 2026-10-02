@@ -17,6 +17,7 @@ var _gauge_lbl: Label
 var _gauge: Control
 var _alert: Control
 var _alert_lbl: Label
+var _funds: Control
 var _trend_box: Control
 var _trend_lbl: Label
 var _trend: Control
@@ -90,6 +91,13 @@ func _ready() -> void:
 	_gauge.draw.connect(_draw_gauge)
 	_gauge.mouse_filter = Control.MOUSE_FILTER_PASS
 	h.add_child(_gauge)
+	h.add_child(_vsep())
+
+	_funds = Control.new()
+	_funds.custom_minimum_size = Vector2(86, 44)
+	_funds.draw.connect(_draw_funds)
+	_funds.mouse_filter = Control.MOUSE_FILTER_PASS
+	h.add_child(_funds)
 	h.add_child(_vsep())
 
 	_trend_box = VBoxContainer.new()
@@ -167,6 +175,11 @@ func refresh() -> void:
 		_gauge.custom_minimum_size = Vector2(maxi(game.intel_tokens, 1) * 24 + 2, 44)
 		_gauge.tooltip_text = "결행 거점의 첩보가 토큰이 되었습니다. 1개로 장면 판정 +%d, 또는 주사위 조건 −%d." % [
 			int(game.data.rules["intel_token"]["check_bonus"]), int(game.data.rules["intel_token"]["dice_reduce"])]
+	# 군자금
+	_funds.tooltip_text = "군자금 %d / %d — 팀이 함께 쓰는 돈입니다.\n장터(아이템 %d · 폭탄 %d), 검문소 뇌물 %d, 간수 매수·정보원·무기 조달, 장면 매수에 씁니다.\n가택 수색·자금 동결·노출 9에서 잃습니다." % [
+		game.funds, int(game.data.rules["funds"]["max"]), int(game.data.rules["market"]["offers"][0]["cost"]), int(game.data.rules["market"]["offers"][1]["cost"]),
+		int(game.data.rules["checkpoint"]["bribe"])]
+	_funds.queue_redraw()
 	# 일제 동향 (1막만)
 	_trend_box.visible = game.act == 1
 	var tmax := int(game.data.rules["ops"]["trend_max"])
@@ -267,6 +280,20 @@ func _draw_gauge() -> void:
 				_gauge.draw_arc(c, 9, 0, TAU, 20, Style.SEAL_DARK, 1.5, true)
 			else:
 				_gauge.draw_arc(c, 8, 0, TAU, 20, Color(Style.INK_2, 0.4), 1.5, true)
+
+
+func _draw_funds() -> void:
+	## 군자금: 엽전 모양 동전 + 숫자 (돈 그림은 F단계에서 다듬음)
+	var c := Vector2(20, 22)
+	_funds.draw_circle(c + Vector2(1, 2), 14, Color(0, 0, 0, 0.3))
+	_funds.draw_circle(c, 14, Style.GOLD)
+	_funds.draw_arc(c, 14, 0, TAU, 28, Style.INK_2, 2.0, true)
+	_funds.draw_rect(Rect2(c - Vector2(4, 4), Vector2(8, 8)), Style.PAPER_HI)
+	_funds.draw_rect(Rect2(c - Vector2(4, 4), Vector2(8, 8)), Style.INK_2, false, 1.5)
+	var font := Style.serif(900)
+	var t := "%d" % game.funds
+	_funds.draw_string(font, Vector2(40, 31), t, HORIZONTAL_ALIGNMENT_LEFT, -1, 26, Style.INK)
+	_funds.draw_string(Style.sans(700), Vector2(40 + font.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, 26).x + 3, 31), "군자금", HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Style.INK_3)
 
 
 func _draw_trend() -> void:

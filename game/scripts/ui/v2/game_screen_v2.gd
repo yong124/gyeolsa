@@ -410,7 +410,7 @@ func _refresh_mid() -> void:
 			var need := game.scene_need()
 			var parts := []
 			for key in need:
-				parts.append("%s %d" % [{"dice": "주사위 합", "item": "아이템", "bomb": "폭탄", "check_pair": "판정 성공", "people": "사람", "hold": "밤"}.get(key, key), int(need[key])])
+				parts.append("%s %d" % [{"dice": "주사위 합", "item": "아이템", "bomb": "폭탄", "check_pair": "판정 성공", "people": "사람", "hold": "밤", "funds": "군자금"}.get(key, key), int(need[key])])
 			if not parts.is_empty():
 				v.add_child(UiKit.text("남은 것: " + ", ".join(parts), 12, Style.GOOD, false, 800))
 		else:
@@ -1053,6 +1053,14 @@ func _play_event(e: Dictionary) -> void:
 			Sfx.play("click")
 		"tile_fx":
 			Sfx.play("click")
+		"funds":
+			if int(e.get("change", 0)) != 0:
+				Sfx.play("score" if int(e["change"]) > 0 else "fail")
+				_fx.toast("군자금 %+d (지금 %d)" % [int(e["change"]), int(e["value"])], "good" if int(e["change"]) > 0 else "bad")
+		"market_buy":
+			Sfx.play("click")
+		"bribe":
+			Sfx.play("click")
 		"vote_reveal":
 			Sfx.play("click")
 			var yes := 0
@@ -1099,7 +1107,7 @@ func _play_event(e: Dictionary) -> void:
 		_board.apply_players_snap(e["players_snap"])
 	if k in ["morning", "threat", "dice_rolled", "die_used", "die_given", "day_start", "mission_done", "launch", "scene", "scene_break", "confiscate",
 			"saga_done", "jail", "rescue", "intel", "ready", "exposure", "turn", "night", "markers", "trend", "op_appear", "op_blocked", "op_missed",
-			"mission_missed", "pickup", "item_lost", "work_give", "lurk", "informed", "marker_moved"]:
+			"mission_missed", "pickup", "item_lost", "work_give", "lurk", "informed", "marker_moved", "funds", "market_buy", "bribe"]:
 		_refresh_panels()
 	_ticker.refresh()
 
@@ -1171,6 +1179,8 @@ func _cond_text(c: Dictionary, card := {}) -> String:
 			return "%s에서 폭탄 %d개를 바침%s" % [where, int(c.get("count", 1)), " (나눠 바쳐도 됨)" if c.get("split", false) else ""]
 		"people":
 			return "%d명이 같은 날 %s에서 차례를 마침" % [int(c.get("count", 2)), where]
+		"pay_funds":
+			return "%s에서 군자금 %d을 내고 매수 (마지막 장면은 매수할 수 없음)" % [where, int(c.get("count", 1))]
 		"hold":
 			return "%d명이 %s에서 %d밤을 넘김" % [int(c.get("count", 1)), where, int(c.get("days", 1))]
 		"jailed_here":
@@ -1191,6 +1201,14 @@ func _cond_text(c: Dictionary, card := {}) -> String:
 				parts2.append(_cond_text(o, card))
 			return " 그리고 ".join(parts2)
 	return str(c.get("kind", ""))
+
+
+func _funds_price() -> int:
+	## 지금 장면의 매수 값 (군자금)
+	for leaf in game._scene_leaves(game.current_scene().get("condition", {})):
+		if str(leaf["cond"].get("kind", "")) == "pay_funds":
+			return int(leaf["cond"].get("count", 0))
+	return 0
 
 
 func _chance(a: Dictionary) -> int:
@@ -1214,7 +1232,12 @@ func _label(a: Dictionary) -> String:
 		"counter_check": return "반격 막기 (주사위 %d · 성공 %d%%)" % [game.die_value(int(a["die"])), _chance(a)]
 		"hide": return "숨기 (주사위 %d)" % game.die_value(int(a["die"]))
 		"scout": return "정찰 (주사위 %d: %d칸 안의 덮인 칸 %d곳)" % [game.die_value(int(a["die"])), game.die_value(int(a["die"])), int(game.data.rules["scout"]["count"])]
-		"market": return "장터 (주사위 %d)" % game.die_value(int(a["die"]))
+		"market":
+			var offer := {}
+			for o in game.data.rules["market"]["offers"]:
+				if str(o["id"]) == str(a["offer"]):
+					offer = o
+			return "장터: %s 사기 (군자금 %d · 주사위 %d)" % [offer.get("name", ""), game.market_cost(me, offer), game.die_value(int(a["die"]))]
 		"use_item":
 			return "[%s] 사용" % game.item_def(str(me["items"][int(a["index"])])).get("name", "")
 		"ability":
@@ -1240,6 +1263,7 @@ func _label(a: Dictionary) -> String:
 				"die": return "주사위 %d 장면에 바치기" % game.die_value(int(a["die"]))
 				"item": return "[%s] 바치기 (주사위 %d를 냄)" % [game.item_def(str(me["items"][int(a["index"])])).get("name", ""), game.die_value(int(a["with"]))]
 				"bomb": return "폭탄 바치기 (주사위 %d를 냄)" % game.die_value(int(a["with"]))
+				"funds": return "장면 매수 (군자금 %d · 주사위 %d를 냄)" % [_funds_price(), game.die_value(int(a["with"]))]
 		"use_intel":
 			return "첩보 토큰: 판정 +%d" % int(game.data.rules["intel_token"]["check_bonus"]) if a["mode"] == "check" \
 				else "첩보 토큰: 주사위 조건 −%d" % int(game.data.rules["intel_token"]["dice_reduce"])
@@ -1262,7 +1286,7 @@ func _show_choice() -> void:
 	var panel := UiKit.paper_panel(22)
 	panel.custom_minimum_size = Vector2(560, 0)
 	panel.add_child(box)
-	box.add_child(UiKit.title({"launch_vote": "결행 투표", "launch_target": "결행 대상 투표", "strike_target": "결행 대상 (리더)", "launch_benefit": "결행 혜택", "mission_gear": "아이템을 낼까요?", "threat_look": "위협 덱 보기", "saga_keep": "남길 사연", "reroll": "다시 하기", "discard": "버릴 아이템"}.get(kind, "선택"), Style.FS_H3))
+	box.add_child(UiKit.title({"launch_vote": "결행 투표", "launch_target": "결행 대상 투표", "strike_target": "결행 대상 (리더)", "launch_benefit": "결행 혜택", "mission_gear": "값을 낼까요?", "informer_pay": "정보원 사례금", "bribe": "검문소 뇌물", "threat_look": "위협 덱 보기", "saga_keep": "남길 사연", "reroll": "다시 하기", "discard": "버릴 아이템"}.get(kind, "선택"), Style.FS_H3))
 	box.add_child(UiKit.text(str(pd.get("prompt", "")), Style.FS_BODY))
 	if kind in ["pick_cell", "hop"]:
 		box.add_child(UiKit.text("보드에서 빨간 점선 칸을 눌러도 됩니다.", 14, Style.INK_3))
@@ -1331,6 +1355,7 @@ func _show_rules() -> void:
 		"요원끼리는 같은 칸에 설 수 있고, 경찰이 있는 칸에는 못 들어갑니다. 같은 칸의 효과는 한 차례에 한 번만 받습니다. 거리는 깔린 길을 따라 걷는 칸 수입니다. 경찰은 쫓기는 요원이 차례를 마칠 때 다가옵니다 (숨기를 하면 안 옴).",
 		"1막: 공개 미션을 이뤄 결행 준비를 %d까지 올리면 아침에 결행 투표가 열립니다. 남은 날이 %d일이 되면 강제로 결행합니다." % [int(game.data.rules["launch_min"]), int(game.data.rules["forced_launch_days_left"])],
 		"2막: 첩보가 가장 많은 거점을 칩니다. 장면을 하나씩 돌파하고 마지막 장면을 돌파하면 대성공입니다. 첩보는 토큰이 되어 판정 +1 또는 주사위 조건 −2로 씁니다.",
+		"군자금: 팀이 함께 쓰는 돈 (시작 2, 최대 10). 장터(아이템 2 · 폭탄 3), 검문소 뇌물 2, 간수 매수 2, 정보원 1, 무기 조달 2, 장면 매수에 씁니다. 부호의 헌금 · 독립 공채 같은 미션과 이벤트로 얻고, 가택 수색 · 자금 동결 · 노출 9에서 잃습니다. 남으면 후일담에 한 줄 붙습니다.",
 		"개인 사연: 비밀입니다. 이루면 즉시 보상을 받습니다.",
 		"투옥: 노출이 오르고, 들고 있던 아이템 1장을 무작위로 압수당합니다 (폭탄은 그대로). 동료가 그 거점에 들어오면 구출됩니다.",
 	]
@@ -1459,7 +1484,7 @@ func _scene_info(card: Dictionary, i: int) -> Dictionary:
 		var need := game.scene_need()
 		var parts := []
 		for key in need:
-			parts.append("%s %d" % [{"dice": "주사위 합", "item": "아이템", "bomb": "폭탄", "check_pair": "판정 성공", "people": "사람", "hold": "밤"}.get(key, key), int(need[key])])
+			parts.append("%s %d" % [{"dice": "주사위 합", "item": "아이템", "bomb": "폭탄", "check_pair": "판정 성공", "people": "사람", "hold": "밤", "funds": "군자금"}.get(key, key), int(need[key])])
 		if not parts.is_empty():
 			secs.append(["남은 것", ", ".join(parts), Style.GOOD])
 	secs.append(["여기서 멈추면", str(card.get("stop_text", "")), Style.SEAL])
