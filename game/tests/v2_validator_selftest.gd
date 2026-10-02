@@ -44,6 +44,36 @@ func _init() -> void:
 	_check(_has(berrs, "알 수 없는 op 'no_such_op'"), "choice 안쪽 오타를 잡는다")
 	_check(_has(berrs, "파일 없음: res://tests/fixtures/v2_bad/events.json"), "없는 파일을 오류로 기록한다")
 
+	# B단계 어휘: 능력의 cost, police_attach의 at, rules의 hide·scout·market·police
+	var real := GameDataV2.new()
+	real.load_dir("res://data/v2/")
+	_check(real.validate().is_empty(), "진짜 데이터는 오류 없음")
+	var r1 := GameDataV2.new()
+	r1.load_dir("res://data/v2/")
+	for c in r1.characters["characters"]:
+		if c["id"] == "seo":
+			c["ability"]["cost"] = "coin"
+	_check(_has(r1.validate(), "알 수 없는 cost 'coin'"), "능력의 알 수 없는 cost를 잡는다")
+	var r2 := GameDataV2.new()
+	r2.load_dir("res://data/v2/")
+	for ev in r2.events["events"]:
+		if ev["id"] == "informer":
+			ev["effects"][0]["at"] = "there"
+	_check(_has(r2.validate(), "police_attach의 알 수 없는 at 'there'"), "police_attach의 알 수 없는 at을 잡는다")
+	var r3 := GameDataV2.new()
+	r3.load_dir("res://data/v2/")
+	r3.rules.erase("hide")
+	r3.rules["scout"]["count"] = 0
+	r3.rules["market"] = {"tile": 3}
+	r3.rules["police"]["rejoin_distance"] = 0
+	var e3 := r3.validate()
+	_check(_has(e3, "rules.hide") and _has(e3, "rules.scout.count") and _has(e3, "rules.market") and _has(e3, "rejoin_distance"), "rules의 hide·scout·market·police 값 누락을 잡는다")
+	var r4 := GameDataV2.new()
+	r4.load_dir("res://data/v2/")
+	r4.characters["characters"][0]["trait"] = {"mods": [{"stat": "no_such_stat", "value": 1}]}
+	_check(_has(r4.validate(), "알 수 없는 stat 'no_such_stat'"), "특성의 알 수 없는 stat을 잡는다")
+	_check("assassin_adjacent" in GameDataV2.KNOWN_STATS and "die" in GameDataV2.KNOWN_COSTS, "새 어휘(assassin_adjacent, cost die)가 등록돼 있다")
+
 	print("v2 검증기 자체 시험: %s" % ("통과" if _fail == 0 else "%d건 실패" % _fail))
 	quit(1 if _fail > 0 else 0)
 

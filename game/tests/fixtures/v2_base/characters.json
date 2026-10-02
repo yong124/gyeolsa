@@ -122,11 +122,11 @@
 			"gender": "m",
 			"origin": "화북 전선의 저격수",
 			"persona": "bold",
-			"trait_text": "암살 실패 시 한 번 더 굴림",
+			"trait_text": "옆 칸에서도 암살 판정을 할 수 있음",
 			"trait": {
 				"mods": [
 					{
-						"stat": "assassin_rerolls",
+						"stat": "assassin_adjacent",
 						"value": 1
 					}
 				]
@@ -230,7 +230,7 @@
 					}
 				]
 			},
-			"ability_text": "길 안내: 동료 하나를 내 옆 칸으로 데려옴",
+			"ability_text": "길 안내: 동료 하나를 내 칸으로 데려옴 (데려온 칸의 효과는 없음)",
 			"ability": {
 				"name": "길 안내",
 				"when": "turn",
@@ -357,11 +357,12 @@
 					}
 				]
 			},
-			"ability_text": "다방 밀담: 3칸 안의 거점 하나에 첩보 +1, 대신 노출 +1",
+			"ability_text": "다방 밀담 (주사위 하나를 냄): 3칸 안의 거점 하나에 첩보 +1, 대신 노출 +1",
 			"ability": {
 				"name": "다방 밀담",
 				"when": "turn",
 				"target": "self",
+				"cost": "die",
 				"requires": {
 					"base_in_range": 3
 				},
@@ -387,7 +388,7 @@
 			"gender": "m",
 			"origin": "전차 차장",
 			"persona": "support",
-			"trait_text": "이동이 끝날 때 동료 옆의 깔린 칸으로 한 칸 옮길 수 있음",
+			"trait_text": "차례를 마칠 때 동료가 있는 옆 칸으로 한 칸 옮길 수 있음",
 			"trait": {
 				"mods": [
 					{

@@ -13,7 +13,7 @@ const PERSONA := {
 	"careful": {"risk": 1.4, "vote": 1.2},
 	"support": {"risk": 0.8, "vote": 1.0},
 }
-const CHOICE_KINDS := ["launch_vote", "strike_target", "saga_keep", "reroll", "check_die", "react_evade",
+const CHOICE_KINDS := ["launch_vote", "strike_target", "saga_keep", "reroll", "react_evade",
 	"discard", "draw_pick", "effect_choice", "pick_player", "pick_cell", "pick_die", "pick_tile", "pick_item",
 	"pick_value", "pick_bury", "hop", "intel_base"]
 
@@ -47,12 +47,23 @@ static func next_actor(g: RulesV2) -> int:
 				score += 3.0
 			if g.stat(p, "end_move_hop_to_ally") > 0:
 				score -= 2.0
+			score += _donor_bonus(g, p)
 			score -= float(p["id"]) * 0.01
 			if score > best_score:
 				best_score = score
 				best = int(p["id"])
 		return best
 	return int(legal[0].get("player", -1))
+
+
+static func _donor_bonus(g: RulesV2, p: Dictionary) -> float:
+	## 같은 칸에 아직 차례를 안 한 동료가 있고 내 주사위가 더 많으면 먼저 한다 (남는 주사위를 건네 줄 수 있다).
+	## 주사위를 받을 요원은 그만큼 나중에 한다.
+	var mine: int = g.my_dice(p["id"]).size()
+	for q in g.players:
+		if q["id"] != p["id"] and not q["done_today"] and not q["jailed"] and q["pos"] == p["pos"] and mine > g.my_dice(q["id"]).size():
+			return 1.5
+	return 0.0
 
 
 static func decide(g: RulesV2, pid: int, persona := "") -> Dictionary:
@@ -121,7 +132,7 @@ static func _choice(g: RulesV2, p: Dictionary, legal: Array, policy: Dictionary)
 				var cond: Dictionary = g.data.saga(str(v)).get("condition", {})
 				if cond.get("strike", "") == g.launch_info.get("target", ""):
 					score += 0.5
-			"reroll", "check_die":
+			"reroll":
 				score = _check_option_score(g, p, str(v))
 			"react_evade": score = 10.0 if bool(v) else 0.0
 			"discard": score = -float(g.item_def(str(p["items"][int(v)])).get("ai_value", 3))
@@ -137,9 +148,13 @@ static func _choice(g: RulesV2, p: Dictionary, legal: Array, policy: Dictionary)
 			"pick_player":
 				if typeof(v) == TYPE_INT and int(v) < g.players.size():
 					score = -float(_dist(g.players[int(v)]["pos"], p["pos"]))
-			"pick_cell", "hop":
+			"pick_cell":
 				if v is Vector2i:
 					score = -float(_dist(v, _goal(g, p, policy)))
+			"hop":
+				# 동료 곁으로 한 칸: 가려는 곳에 더 가까워질 때만
+				var goal_h := _goal(g, p, policy)
+				score = -float(_dist(v, goal_h)) if v is Vector2i else -float(_dist(p["pos"], goal_h)) + 0.01
 			"pick_tile":
 				if int(g.scene_need().get("bomb", 0)) > 0 and str(v) == "supply":
 					score = 3.0
@@ -171,18 +186,13 @@ static func _effects_value(g: RulesV2, p: Dictionary, effects: Array) -> float:
 
 
 static func _check_option_score(g: RulesV2, p: Dictionary, v: String) -> float:
-	## 판정에 쓸 주사위 고르기: 성공 확률이 가장 높은 것, 같으면 작은 눈 (큰 눈은 이동에 남김)
+	## 실패한 판정을 다시 굴릴 권리를 쓸지: 다시 굴려 성공할 확률이 5%보다 높으면 쓴다
 	var c: Dictionary = g.check
 	if c.is_empty():
 		return 0.0
 	if v == "grant":
 		return g.check_chance(c, int(c.get("die_value", 0))) + 0.05
-	if v == "roll":
-		return g.check_chance(c, 0)
-	if v.begins_with("die:"):
-		var dv := g.die_value(int(v.substr(4)))
-		return g.check_chance(c, dv) - float(dv) * 0.001
-	return 0.05   # 「그대로 실패」: 다시 할 방법의 성공 확률이 5%도 안 되면 주사위를 아낀다
+	return 0.05
 
 
 static func _plan(g: RulesV2, p: Dictionary, legal: Array) -> Dictionary:
@@ -217,79 +227,90 @@ static func _morning_fix(g: RulesV2, p: Dictionary, a: Dictionary) -> Dictionary
 
 
 static func _turn(g: RulesV2, p: Dictionary, legal: Array, policy: Dictionary) -> Dictionary:
+	## 낮의 한 걸음. 주사위 1개 = 행동 1개이므로 하루 계획은 곧 주사위 배분이다:
+	## 판정에 남길 큰 눈과 이동에 쓸 눈을 나누고, 남는 주사위는 건네거나 정찰·숨기에 쓰고, 쓸모가 없으면 차례를 마친다.
 	if p["jailed"]:
-		var esc := _find(legal, "escape")
-		if not esc.is_empty():
-			return esc
-		return _find(legal, "end_turn")
-	if g.tile_type(p["pos"]) == "supply" and p["bombs"] < g.bomb_slots(p) and (_bombs_short(g) > 0 or not g.missions_in_row("bomb").is_empty()):
-		return _find(legal, "end_move")
-	if g.tile_type(p["pos"]) == "item" and not g.board[p["pos"]].get("used", false) and int(g.scene_need().get("item", 0)) > 0:
-		return _find(legal, "end_move")
+		return _jailed_turn(g, p, legal)
+	if g.steps_left > 0:
+		return _walk(g, p, legal, policy)
+	# 1. 지금 선 자리에서 할 일: 미션 판정, 2막 장면 판정·바치기
+	var chk := _check_action(g, p, legal, "mission_check")
+	if not chk.is_empty():
+		return chk
 	var pay_die := _scene_pay_die(g, p, legal)
 	if not pay_die.is_empty():
 		return pay_die
-	for a in legal:
-		if a["type"] == "scene_pay" and a["what"] != "die":
-			return a
+	var pay := _scene_pay_other(g, p, legal)
+	if not pay.is_empty():
+		return pay
 	if g.act == 2:
-		var sc := _find(legal, "scene_check")
+		var sc := _check_action(g, p, legal, "scene_check")
 		if not sc.is_empty():
 			var intel := _find(legal, "use_intel")
 			if not intel.is_empty() and intel.get("mode") == "check" and g.intel_tokens > 0:
 				return intel
 			return sc
+	# 2. 공짜로 쓸 것: 사연을 위한 건네기, 능력, 아이템
 	if _saga_kind(g, p, "give_dice") and g.my_dice(p["id"]).size() >= 2:
-		var gd := _smallest(g, p, legal, "give_die")
+		var gd := _give_die_action(g, p, legal)
 		if not gd.is_empty():
 			return gd
-	if _saga_kind(g, p, "give_items") and p["items"].size() > 0:
-		var give := _find(legal, "give_item")
+	if _saga_kind(g, p, "give_items") and p["items"].size() > 0 and not g.my_dice(p["id"]).is_empty():
+		var give := _smallest(g, p, legal, "give_item")
 		if not give.is_empty():
 			return give
-	for a in legal:
-		if a["type"] == "ability":
-			var effects: Array = g.ability_def(p).get("effects", [])
-			for e in effects:
-				if e.get("op", "") == "place_tile" and g.act == 2 and int(g.scene_need().get("bomb", 0)) > 0:
-					var supply_found := false
-					for c in g.board:
-						if g.tile_type(c) == "supply":
-							supply_found = true
-					if not supply_found:
-						return a
-				if e.get("op", "") == "give_die" and a.has("target") and g.my_dice(p["id"]).size() >= 2 \
-						and (g.players[int(a["target"])]["jailed"] or _saga_kind(g, p, "give_dice")):
-					return a   # 감옥의 동료가 탈옥 판정에 쓰도록, 또는 주사위를 건네는 사연을 위해
-				if e.get("op", "") == "intel" and e.get("base", "") == "choose" and g.act == 1 and _exposure_headroom(g) >= 2:
-					return a   # 경계 단계가 오르기까지 여유가 있을 때만 첩보를 노출과 바꾼다
-				if e.get("op", "") == "police_remove" and g.police.has(p["id"]):
-					return a
-				if e.get("op", "") == "police_push" and g.police.has(p["id"]):
-					return a
-				if e.get("op", "") == "checkpoint_pass" and _next_check(g, p):
-					return a
-				if e.get("op", "") == "move_today" and g.steps_left < _dist(p["pos"], _goal(g, p, policy)):
-					return a
-				if e.get("op", "") == "grant_once" and g.act == 2 and not _find(legal, "scene_check").is_empty():
-					return a
-	for a in legal:
-		if a["type"] == "use_item":
-			var it: Dictionary = g.item_def(str(p["items"][int(a["index"])]))
-			for e in it.get("effects", []):
-				if e.get("op", "") == "police_remove" and g.police.has(p["id"]):
-					return a
-				if e.get("op", "") == "checkpoint_pass" and _next_check(g, p):
-					return a
-				if e.get("op", "") == "threat_bury":
-					return a
-				if e.get("op", "") == "move_today" and g.steps_left < _dist(p["pos"], _goal(g, p, policy)):
-					return a
+	var free := _free_use(g, p, legal, policy)
+	if not free.is_empty():
+		return free
+	# 3. 이동: 가려는 곳에 닿는 눈을 고른다. 갈 길이 덮여 있고 주사위가 넉넉하면 먼저 정찰한다.
 	var goal := _goal(g, p, policy)
-	var now := _dist(p["pos"], goal)
+	if goal != p["pos"] and g.my_dice(p["id"]).size() >= 3 and _dist(p["pos"], goal) >= 3 and g.path_to(p, goal)["path"].is_empty():
+		var look := _smallest(g, p, legal, "scout")
+		if not look.is_empty():
+			return look
 	var mv := _move_die(g, p, legal, goal)
 	if not mv.is_empty():
 		return mv
+	# 4. 남는 주사위: 건네기 > 숨기(쫓길 때) > 정찰 > 차례 마치기
+	var idle := _give_die_action(g, p, legal)
+	if not idle.is_empty():
+		return idle
+	if g.police.has(p["id"]):
+		var hide := _smallest(g, p, legal, "hide")
+		if not hide.is_empty():
+			return hide
+	var scout := _largest(g, p, legal, "scout")
+	if not scout.is_empty() and goal != p["pos"]:
+		var route: Dictionary = g.path_to(p, goal)
+		if route["path"].is_empty() or int(route["unknown"]) > 0:
+			return scout   # 가려는 길이 덮여 있을 때만 정찰
+	return _find(legal, "end_turn")
+
+
+static func _jailed_turn(g: RulesV2, p: Dictionary, legal: Array) -> Dictionary:
+	for a in legal:
+		if a["type"] == "use_item" and str(g.item_def(str(p["items"][int(a["index"])])).get("when", "")) == "jailed":
+			return a   # 옷핀: 바로 탈출
+	var esc := _check_action(g, p, legal, "escape")
+	if not esc.is_empty():
+		return esc
+	var gd := _give_die_action(g, p, legal)
+	if not gd.is_empty():
+		return gd
+	return _find(legal, "end_turn")
+
+
+static func _walk(g: RulesV2, p: Dictionary, legal: Array, policy: Dictionary) -> Dictionary:
+	## 걷는 중: 보급·아이템 칸에서 필요하면 멈추고, 아니면 가려는 곳에 가까워지는 칸으로
+	if g.tile_type(p["pos"]) == "supply" and p["bombs"] < g.bomb_slots(p) and (_bombs_short(g) > 0 or not g.missions_in_row("bomb").is_empty()):
+		return _find(legal, "end_move")
+	if g.tile_type(p["pos"]) == "item" and not g.board[p["pos"]].get("used", false) and int(g.scene_need().get("item", 0)) > 0:
+		return _find(legal, "end_move")
+	var free := _free_use(g, p, legal, policy)
+	if not free.is_empty():
+		return free
+	var goal := _goal(g, p, policy)
+	var now := _dist(p["pos"], goal)
 	var best: Dictionary = {}
 	var best_score := -1.0e20
 	for a in legal:
@@ -306,20 +327,121 @@ static func _turn(g: RulesV2, p: Dictionary, legal: Array, policy: Dictionary) -
 		if score > best_score:
 			best_score = score
 			best = a
-	if not best.is_empty() and (best_score > 0.0 or now > 0 and g.steps_left > 0 and _find(legal, "end_move").is_empty()):
+	if not best.is_empty() and best_score > 0.0:
 		return best
-	var end := _find(legal, "end_move")
-	if not end.is_empty():
-		return end
-	return _find(legal, "end_turn")
+	return _find(legal, "end_move")
+
+
+static func _free_use(g: RulesV2, p: Dictionary, legal: Array, policy: Dictionary) -> Dictionary:
+	## 주사위 없이 쓰는 능력과 아이템: 쓸모가 있을 때만
+	var goal := _goal(g, p, policy)
+	for a in legal:
+		if a["type"] == "ability":
+			var effects: Array = g.ability_def(p).get("effects", [])
+			for e in effects:
+				var op := str(e.get("op", ""))
+				if op == "place_tile" and g.act == 2 and int(g.scene_need().get("bomb", 0)) > 0:
+					var supply_found := false
+					for c in g.board:
+						if g.tile_type(c) == "supply":
+							supply_found = true
+					if not supply_found:
+						return a
+				if op == "give_die" and a.has("target") and g.my_dice(p["id"]).size() >= 2 \
+						and (g.players[int(a["target"])]["jailed"] or _saga_kind(g, p, "give_dice")):
+					return a   # 감옥의 동료가 탈옥 판정에 쓰도록, 또는 주사위를 건네는 사연을 위해
+				if op == "intel" and e.get("base", "") == "choose" and g.act == 1 and _exposure_headroom(g) >= 2 \
+						and g.my_dice(p["id"]).size() >= 2 and g.die_value(int(a["die"])) <= 3:
+					return a   # 낮은 눈 하나로, 경계 단계가 오르기까지 여유가 있을 때만 첩보를 노출과 바꾼다
+				if op == "police_remove" and g.police.has(p["id"]):
+					return a
+				if op == "police_push" and g.police.has(p["id"]):
+					return a
+				if op == "checkpoint_pass" and _next_check(g, p):
+					return a
+				if op == "move_today" and a.has("target") and not g.players[int(a["target"])]["done_today"]:
+					return a   # 아직 차례를 안 한 동료의 첫 이동을 돕는다
+				if op == "grant_once" and g.act == 2 and not _find(legal, "scene_check").is_empty():
+					return a
+	for a in legal:
+		if a["type"] == "use_item":
+			var it: Dictionary = g.item_def(str(p["items"][int(a["index"])]))
+			for e in it.get("effects", []):
+				var op2 := str(e.get("op", ""))
+				if op2 == "police_remove" and g.police.has(p["id"]):
+					return a
+				if op2 == "checkpoint_pass" and _next_check(g, p):
+					return a
+				if op2 == "threat_bury":
+					return a
+				if op2 == "move_today" and _dist(p["pos"], goal) > _best_move(g, p, legal):
+					return a
+	return {}
+
+
+static func _best_move(g: RulesV2, p: Dictionary, legal: Array) -> int:
+	## 지금 가진 주사위 한 개로 갈 수 있는 가장 먼 칸 수
+	var best := 0
+	for a in legal:
+		if a["type"] == "move_die":
+			best = maxi(best, g.move_value(p, int(a["die"])))
+	return best
+
+
+static func _check_action(g: RulesV2, p: Dictionary, legal: Array, kind: String) -> Dictionary:
+	## 작전 판정 행동: 성공 확률이 가장 높은 주사위로 (같으면 작은 눈)
+	var best: Dictionary = {}
+	var best_chance := -1.0
+	for a in legal:
+		if a["type"] != kind:
+			continue
+		var c: Dictionary = g.check_preview(p, a)
+		var chance: float = g.check_chance(c, g.die_value(int(a["die"])))
+		if chance > best_chance + 0.0001 or (absf(chance - best_chance) <= 0.0001 and g.die_value(int(a["die"])) < g.die_value(int(best["die"]))):
+			best_chance = chance
+			best = a
+	return best
+
+
+static func _give_die_action(g: RulesV2, p: Dictionary, legal: Array) -> Dictionary:
+	## 남는 주사위를 동료에게: 감옥의 동료(탈옥에 씀)가 먼저, 다음은 아직 차례를 안 한 동료. 가장 큰 눈을 준다.
+	var best: Dictionary = {}
+	var best_score := -1.0
+	for a in legal:
+		if a["type"] != "give_die":
+			continue
+		var q: Dictionary = g.players[int(a["target"])]
+		var score := float(g.die_value(int(a["die"]))) + (10.0 if q["jailed"] else 0.0)
+		if score > best_score:
+			best_score = score
+			best = a
+	return best
+
+
+static func _scene_pay_other(g: RulesV2, p: Dictionary, legal: Array) -> Dictionary:
+	## 아이템·폭탄 바치기: 행동 하나이므로 가장 작은 눈을 낸다
+	var best: Dictionary = {}
+	for a in legal:
+		if a["type"] == "scene_pay" and a["what"] != "die":
+			if best.is_empty() or g.die_value(int(a["with"])) < g.die_value(int(best["with"])):
+				best = a
+	return best
+
+
+static func _largest(g: RulesV2, p: Dictionary, legal: Array, type: String) -> Dictionary:
+	var best: Dictionary = {}
+	for a in legal:
+		if a["type"] == type and (best.is_empty() or g.die_value(int(a["die"])) > g.die_value(int(best["die"]))):
+			best = a
+	return best
 
 
 static func _move_die(g: RulesV2, p: Dictionary, legal: Array, goal: Vector2i) -> Dictionary:
-	## 이동 주사위 고르기. 목표에서 작전 판정을 할 것 같으면 가장 큰 눈은 판정용으로 남긴다.
-	## 한 주사위로 닿으면 닿는 것 중 가장 작은 눈, 아니면 남길 것을 뺀 가장 큰 눈부터 (닿을 때까지 더함).
+	## 이동 행동의 주사위 고르기. 목표에서 작전 판정을 할 것 같으면 가장 큰 눈은 판정용으로 남긴다.
+	## 한 주사위로 닿으면 닿는 것 중 가장 작은 눈, 아니면 남길 것을 뺀 가장 큰 눈 (닿을 때까지 이동 행동을 되풀이).
 	var path: Dictionary = g.path_to(p, goal)
 	var need: int = int(path["steps"]) if not path["path"].is_empty() else _dist(p["pos"], goal)
-	if need <= g.steps_left or need <= 0:
+	if need <= 0:
 		return {}
 	var moves := legal.filter(func(a): return a["type"] == "move_die")
 	if moves.is_empty():
@@ -327,9 +449,9 @@ static func _move_die(g: RulesV2, p: Dictionary, legal: Array, goal: Vector2i) -
 	moves.sort_custom(func(a, b): return g.die_value(int(a["die"])) < g.die_value(int(b["die"])))
 	if _check_ahead(g, p, goal) and moves.size() >= 2:
 		moves.pop_back()   # 가장 큰 눈은 판정에 남긴다
-	var short: int = need - g.steps_left
+	var extra: int = int(p["flags"].get("move_extra", 0)) + int(p["move_mod_next"])
 	for a in moves:
-		if g.move_value(p, int(a["die"])) >= short:
+		if g.move_value(p, int(a["die"])) + extra >= need:
 			return a
 	return moves.back()
 
@@ -401,7 +523,7 @@ static func _goal(g: RulesV2, p: Dictionary, policy: Dictionary) -> Vector2i:
 		var cells := g.scene_place_cells()
 		var open := []
 		for c in cells:
-			if not g.occupied_by_other(p, c):
+			if not g.police_on(c):
 				open.append(c)
 		return _nearest(p["pos"], open) if not open.is_empty() else p["pos"]
 	var best: Vector2i = p["pos"]
@@ -419,7 +541,7 @@ static func _goal(g: RulesV2, p: Dictionary, policy: Dictionary) -> Vector2i:
 			"enter_base":
 				var bi := g.data.base_index(str(m.get("base", "")))
 				if bi >= 0:
-					if g.data.bases[bi] != p["pos"]:
+					if g.data.bases[bi] != p["pos"] and not g.police_on(g.data.bases[bi]):
 						cells.append(g.data.bases[bi])
 			"check", "deliver_bomb":
 				var tile := g.mission_tile(str(m.get("type", "")))
@@ -443,7 +565,7 @@ static func _goal(g: RulesV2, p: Dictionary, policy: Dictionary) -> Vector2i:
 			best_score = score
 			best = near
 	for q in g.players:
-		if q["jailed"] and q["id"] != p["id"]:
+		if q["jailed"] and q["id"] != p["id"] and not g.police_on(q["pos"]):
 			var d := _dist(p["pos"], q["pos"])
 			if d <= RESCUE_RANGE and RESCUE_VALUE / float(1 + d) > best_score:
 				best_score = RESCUE_VALUE / float(1 + d)
@@ -563,7 +685,7 @@ static func _saga_targets(g: RulesV2, p: Dictionary) -> Array:
 				for c in g.board:
 					if g.tile_type(c) == tile and not c in seen and c != p["pos"] and not g.board[c].get("used", false):
 						cells.append(c)
-			"same_cell_turns", "give_items":
+			"same_cell_turns", "give_items", "give_dice":
 				for q in g.players:
 					if q["id"] != p["id"] and not q["jailed"]:
 						cells.append(q["pos"])

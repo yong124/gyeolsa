@@ -34,6 +34,7 @@ func _init() -> void:
 	_run_3_tests()
 	_run_4_tests()
 	_run_a_tests()
+	_run_b_tests()
 	print("v2 규칙 시험: 통과 %d, 실패 %d" % [passed, failed])
 	quit(1 if failed > 0 else 0)
 
@@ -173,8 +174,50 @@ func _turn(g: RulesV2, pid: int, die: int) -> bool:
 	return true
 
 
-func _step(g: RulesV2, pid: int, to: Vector2i) -> bool:
-	return g.apply({"type": "step", "player": pid, "to": to})
+func _end(g: RulesV2, pid: int) -> bool:
+	## 이동을 멈추고 (걷는 중이면) 차례를 마친다. 선택이 열리면 거기서 멈춘다 (답한 뒤 다시 _end).
+	var did := false
+	if g.apply({"type": "end_move", "player": pid}):
+		did = true
+	if g.phase == "turn" and g.steps_left == 0 and g.apply({"type": "end_turn", "player": pid}):
+		did = true
+	return did
+
+
+func _step(g: RulesV2, pid: int, to: Vector2i, finish := true) -> bool:
+	## 한 칸 걷는다. 걸음이 다해 멈췄으면 (finish) 곧바로 차례도 마친다 (옛 시험의 「이동 = 차례」 셈).
+	## 멈춘 뒤 다른 행동을 이어 하는 시험은 finish를 false로 준다.
+	var moved := g.apply({"type": "step", "player": pid, "to": to})
+	if moved and finish and g.phase == "turn" and g.current == pid and g.steps_left == 0:
+		_end(g, pid)
+	return moved
+
+
+func _flat(g: RulesV2) -> void:
+	## 보드 전체를 깔린 일반 칸으로 만든다 (걸어서 잰 거리가 곧 직선 거리가 됨)
+	for y in g.data.size:
+		for x in g.data.size:
+			var c := Vector2i(x, y)
+			if not g.board.has(c):
+				g.board[c] = g._new_tile("normal")
+	g._dist_cache = {}
+
+
+func _sc(g: RulesV2, pid: int) -> bool:
+	## 장면 작전 판정 행동 (주사위 하나를 새로 받아 낸다)
+	return g.apply({"type": "scene_check", "player": pid, "die": _spare(g, 3, pid)})
+
+
+func _mcheck_none(g: RulesV2, pid: int) -> bool:
+	## 지금 선 칸에서 할 수 있는 미션 판정 행동이 있는가 (주사위가 남아 있을 때만 있음)
+	return g.legal_actions().any(func(a): return a["type"] == "mission_check")
+
+
+func _mcheck(g: RulesV2, pid: int, die_value := 6) -> bool:
+	## 지금 선 칸의 미션 타일에서 작전 판정 행동 (주사위 하나를 새로 받아 낸다)
+	var p: Dictionary = g.players[pid]
+	var i := _spare(g, die_value, pid)
+	return g.apply({"type": "mission_check", "player": pid, "die": i, "cell": p["pos"]})
 
 
 func _answer(g: RulesV2, value) -> bool:
@@ -215,7 +258,10 @@ func _test_plan_dice() -> void:
 	ok(not g2.apply({"type": "move_die", "player": 0, "die": c}), "이동: 남의 주사위는 못 씀")
 	ok(g2.apply({"type": "move_die", "player": 0, "die": a}) and g2.steps_left == 4 and g2.op_dice[a]["used"], "이동: 주사위 4를 쓰면 4칸")
 	ok(not g2.apply({"type": "move_die", "player": 0, "die": a}), "이동: 쓴 주사위는 다시 못 씀")
-	ok(g2.apply({"type": "move_die", "player": 0, "die": b}) and g2.steps_left == 6, "이동: 주사위를 더 써서 이동을 늘림")
+	ok(not g2.apply({"type": "move_die", "player": 0, "die": b}) and g2.steps_left == 4, "이동: 걷는 중에는 다른 주사위를 더 못 씀 (주사위 1개 = 행동 1개)")
+	ok(g2.apply({"type": "end_move", "player": 0}) and g2.phase == "turn" and g2.current == 0 and not g2.players[0]["done_today"],
+		"이동: 이동을 멈춰도 차례는 계속 (행동 고르기로 돌아옴)")
+	ok(g2.apply({"type": "move_die", "player": 0, "die": b}) and g2.steps_left == 2, "이동: 이동 행동을 또 하려면 주사위를 하나 더 씀")
 	# 다음 이동 보정은 처음 쓰는 이동 주사위에 붙음
 	var g3 := _new(["park", "han", "oh", "seo"])
 	g3.players[0]["move_mod_next"] = 2
@@ -230,7 +276,7 @@ func _test_plan_dice() -> void:
 	_spare(g4, 6, 0)
 	for pid in 4:
 		_turn(g4, pid, 1)
-		g4.apply({"type": "end_move", "player": pid})
+		_end(g4, pid)
 	ok(g4.day == 2 and (g4.phase != "plan" or g4.my_dice(0).size() == n), "작전 주사위: 쓰지 않은 주사위는 밤에 사라지고 아침에 새로 굴림")
 	# 건네기: 같은 칸, 하루 1번
 	var g5 := _new(["park", "han", "oh", "seo"])
@@ -268,13 +314,13 @@ func _test_free_order_and_night() -> void:
 	ok(g.phase == "turn" and g.current == 2, "자유 순서: 2번 요원이 먼저 시작할 수 있음")
 	ok(not g.apply({"type": "begin_turn", "player": 0}), "자유 순서: 차례 중에 다른 요원이 시작 못 함")
 	ok(not g.apply({"type": "step", "player": 0, "to": Vector2i(5, 6)}), "자유 순서: 차례가 아닌 요원은 이동 못 함")
-	ok(not g.apply({"type": "end_move", "player": 1}), "자유 순서: 차례가 아닌 요원은 이동을 못 끝냄")
-	g.apply({"type": "end_move", "player": 2})
+	ok(not _end(g, 1), "자유 순서: 차례가 아닌 요원은 이동을 못 끝냄")
+	_end(g, 2)
 	ok(g.phase == "day" and g.players[2]["done_today"], "자유 순서: 이동을 끝내면 낮으로 돌아옴")
 	ok(not g.apply({"type": "begin_turn", "player": 2}), "자유 순서: 이미 한 요원은 다시 못 함")
 	for pid in [3, 0, 1]:
 		_turn(g, pid, 1)
-		g.apply({"type": "end_move", "player": pid})
+		_end(g, pid)
 	ok(g.day == 2 and g.leader == 1 and g.rounds_left == int(g.data.rules["rounds"]) - 1, "밤: 모두 마치면 다음 날 아침 (리더가 옆 사람으로, 남은 날 -1)")
 	ok(g.phase in ["plan", "choice"] , "밤: 다음 날 아침이 계획 단계(또는 선택)에 이름")
 	# 마지막 날 밤
@@ -282,7 +328,7 @@ func _test_free_order_and_night() -> void:
 	g2.rounds_left = 1
 	for pid in 4:
 		_turn(g2, pid, 1)
-		g2.apply({"type": "end_move", "player": pid})
+		_end(g2, pid)
 	ok(g2.phase == "over" and g2.ending.get("id") == "history", "밤: 1막에서 남은 날이 0이 되면 정사로 끝남")
 
 
@@ -493,13 +539,17 @@ func _test_missions_double() -> void:
 	g.mission_row = ["m_police_chief", "m_mp_captain", "m_bribe_guard"]
 	_tile(g, Vector2i(5, 6), "assassin")
 	_turn(g, 0, 4)
-	_step(g, 0, Vector2i(5, 6))
+	_step(g, 0, Vector2i(5, 6), false)
+	ok(g.steps_left == 0 and g.phase == "turn" and g.ready == 0 and g.exposure == 0, "암살: 표적 칸에 들어가면 이동이 멈추고 판정은 자동으로 하지 않음")
+	ok(not _mcheck_none(g, 0), "암살: 주사위가 없으면 판정 행동이 없음")
+	_mcheck(g, 0)
 	ok(g.ready == 4, "미션 두 장 동시: 암살 두 장을 한 번에 이루면 결행 준비 +2 +2")
 	ok(g.intel["police_hq"] == 1 and g.intel["barracks"] == 1, "미션 두 장 동시: 두 장의 첩보를 모두 받음")
 	ok(g.mission_row == ["m_bribe_guard"], "미션 두 장 동시: 이룬 미션만 줄에서 빠짐")
 	ok(g.exposure == 1, "미션 두 장 동시: 시끄러움(노출 +1)은 한 번")
 	ok(g.police.has(0), "암살: 성공하면 경찰이 붙음")
-	ok(g.players[0]["done_today"] and g.mission_discard.size() == 2, "암살: 이동이 끝나고 이룬 카드는 버려짐")
+	_end(g, 0)
+	ok(g.players[0]["done_today"] and g.mission_discard.size() == 2, "암살: 차례를 마치고 이룬 카드는 버려짐")
 	# 암살 실패 → 회피 판정 → 실패하면 투옥
 	var gd2 := _gd(func(d):
 		d.missions["types"]["assassin"]["condition"]["target"] = 99
@@ -508,7 +558,8 @@ func _test_missions_double() -> void:
 	g2.mission_row = ["m_police_chief"]
 	_tile(g2, Vector2i(5, 6), "assassin")
 	_turn(g2, 0, 4)
-	_step(g2, 0, Vector2i(5, 6))
+	_step(g2, 0, Vector2i(5, 6), false)
+	_mcheck(g2, 0)
 	ok(g2.players[0]["jailed"] and g2.players[0]["jail_count"] == 1, "암살: 실패하고 회피도 실패하면 투옥")
 	ok(g2.ready == 0 and g2.mission_row == ["m_police_chief"], "암살: 실패하면 미션은 그대로")
 	ok(g2.exposure == 1, "암살: 투옥되면 노출 +1")
@@ -520,8 +571,12 @@ func _test_missions_double() -> void:
 	g3.mission_row = ["m_police_chief"]
 	_tile(g3, Vector2i(5, 6), "assassin")
 	_turn(g3, 0, 4)
-	_step(g3, 0, Vector2i(5, 6))
+	_step(g3, 0, Vector2i(5, 6), false)
+	_mcheck(g3, 0)
 	ok(not g3.players[0]["jailed"] and g3.police.has(0) and g3.ready == 0, "암살: 실패해도 회피에 성공하면 경찰만 붙음")
+	ok(g3.phase == "turn" and g3.current == 0 and g3.players[0]["pos"] == Vector2i(5, 6), "암살: 회피에 성공하면 같은 차례에 그 자리에서 이어 감")
+	var again := _spare(g3, 5, 0)
+	ok(g3.apply({"type": "mission_check", "player": 0, "die": again, "cell": Vector2i(5, 6)}), "암살: 회피에 성공하면 같은 차례에 다른 주사위로 다시 판정할 수 있음")
 	# 줄에 암살 미션이 없으면 아무 일 없음
 	var g4 := _new(["park", "han", "oh", "seo"], gd)
 	g4.mission_row = ["m_bribe_guard"]
@@ -590,21 +645,24 @@ func _test_missions_types() -> void:
 	g8.exposure = 2
 	_tile(g8, Vector2i(5, 6), "sabotage")
 	_turn(g8, 0, 3)
-	_step(g8, 0, Vector2i(5, 6))
+	_step(g8, 0, Vector2i(5, 6), false)
+	_mcheck(g8, 0)
 	ok(g8.ready == 1 and g8.exposure == 1 and g8.mission_row.is_empty() and not g8.police.has(0), "방해: 성공하면 결행 준비 +1, 노출 -1 (전단 살포), 경찰 안 붙음")
 	var gd2 := _gd(func(d): d.missions["types"]["sabotage"]["condition"]["target"] = 99)
 	var g9 := _new(["park", "han", "oh", "seo"], gd2)
 	g9.mission_row = ["m_leaflets"]
 	_tile(g9, Vector2i(5, 6), "sabotage")
 	_turn(g9, 0, 3)
-	_step(g9, 0, Vector2i(5, 6))
+	_step(g9, 0, Vector2i(5, 6), false)
+	_mcheck(g9, 0)
 	ok(g9.ready == 0 and g9.police.has(0) and g9.mission_row.size() == 1, "방해: 실패하면 경찰이 붙고 미션은 그대로")
 	# 이루면 아이템 한 장 (쌀 창고 열기)
 	var g10 := _new(["park", "han", "oh", "seo"], gd)
 	g10.mission_row = ["m_open_rice"]
 	_tile(g10, Vector2i(5, 6), "sabotage")
 	_turn(g10, 0, 3)
-	_step(g10, 0, Vector2i(5, 6))
+	_step(g10, 0, Vector2i(5, 6), false)
+	_mcheck(g10, 0)
 	ok(g10.players[0]["items"].size() == 1, "쌀 창고 열기: 이루면 아이템 1장")
 	# 누구든 이룰 수 있다
 	var g11 := _new(["park", "han", "oh", "seo"])
@@ -645,7 +703,7 @@ func _test_police_and_jail() -> void:
 	_tile(g3, Vector2i(5, 4), "normal")
 	g3.police[0] = {"pos": Vector2i(9, 9), "summon_turn": 0}
 	_turn(g3, 0, 1)
-	g3.apply({"type": "end_move", "player": 0})
+	_end(g3, 0)
 	# 거리 9, 속도 2 → 7 남음 > 3 → 따돌림
 	ok(not g3.police.has(0), "경찰: 거리가 멀어지면 따돌림")
 	# 붙은 차례에는 안 움직임
@@ -653,7 +711,7 @@ func _test_police_and_jail() -> void:
 	_tile(g4, Vector2i(5, 6), "normal")
 	g4.police[0] = {"pos": Vector2i(5, 6), "summon_turn": g4.players[0]["turns"] + 1}
 	_turn(g4, 0, 1)
-	g4.apply({"type": "end_move", "player": 0})
+	_end(g4, 0)
 	ok(not g4.players[0]["jailed"], "경찰: 방금 붙은 경찰은 이번 차례에 움직이지 않음 (summon_turn)")
 	# 경찰 속도
 	var g5 := _new(["park", "han", "oh", "seo"])
@@ -671,24 +729,35 @@ func _test_escape_and_spare() -> void:
 	var g := _new(["park", "han", "oh", "seo"], gd)
 	g.players[0]["jailed"] = true
 	g.players[0]["pos"] = g.data.bases[0]
+	var e0 := _spare(g, 3, 0)
 	g.apply({"type": "begin_turn", "player": 0})
 	ok(g.phase == "turn" and g.steps_left == 0, "탈옥: 갇힌 요원의 차례는 이동 없이 시작")
 	ok(not g.apply({"type": "step", "player": 0, "to": g.data.bases[0] + Vector2i(1, 0)}), "탈옥: 갇힌 요원은 이동 못 함")
-	ok(g.apply({"type": "escape", "player": 0}), "탈옥: 탈옥 판정을 시도 (주사위가 없으면 곧바로 굴림)")
-	ok(not g.players[0]["jailed"] and g.police.has(0) and g.players[0]["done_today"], "탈옥: 성공하면 풀려나 경찰이 붙고 차례가 끝남")
+	ok(not g.apply({"type": "move_die", "player": 0, "die": e0}), "탈옥: 갇힌 요원은 이동 행동도 못 함")
+	ok(not g.apply({"type": "escape", "player": 0}), "탈옥: 주사위를 내지 않고는 판정하지 못함")
+	ok(g.apply({"type": "escape", "player": 0, "die": e0}) and g.op_dice[e0]["used"], "탈옥: 작전 판정은 주사위 하나를 내는 행동")
+	ok(not g.players[0]["jailed"] and g.police.has(0), "탈옥: 성공하면 풀려나 경찰이 붙음")
+	ok(g.phase == "turn" and g.current == 0 and not g.players[0]["done_today"], "탈옥: 성공해도 차례는 이어짐 (남은 주사위로 더 할 수 있음)")
+	_end(g, 0)
+	ok(g.players[0]["done_today"], "탈옥: 차례 마치기로 끝")
 	var gd2 := _gd(func(d): d.rules["checks"]["escape"] = 99)
 	var g2 := _new(["park", "han", "oh", "seo"], gd2)
 	g2.players[0]["jailed"] = true
 	g2.players[0]["pos"] = g2.data.bases[0]
+	var f1 := _spare(g2, 3, 0)
+	var f2 := _spare(g2, 4, 0)
 	g2.apply({"type": "begin_turn", "player": 0})
-	g2.apply({"type": "escape", "player": 0})
-	ok(g2.players[0]["jailed"] and g2.players[0]["done_today"], "탈옥: 실패하면 그대로 갇히고 차례가 끝남")
+	g2.apply({"type": "escape", "player": 0, "die": f1})
+	ok(g2.players[0]["jailed"] and g2.phase == "turn" and not g2.players[0]["done_today"], "탈옥: 실패하면 그대로 갇힘 (차례는 이어짐)")
+	ok(g2.apply({"type": "escape", "player": 0, "die": f2}) and g2.op_dice[f2]["used"], "탈옥: 실패해도 다른 주사위로 또 판정할 수 있음 (또 한 행동)")
+	ok(not g2.apply({"type": "escape", "player": 0, "die": f1}), "탈옥: 쓴 주사위로는 못 함")
+	ok(not g2.legal_actions().any(func(a): return a["type"] == "escape"), "탈옥: 주사위가 없으면 판정할 수 없음")
 	var g3 := _new(["park", "han", "oh", "seo"], gd2)
 	g3.players[0]["jailed"] = true
 	g3.players[0]["pos"] = g3.data.bases[0]
 	g3.apply({"type": "begin_turn", "player": 0})
 	ok(g3.apply({"type": "end_turn", "player": 0}) and g3.players[0]["done_today"], "탈옥: 포기하고 차례를 마칠 수 있음")
-	# 작전 판정: 주사위를 고르면 눈 + 1d6 (목표 13, 박 하사 +3 → 주사위 6 + 1d6 + 3 ≥ 10이면 늘 성공... 1d6 최소 1이면 10)
+	# 작전 판정은 낸 눈 + 새 주사위 1개 (목표 10, 박 하사 +3 → 눈 6 + 1d6 + 3 ≥ 10이라 늘 성공)
 	var gd3 := _gd(func(d): d.rules["checks"]["escape"] = 10)
 	var g4 := _new(["park", "han", "oh", "seo"], gd3)
 	g4.players[0]["jailed"] = true
@@ -696,40 +765,31 @@ func _test_escape_and_spare() -> void:
 	var six := _spare(g4, 6, 0)
 	var two := _spare(g4, 2, 0)
 	g4.apply({"type": "begin_turn", "player": 0})
-	g4.apply({"type": "escape", "player": 0})
-	ok(g4.phase == "choice" and g4.pending["kind"] == "check_die", "작전 판정: 주사위가 있으면 어느 주사위로 할지 묻는다")
-	var vals: Array = g4.pending["options"].map(func(o): return o["value"])
-	ok(("die:%d" % six) in vals and ("die:%d" % two) in vals and "roll" in vals, "작전 판정: 내 주사위마다 + 주사위 없이 굴리기")
-	ok(absf(g4.check_chance(g4.check, 6) - 1.0) < 0.001 and g4.check_chance(g4.check, 2) < 0.7, "작전 판정: check_chance (눈 6이면 확실, 눈 2면 아님)")
-	_answer(g4, "die:%d" % six)
+	var acts := g4.legal_actions().filter(func(a): return a["type"] == "escape")
+	ok(acts.size() == 2 and g4.phase == "turn", "작전 판정: 주사위마다 탈옥 행동이 하나씩 (선택 창은 없음)")
+	var pv := g4.check_preview(g4.players[0], {"type": "escape", "die": six})
+	ok(int(pv["target"]) == 10 and int(pv["bonus"]) == 3, "작전 판정: check_preview는 목표와 보정(박 하사 +3)")
+	ok(absf(g4.check_chance(pv, 6) - 1.0) < 0.001 and g4.check_chance(pv, 2) < 0.7, "작전 판정: check_chance (눈 6이면 확실, 눈 2면 아님)")
+	g4.apply({"type": "escape", "player": 0, "die": six})
 	ok(not g4.players[0]["jailed"] and g4.op_dice[six]["used"] and not g4.op_dice[two]["used"], "작전 판정: 고른 주사위만 쓰고 눈 6 + 1d6 + 3 ≥ 10이라 성공")
 	var last_dice: Array = []
 	for e in g4.events:
 		if e.get("kind", "") == "dice":
 			last_dice = e["dice"]
-	ok(last_dice.size() == 1 + int(g4.data.rules["op_check_dice"]) and int(last_dice[0]) == 6, "작전 판정: 굴림 기록은 [고른 눈, 새 주사위]")
-	# 실패하면 남은 주사위로 다시
+	ok(last_dice.size() == 1 + int(g4.data.rules["op_check_dice"]) and int(last_dice[0]) == 6, "작전 판정: 굴림 기록은 [낸 눈, 새 주사위]")
+	# 다시 굴릴 권리가 있으면 실패 뒤에 쓸지 묻는다
 	var g5 := _new(["han", "oh", "seo", "mun"], gd2)
 	g5.players[0]["jailed"] = true
 	g5.players[0]["pos"] = g5.data.bases[0]
+	g5.players[0]["grants"] = [{"kind": "reroll", "value": 0, "scope": "any"}]
 	var r1 := _spare(g5, 3, 0)
-	var r2 := _spare(g5, 4, 0)
 	g5.apply({"type": "begin_turn", "player": 0})
-	g5.apply({"type": "escape", "player": 0})
-	_answer(g5, "die:%d" % r1)
-	ok(g5.phase == "choice" and g5.pending["kind"] == "reroll" and ("die:%d" % r2) in g5.pending["options"].map(func(o): return o["value"]),
-		"다시 하기: 실패하면 남은 주사위로 다시 할지 묻는다")
-	_answer(g5, "die:%d" % r2)
-	ok(g5.op_dice[r2]["used"] and g5.players[0]["jailed"] and g5.players[0]["done_today"], "다시 하기: 남은 주사위를 쓰고 다시 판정 (목표 99라 실패, 차례 끝)")
-	# 주사위 없이 굴리기
-	var g6 := _new(["park", "han", "oh", "seo"], gd)
-	g6.players[0]["jailed"] = true
-	g6.players[0]["pos"] = g6.data.bases[0]
-	var k := _spare(g6, 5, 0)
-	g6.apply({"type": "begin_turn", "player": 0})
-	g6.apply({"type": "escape", "player": 0})
-	_answer(g6, "roll")
-	ok(not g6.players[0]["jailed"] and not g6.op_dice[k]["used"], "작전 판정: 주사위 없이 굴리면 주사위는 남음")
+	g5.apply({"type": "escape", "player": 0, "die": r1})
+	ok(g5.phase == "choice" and g5.pending["kind"] == "reroll" and g5.pending["options"].map(func(o): return o["value"]) == ["no", "grant"],
+		"다시 하기: 실패하면 다시 굴릴 권리를 쓸지 묻는다 (주사위로 다시 하는 선택지는 없음)")
+	_answer(g5, "grant")
+	ok(g5.players[0]["grants"].is_empty() and g5.players[0]["jailed"] and g5.phase == "turn", "다시 하기: 권리를 쓰고 다시 판정 (목표 99라 실패, 차례는 이어짐)")
+	ok(g5.legal_actions().filter(func(a): return a["type"] == "choose").is_empty(), "작전 판정: check_die 선택 창은 없음")
 
 
 func _test_alert_dispatch() -> void:
@@ -775,13 +835,17 @@ func _test_hand_limit_and_draw_pick() -> void:
 	g3.players[1]["pos"] = Vector2i(5, 6)
 	g3.players[0]["items"] = ["train_ticket"]
 	g3.players[1]["items"] = ["smoke_bomb", "safety_pin"]
-	_turn(g3, 0, 2)
-	ok(g3.apply({"type": "give_item", "player": 0, "index": 0, "to": 1}), "건네기: 옆 칸 동료에게 건넴")
+	_turn(g3, 0, 0)
+	ok(g3.give_options(g3.players[0]).is_empty(), "건네기: 주사위가 없으면 아이템을 건넬 수 없음 (건네기는 행동)")
+	var gv := _spare(g3, 2, 0)
+	ok(not g3.apply({"type": "give_item", "player": 0, "index": 0, "to": 1}), "건네기: 주사위를 내지 않고는 못 건넴")
+	ok(g3.apply({"type": "give_item", "player": 0, "die": gv, "index": 0, "to": 1}), "건네기: 옆 칸 동료에게 건넴")
+	ok(g3.op_dice[gv]["used"], "건네기: 주사위 하나를 씀 (눈은 상관없음)")
 	ok(g3.phase == "choice" and g3.pending["player"] == 1 and g3.pending["kind"] == "discard", "건네기: 받은 쪽이 한도를 넘으면 그 요원이 버릴 카드를 고름")
 	ok(not g3.apply({"type": "choose", "player": 0, "value": 0}), "건네기: 선택은 맡은 요원만 보낼 수 있음")
 	_answer(g3, 0)
-	ok(g3.phase == "turn" and g3.players[0]["item_uses"] == 1, "건네기: 아이템 사용 1회로 셈")
-	ok(g3.give_options(g3.players[0]).is_empty(), "건네기: 사용 횟수를 넘으면 더 못 건넴")
+	ok(g3.phase == "turn" and g3.players[0]["item_uses"] == 0, "건네기: 아이템 사용 횟수에는 세지 않음 (공짜 아이템 1장은 그대로)")
+	ok(g3.give_options(g3.players[0]).is_empty(), "건네기: 주사위를 다 쓰면 더 못 건넴")
 	# 사용
 	var g4 := _new(["park", "han", "oh", "seo"])
 	g4.players[0]["items"] = ["train_ticket", "forged_pass"]
@@ -803,7 +867,7 @@ func _test_stat_sum() -> void:
 	var g := _new(["park", "oh", "han", "seo"])
 	ok(g.stat(g.players[0], "escape_bonus") == 3, "stat: 박 하사 탈옥 +3 (특성)")
 	g.players[1]["items"] = ["telescope"]
-	ok(g.stat(g.players[1], "assassin_rerolls") == 1 and g.stat(g.players[1], "assassin_bonus") == 1, "stat: 특성과 지속 아이템을 합산 (저격수 오 + 망원경)")
+	ok(g.stat(g.players[1], "assassin_adjacent") == 1 and g.stat(g.players[1], "assassin_bonus") == 1, "stat: 특성과 지속 아이템을 합산 (저격수 오 + 망원경)")
 	g.players[1]["items"] = ["telescope", "western_suit"]
 	ok(g.stat(g.players[1], "evade_bonus") == 2, "stat: 양장 회피 +2")
 	ok(g.stat(g.players[2], "mission_intel_bonus", "infiltrate") == 0, "stat: 없는 특성은 0")
@@ -816,7 +880,8 @@ func _test_stat_sum() -> void:
 	g3.mission_row = ["m_police_chief"]
 	_tile(g3, Vector2i(5, 6), "assassin")
 	_turn(g3, 0, 4)
-	_step(g3, 0, Vector2i(5, 6))
+	_step(g3, 0, Vector2i(5, 6), false)
+	_mcheck(g3, 0)
 	var last_dice: Dictionary = {}
 	for e in g3.events:
 		if e["kind"] == "dice" and e["what"] == "암살":
@@ -897,15 +962,37 @@ func _test_coop_actions() -> void:
 	var g := _new(["park", "han", "oh", "seo"])
 	g.players[1]["pos"] = Vector2i(5, 7)
 	g.police[1] = {"pos": Vector2i(5, 8), "summon_turn": 0}
-	_turn(g, 0, 2)
-	ok(g.apply({"type": "decoy", "player": 0, "from": 1}), "미끼: 3칸 안 동료를 쫓던 경찰을 나에게로")
+	for y in range(6, 10):
+		_tile(g, Vector2i(5, y), "normal")
+	_turn(g, 0, 0)
+	ok(g.decoy_options(g.players[0]).is_empty(), "미끼: 주사위가 없으면 못 함 (미끼는 행동)")
+	var dd := _spare(g, 2, 0)
+	ok(not g.apply({"type": "decoy", "player": 0, "from": 1}), "미끼: 주사위를 내지 않고는 못 함")
+	ok(g.apply({"type": "decoy", "player": 0, "die": dd, "from": 1}), "미끼: 3칸 안 동료를 쫓던 경찰을 나에게로")
+	ok(g.op_dice[dd]["used"], "미끼: 주사위 하나를 씀")
 	ok(g.police.has(0) and not g.police.has(1) and g.police[0]["pos"] == Vector2i(5, 8), "미끼: 경찰이 내게 붙고 그 자리 그대로")
-	ok(not g.apply({"type": "decoy", "player": 0, "from": 1}), "미끼: 이미 쫓기는 중이거나 대상이 없으면 불가")
-	# 거리 밖
+	ok(not g.apply({"type": "decoy", "player": 0, "die": _spare(g, 2, 0), "from": 1}), "미끼: 이미 쫓기는 중이거나 대상이 없으면 불가")
+	# 거리 밖: 깔린 칸을 따라 걷는 거리로 잼
 	var g2 := _new(["park", "han", "oh", "seo"])
+	for y in range(6, 10):
+		_tile(g2, Vector2i(5, y), "normal")
 	g2.police[1] = {"pos": Vector2i(5, 9), "summon_turn": 0}
-	_turn(g2, 0, 2)
-	ok(g2.decoy_options(g2.players[0]).is_empty(), "미끼: 거리가 멀면 불가")
+	_turn(g2, 0, 0)
+	_spare(g2, 2, 0)
+	ok(g2.decoy_options(g2.players[0]).is_empty(), "미끼: 거리가 멀면 불가 (걸어서 4칸)")
+	var g2b := _new(["park", "han", "oh", "seo"])
+	for c in [Vector2i(5, 4), Vector2i(5, 3)]:
+		_tile(g2b, c, "normal")
+	g2b.police[1] = {"pos": Vector2i(5, 3), "summon_turn": 0}
+	_turn(g2b, 0, 0)
+	_spare(g2b, 2, 0)
+	ok(not g2b.decoy_options(g2b.players[0]).is_empty(), "미끼: 걸어서 2칸이면 가능")
+	var g2c := _new(["park", "han", "oh", "seo"])
+	_tile(g2c, Vector2i(5, 3), "normal")
+	g2c.police[1] = {"pos": Vector2i(5, 3), "summon_turn": 0}
+	_turn(g2c, 0, 0)
+	_spare(g2c, 2, 0)
+	ok(g2c.decoy_options(g2c.players[0]).is_empty(), "미끼: 직선으로는 2칸이어도 깔린 길이 이어지지 않으면 걸어서 닿지 않아 불가")
 	# 능력 하루 한 번
 	var g3 := _new(["yun", "han", "oh", "seo"])
 	g3.phase = "plan"
@@ -1320,10 +1407,11 @@ func _test_item_cards() -> void:
 	g.players[0]["jailed"] = true
 	g.players[0]["pos"] = g.data.bases[2]
 	g.players[0]["items"] = ["safety_pin"]
-	_turn(g, 0, 2)
+	_turn(g, 0, 0)
+	var pin_die := _spare(g, 2, 0)
 	ok(g.apply({"type": "use_item", "player": 0, "index": 0}), "아이템 옷핀: 갇혔을 때 씀")
 	_cov("item", "safety_pin")
-	ok(g.apply({"type": "escape", "player": 0}) and not g.players[0]["jailed"], "아이템 옷핀: 판정 없이 바로 탈출 (탈옥 목표 99여도)")
+	ok(g.apply({"type": "escape", "player": 0, "die": pin_die}) and not g.players[0]["jailed"], "아이템 옷핀: 판정 없이 바로 탈출 (탈옥 목표 99여도)")
 	g = _new(CH)
 	g.players[0]["items"] = ["safety_pin"]
 	_turn(g, 0, 2)
@@ -1397,7 +1485,8 @@ func _test_item_cards() -> void:
 	_tile(g, Vector2i(5, 6), "assassin")
 	g.players[0]["items"] = ["telescope"]
 	_turn(g, 0, 2)
-	_step(g, 0, Vector2i(5, 6))
+	_step(g, 0, Vector2i(5, 6), false)
+	_mcheck(g, 0)
 	_cov("item", "telescope")
 	ok(_last_dice(g, "암살").get("bonus", -1) == 1, "아이템 망원경: 암살 판정 +1")
 	# 양장: 회피 판정 +2
@@ -1425,8 +1514,8 @@ func _test_traits() -> void:
 	g = _new(["park", "han", "oh", "seo"], gd_e)
 	g.players[0]["jailed"] = true
 	g.players[0]["pos"] = g.data.bases[2]
-	_turn(g, 0, 2)
-	g.apply({"type": "escape", "player": 0})
+	_turn(g, 0, 0)
+	g.apply({"type": "escape", "player": 0, "die": _spare(g, 2, 0)})
 	ok(_last_dice(g, "탈옥").get("bonus", -1) == 3, "특성 박 하사(escape_bonus): 탈옥 판정 +3")
 	_cov("trait", "park")
 
@@ -1438,15 +1527,23 @@ func _test_traits() -> void:
 	g = _new(["oh", "han", "park", "seo"], gda)
 	g.mission_row = ["m_police_chief"]
 	_tile(g, Vector2i(5, 6), "assassin")
-	_turn(g, 0, 2)
-	_step(g, 0, Vector2i(5, 6))
-	ok(_count_dice(g, "암살") == 2, "특성 오 의병(assassin_rerolls): 암살 실패하면 자동으로 한 번 더 굴림")
+	_turn(g, 0, 0)
+	var ohd := _spare(g, 6, 0)
+	ok(g.mission_check_cells(g.players[0]) == [Vector2i(5, 6)], "특성 오 의병(assassin_adjacent): 옆 칸의 암살 표적에서도 판정할 수 있음")
+	ok(g.apply({"type": "mission_check", "player": 0, "die": ohd, "cell": Vector2i(5, 6)}) and g.players[0]["pos"] == START and _count_dice(g, "암살") == 1,
+		"특성 오 의병: 옆 칸에서 쏜다 (내 자리는 그대로, 실패해도 자동으로 다시 굴리지 않음)")
 	var g2 := _new(["park", "han", "oh", "seo"], gda)
 	g2.mission_row = ["m_police_chief"]
 	_tile(g2, Vector2i(5, 6), "assassin")
-	_turn(g2, 0, 2)
-	_step(g2, 0, Vector2i(5, 6))
-	ok(_count_dice(g2, "암살") == 1, "특성 오 의병: 다른 요원은 한 번만 굴림 (대조)")
+	_turn(g2, 0, 0)
+	_spare(g2, 6, 0)
+	ok(g2.mission_check_cells(g2.players[0]).is_empty(), "특성 오 의병: 다른 요원은 옆 칸에서 판정할 수 없음 (대조)")
+	var g2b := _new(["oh", "han", "park", "seo"], gda)
+	g2b.mission_row = ["m_leaflets"]
+	_tile(g2b, Vector2i(5, 6), "sabotage")
+	_turn(g2b, 0, 0)
+	_spare(g2b, 6, 0)
+	ok(g2b.mission_check_cells(g2b.players[0]).is_empty(), "특성 오 의병: 옆 칸에서는 암살 판정만 (방해는 제자리에서)")
 	_cov("trait", "oh")
 
 	g = _new(["seok", "han", "oh", "seo"])
@@ -1460,7 +1557,8 @@ func _test_traits() -> void:
 	g.exposure = 2
 	_tile(g, Vector2i(5, 6), "sabotage")
 	_turn(g, 0, 2)
-	_step(g, 0, Vector2i(5, 6))
+	_step(g, 0, Vector2i(5, 6), false)
+	_mcheck(g, 0)
 	ok(_last_dice(g, "회피").get("bonus", -1) == 2, "특성 문 선전대원(sabotage_bonus): 방해 판정 +2")
 	ok(g.exposure == 1 and g.ready == 1 and g.intel["prison"] == 1, "특성 문 선전대원(sabotage_exposure): 방해에 성공하면 노출 -1")
 	g2 = _new(["park", "han", "oh", "seo"], gds)
@@ -1468,7 +1566,8 @@ func _test_traits() -> void:
 	g2.exposure = 2
 	_tile(g2, Vector2i(5, 6), "sabotage")
 	_turn(g2, 0, 2)
-	_step(g2, 0, Vector2i(5, 6))
+	_step(g2, 0, Vector2i(5, 6), false)
+	_mcheck(g2, 0)
 	ok(g2.exposure == 2, "특성 문 선전대원: 다른 요원은 노출이 그대로 (대조)")
 	_cov("trait", "mun")
 
@@ -1515,23 +1614,29 @@ func _test_traits() -> void:
 	ok(g.police.has(0), "특성 서 마담: 회피에 실패하면 경찰이 붙음")
 	_cov("trait", "seo")
 
-	# 이 차장: 동료 옆 빈칸으로 한 칸
+	# 이 차장: 차례를 마칠 때 동료가 있는 옆 칸으로 한 칸
 	g = _new(["lee", "han", "oh", "seo"])
-	_lay(g, [Vector2i(5, 6), Vector2i(5, 7)])
-	g.players[1]["pos"] = Vector2i(5, 8)
-	_lay(g, [Vector2i(5, 8)])
-	_turn(g, 0, 1)
-	_step(g, 0, Vector2i(5, 6))
-	ok(g.phase == "choice" and g.pending["kind"] == "hop" and g.pending["options"].size() == 2, "특성 이 차장(end_move_hop_to_ally): 이동이 끝나면 동료 옆 빈칸으로 옮길지 묻는다")
-	_answer(g, Vector2i(5, 7))
-	ok(g.players[0]["pos"] == Vector2i(5, 7) and g.players[0]["done_today"], "특성 이 차장: 옮기면 동료 옆에 서고 차례가 끝남")
+	_lay(g, [Vector2i(5, 6), Vector2i(5, 4)])
+	g.players[1]["pos"] = Vector2i(5, 6)
+	_turn(g, 0, 0)
+	ok(g.hop_cells(g.players[0]) == [Vector2i(5, 6)], "특성 이 차장(end_move_hop_to_ally): 동료가 있는 옆 칸만 후보 (동료 없는 옆 칸은 아님)")
+	g.apply({"type": "end_turn", "player": 0})
+	ok(g.phase == "choice" and g.pending["kind"] == "hop" and g.pending["options"].size() == 2, "특성 이 차장: 차례를 마칠 때 동료가 있는 옆 칸으로 옮길지 묻는다")
+	_answer(g, Vector2i(5, 6))
+	ok(g.players[0]["pos"] == Vector2i(5, 6) and g.players[0]["done_today"] and g.phase == "day", "특성 이 차장: 옮기면 동료와 같은 칸에 서고 차례가 끝남")
 	g = _new(["lee", "han", "oh", "seo"])
-	_lay(g, [Vector2i(5, 6), Vector2i(5, 7), Vector2i(5, 8)])
-	g.players[1]["pos"] = Vector2i(5, 8)
-	_turn(g, 0, 1)
-	_step(g, 0, Vector2i(5, 6))
+	_lay(g, [Vector2i(5, 6)])
+	g.players[1]["pos"] = Vector2i(5, 6)
+	_turn(g, 0, 0)
+	g.apply({"type": "end_turn", "player": 0})
 	_answer(g, "no")
-	ok(g.players[0]["pos"] == Vector2i(5, 6) and g.players[0]["done_today"], "특성 이 차장: 옮기지 않아도 됨")
+	ok(g.players[0]["pos"] == START and g.players[0]["done_today"], "특성 이 차장: 옮기지 않아도 됨")
+	g = _new(["lee", "han", "oh", "seo"])
+	_lay(g, [Vector2i(5, 6)])
+	g.players[1]["pos"] = Vector2i(5, 6)
+	g.police[2] = {"pos": Vector2i(5, 6), "summon_turn": 0}
+	_turn(g, 0, 0)
+	ok(g.hop_cells(g.players[0]).is_empty(), "특성 이 차장: 경찰이 있는 칸으로는 못 옮김")
 	_cov("trait", "lee")
 
 	# 데이터에 직접 넣어 보는 나머지 stat (이 판의 카드에는 아직 없는 것들)
@@ -1636,7 +1741,8 @@ func _test_abilities() -> void:
 	_tile(g, Vector2i(5, 6), "normal")
 	g.players[1]["pos"] = Vector2i(3, 3)
 	_turn(g, 0, 2)
-	ok(g.apply({"type": "ability", "player": 0, "target": 1}) and g.players[1]["pos"] == Vector2i(5, 6), "능력 길 안내: 동료를 내 옆 칸으로 데려옴")
+	ok(g.apply({"type": "ability", "player": 0, "target": 1}) and g.players[1]["pos"] == START, "능력 길 안내: 동료를 내 칸으로 데려옴")
+	ok(g.phase == "turn" and not g.players[1]["done_today"] and g.exposure == 0, "능력 길 안내: 데려온 칸의 효과는 없음 (차례도 그대로)")
 	_cov("ability", "gaeddong")
 
 	# 주모 막례: 아이템을 거저 줌 (사용으로 안 침)
@@ -1662,6 +1768,7 @@ func _test_abilities() -> void:
 
 	# 정 인쇄공: 3칸 안의 동료에게 내 주사위 하나를 건넴 (하루 건네기 횟수에 안 셈)
 	g = _new(["jeong", "han", "oh", "seo"])
+	_flat(g)
 	g.players[1]["pos"] = Vector2i(5, 7)
 	g.players[2]["pos"] = Vector2i(5, 9)
 	g.players[3]["pos"] = Vector2i(9, 9)
@@ -1678,8 +1785,18 @@ func _test_abilities() -> void:
 	g = _new(["jeong", "han", "oh", "seo"])
 	var one := _spare(g, 5, 0)
 	g.players[1]["pos"] = Vector2i(5, 6)
+	_flat(g)
 	_turn(g, 0, 0)
 	ok(g.apply({"type": "ability", "player": 0, "target": 1}) and g.phase == "turn" and g.op_dice[one]["owner"] == 1, "능력 연락망: 주사위가 하나뿐이면 묻지 않고 건넴")
+	g.players[1]["done_today"] = true
+	g.players[1]["jailed"] = false
+	var g_late := _new(["jeong", "han", "oh", "seo"])
+	_flat(g_late)
+	_spare(g_late, 5, 0)
+	g_late.players[1]["pos"] = Vector2i(5, 6)
+	g_late.players[1]["done_today"] = true
+	_turn(g_late, 0, 0)
+	ok(not g_late.ability_targets(g_late.players[0]).has(1), "능력 연락망: 이미 차례를 마친 동료에게는 건넬 수 없음")
 	g = _new(["jeong", "han", "oh", "seo"])
 	_turn(g, 0, 0)
 	ok(g.ability_targets(g.players[0]).is_empty(), "능력 연락망: 건넬 주사위가 없으면 쓸 수 없음")
@@ -1703,31 +1820,43 @@ func _test_abilities() -> void:
 	g.players[2]["pos"] = Vector2i(9, 9)
 	g.players[3]["pos"] = Vector2i(9, 9)
 	var jd := _spare(g, 6, 0)
+	_flat(g)
 	_turn(g, 0, 0)
 	ok(g.ability_targets(g.players[0]) == [1] and g.apply({"type": "ability", "player": 0, "target": 1}) and jd in g.my_dice(1), "능력 연락망: 감옥의 동료에게도 건넴")
 
 	# 서 마담: 3칸 안의 거점 하나에 첩보 +1, 노출 +1
 	g = _new(["seo", "han", "oh", "park"])
+	_flat(g)
+	_spare(g, 3, 0)
 	_turn(g, 0, 0)
 	ok(g.ability_targets(g.players[0]).is_empty(), "능력 다방 밀담: 3칸 안에 거점이 없으면 쓸 수 없음")
 	g = _new(["seo", "han", "oh", "park"])
+	_flat(g)
 	g.players[0]["pos"] = Vector2i(2, 2)
 	_turn(g, 0, 0)
+	ok(g.ability_targets(g.players[0]).is_empty() and g.legal_actions().filter(func(a): return a["type"] == "ability").is_empty(),
+		"능력 다방 밀담: 주사위가 없으면 쓸 수 없음 (주사위 하나를 내는 능력)")
+	var sd := _spare(g, 3, 0)
+	var sd2 := _spare(g, 5, 0)
 	ok(g.ability_targets(g.players[0]) == [-1], "능력 다방 밀담: 거점이 3칸 안에 있으면 쓸 수 있음 (대상 없이)")
-	ok(g.apply({"type": "ability", "player": 0}) and g.phase == "turn" and g.intel["barracks"] == 1 and g.exposure == 1 and g.players[0]["ability_day"] == g.day,
+	ok(not g.apply({"type": "ability", "player": 0}), "능력 다방 밀담: 주사위를 내지 않고는 못 씀")
+	ok(g.apply({"type": "ability", "player": 0, "die": sd}) and g.phase == "turn" and g.intel["barracks"] == 1 and g.exposure == 1 and g.players[0]["ability_day"] == g.day,
 		"능력 다방 밀담: 가까운 거점이 하나뿐이면 곧바로 첩보 +1, 노출 +1")
+	ok(g.op_dice[sd]["used"] and not g.op_dice[sd2]["used"], "능력 다방 밀담: 주사위 하나를 냄")
 	var intel_sum := 0
 	for id in g.intel:
 		intel_sum += int(g.intel[id])
 	ok(intel_sum == 1 and not g.can_use_ability(g.players[0], -1), "능력 다방 밀담: 다른 거점은 그대로, 하루 한 번")
 	_cov("ability", "seo")
 	g = _new(["seo", "han", "oh", "park"])
+	_flat(g)
 	g.players[0]["pos"] = Vector2i(3, 2)
 	g.exposure = 2
 	_turn(g, 0, 0)
-	g.apply({"type": "ability", "player": 0})
+	g.apply({"type": "ability", "player": 0, "die": _spare(g, 3, 0)})
 	ok(g.exposure == 3 and g.alert_level() == 2 and g.police.size() == 1, "능력 다방 밀담: 노출이 문턱에 닿으면 경계 단계가 오르고 경찰이 출동")
 	g = _new(["seo", "han", "oh", "park"])
+	_flat(g)
 	g.players[0]["pos"] = Vector2i(5, 1)
 	_fx(g, 0, [{"op": "intel", "base": "choose", "range": 4, "value": 1}])
 	ok(g.phase == "choice" and g.pending["kind"] == "intel_base" and g.pending["options"].size() == 2, "효과 intel(choose + range): 그 안의 거점 둘 중에서 고름")
@@ -1777,10 +1906,14 @@ func _test_coop_missions() -> void:
 	g.players[2]["done_today"] = true
 	g.players[3]["done_today"] = true
 	_turn(g, 0, 2)
-	_step(g, 0, Vector2i(5, 6))
+	_step(g, 0, Vector2i(5, 6), false)
+	_mcheck(g, 0)
+	_end(g, 0)
 	ok(g.exposure == 1 and g.ready == 0 and g.players[0]["done_today"] and g.today["assassin_wins"].size() == 1, "협동 동시 습격: 협동 미션만 줄에 있어도 암살 타일에서 판정, 성공하면 노출 +1")
 	_turn(g, 1, 2)
-	_step(g, 1, Vector2i(6, 5))
+	_step(g, 1, Vector2i(6, 5), false)
+	_mcheck(g, 1)
+	_end(g, 1)
 	_cov("coop", "m_simul_strike")
 	ok(g.ready == 3 and g.mission_discard.has("m_simul_strike"), "협동 동시 습격: 밤에 이뤄져 결행 준비 +3")
 	ok(g.day == 2 and g.phase in ["plan", "choice"], "협동 동시 습격: 밤이 지나 다음 날 아침이 됨")
@@ -1791,7 +1924,9 @@ func _test_coop_missions() -> void:
 	for i in [1, 2, 3]:
 		g.players[i]["done_today"] = true
 	_turn(g, 0, 2)
-	_step(g, 0, Vector2i(5, 6))
+	_step(g, 0, Vector2i(5, 6), false)
+	_mcheck(g, 0)
+	_end(g, 0)
 	ok(g.mission_row.has("m_simul_strike") and g.ready == 0, "협동 동시 습격: 한 명만 성공하면 안 이뤄짐")
 	# 암살 타일이 모자라면 줄에서 빠짐
 	g = _new(CH)
@@ -2035,7 +2170,7 @@ func _end_here(g: RulesV2, pid: int) -> void:
 	## 이 자리에서 차례를 마친다
 	g.players[pid]["done_today"] = false
 	_turn(g, pid, 1)
-	g.apply({"type": "end_move", "player": pid})
+	_end(g, pid)
 
 
 func _walk(g: RulesV2, pid: int, from: Vector2i, to: Vector2i, die := 2, finish := true) -> void:
@@ -2049,7 +2184,7 @@ func _walk(g: RulesV2, pid: int, from: Vector2i, to: Vector2i, die := 2, finish 
 	_turn(g, pid, die)
 	_step(g, pid, to)
 	if finish and g.phase == "turn" and g.current == pid:
-		g.apply({"type": "end_move", "player": pid})
+		_end(g, pid)
 
 
 func _answer_all(g: RulesV2, idx := 0) -> int:
@@ -2142,6 +2277,7 @@ func _test_saga_cards() -> void:
 	# 어머니의 소식: 종로경찰서 3칸 안, 쫓기지 않고 차례를 마침
 	var g := _new(CH)
 	_give(g, 0, ["mother"])
+	_flat(g)
 	var hq := _base(g, "police_hq")
 	g.players[0]["pos"] = hq + Vector2i(-2, 1)
 	g.police[0] = {"pos": Vector2i(0, 10), "summon_turn": 99}
@@ -2182,7 +2318,7 @@ func _test_saga_cards() -> void:
 	_step(g, 0, Vector2i(0, 5))
 	_step(g, 0, Vector2i(0, 6))
 	_step(g, 0, Vector2i(0, 7))
-	g.apply({"type": "end_move", "player": 0})
+	_end(g, 0)
 	ok(g.saga_progress(0)["secret_letter"] == {"have": 1, "need": 2}, "사연 밀서 전달: 한 차례에 가장자리 여러 칸을 밟아도 1번")
 	_walk(g, 0, Vector2i(0, 7), Vector2i(0, 8))
 	ok(g.players[0]["saga_done"] == "secret_letter" and g.exposure == 2, "사연 밀서 전달: 두 번째 차례에 이룸, 노출 -2")
@@ -2234,8 +2370,8 @@ func _test_saga_cards() -> void:
 	g.players[1]["items"] = ["train_ticket", "pocket_watch"]
 	g.players[0]["items"] = ["telegram"]
 	g.players[0]["pos"] = Vector2i(5, 6)
-	_turn(g, 0, 2)
-	g.apply({"type": "give_item", "player": 0, "index": 0, "to": 1})
+	_turn(g, 0, 0)
+	g.apply({"type": "give_item", "player": 0, "die": _spare(g, 2, 0), "index": 0, "to": 1})
 	ok(g.players[1]["saga_done"] == "financier", "사연 자금책: 동료가 건넨 아이템도 센다")
 
 	# 노름꾼: 굴린 눈 6을 가져간 날 세 번. 내려놓고 다시 가져가도 하루 1번
@@ -2272,7 +2408,7 @@ func _test_saga_cards() -> void:
 		var gi := _spare(g, 2, 0)
 		g.apply({"type": "begin_turn", "player": 0})
 		g.apply({"type": "give_die", "player": 0, "die": gi, "target": 1})
-		g.apply({"type": "end_move", "player": 0})
+		_end(g, 0)
 		if k == 1:
 			ok(g.saga_progress(0)["no_greed"]["have"] == 2 and g.players[0]["saga_done"] == "", "사연 욕심 없는 사람: 건넬 때마다 셈")
 	ok(g.players[0]["saga_done"] == "no_greed" and g.players[2]["dice_next"] == 1 and g.players[0]["dice_next"] == 1,
@@ -2317,9 +2453,10 @@ func _test_saga_cards() -> void:
 	# 미끼: 경찰이 동료에게서 떠나는 쪽이 센다
 	g = _new(CH)
 	_give(g, 1, ["nemesis"])
+	_tile(g, Vector2i(5, 6), "normal")
 	g.police[1] = {"pos": Vector2i(5, 6), "summon_turn": 0}
-	_turn(g, 0, 2)
-	g.apply({"type": "decoy", "player": 0, "from": 1})
+	_turn(g, 0, 0)
+	g.apply({"type": "decoy", "player": 0, "die": _spare(g, 2, 0), "from": 1})
 	ok(g.saga_progress(1)["nemesis"]["have"] == 1 and g.saga_progress(0).is_empty(), "사연 원수: 미끼 작전으로 경찰이 떠난 동료가 센다")
 
 	# 불나방: 검문소를 판정 성공으로 세 번 (통행권으로 지나간 것은 세지 않음)
@@ -2386,6 +2523,7 @@ func _test_saga_cards() -> void:
 	g.players[1]["jailed"] = true
 	g.players[1]["pos"] = b0
 	g.players[1]["jailed_day"] = g.day - 1
+	g.police.clear()
 	_walk(g, 0, b0 + Vector2i(1, 0), b0)
 	ok(g.players[0]["saga_done"] == "cellmate" and g._grant_index(g.players[0], "escape_instant") >= 0, "사연 옥중 동지: 갇힌 다음 날 안에 구출하면 이루고, 다음 투옥 때 바로 탈출 권리")
 	var gde := _gd(func(d): d.rules["checks"]["escape"] = 0)
@@ -2395,8 +2533,8 @@ func _test_saga_cards() -> void:
 		g.players[0]["jailed"] = true
 		g.players[0]["pos"] = b0
 		g.players[0]["done_today"] = false
-		_turn(g, 0, 1)
-		g.apply({"type": "escape", "player": 0})
+		_turn(g, 0, 0)
+		g.apply({"type": "escape", "player": 0, "die": _spare(g, 1, 0)})
 	ok(g.players[0]["saga_done"] == "cellmate", "사연 옥중 동지: 탈옥에 두 번 성공해도 이룸")
 	_cov("saga", "cellmate")
 
@@ -2462,12 +2600,12 @@ func _test_saga_cards() -> void:
 	g.players[1]["pos"] = Vector2i(5, 6)
 	g.players[2]["pos"] = Vector2i(9, 5)
 	g.players[3]["pos"] = Vector2i(1, 5)
-	_turn(g, 0, 3)
+	_turn(g, 0, 0)
 	for k in 2:
 		g.players[0]["items"] = ["telegram"]
 		g.players[1]["items"] = []
 		g.players[0]["item_uses"] = 0
-		g.apply({"type": "give_item", "player": 0, "index": 0, "to": 1})
+		g.apply({"type": "give_item", "player": 0, "die": _spare(g, 2, 0), "index": 0, "to": 1})
 	ok(g.saga_progress(0)["masters_request"]["have"] == 2, "사연 스승의 부탁: give_item 액션을 셈")
 	g.players[0]["items"] = ["telegram"]
 	g.players[1]["items"] = []
@@ -2801,31 +2939,31 @@ func _test_one_scene(target: String, card: Dictionary) -> void:
 				g.players[i]["grants"] = [{"kind": "check_bonus", "value": 99}]
 				g.phase = "day"
 				g.current = -1
-				_turn(g, i, 1)
-				g.apply({"type": "scene_check", "player": i})
+				_turn(g, i, 0)
+				_sc(g, i)
 		"dice":
-			_turn(g, 0, 1)
+			_turn(g, 0, 0)
 			for i in 3:
 				g.apply({"type": "scene_pay", "player": 0, "what": "die", "die": _spare(g, 6, 0)})
 				if g.phase == "over":
 					break
 		"pay_item":
 			g.players[0]["items"] = [g.data.items["items"][0]["id"]]
-			_turn(g, 0, 1)
-			g.apply({"type": "scene_pay", "player": 0, "what": "item", "index": 0})
+			_turn(g, 0, 0)
+			g.apply({"type": "scene_pay", "player": 0, "what": "item", "index": 0, "with": _spare(g, 2, 0)})
 		"pay_bomb":
 			g.players[0]["bombs"] = int(cond.get("count", 1))
-			_turn(g, 0, 1)
+			_turn(g, 0, 0)
 			for i in int(cond.get("count", 1)):
-				g.apply({"type": "scene_pay", "player": 0, "what": "bomb"})
+				g.apply({"type": "scene_pay", "player": 0, "what": "bomb", "with": _spare(g, 2, 0)})
 				if g.phase == "over":
 					break
 		"people":
 			for i in int(cond.get("count", 1)):
 				g.phase = "day"
 				g.current = -1
-				_turn(g, i, 1)
-				g.apply({"type": "end_move", "player": i})
+				_turn(g, i, 0)
+				_end(g, i)
 		"hold":
 			for i in int(cond.get("days", 1)):
 				g._scene_night()
@@ -2838,8 +2976,8 @@ func _test_one_scene(target: String, card: Dictionary) -> void:
 		var bad := _scene_fixture(target, card)
 		bad.players[0]["pos"] = at
 		bad.today["scene_mod"] = 100
-		_turn(bad, 0, 1)
-		bad.apply({"type": "scene_check", "player": 0})
+		_turn(bad, 0, 0)
+		_sc(bad, 0)
 		ok(bad.ending.is_empty(), "실패 효과: 장면 %s는 실패해도 돌파하지 않음" % card["id"])
 
 
@@ -2850,7 +2988,7 @@ func _test_scene_boundaries() -> void:
 	_spare(g, 3, 0)
 	_spare(g, 4, 1)
 	_spare(g, 4, 0)
-	_turn(g, 0, 1)
+	_turn(g, 0, 0)
 	ok(not g.apply({"type": "scene_pay", "player": 0, "what": "die", "die": 1}) and not g.apply({"type": "scene_pay", "player": 0, "what": "die", "die": 3}),
 		"주사위: 남의 주사위나 이미 쓴 주사위는 바칠 수 없음")
 	ok(g.apply({"type": "scene_pay", "player": 0, "what": "die", "die": 0}) and g.ending.is_empty(), "주사위: 한 번 바쳐도 합이 모자라면 남음")
@@ -2858,7 +2996,7 @@ func _test_scene_boundaries() -> void:
 	ok(g.apply({"type": "scene_pay", "player": 0, "what": "die", "die": 2}) and g.ending.get("won", false), "주사위: 여러 날 누적되어 돌파")
 	g = _scene_fixture("prison", card)
 	_spare(g, 5, 0)
-	_turn(g, 0, 1)
+	_turn(g, 0, 0)
 	ok(g.apply({"type": "use_intel", "player": 0, "mode": "dice"}) and g.intel_tokens == 2, "첩보: 토큰 하나로 주사위 필요 합을 2 줄임")
 	ok(g.apply({"type": "scene_pay", "player": 0, "what": "die", "die": 0}) and g.ending.get("won", false), "첩보: 줄어든 합에 닿으면 돌파")
 	card = data.strike("police_hq")["final"]
@@ -2866,36 +3004,36 @@ func _test_scene_boundaries() -> void:
 	g.data = _gd(func(d): d.scenes["strikes"]["police_hq"]["final"]["condition"]["count"] = 2)
 	g.players[0]["bombs"] = 1
 	g.players[1]["bombs"] = 1
-	_turn(g, 0, 1)
-	g.apply({"type": "scene_pay", "player": 0, "what": "bomb"})
+	_turn(g, 0, 0)
+	g.apply({"type": "scene_pay", "player": 0, "what": "bomb", "with": _spare(g, 2, 0)})
 	g.phase = "day"
 	g.current = -1
-	_turn(g, 1, 1)
-	ok(g.apply({"type": "scene_pay", "player": 1, "what": "bomb"}) and g.ending.get("won", false), "폭탄: split이면 두 요원이 나눠 바침")
+	_turn(g, 1, 0)
+	ok(g.apply({"type": "scene_pay", "player": 1, "what": "bomb", "with": _spare(g, 2, 1)}) and g.ending.get("won", false), "폭탄: split이면 두 요원이 나눠 바침")
 	g = _scene_fixture("police_hq", card.duplicate(true))
 	g.data = _gd()
 	# 조건의 split을 끄고 한꺼번에 필요한 수를 확인한다.
 	g.data.scenes["strikes"]["police_hq"]["final"]["condition"]["count"] = 2
 	g.data.scenes["strikes"]["police_hq"]["final"]["condition"]["split"] = false
 	g.players[0]["bombs"] = 1
-	_turn(g, 0, 1)
-	ok(not g.apply({"type": "scene_pay", "player": 0, "what": "bomb"}), "폭탄: split이 없고 수가 모자라면 액션 불가")
+	_turn(g, 0, 0)
+	ok(not g.apply({"type": "scene_pay", "player": 0, "what": "bomb", "with": _spare(g, 2, 0)}), "폭탄: split이 없고 수가 모자라면 액션 불가")
 	card = data.strike("prison")["middle"][0]
 	g = _scene_fixture("prison", card)
 	for i in 2:
 		g.players[i]["pos"] = g._base_cell("prison")
 	g.players[0]["grants"] = [{"kind": "check_bonus", "value": 99}]
-	_turn(g, 0, 1)
-	g.apply({"type": "scene_check", "player": 0})
-	ok(g.scene_need().get("check_pair", -1) == 1 and not g.apply({"type": "scene_check", "player": 0}), "짝 판정: 같은 요원은 한 차례에 다시 시도할 수 없음")
+	_turn(g, 0, 0)
+	_sc(g, 0)
+	ok(g.scene_need().get("check_pair", -1) == 1 and not _sc(g, 0), "짝 판정: 같은 요원은 한 차례에 다시 시도할 수 없음")
 	g._scene_night()
 	ok(g.scene_need().get("check_pair", -1) == 2, "짝 판정: 다음 날에는 기록 초기화")
 	g = _scene_fixture("prison", data.strike("prison")["final"])
 	g.players[0]["pos"] = g._base_cell("prison")
 	g.players[0]["jailed"] = true
 	g.players[0]["grants"] = [{"kind": "check_bonus", "scope": "strike", "value": 99}]
-	_turn(g, 0, 1)
-	ok(g.apply({"type": "scene_check", "player": 0}) and g.ending.get("won", false), "감옥: 결행 거점에 갇혀도 판정 참여·결행 권리 사용")
+	_turn(g, 0, 0)
+	ok(_sc(g, 0) and g.ending.get("won", false), "감옥: 결행 거점에 갇혀도 판정 참여·결행 권리 사용")
 	ok(not g.apply({"type": "escape", "player": 0}), "감옥: 장면 판정 뒤 탈옥 시도 불가")
 	g = _scene_fixture("gg", data.strike("gg")["final"])
 	for i in 2:
@@ -2905,8 +3043,8 @@ func _test_scene_boundaries() -> void:
 	g = _scene_fixture("gg", data.strike("gg")["entry"])
 	g.players[0]["pos"] = g._base_cell("gg")
 	g.players[0]["items"] = [data.items["items"][0]["id"]]
-	_turn(g, 0, 1)
-	ok(g.apply({"type": "scene_pay", "player": 0, "what": "item", "index": 0}) and g.ending.get("won", false), "양자택일: 아이템 쪽으로 돌파")
+	_turn(g, 0, 0)
+	ok(g.apply({"type": "scene_pay", "player": 0, "what": "item", "index": 0, "with": _spare(g, 2, 0)}) and g.ending.get("won", false), "양자택일: 아이템 쪽으로 돌파")
 
 
 func _test_act2_launch() -> void:
@@ -2978,16 +3116,16 @@ func _test_act2_edges() -> void:
 	var g := _scene_fixture("prison", data.strike("prison")["middle"][0])
 	g.players[0]["pos"] = g._base_cell("prison")
 	g.players[0]["grants"] = [{"kind": "check_bonus", "value": 99}, {"kind": "check_bonus", "value": 99}]
-	_turn(g, 0, 1)
-	g.apply({"type": "scene_check", "player": 0})
+	_turn(g, 0, 0)
+	_sc(g, 0)
 	g.players[0]["flags"].erase("scene_tried")
-	g.apply({"type": "scene_check", "player": 0})
+	_sc(g, 0)
 	ok(g.scene_need().get("check_pair", -1) == 1, "짝 판정: 같은 요원이 두 번 성공해도 한 명만 기록")
 	g = _scene_fixture("police_hq", data.strike("police_hq")["entry"])
 	for i in 2:
 		g.players[i]["pos"] = g._base_cell("police_hq") + Vector2i(1, 0)
-	_turn(g, 0, 1)
-	g.apply({"type": "end_move", "player": 0})
+	_turn(g, 0, 0)
+	_end(g, 0)
 	ok(g.scene_need().get("people", -1) == 1, "인원: 첫 요원만 차례를 마치면 한 명 부족")
 	g._scene_night()
 	ok(g.scene_need().get("people", -1) == 2, "인원: 밤이 지나면 오늘 기록 초기화")
@@ -3002,10 +3140,10 @@ func _test_act2_edges() -> void:
 		{"kind": "dice", "sum": 3}, {"kind": "pay_item", "count": 1}]}
 	_spare(g, 3, 0)
 	g.players[0]["items"] = [g.data.items["items"][0]["id"]]
-	_turn(g, 0, 1)
+	_turn(g, 0, 0)
 	g.apply({"type": "scene_pay", "player": 0, "what": "die", "die": 0})
 	ok(g.ending.is_empty(), "모두 만족: 주사위만 채우면 장면이 남음")
-	g.apply({"type": "scene_pay", "player": 0, "what": "item", "index": 0})
+	g.apply({"type": "scene_pay", "player": 0, "what": "item", "index": 0, "with": _spare(g, 2, 0)})
 	ok(g.ending.get("won", false), "모두 만족: 주사위와 아이템을 채우면 돌파")
 	g = _scene_fixture("prison", data.strike("prison")["final"])
 	g.players[0]["pos"] = g._base_cell("prison")
@@ -3032,7 +3170,7 @@ func _test_act2_sagas_and_failures() -> void:
 	g.scenes = [data.strike("prison")["entry"]["id"], data.strike("prison")["final"]["id"]]
 	g.scene_index = 0
 	g.players[0]["sagas"] = ["first_step"]
-	_turn(g, 0, 1)
+	_turn(g, 0, 0)
 	g.apply({"type": "scene_pay", "player": 0, "what": "die", "die": _spare(g, 6, 0)})
 	g.apply({"type": "scene_pay", "player": 0, "what": "die", "die": _spare(g, 1, 0)})
 	ok(g.scene_index == 1 and g.players[0]["saga_done"] == "first_step", "사연 훅: 실제 진입 장면 돌파로 첫걸음 이룸")
@@ -3040,30 +3178,30 @@ func _test_act2_sagas_and_failures() -> void:
 	g.players[0]["pos"] = g._base_cell("barracks")
 	g.players[0]["sagas"] = ["sibling_revenge"]
 	g.players[0]["grants"] = [{"kind": "check_bonus", "value": 99}]
-	_turn(g, 0, 1)
-	g.apply({"type": "scene_check", "player": 0})
+	_turn(g, 0, 0)
+	_sc(g, 0)
 	ok(g.ending.get("won", false) and g.players[0]["saga_done"] == "sibling_revenge", "사연 훅: 실제 군영 마지막 장면 돌파로 동생의 원수 이룸")
 	g = _scene_fixture("prison", data.strike("prison")["final"])
 	g.players[0]["pos"] = g._base_cell("prison")
 	g.players[1]["pos"] = g._base_cell("prison")
 	g.players[1]["sagas"] = ["last_telegram"]
 	g.players[0]["grants"] = [{"kind": "check_bonus", "value": 99}]
-	_turn(g, 0, 1)
-	g.apply({"type": "scene_check", "player": 0})
+	_turn(g, 0, 0)
+	_sc(g, 0)
 	ok(g.ending.get("won", false) and g.players[1]["saga_done"] == "last_telegram", "사연 훅: 마지막 장면 현장에 있던 동료가 마지막 전보를 이룸")
 	g = _scene_fixture("prison", data.strike("prison")["middle"][0])
 	g.players[0]["pos"] = g._base_cell("prison")
 	g.today["scene_mod"] = 100
-	_turn(g, 0, 1)
-	g.apply({"type": "scene_check", "player": 0})
+	_turn(g, 0, 0)
+	_sc(g, 0)
 	ok(g.police.has(0), "실패 효과: 간수 제압 실패 시 그 요원에게 경찰")
 	g = _scene_fixture("prison", data.strike("prison")["middle"][3])
 	g.players[0]["pos"] = g._base_cell("prison")
 	g.today["scene_mod"] = 100
 	g.threat_deck = g.data.threat_deck(2)
 	var before := g.threat_discard.size()
-	_turn(g, 0, 1)
-	g.apply({"type": "scene_check", "player": 0})
+	_turn(g, 0, 0)
+	_sc(g, 0)
 	ok(g.threat_discard.size() == before + 1, "실패 효과: 비상종 실패 시 위협 한 장 추가 공개")
 	g = _scene_fixture("prison", data.strike("prison")["middle"][3])
 	g.data = _gd()
@@ -3072,8 +3210,8 @@ func _test_act2_sagas_and_failures() -> void:
 	g.today["scene_mod"] = 100
 	g.threat_deck = ["sweep"]
 	g.threat_discard = []
-	_turn(g, 0, 1)
-	g.apply({"type": "scene_check", "player": 0})
+	_turn(g, 0, 0)
+	_sc(g, 0)
 	ok(g.threat_discard == ["sweep"] and g.effect_wait.is_empty() and g.search_queue.is_empty(),
 		"실패 효과: 비상종이 수색을 뒤집어도 중첩 효과 대기열을 마침")
 	g = _scene_fixture("barracks", data.strike("barracks")["final"])
@@ -3081,8 +3219,8 @@ func _test_act2_sagas_and_failures() -> void:
 	g.today["scene_mod"] = 100
 	g.data = _gd()
 	g.data.rules["checks"]["evade"] = 99
-	_turn(g, 0, 1)
-	g.apply({"type": "scene_check", "player": 0})
+	_turn(g, 0, 0)
+	_sc(g, 0)
 	ok(g.players[0]["jailed"], "실패 효과: 사령관실 실패 뒤 회피에도 실패하면 투옥")
 
 
@@ -3217,3 +3355,464 @@ func _test_removed_things() -> void:
 	gm.ready = 0
 	gm._morning_continue()
 	ok(gm.morning_step == 5 and gm.phase == "plan" and not gm.op_dice.is_empty(), "아침 순서: 위협 → 투표 → 미션 줄 → 주사위 네 단계 (morning_step 5에서 끝)")
+
+
+# ------------------------------------------------------------------ B단계: 주사위 1개 = 행동 1개 (11·12단계)
+
+func _run_b_tests() -> void:
+	_test_b_action_economy()
+	_test_b_cells_and_police_block()
+	_test_b_effect_once_per_cell()
+	_test_b_walk_distance()
+	_test_b_police_summon()
+	_test_b_hide()
+	_test_b_scout()
+	_test_b_gives_and_visit()
+	_test_b_market_and_misc()
+	_test_b_save_resume()
+
+
+func _legal_types(g: RulesV2) -> Array:
+	var out := []
+	for a in g.legal_actions():
+		if not a["type"] in out:
+			out.append(a["type"])
+	return out
+
+
+func _test_b_action_economy() -> void:
+	var g := _new(CH)
+	_lay(g, [Vector2i(5, 6), Vector2i(5, 7)])
+	_turn(g, 0, 0)
+	var t0 := _legal_types(g)
+	ok("end_turn" in t0 and not "move_die" in t0 and not "end_move" in t0, "행동 경제: 주사위가 없으면 이동 행동이 없고 차례 마치기만 남음")
+	var a := _spare(g, 3, 0)
+	var b := _spare(g, 4, 0)
+	# 공짜: 아이템은 차례에 1장, 능력은 하루 1번 (주사위를 쓰지 않음)
+	g.players[0]["items"] = ["train_ticket", "train_ticket"]
+	ok(g.apply({"type": "use_item", "player": 0, "index": 0}) and not g.op_dice[a]["used"] and not g.op_dice[b]["used"], "행동 경제: 아이템 쓰기는 공짜 (주사위를 쓰지 않음)")
+	ok(not g.apply({"type": "use_item", "player": 0, "index": 0}), "행동 경제: 아이템은 차례에 1장")
+	ok(g.apply({"type": "ability", "player": 0, "target": 1}) and not g.op_dice[a]["used"], "행동 경제: 능력 쓰기는 공짜 (하루 1번)")
+	ok(not g.apply({"type": "ability", "player": 0, "target": 1}), "행동 경제: 능력은 하루 1번")
+	# 보정은 그 차례의 첫 이동 행동에만 붙는다
+	ok(g.apply({"type": "move_die", "player": 0, "die": a}) and g.op_dice[a]["used"] and g.steps_left == 6, "행동 경제: 이동 행동은 주사위 하나를 씀 (승차권 +3은 첫 이동 행동에)")
+	var t2 := _legal_types(g)
+	ok("step" in t2 and "end_move" in t2 and not "move_die" in t2 and not "end_turn" in t2 and not "give_die" in t2,
+		"행동 경제: 걷는 동안에는 다른 행동을 못 함 (걸음·이동 마치기뿐)")
+	_step(g, 0, Vector2i(5, 6), false)
+	ok(g.apply({"type": "end_move", "player": 0}) and g.phase == "turn" and g.current == 0 and g.steps_left == 0, "행동 경제: 이동을 멈추면 행동 고르기로 돌아옴")
+	ok(g.apply({"type": "move_die", "player": 0, "die": b}) and g.steps_left == 4, "행동 경제: 두 번째 이동 행동에는 보정이 없음 (주사위 4 = 4칸)")
+	g.apply({"type": "end_move", "player": 0})
+	ok(not g.players[0]["done_today"] and "end_turn" in _legal_types(g), "행동 경제: 차례는 「차례 마치기」를 해야 끝남")
+	var c := _spare(g, 5, 0)
+	ok(g.apply({"type": "end_turn", "player": 0}) and g.players[0]["done_today"] and g.phase == "day" and not g.op_dice[c]["used"],
+		"행동 경제: 주사위가 남아 있어도 차례를 마칠 수 있음 (남은 주사위는 그대로)")
+	ok(not g.apply({"type": "move_die", "player": 0, "die": c}), "행동 경제: 차례를 마친 뒤에는 행동 불가")
+	# 남은 주사위는 밤에 사라지고 아침에 새로 굴림
+	var n := int(g.data.rules["personal_dice"])
+	for pid in [1, 2, 3]:
+		_turn(g, pid, 0)
+		g.apply({"type": "end_turn", "player": pid})
+	ok(g.day == 2 and g.op_dice.size() <= 4 * (n + 1) and not c in g.my_dice(0), "행동 경제: 쓰지 않은 주사위는 밤에 사라짐")
+
+
+func _test_b_cells_and_police_block() -> void:
+	# 요원끼리는 같은 칸에 들어가고 머물 수 있다
+	var g := _new(CH)
+	_lay(g, [Vector2i(5, 6), Vector2i(5, 7), Vector2i(6, 6)])
+	_turn(g, 0, 1)
+	ok(_step(g, 0, Vector2i(5, 6)), "같은 칸: 첫 요원이 칸에 들어감")
+	_turn(g, 1, 1)
+	ok(_step(g, 1, Vector2i(5, 6)) and g.players[1]["pos"] == g.players[0]["pos"], "같은 칸: 다른 요원이 같은 칸에 들어가 머물 수 있음")
+	_turn(g, 2, 2)
+	ok(_step(g, 2, Vector2i(5, 6), false) and _step(g, 2, Vector2i(5, 7), false), "같은 칸: 동료가 선 칸을 지나갈 수도 있음")
+	g.apply({"type": "end_move", "player": 2})
+	# 경찰이 있는 칸에는 들어갈 수 없다
+	g.police[3] = {"pos": Vector2i(6, 6), "summon_turn": 9}
+	_turn(g, 0, 0)
+	g.players[0]["done_today"] = false
+	_spare(g, 3, 0)
+	g.apply({"type": "end_turn", "player": 0})
+	var gp := _new(CH)
+	_lay(gp, [Vector2i(5, 6), Vector2i(6, 6), Vector2i(7, 6)])
+	gp.police[3] = {"pos": Vector2i(6, 6), "summon_turn": 9}
+	gp.players[0]["pos"] = Vector2i(5, 6)
+	_turn(gp, 0, 3)
+	ok(not gp.can_step(gp.players[0], Vector2i(6, 6)) and not _step(gp, 0, Vector2i(6, 6), false), "경찰 칸: 경찰이 있는 칸에는 들어갈 수 없음")
+	var path := gp.path_to(gp.players[0], Vector2i(7, 6))
+	ok(not path["reachable"] or not Vector2i(6, 6) in path["path"], "경찰 칸: 길 찾기도 경찰 칸을 지나지 않음")
+	ok(not gp.path_to(gp.players[0], Vector2i(6, 6))["reachable"] and gp.path_to(gp.players[0], Vector2i(6, 6))["reason"] == "경찰이 있는 칸", "경찰 칸: 목적지가 경찰 칸이면 갈 수 없음")
+	# 경찰이 있는 거점에는 들어갈 수 없고, 경찰이 떠나면 들어감
+	var base: Vector2i = gp.data.bases[0]
+	var gb := _new(CH)
+	_tile(gb, base + Vector2i(1, 0), "normal")
+	gb.players[0]["pos"] = base + Vector2i(1, 0)
+	gb.police[2] = {"pos": base, "summon_turn": 9}
+	_turn(gb, 0, 2)
+	ok(not gb.can_step(gb.players[0], base), "경찰 칸: 경찰이 선 거점에도 들어갈 수 없음")
+	gb.police.clear()
+	ok(gb.can_step(gb.players[0], base), "경찰 칸: 경찰이 떠나면 거점에 들어갈 수 있음")
+
+
+func _test_b_effect_once_per_cell() -> void:
+	# 같은 칸의 효과는 한 차례에 한 번만 (보급 타일에서 나갔다 들어와도 폭탄은 한 번)
+	var g := _new(["seok", "han", "oh", "park"])
+	_tile(g, Vector2i(5, 6), "supply")
+	var before := g.bomb_supply
+	_turn(g, 0, 1)
+	ok(_step(g, 0, Vector2i(5, 6), false), "칸 효과: 보급 칸에 들어감")
+	ok(g.players[0]["bombs"] == 1 and g.bomb_supply == before - 1 and Vector2i(5, 6) in g.players[0]["fx_cells"], "칸 효과: 멈추면 폭탄 1개 (받은 칸이 기록됨)")
+	var d1 := _spare(g, 1, 0)
+	g.apply({"type": "move_die", "player": 0, "die": d1})
+	_step(g, 0, START, false)
+	var d2 := _spare(g, 1, 0)
+	g.apply({"type": "move_die", "player": 0, "die": d2})
+	_step(g, 0, Vector2i(5, 6), false)
+	ok(g.players[0]["pos"] == Vector2i(5, 6) and g.players[0]["bombs"] == 1 and g.bomb_supply == before - 1,
+		"칸 효과: 다른 칸에 갔다 다시 같은 칸에서 멈춰도 그 차례에는 효과가 없음 (폭탄 칸이 2개여도 1개)")
+	g.apply({"type": "end_turn", "player": 0})
+	ok(g.players[0]["fx_cells"].size() == 2, "칸 효과: 받은 칸 목록은 차례가 끝나도 남음 (다음 차례 시작에 지움)")
+	g.phase = "day"
+	g.players[0]["done_today"] = false
+	g.apply({"type": "begin_turn", "player": 0})
+	ok(g.players[0]["fx_cells"].is_empty(), "칸 효과: 다음 차례가 시작되면 목록이 비어 새로 받을 수 있음")
+	# 이동 행동을 두 번 하면 다른 칸의 효과는 두 번 받는다 (이벤트·아이템 칸)
+	var g2 := _new(CH)
+	_tile(g2, Vector2i(5, 6), "item")
+	_tile(g2, Vector2i(5, 7), "item")
+	g2.item_deck = ["train_ticket", "telescope"]
+	_turn(g2, 0, 1)
+	_step(g2, 0, Vector2i(5, 6), false)
+	g2.apply({"type": "end_move", "player": 0})
+	var more := _spare(g2, 1, 0)
+	g2.apply({"type": "move_die", "player": 0, "die": more})
+	_step(g2, 0, Vector2i(5, 7), false)
+	g2.apply({"type": "end_move", "player": 0})
+	ok(g2.players[0]["items"].size() == 2, "칸 효과: 이동 행동을 두 번 하면 다른 칸의 효과를 두 번 받음")
+
+
+func _test_b_walk_distance() -> void:
+	var g := _new(CH)
+	_lay(g, [Vector2i(5, 6), Vector2i(5, 7), Vector2i(6, 7), Vector2i(7, 7)])
+	ok(g.walk_dist(START, Vector2i(5, 7)) == 2 and g.walk_dist(START, Vector2i(7, 7)) == 4, "거리: 깔린 칸을 따라 걷는 칸 수로 잼")
+	ok(g.walk_dist(START, Vector2i(6, 5)) >= 100, "거리: 깔린 길이 이어지지 않으면 아주 먼 것으로 침 (직선 1칸이어도)")
+	_tile(g, Vector2i(6, 5), "normal")
+	ok(g.walk_dist(START, Vector2i(6, 5)) == 1, "거리: 길이 깔리면 가까워짐 (캐시도 갱신됨)")
+	# 경찰 따돌림: 다가온 뒤에도 깔린 길로 5칸 넘게 떨어져 있어야
+	var gd := _gd()
+	ok(int(gd.rules["police"]["escape_distance"]) == 5, "따돌림: 거리 기준은 5칸 (rules.police.escape_distance)")
+	var near_far := []
+	for pos in [Vector2i(8, 10), Vector2i(7, 10)]:
+		var gs := _new(CH)
+		for y in range(6, 11):
+			_tile(gs, Vector2i(5, y), "normal")
+		for x in range(6, 11):
+			_tile(gs, Vector2i(x, 10), "normal")
+		gs.police[0] = {"pos": pos, "summon_turn": 0}
+		_turn(gs, 0, 0)
+		gs.apply({"type": "end_turn", "player": 0})
+		near_far.append(gs.police.has(0))
+	ok(near_far == [false, true], "따돌림: 걸어서 8칸 떨어지면 (경찰 2칸 다가온 뒤 6칸) 따돌리고, 7칸이면 (다가온 뒤 5칸) 못 따돌림")
+	# 직선으로는 가까워도 길이 끊겼으면 따돌림
+	var gc := _new(CH)
+	_tile(gc, Vector2i(5, 6), "normal")
+	_tile(gc, Vector2i(5, 8), "normal")
+	gc.police[0] = {"pos": Vector2i(5, 8), "summon_turn": 0}
+	_turn(gc, 0, 0)
+	gc.apply({"type": "end_turn", "player": 0})
+	ok(not gc.police.has(0), "따돌림: 깔린 길로 이어지지 않으면 따돌림")
+
+
+func _test_b_police_summon() -> void:
+	# 붙은 경찰은 그 요원에게서 가장 가까운 거점에 나타난다
+	var g := _new(CH)
+	_flat(g)
+	g.players[0]["pos"] = Vector2i(2, 2)
+	var near: Vector2i = g.data.bases[g._nearest_base(Vector2i(2, 2))]
+	g._summon(g.players[0])
+	ok(g.police.has(0) and g.police[0]["pos"] == near, "경찰 등장: 새로 붙으면 요원에게서 가장 가까운 거점에 나타남")
+	ok(g.police[0]["summon_turn"] == g.players[0]["turns"], "경찰 등장: 붙은 다음 차례부터 움직임 (summon_turn)")
+	# 「이 자리에 나타남」 (밀고자)
+	var g2 := _new(CH)
+	g2.players[0]["pos"] = Vector2i(5, 8)
+	_event(g2, 0, "informer")
+	ok(g2.police.has(0) and g2.police[0]["pos"] == Vector2i(5, 8), "경찰 등장: 이벤트 「밀고자」는 그 자리에 나타남 (at here)")
+	# 이미 쫓기는 요원에게 또 붙으면 새 말을 놓지 않고, 쫓던 경찰이 2칸 떨어진 곳으로 옮겨 온다
+	var g3 := _new(CH)
+	_flat(g3)
+	g3.players[0]["pos"] = Vector2i(5, 5)
+	g3.police[0] = {"pos": Vector2i(5, 9), "summon_turn": 0}
+	g3._summon(g3.players[0])
+	ok(g3.police.size() == 1 and g3.walk_dist(g3.police[0]["pos"], Vector2i(5, 5)) == 2, "경찰 등장: 이미 쫓기는 요원에게 또 붙으면 쫓던 경찰이 2칸 떨어진 곳으로 옮겨 옴 (새 말은 없음)")
+	ok(g3.police[0]["pos"] == Vector2i(5, 7), "경찰 등장: 2칸 떨어진 칸 중 원래 위치에 가까운 곳")
+	ok(g3.police[0]["summon_turn"] == g3.players[0]["turns"], "경찰 등장: 옮겨 온 차례에는 움직이지 않음")
+	# 경찰 말이 모자라면 새 경찰은 나오지 않는다
+	var g4 := _new(["park", "han", "oh", "seo"])
+	for i in 4:
+		g4.police[i] = {"pos": g4.data.bases[0], "summon_turn": 0}
+	g4.players[1]["pos"] = Vector2i(5, 5)
+	g4.police.erase(1)
+	var five := int(g4.data.rules["police"]["pieces"])
+	ok(g4.police.size() == five - 1, "경찰 등장: (준비) 말 하나가 남음")
+	g4._summon(g4.players[1])
+	ok(g4.police.size() == five and g4.police.has(1), "경찰 등장: 말이 남아 있으면 붙음")
+
+
+func _test_b_hide() -> void:
+	var g := _new(CH)
+	_lay(g, [Vector2i(5, 6), Vector2i(5, 7), Vector2i(5, 8)])
+	_turn(g, 0, 0)
+	_spare(g, 3, 0)
+	ok(not g.can_hide(g.players[0]) and not _legal_types(g).has("hide"), "숨기: 일반 칸에서는 못 함")
+	var gd := _gd()
+	ok(gd.rules["hide"]["tiles"] == ["alley", "tavern"] and gd.rules["hide"]["flags"] == ["hideout"], "숨기: 가능한 칸은 데이터(rules.hide)의 타일 종류와 표시")
+	# 골목(타일 종류)에서
+	var g2 := _new(CH)
+	_lay(g2, [Vector2i(5, 6), Vector2i(5, 7), Vector2i(5, 8)])
+	_tile(g2, Vector2i(5, 6), "alley")
+	g2.players[0]["pos"] = Vector2i(5, 6)
+	g2.police[0] = {"pos": Vector2i(5, 7), "summon_turn": 0}
+	_turn(g2, 0, 0)
+	ok(not g2.can_hide(g2.players[0]), "숨기: 주사위가 없으면 못 함 (행동)")
+	var hd := _spare(g2, 2, 0)
+	ok(g2.can_hide(g2.players[0]) and g2.apply({"type": "hide", "player": 0, "die": hd}) and g2.op_dice[hd]["used"] and g2.players[0]["hidden"], "숨기: 골목 칸에서 주사위 하나로 숨음")
+	ok(not g2.can_hide(g2.players[0]), "숨기: 한 차례에 한 번")
+	g2.apply({"type": "end_turn", "player": 0})
+	ok(g2.police.has(0) and g2.police[0]["pos"] == Vector2i(5, 7) and not g2.players[0]["jailed"] and not g2.players[0]["hidden"],
+		"숨기: 이번 차례 끝에 내 경찰이 다가오지 않음 (체포 안 됨, 표시는 지워짐)")
+	# 대조: 숨지 않으면 경찰이 다가와 체포
+	var g3 := _new(CH)
+	_lay(g3, [Vector2i(5, 6), Vector2i(5, 7)])
+	_tile(g3, Vector2i(5, 6), "alley")
+	g3.players[0]["pos"] = Vector2i(5, 6)
+	g3.police[0] = {"pos": Vector2i(5, 7), "summon_turn": 0}
+	_turn(g3, 0, 0)
+	g3.apply({"type": "end_turn", "player": 0})
+	ok(g3.players[0]["jailed"], "숨기: 숨지 않으면 경찰이 다가와 체포 (대조)")
+	# 은신처 표시가 있는 칸, 주막 타일
+	var g4 := _new(CH)
+	_tile(g4, Vector2i(5, 6), "normal")
+	g4.board[Vector2i(5, 6)]["flags"].append("hideout")
+	g4.players[0]["pos"] = Vector2i(5, 6)
+	_turn(g4, 0, 0)
+	_spare(g4, 2, 0)
+	ok(g4.can_hide(g4.players[0]), "숨기: 은신처 표시가 있는 칸에서도 할 수 있음")
+	var g5 := _new(CH)
+	_tile(g5, Vector2i(5, 6), "tavern")
+	g5.players[0]["pos"] = Vector2i(5, 6)
+	_turn(g5, 0, 0)
+	_spare(g5, 2, 0)
+	ok(g5.can_hide(g5.players[0]), "숨기: 주막 칸에서도 할 수 있음")
+	# 이동 중이거나 갇혀 있으면 못 함
+	g5.players[0]["jailed"] = true
+	ok(not g5.can_hide(g5.players[0]), "숨기: 갇힌 요원은 못 함")
+
+
+func _test_b_scout() -> void:
+	var g := _new(CH)
+	g.tile_deck = ["normal", "normal", "event", "item"]
+	_turn(g, 0, 0)
+	var d := _spare(g, 2, 0)
+	var items_before: int = g.players[0]["items"].size()
+	var deck_before := g.tile_deck.size()
+	ok(g.apply({"type": "scout", "player": 0, "die": d}) and g.op_dice[d]["used"], "정찰: 주사위 하나를 내는 행동")
+	ok(g.phase == "choice" and g.pending["kind"] == "pick_cell", "정찰: 덮인 칸을 골라 달라고 물음")
+	var opts: Array = g.pending["options"].map(func(o): return o["value"])
+	var inside := true
+	for c in opts:
+		inside = inside and not g.board.has(c) and absi(c.x - START.x) + absi(c.y - START.y) <= 2
+	ok(inside and opts.size() > 4, "정찰: 눈(2)만큼 떨어진 곳까지의 덮인 칸만 후보")
+	ok(not Vector2i(5, 8) in opts and not Vector2i(7, 7) in opts and Vector2i(5, 7) in opts and Vector2i(6, 6) in opts, "정찰: 눈 2의 안쪽 (맨해튼 2칸)까지")
+	_answer(g, Vector2i(5, 7))
+	ok(g.phase == "choice" and g.pending["kind"] == "pick_cell" and not (Vector2i(5, 7) in g.pending["options"].map(func(o): return o["value"])),
+		"정찰: 두 번째 칸을 고름 (이미 고른 칸은 후보에서 빠짐)")
+	_answer(g, Vector2i(6, 6))
+	ok(g.phase == "turn" and g.board.has(Vector2i(5, 7)) and g.board.has(Vector2i(6, 6)) and g.tile_deck.size() == deck_before - 2, "정찰: 두 칸의 타일이 앞면으로 깔리고 더미에서 두 장이 빠짐")
+	ok(g.board[Vector2i(5, 7)]["type"] == "item" and g.board[Vector2i(6, 6)]["type"] == "event", "정찰: 더미 맨 위에서부터 한 장씩")
+	ok(g.players[0]["items"].size() == items_before and g.event_discard.is_empty() and not g.board[Vector2i(5, 7)]["used"],
+		"정찰: 깔기만 할 뿐 효과는 그 칸에서 이동을 마칠 때 받음 (아직 안 받음)")
+	_spare(g, 1, 0)
+	var mv := _spare(g, 1, 0)
+	_tile(g, Vector2i(5, 6), "normal")
+	g.apply({"type": "move_die", "player": 0, "die": mv})
+	_step(g, 0, Vector2i(5, 6), false)
+	g.apply({"type": "end_move", "player": 0})
+	var mv2 := _spare(g, 1, 0)
+	g.apply({"type": "move_die", "player": 0, "die": mv2})
+	_step(g, 0, Vector2i(5, 7), false)
+	ok(g.players[0]["items"].size() == items_before + 1, "정찰: 나중에 그 칸에서 이동을 마치면 효과를 받음 (아이템 칸)")
+	# 후보가 없거나 더미가 없으면 못 함
+	var g2 := _new(CH)
+	g2.tile_deck = []
+	_turn(g2, 0, 0)
+	var d2 := _spare(g2, 3, 0)
+	ok(not g2.apply({"type": "scout", "player": 0, "die": d2}), "정찰: 더미가 비면 할 수 없음")
+	var g3 := _new(CH)
+	g3.tile_deck = ["normal", "normal", "normal"]
+	_turn(g3, 0, 0)
+	var d3 := _spare(g3, 1, 0)
+	g3.apply({"type": "scout", "player": 0, "die": d3})
+	ok(g3.pending["options"].size() == 4, "정찰: 눈 1이면 옆 네 칸")
+	_answer(g3, Vector2i(5, 6))
+	_answer(g3, Vector2i(5, 4))
+	_tile(g3, Vector2i(6, 5), "normal")
+	_tile(g3, Vector2i(4, 5), "normal")
+	var d4 := _spare(g3, 1, 0)
+	ok(not g3.apply({"type": "scout", "player": 0, "die": d4}), "정찰: 눈만큼 떨어진 곳에 덮인 칸이 없으면 할 수 없음")
+	# 한 곳만 깔 수 있으면 그 한 곳은 묻지 않고 깐다
+	var g4 := _new(CH)
+	g4.tile_deck = ["normal", "normal"]
+	_flat(g4)
+	g4.board.erase(Vector2i(5, 6))
+	g4._dist_cache = {}
+	_turn(g4, 0, 0)
+	var d5 := _spare(g4, 1, 0)
+	g4.apply({"type": "scout", "player": 0, "die": d5})
+	ok(g4.phase == "turn" and g4.board.has(Vector2i(5, 6)) and g4.tile_deck.size() == 1, "정찰: 덮인 칸이 하나뿐이면 묻지 않고 깐다")
+
+
+func _test_b_gives_and_visit() -> void:
+	# 주사위 건네기: 같은 칸 동료에게만, 하루 1번, 차례를 마친 요원에게는 안 됨
+	var g := _new(CH)
+	_lay(g, [Vector2i(5, 6)])
+	g.players[1]["pos"] = START
+	g.players[2]["pos"] = Vector2i(5, 6)
+	g.players[3]["pos"] = START
+	g.players[3]["done_today"] = true
+	_turn(g, 0, 0)
+	var d1 := _spare(g, 5, 0)
+	var d2 := _spare(g, 2, 0)
+	var tg := g.give_die_targets(g.players[0])
+	ok(tg == [1], "건네기: 주사위는 같은 칸의 아직 차례를 안 한 동료에게만 (옆 칸·차례를 마친 요원은 안 됨)")
+	ok(not g.apply({"type": "give_die", "player": 0, "die": d1, "target": 3}) and not g.apply({"type": "give_die", "player": 0, "die": d1, "target": 2}),
+		"건네기: 차례를 마친 요원에게는 주사위를 건넬 수 없음")
+	ok(g.apply({"type": "give_die", "player": 0, "die": d1, "target": 1}) and d1 in g.my_dice(1), "건네기: 같은 칸 동료에게 주사위를 줌 (받은 쪽은 행동 하나를 더 함)")
+	ok(g.give_die_targets(g.players[0]).is_empty() and not g.apply({"type": "give_die", "player": 0, "die": d2, "target": 1}), "건네기: 하루 1번")
+	# 아이템은 차례를 마친 요원에게도, 옆 칸 동료에게도 건넬 수 있다 (주사위 하나를 냄)
+	var gi := _new(CH)
+	_lay(gi, [Vector2i(5, 6)])
+	gi.players[0]["items"] = ["telescope"]
+	gi.players[1]["pos"] = Vector2i(5, 6)
+	gi.players[2]["done_today"] = true
+	gi.players[3]["pos"] = Vector2i(9, 9)
+	_turn(gi, 0, 0)
+	_spare(gi, 3, 0)
+	var targets := []
+	for o in gi.give_options(gi.players[0]):
+		if not o["to"] in targets:
+			targets.append(o["to"])
+	ok(1 in targets and 2 in targets and not 3 in targets, "건네기: 아이템은 같은 칸이나 옆 칸 동료에게 (차례를 마친 동료도 됨)")
+
+
+func _test_b_market_and_misc() -> void:
+	# 면회: 갇힌 요원은 그 거점 옆 칸의 동료와 아이템·주사위를 주고받는다
+	var g := _new(CH)
+	var base: Vector2i = g.data.bases[2]
+	var next: Vector2i = base + Vector2i(0, -1)
+	var far: Vector2i = base + Vector2i(0, -3)
+	_lay(g, [next, base + Vector2i(0, -2), far])
+	g.players[1]["jailed"] = true
+	g.players[1]["pos"] = base
+	g.players[0]["pos"] = next
+	g.players[2]["pos"] = far
+	g.players[0]["items"] = ["telescope"]
+	_turn(g, 0, 0)
+	var vd := _spare(g, 6, 0)
+	ok(g.give_die_targets(g.players[0]) == [1], "면회: 옆 칸에 온 동료는 갇힌 요원에게 주사위를 건넬 수 있음")
+	ok(g.give_options(g.players[0]).size() == 1 and g.give_options(g.players[0])[0]["to"] == 1, "면회: 옆 칸에 온 동료는 갇힌 요원에게 아이템을 건넬 수 있음 (먼 동료는 못 함)")
+	ok(g.apply({"type": "give_die", "player": 0, "die": vd, "target": 1}) and vd in g.my_dice(1), "면회: 주사위가 갇힌 요원 것이 됨")
+	g.apply({"type": "end_turn", "player": 0})
+	# 갇힌 요원도 옆 칸에 온 동료에게 건넬 수 있다 (그 동료가 아직 차례를 안 했다면)
+	var gj := _new(CH)
+	_lay(gj, [next])
+	gj.players[1]["jailed"] = true
+	gj.players[1]["pos"] = base
+	gj.players[0]["pos"] = next
+	_turn(gj, 1, 0)
+	var jd := _spare(gj, 4, 1)
+	ok(gj.give_die_targets(gj.players[1]) == [0], "면회: 갇힌 요원은 옆 칸에 온 동료에게 주사위를 건넬 수 있음")
+	gj.players[0]["done_today"] = true
+	ok(gj.give_die_targets(gj.players[1]).is_empty() and not gj.apply({"type": "give_die", "player": 1, "die": jd, "target": 0}),
+		"면회: 이미 차례를 마친 동료에게는 갇힌 요원도 주사위를 못 건넴")
+	# 받은 주사위로 탈옥 판정 (눈 6 + 1d6 ≥ 8이라 박 하사가 아니어도 거의 성공, 목표를 0으로 해서 확인)
+	var gd := _gd(func(d): d.rules["checks"]["escape"] = 0)
+	var ge := _new(CH, gd)
+	_lay(ge, [next])
+	ge.players[1]["jailed"] = true
+	ge.players[1]["pos"] = base
+	var rcv := _spare(ge, 6, 1)
+	_turn(ge, 1, 0)
+	ok(ge.apply({"type": "escape", "player": 1, "die": rcv}) and not ge.players[1]["jailed"], "면회: 받은 주사위로 탈옥 판정을 할 수 있음")
+	# 장터 행동의 틀: 장터 타일에서 주사위 하나, 효과는 데이터(rules.market.effects)
+	var gm := _new(CH)
+	_tile(gm, Vector2i(5, 6), "market")
+	gm.players[0]["pos"] = Vector2i(5, 6)
+	_turn(gm, 0, 0)
+	ok(not gm.can_market(gm.players[0]), "장터: 주사위가 없으면 못 함")
+	var md := _spare(gm, 3, 0)
+	ok(gm.can_market(gm.players[0]) and gm.apply({"type": "market", "player": 0, "die": md}) and gm.op_dice[md]["used"], "장터: 장터 타일에서 주사위 하나를 내는 행동")
+	var gn := _new(CH)
+	_turn(gn, 0, 0)
+	_spare(gn, 3, 0)
+	ok(not gn.can_market(gn.players[0]) and not _legal_types(gn).has("market"), "장터: 장터 타일이 아니면 못 함")
+	ok(str(_gd().rules["market"]["tile"]) == "market", "장터: 타일 종류는 데이터(rules.market.tile)")
+	# 삭제: 전차 · 보석 · 장터 팔기 (v2에 없음)
+	var real := GameDataV2.load_default()
+	ok(not real.rules["tiles"].has("tram") and not real.rules["tiles"].has("tram_stop") and not real.rules.has("bail") and not real.rules.has("sell"),
+		"삭제: 전차 정류장 타일 · 보석 · 장터 팔기는 데이터에 없음")
+	var types := _legal_types(gm)
+	ok(not "tram" in types and not "bail" in types and not "sell" in types, "삭제: 전차·보석·팔기 행동은 없음")
+	# 위조 통행증은 1장
+	var forged := 0
+	for it in real.items["items"]:
+		if it["id"] == "forged_pass":
+			forged = int(it["count"])
+	ok(forged == 1, "아이템: 위조 통행증은 1장")
+
+
+func _test_b_save_resume() -> void:
+	# 새 차례 상태(받은 칸 목록, 숨기)도 저장·불러오기에 들어가고, 이어 두면 같은 판이 된다
+	var gd := _fixed_data()
+	var g := _new(CH)
+	_lay(g, [Vector2i(5, 6), Vector2i(5, 7)])
+	_tile(g, Vector2i(5, 7), "alley")
+	_turn(g, 0, 0)
+	var d := _spare(g, 2, 0)
+	_spare(g, 3, 0)
+	g.apply({"type": "move_die", "player": 0, "die": d})
+	_step(g, 0, Vector2i(5, 6), false)
+	_step(g, 0, Vector2i(5, 7), false)
+	ok(g.players[0]["fx_cells"] == [Vector2i(5, 7)], "저장: 멈춘 칸이 받은 칸 목록에 오름")
+	var st := g.save_state()
+	var clone := RulesV2.new()
+	clone.load_state(st, gd)
+	ok(clone.players[0]["fx_cells"] == [Vector2i(5, 7)] and str(clone.save_state()) == str(g.save_state()), "저장: 받은 칸 목록이 그대로 불러와짐")
+	var script := [{"type": "hide", "player": 0, "die": 1}, {"type": "end_turn", "player": 0}]
+	var same := true
+	for a in script:
+		var r1 := g.apply(a.duplicate(true))
+		var r2 := clone.apply(a.duplicate(true))
+		same = same and r1 == r2 and r1
+	ok(same and g.players[0]["done_today"] and str(clone.save_state()) == str(g.save_state()), "저장: 불러온 판도 같은 행동에 같은 결과 (숨기·차례 마치기)")
+	ok(g.players[0]["fx_cells"].size() == 1, "저장: 차례를 마친 뒤에도 받은 칸 목록은 남음")
+	# 다시보기: 같은 행동 기록을 새 판에 되풀이하면 같은 판이 된다 (AI가 둔 판)
+	var data := GameDataV2.load_default()
+	var defs := []
+	for c in CH:
+		defs.append({"name": "요원 " + c, "character": c})
+	var a1 := RulesV2.new()
+	a1.setup(defs, 4242, data)
+	var steps := 0
+	while a1.phase != "over" and steps < 700:
+		var act := GameAIV2.decide(a1, GameAIV2.next_actor(a1))
+		if act.is_empty() or not a1.apply(act):
+			break
+		steps += 1
+	var a2 := RulesV2.new()
+	a2.setup(defs, 4242, data)
+	var replay_ok := true
+	for act in a1.actions:
+		if not a2.apply(act.duplicate(true)):
+			replay_ok = false
+			break
+	ok(steps > 100 and replay_ok and str(a2.save_state()) == str(a1.save_state()), "다시보기: 행동 기록을 되풀이하면 같은 상태 (%d 행동)" % steps)

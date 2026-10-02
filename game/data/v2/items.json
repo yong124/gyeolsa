@@ -66,7 +66,7 @@
 		{
 			"id": "forged_pass",
 			"name": "위조 통행증",
-			"count": 2,
+			"count": 1,
 			"kind": "consumable",
 			"text": "이번 거점 진입이나 검문소 하나에 경찰이 붙지 않음",
 			"when": "turn",

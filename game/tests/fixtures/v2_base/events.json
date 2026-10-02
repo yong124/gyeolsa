@@ -93,10 +93,11 @@
 			"effects": [
 				{
 					"op": "police_attach",
-					"who": "self"
+					"who": "self",
+					"at": "here"
 				}
 			],
-			"_comment": "police_attach: 경찰이 그 요원의 칸에 나타나 쫓기 시작함"
+			"_comment": "police_attach: 경찰이 그 요원의 자리(at here)에 나타나 쫓기 시작함. at이 없으면 가장 가까운 거점에 나타남"
 		},
 		{
 			"id": "cop_eye",

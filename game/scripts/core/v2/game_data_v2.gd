@@ -25,6 +25,8 @@ const KNOWN_OPS := ["police_dispatch", "police_attach", "police_advance", "polic
 const KNOWN_IF_CONDS := ["chased", "not_chased"]
 ## 능력 사용 조건 (ability.requires)
 const KNOWN_REQUIRES := ["near_tile", "base_in_range"]
+## 능력 사용 비용 (ability.cost): 없으면 공짜, "die"는 작전 주사위 하나를 낸다
+const KNOWN_COSTS := ["die"]
 ## 3-3. 장면·협동 조건 kind
 const KNOWN_SCENE_CONDITIONS := ["enter_base", "deliver_bomb", "check", "check_pair", "dice", "pay_item", "pay_bomb", "people", "hold",
 	"jailed_here", "any_of", "all_of", "cover_entry", "same_day_assassin", "opposite_edges"]
@@ -37,7 +39,7 @@ const KNOWN_SAGA_CONDITIONS := ["end_turn_near_base", "visit_base_adjacent", "to
 const KNOWN_STATS := ["evade_auto", "escape_bonus", "rescued_move_bonus", "assassin_rerolls", "bomb_slots",
 	"sabotage_bonus", "sabotage_exposure", "move_min3", "hand_limit", "item_draw_choice",
 	"mission_intel_bonus", "threat_peek", "block_police_with_evade", "end_move_hop_to_ally",
-	"spare_die_bonus", "assassin_bonus", "evade_bonus", "move_bonus", "base_no_police"]
+	"spare_die_bonus", "assassin_bonus", "evade_bonus", "move_bonus", "base_no_police", "assassin_adjacent"]
 ## where는 이 값 말고 거점 id도 쓸 수 있다.
 const KNOWN_WHERE := ["inside", "adjacent", "inside_or_adjacent"]
 
@@ -199,6 +201,20 @@ func _validate_rules(errs: Array[String]) -> void:
 	var cells := size * size - 1 - bases.size()
 	if tile_total > cells:
 		errs.append("타일 %d장이 빈칸 %d칸보다 많습니다." % [tile_total, cells])
+	var hide = rules.get("hide", null)
+	if typeof(hide) != TYPE_DICTIONARY or typeof(hide.get("tiles", null)) != TYPE_ARRAY or typeof(hide.get("flags", null)) != TYPE_ARRAY:
+		errs.append("rules.hide에 tiles와 flags(목록)가 있어야 합니다.")
+	var scout = rules.get("scout", null)
+	if typeof(scout) != TYPE_DICTIONARY or int(scout.get("count", 0)) < 1:
+		errs.append("rules.scout.count는 1 이상이어야 합니다.")
+	var market = rules.get("market", null)
+	if typeof(market) != TYPE_DICTIONARY or typeof(market.get("tile", null)) != TYPE_STRING or typeof(market.get("effects", null)) != TYPE_ARRAY:
+		errs.append("rules.market에 tile(문자열)과 effects(목록)가 있어야 합니다.")
+	else:
+		_check_effects(errs, "rules.market", market["effects"])
+	var police_r = rules.get("police", {})
+	if int(police_r.get("escape_distance", 0)) < 1 or int(police_r.get("rejoin_distance", 0)) < 1:
+		errs.append("rules.police에 escape_distance와 rejoin_distance(1 이상)가 있어야 합니다.")
 
 
 func _validate_threats(errs: Array[String]) -> void:
@@ -261,7 +277,7 @@ func _validate_items(errs: Array[String]) -> void:
 		_check_mods(errs, who, c.get("mods", []))
 	if not items.is_empty():
 		_check_count(errs, "아이템 종류", cards.size(), 10, true)
-		_check_count(errs, "아이템 장수", _sum_count(cards), 15, true)
+		_check_count(errs, "아이템 장수", _sum_count(cards), 14, true)
 
 
 func _validate_scenes(errs: Array[String]) -> void:
@@ -381,6 +397,8 @@ func _validate_characters(errs: Array[String]) -> void:
 			for k in ab.get("requires", {}):
 				if not k in KNOWN_REQUIRES:
 					errs.append("%s: 능력의 알 수 없는 requires '%s'" % [who, k])
+			if ab.has("cost") and not ab["cost"] in KNOWN_COSTS:
+				errs.append("%s: 능력의 알 수 없는 cost '%s'" % [who, ab["cost"]])
 			_check_effects(errs, who + " 능력", ab.get("effects", []))
 	if not characters.is_empty():
 		_check_count(errs, "캐릭터", cards.size(), 12, true)
@@ -429,6 +447,8 @@ func _check_effects(errs: Array[String], who: String, effects: Array) -> void:
 		for k in ["who", "target"]:
 			if e.has(k) and not e[k] in KNOWN_TARGETS:
 				errs.append("%s: %s의 알 수 없는 %s '%s'" % [who, op, k, e[k]])
+		if op == "police_attach" and e.has("at") and e["at"] != "here":
+			errs.append("%s: police_attach의 알 수 없는 at '%s'" % [who, e["at"]])
 		if op == "police_dispatch" and e.has("from"):
 			if not e["from"] in ["random_base", "strike_base"] and not e["from"] in BASE_IDS:
 				errs.append("%s: police_dispatch의 알 수 없는 from '%s'" % [who, e["from"]])

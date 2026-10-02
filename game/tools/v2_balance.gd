@@ -76,7 +76,7 @@ func _run(opt: Dictionary, sets: Array) -> Dictionary:
 		"endings": {}, "launch_days": [], "launch_percent": [], "launch_reason": {}, "act2_days": [],
 		"strikes": {}, "strike_wins": {}, "scene_shown": {}, "scene_broken": {}, "stopped_scene": {},
 		"saga_dealt": {}, "saga_done": {}, "saga_per_game": 0, "character_games": {}, "character_wins": {},
-		"jails": 0, "escapes": 0, "rescues": 0, "confiscated": 0,
+		"jails": 0, "escapes": 0, "rescues": 0, "confiscated": 0, "action_types": {}, "dice_rolled": 0, "dice_left": 0, "turns": 0,
 		"exposure_peak": 0, "alert_days": {}, "missions": {}, "threats": {}}
 	for i in n:
 		var selector := RandomNumberGenerator.new()
@@ -108,9 +108,13 @@ func _run(opt: Dictionary, sets: Array) -> Dictionary:
 				break
 			var pid := GameAIV2.next_actor(g)
 			var a := GameAIV2.decide(g, pid)
+			if str(a.get("type", "")) == "end_turn":
+				s["turns"] += 1
+				s["dice_left"] += g.my_dice(int(a["player"])).size()   # 차례를 마치며 쓰지 않고 남긴 주사위
 			if not g.apply(a):
 				s["rejected"] += 1
 				break
+			_inc(s["action_types"], str(a["type"]))
 			steps += 1
 			for e in g.events:
 				match str(e.get("kind", "")):
@@ -120,6 +124,9 @@ func _run(opt: Dictionary, sets: Array) -> Dictionary:
 					"threat": _inc(s["threats"], str(e["id"]))
 					"morning": _inc(s["alert_days"], str(g.alert_level()))
 					"rescue": s["rescues"] += 1
+					"dice_rolled":
+						if not e.get("again", false):
+							s["dice_rolled"] += e["values"].size()
 					"confiscate": s["confiscated"] += e["items"].size()
 			g.events.clear()
 			s["exposure_peak"] = maxi(int(s["exposure_peak"]), g.exposure)
@@ -215,3 +222,9 @@ func _print_rows(rows: Array) -> void:
 		print("거점별 승률: ", r["strike_win_rate"], " · 장면 돌파율: ", r["scene_break_rate"])
 		print("사연 이룸률: ", r["saga_rate"], " · 캐릭터 승률 차이(%p): ", r["character_diff_pp"])
 		print("투옥 %d · 탈옥 %d · 구출 %d · 압수 %d장 · 판당 사연 %.2f" % [r["jails"], r["escapes"], r["rescues"], r["confiscated"], r["saga_per_game"]])
+		var per_game := {}
+		for k in r["action_types"]:
+			per_game[k] = snappedf(float(r["action_types"][k]) / float(maxi(int(r["games"]), 1)), 0.1)
+		print("판당 행동: ", per_game)
+		print("굴린 주사위 %d개 중 차례를 마치며 남긴 것 %d개 (%.1f%%) · 차례 %d번" % [r["dice_rolled"], r["dice_left"],
+			100.0 * float(r["dice_left"]) / float(maxi(int(r["dice_rolled"]), 1)), r["turns"]])

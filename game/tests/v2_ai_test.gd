@@ -22,6 +22,7 @@ func _init() -> void:
 		if not kind in found and not kind in RulesV2.PICK_KINDS:
 			errors.append("엔진에 없는 선택 종류: " + kind)
 	var confiscated := 0
+	var used := {}
 	var abilities := {}
 	var choices := {}
 	var total := 0
@@ -57,6 +58,7 @@ func _init() -> void:
 			if not g.apply(a):
 				errors.append("%d판: 엔진이 AI 액션을 거부" % i)
 				break
+			used[a["type"]] = int(used.get(a["type"], 0)) + 1
 			if saved != null and not saved.apply(a.duplicate(true)):
 				errors.append("%d판: 불러온 판이 액션을 거부" % i)
 				break
@@ -85,6 +87,12 @@ func _init() -> void:
 		errors.append("AI 대체 액션 %d회" % GameAIV2.fallback_count)
 	if confiscated == 0:
 		errors.append("투옥 압수가 한 번도 없음")
+	for t in ["move_die", "step", "end_move", "end_turn", "mission_check", "escape", "scout", "scene_check", "scene_pay"]:
+		if int(used.get(t, 0)) == 0:
+			errors.append("AI가 한 번도 안 쓴 행동: " + t)
+	if int(used.get("end_turn", 0)) + total < int(used.get("begin_turn", 0)):
+		errors.append("시작한 차례를 마치지 않은 판이 있음 (끝난 판의 마지막 차례 말고는 모두 마쳐야 함)")
+	print("AI가 둔 행동: ", used)
 	print("v2 AI 시험: 4인 200판 · 2·3인 20판 · 완료 %d/220 · 압수 %d장 · 능력 쓴 캐릭터 %d명 · 선택 %d종 · 대체 %d · 실패 %d" % [
 		total, confiscated, abilities.size(), choices.size(), GameAIV2.fallback_count, errors.size()])
 	for msg in errors.slice(0, 20):
