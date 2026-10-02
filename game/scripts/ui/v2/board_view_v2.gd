@@ -24,6 +24,8 @@ var hidden_tiles := {}
 var _reveal := {}
 var _pulse := 0.0
 var _preview := {}
+var reach := {}                  # 이동 미리 보기: 닿을 수 있는 칸 {칸: 걸음 수} (행동 메뉴에서 이동에 올려 놓았을 때)
+var scouted := {}                # 정찰로 미리 깐 칸 (아직 아무도 멈추지 않은 곳)
 var marker_trails := {}          # 카드 id -> {"from", "to", "age"}: 표적이 움직인 자리 (잠깐 보임)
 
 const ROLE_GLYPH := {"target": "표", "informer": "정", "pickup": "받", "dropoff": "주", "work": "공", "spot": "잠", "base": "입"}
@@ -49,6 +51,9 @@ func setup(g: RulesV2, human: int) -> void:
 			if def.has(key):
 				_tex[def[key]] = load("res://assets/tiles/%s.png" % def[key])
 	_tex["back"] = load("res://assets/tiles/back.png")
+	for t in g.data.rules["tiles"]:
+		if not str(t).begins_with("_") and _v1.tile(str(t)).is_empty() and ResourceLoader.exists("res://assets/tiles/%s.png" % t):
+			_tex["new:" + str(t)] = load("res://assets/tiles/%s.png" % t)   # 새 타일 그림 (tools/gen_ui_art.py tiles)
 	for f in g.data.characters.get("factions", {}):
 		if not str(f).begins_with("_"):
 			var path := "res://assets/ui/faction_%s.png" % f
@@ -89,6 +94,15 @@ func sync_from_game() -> void:
 	_reveal.clear()
 	_update_preview()
 	queue_redraw()
+
+
+func note_scouted(c: Vector2i) -> void:
+	scouted[c] = true
+	queue_redraw()
+
+
+func note_arrived(c: Vector2i) -> void:
+	scouted.erase(c)
 
 
 func note_marker_moved(id: String, from: Vector2i, to: Vector2i) -> void:
@@ -302,11 +316,14 @@ func _draw() -> void:
 	draw_texture_rect(_map_tex, Rect2(0, 0, side, side), false)
 	draw_rect(Rect2(0, 0, side, side), FADE)
 	_draw_tiles()
+	_draw_marks()
 	_draw_scene_place()
 	_draw_danger()
 	_draw_highlights()
+	_draw_reach()
 	_draw_preview()
 	_draw_players()
+	_draw_chase()
 	_draw_police()
 	_draw_markers()
 	_draw_targets()
@@ -370,6 +387,12 @@ func _draw_plain_tile(c: Vector2i, t: String) -> void:
 		if t01 < 0.5:
 			draw_texture_rect(_tex["back"], r, false)
 			return
+	if _tex.has("new:" + t):
+		draw_rect(Rect2(r.position + Vector2(1, 4), r.size), Color(0, 0, 0, 0.35))
+		draw_rect(r, Style.PAPER_HI)
+		draw_texture_rect(_tex["new:" + t], r.grow(-3.0), false)
+		_draw_hide_badge(c, r)
+		return
 	var col := Color.from_hsv(float(t.hash() % 360) / 360.0, 0.5, 0.55)
 	draw_rect(Rect2(r.position + Vector2(1, 4), r.size), Color(0, 0, 0, 0.35))
 	draw_rect(r, Style.PAPER_HI)
@@ -383,11 +406,116 @@ func _draw_plain_tile(c: Vector2i, t: String) -> void:
 	var sf := maxi(9, int(r.size.x * 0.15))
 	var lw := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, sf).x
 	draw_string(font, Vector2(r.get_center().x - lw / 2.0, r.end.y - 5.0), label, HORIZONTAL_ALIGNMENT_LEFT, -1, sf, col.darkened(0.2))
-	if _can_hide_at(c) and not _reveal.has(c):
-		var bf := maxi(10, int(r.size.x * 0.16))
-		var bw := font.get_string_size("숨", HORIZONTAL_ALIGNMENT_LEFT, -1, bf).x + 6
-		draw_rect(Rect2(r.position + Vector2(2, 2), Vector2(bw, bf * 1.3)), Color(Style.GOOD, 0.9))
-		draw_string(font, r.position + Vector2(5, bf * 1.05 + 2), "숨", HORIZONTAL_ALIGNMENT_LEFT, -1, bf, Color.WHITE)
+	_draw_hide_badge(c, r)
+
+
+func _draw_hide_badge(c: Vector2i, r: Rect2) -> void:
+	if _reveal.has(c) or not _can_hide_at(c):
+		return
+	var font := Style.serif(700)
+	var bf := maxi(10, int(r.size.x * 0.16))
+	var bw := font.get_string_size("숨", HORIZONTAL_ALIGNMENT_LEFT, -1, bf).x + 6
+	draw_rect(Rect2(r.position + Vector2(2, 2), Vector2(bw, bf * 1.3)), Color(Style.GOOD, 0.9))
+	draw_string(font, r.position + Vector2(5, bf * 1.05 + 2), "숨", HORIZONTAL_ALIGNMENT_LEFT, -1, bf, Color.WHITE)
+
+
+func _tag(r: Rect2, corner: int, text: String, col: Color) -> void:
+	## 칸 모서리에 작은 글자 표지 (corner 0 왼쪽 위 · 1 오른쪽 위 · 2 왼쪽 아래 · 3 오른쪽 아래)
+	var font := Style.sans(800)
+	var fs := maxi(9, int(r.size.x * 0.13))
+	var w := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x + 6
+	var h := fs * 1.35
+	var x := r.position.x + 2 if corner % 2 == 0 else r.end.x - w - 2
+	var y := r.position.y + 2 if corner < 2 else r.end.y - h - 2
+	draw_rect(Rect2(x, y, w, h), col)
+	draw_string(font, Vector2(x + 3, y + fs * 1.05), text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color.WHITE)
+
+
+func _draw_marks() -> void:
+	## 정찰로 미리 깐 칸, 이번 차례에 칸 효과를 이미 받은 칸
+	for c in scouted:
+		if game.board.has(c) and not hidden_tiles.has(c):
+			_tag(cell_rect(c).grow(-3.0), 3, "정찰", Color(Style.INK_2, 0.9))
+	if game.phase == "turn" and game.current == human_id:
+		for c in game.players[human_id]["fx_cells"]:
+			if game.board.has(c) and game.tile_type(c) not in ["normal", "start"] and not hidden_tiles.has(c):
+				_tag(cell_rect(c).grow(-3.0), 1, "받음", Color(Style.INK_3, 0.9))
+
+
+func _draw_reach() -> void:
+	## 행동 메뉴에서 이동에 올려 놓으면 갈 수 있는 칸을 밝힌다 (걸음 수를 작게)
+	if reach.is_empty() or game.phase == "over":
+		return
+	var font := Style.sans(800)
+	for c in reach:
+		var r := cell_rect(c).grow(-4)
+		draw_rect(r, Color(Style.GOLD_HI, 0.38))
+		draw_rect(r, Color(Style.GOLD, 0.9), false, 2.0)
+		var fs := maxi(10, int(r.size.x * 0.22))
+		var t := str(reach[c])
+		var w := font.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+		draw_string(font, r.get_center() + Vector2(-w / 2.0, fs * 0.36), t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Style.INK)
+
+
+func _draw_chase() -> void:
+	## 경찰이 누구를 쫓는지 선으로 잇고, 거리(걸음)와 따돌림까지 남은 거리를 적는다
+	var font := Style.sans(800)
+	var esc := int(game.data.rules["police"]["escape_distance"])
+	for pid in vis_police:
+		if not vis_players.has(pid) or vis_jailed.get(pid, false):
+			continue
+		var a: Vector2 = cell_center(Vector2i(vis_police[pid]["pos"].round()))
+		var bpt: Vector2 = cell_center(Vector2i(vis_players[pid].round()))
+		var col: Color = Style.seat(pid)
+		var alpha: float = float(vis_police[pid]["alpha"]) * (0.85 if vis_police[pid]["active"] else 0.5)
+		draw_dashed_line(a, bpt, Color(0.1, 0.07, 0.04, 0.45 * alpha), 5.0, 9.0)
+		draw_dashed_line(a, bpt, Color(col, alpha), 3.0, 9.0)
+		var d := game.walk_dist(Vector2i(vis_police[pid]["pos"].round()), Vector2i(vis_players[pid].round()))
+		var text := "%d칸" % d if d < 100 else "길이 끊김"
+		if pid == human_id and d < 100:
+			text += " · %d칸 넘게 벌어지면 따돌림" % (esc + 1)
+		var fs := 12
+		var w := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x + 10
+		var mid := (a + bpt) / 2.0
+		draw_rect(Rect2(mid - Vector2(w / 2.0, 10), Vector2(w, 20)), Color(Style.INK, 0.82 * alpha))
+		draw_string(font, mid + Vector2(-w / 2.0 + 5, 5), text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(Style.PAPER, alpha))
+
+
+func _marker_short(m: Dictionary) -> String:
+	## 마커 곁에 적는 진행 (공작: 바친 합·남은 눈, 잠복: 쌓은 날, 연락: 든 요원, 암살: 동선 파악)
+	var id := str(m["id"])
+	var st: Dictionary = game.mission_state.get(id, {})
+	var cond := game.card_cond(id)
+	match str(m["role"]):
+		"work":
+			match str(cond.get("mode", "")):
+				"sum": return "%d/%d" % [int(st.get("sum", 0)), int(st.get("need", 0))]
+				"combo": return "·".join(st.get("left", []).map(func(v): return str(v)))
+				"each": return "%d곳 남음" % game.markers_of(id, "work").size()
+		"spot":
+			return "%d/%d일" % [int(st.get("lurk", 0)), int(cond.get("days", 1))]
+		"pickup":
+			var h := int(st.get("holder", -1))
+			return ("%s 듦" % str(game.char_def(game.players[h]).get("name", "")).replace(" ", "")) if h >= 0 else ""
+		"target":
+			return "멈춤" if bool(st.get("informed", false)) else ""
+	return ""
+
+
+func _draw_marker_tags() -> void:
+	var font := Style.sans(800)
+	for m in game.markers:
+		var t := _marker_short(m)
+		if t == "" or str(m["role"]) == "base":
+			continue
+		var r := cell_rect(m["pos"])
+		var fs := maxi(9, int(r.size.x * 0.125))
+		var w := font.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x + 8
+		var at := Vector2(r.position.x + 2, r.position.y + r.size.y * 0.52)
+		var col: Color = Style.SEAL if game.data.is_op(str(m["id"])) else Style.MISSION
+		draw_rect(Rect2(at, Vector2(w, fs * 1.4)), Color(Style.INK, 0.86))
+		draw_rect(Rect2(at, Vector2(3, fs * 1.4)), col)
+		draw_string(font, at + Vector2(5, fs * 1.08), t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Style.PAPER)
 
 
 func _can_hide_at(c: Vector2i) -> bool:
@@ -476,6 +604,7 @@ func _draw_markers() -> void:
 	## 보드 위 마커: 역할 글자가 든 동그라미(미션은 파랑 계열, 일제 작전은 붉은색), 기한이 있으면 남은 날, 표적이 움직인 자리
 	if game.act != 1 or game.phase == "over":
 		return
+	_draw_marker_tags()
 	var font := Style.sans(900)
 	for id in marker_trails:
 		var tr: Dictionary = marker_trails[id]

@@ -166,9 +166,10 @@ func refresh() -> void:
 	# 결행 준비 / 첩보 토큰
 	if game.act == 1:
 		_gauge_title.text = "결행 준비 (투표 %d)" % int(game.data.rules["launch_min"])
-		_gauge_lbl.text = "%d / %d" % [game.ready, int(game.data.rules["launch_min"])]
+		var extra: int = game.ready - int(game.data.rules["launch_min"])
+		_gauge_lbl.text = "%d / %d" % [game.ready, int(game.data.rules["launch_min"])] + ((" · 혜택 %d" % extra) if extra > 0 else "")
 		_gauge.custom_minimum_size = Vector2(maxi(game.ready, int(game.data.rules["launch_min"]) + 2) * 21 + 2, 44)
-		_gauge.tooltip_text = "공개 미션을 이루면 결행 준비가 오릅니다. %d가 되면 아침마다 결행 투표가 열립니다." % int(game.data.rules["launch_min"])
+		_gauge.tooltip_text = "공개 미션을 이루면 결행 준비가 오릅니다. %d가 되면 아침마다 결행 투표가 열리고, %d를 넘는 1점마다 결행할 때 「결행 혜택」을 하나씩 고릅니다 (지금 혜택 %d개)." % [int(game.data.rules["launch_min"]), int(game.data.rules["launch_min"]), maxi(0, game.ready - int(game.data.rules["launch_min"]))]
 	else:
 		_gauge_title.text = "첩보 토큰"
 		_gauge_lbl.text = "%d" % game.intel_tokens

@@ -173,6 +173,16 @@ func roll_dice(e: Dictionary, mult: float) -> void:
 		_dice["stamp"] = "성 공" if ok else "실 패"
 		_dice["ok"] = ok
 		_dice["title"] = "%s · 합계 %d%s" % [title, total + bonus2, (" (%d%+d)" % [total, bonus2]) if bonus2 else ""]
+		var played := int(e.get("played", 0))
+		if not e.has("played"):
+			pass   # v1: 합계만
+		elif played > 0 and values.size() >= 2:
+			var rolled := []
+			for k in range(1, values.size()):
+				rolled.append(str(values[k]))
+			_dice["title"] = "%s · 낸 눈 %d + 굴린 눈 %s%s = %d / 목표 %d" % [title, played, "+".join(rolled), (" %+d" % bonus2) if bonus2 else "", total + bonus2, int(e["target"])]
+		else:
+			_dice["title"] = "%s · 주사위 합 %d%s / 목표 %d" % [title, total, (" %+d" % bonus2) if bonus2 else "", int(e["target"])]
 	elif e.has("result"):
 		_dice["stamp"] = "%d 칸" % e["result"]
 		_dice["ok"] = true
