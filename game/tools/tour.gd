@@ -37,6 +37,8 @@ func _ready() -> void:
 		_hot()
 	elif "tut2" in OS.get_cmdline_user_args():
 		_tut2()
+	elif "v2f" in OS.get_cmdline_user_args():
+		_v2f()
 	elif "v2" in OS.get_cmdline_user_args():
 		_v2()
 	elif "act2" in OS.get_cmdline_user_args():
@@ -483,4 +485,125 @@ func _v2() -> void:
 	main._swap(e)
 	await _wait(0.8)
 	await _shot("v2_ending")
+	get_tree().quit()
+
+
+func _v2f() -> void:
+	## v2 화면 다듬기 확인용: 만들어 둔 장면(행동 메뉴 · 마커 · 같은 칸 · 동향 띠 · 결행 투표 · 혜택 · 반격 · 장터)을 캡처한다
+	await _wait(0.5)
+	var data := GameDataV2.load_default()
+	var defs := []
+	for id in ["park", "jeong", "gaeddong", "oh"]:
+		defs.append({"name": "나" if defs.is_empty() else str(data.character(id)["name"]), "character": id})
+	var game := RulesV2.new()
+	game.setup(defs, 4242)
+	var guard := 0
+	while game.phase == "choice" and guard < 20:
+		guard += 1
+		game.apply({"type": "choose", "player": game.pending["player"], "value": game.pending["options"][0]["value"]})
+	for y in 11:
+		for x in 11:
+			var c := Vector2i(x, y)
+			if not game.board.has(c) and absi(x - 5) + absi(y - 5) <= 5:
+				game.board[c] = game._new_tile("normal")
+	game.board[Vector2i(4, 6)] = game._new_tile("alley")
+	game.board[Vector2i(6, 6)] = game._new_tile("watchtower")
+	game.board[Vector2i(4, 4)] = game._new_tile("market")
+	game.board[Vector2i(6, 4)] = game._new_tile("tavern")
+	game.mission_row = []
+	game.markers = []
+	game.mission_state = {}
+	for id in ["m_police_chief", "m_secret_docs", "m_open_rice", "m_police_watch"]:
+		game.mission_row.append(id)
+		game._place_card(id)
+	game.op_row.append("op_censorship")
+	game._place_card("op_censorship")
+	game.trend = 3
+	game.funds = 4
+	game.ready = 5
+	game.exposure = 3
+	game.mission_state["m_open_rice"]["sum"] = 5
+	game.mission_state["m_secret_docs"]["holder"] = 1
+	game.players[0]["grants"] = [{"kind": "check_bonus", "value": 2, "scope": "strike"}, {"kind": "reroll", "value": 0, "scope": "any"}]
+	game.players[0]["items"] = ["telescope"]
+	game.players[1]["pos"] = Vector2i(5, 6)
+	game.players[0]["pos"] = Vector2i(5, 6)
+	game.police[1] = {"pos": Vector2i(5, 9), "summon_turn": 0}
+	game.phase = "day"
+	game.apply({"type": "begin_turn", "player": 0})
+	game.op_dice = []
+	for v in [5, 2, 6]:
+		game.op_dice.append({"value": v, "owner": 0, "used": false})
+	var screen := GameScreenV2.new(game, 0, {})
+	screen._paused = true
+	main._swap(screen)
+	await _wait(0.8)
+	screen._tips_seen = {"turn": true}
+	screen._board.note_scouted(Vector2i(5, 7))
+	game.players[0]["fx_cells"] = [Vector2i(6, 6)]
+	screen._refresh()
+	await _wait(0.4)
+	await _shot("v2f_board_top")
+	var acts := game.legal_actions().filter(func(a): return int(a.get("player", -1)) == 0 and a.has("die") and int(a["die"]) == 0)
+	screen._die_menu(acts, 0)
+	await _wait(0.5)
+	await _shot("v2f_menu")
+	screen._hover_action(acts[0])
+	await _wait(0.3)
+	await _shot("v2f_menu_reach")
+	screen._close_menu()
+	# 장터
+	game.players[0]["pos"] = Vector2i(4, 4)
+	screen._refresh()
+	var macts := game.legal_actions().filter(func(a): return int(a.get("player", -1)) == 0 and a.has("die") and int(a["die"]) == 1)
+	screen._die_menu(macts, 1)
+	await _wait(0.5)
+	await _shot("v2f_market_menu")
+	screen._close_menu()
+	# 첫 판 안내
+	screen._tips_seen = {}
+	Prefs.v2_tips = true
+	screen._tip_check()
+	screen._layout()
+	await _wait(0.3)
+	await _shot("v2f_tip")
+	screen._tip.visible = false
+	# 결행 투표
+	game.phase = "morning"
+	game.act = 1
+	game.intel = {"barracks": 2, "police_hq": 3, "prison": 0, "gg": 1}
+	game._start_vote(false)
+	screen._show_choice()
+	await _wait(0.4)
+	await _shot("v2f_vote")
+	screen._choice.visible = false
+	# 결행 혜택
+	game.vote_state = {}
+	game.pending = {}
+	game.phase = "day"
+	game.ready = 6
+	game._launch("vote", "prison")
+	screen._refresh()
+	if game.phase == "choice":
+		screen._show_choice()
+	await _wait(0.4)
+	await _shot("v2f_benefit")
+	screen._choice.visible = false
+	# 반격 (버티기 장면)
+	game.pending = {}
+	game.phase = "day"
+	var strike := game.data.strike("barracks")
+	game.launch_info = {"target": "barracks", "reason": "test", "day": game.day, "rounds_left": game.rounds_left}
+	game.act = 2
+	game.markers = []
+	game.mission_row = []
+	game.op_row = []
+	game.scenes = [strike["entry"]["id"], "barracks_shift", strike["final"]["id"]]
+	game.scene_index = 1
+	game.scene_state = {}
+	game.counter = {"day": game.day, "blocked": false}
+	game.players[0]["pos"] = Vector2i(2, 1)
+	screen._refresh()
+	await _wait(0.4)
+	await _shot("v2f_counter")
 	get_tree().quit()

@@ -627,6 +627,36 @@ func path_to(p: Dictionary, goal: Vector2i) -> Dictionary:
 	return out
 
 
+func reach_cells(p: Dictionary, steps: int) -> Dictionary:
+	## 이 걸음 수로 닿을 수 있는 칸 {칸: 걸음 수} (이동 미리 보기용 조회). 멈추는 칸(거점·마커·덮인 칸)은 닿을 뿐 지나가지 못하고,
+	## 경찰이 있는 칸은 못 들어간다.
+	var dist := {}
+	if p["jailed"] or steps <= 0:
+		return dist
+	var stops := _stop_cells(p)
+	dist[p["pos"]] = 0
+	var q: Array[Vector2i] = [p["pos"]]
+	var head := 0
+	while head < q.size():
+		var c: Vector2i = q[head]
+		head += 1
+		var d: int = dist[c]
+		if d >= steps:
+			continue
+		if c != p["pos"] and (tile_type(c) == "base" or c in stops or not board.has(c)):
+			continue
+		for dir in DIRS:
+			var n: Vector2i = c + dir
+			if dist.has(n) or not in_bounds(n) or police_on(n):
+				continue
+			if not board.has(n) and tile_deck.is_empty():
+				continue
+			dist[n] = d + 1
+			q.append(n)
+	dist.erase(p["pos"])
+	return dist
+
+
 func tile_path(a: Vector2i, b: Vector2i) -> Variant:
 	## 깔린 타일만 따라가는 a→b 최단 경로 (a 제외). 갈 수 없으면 null.
 	if a == b:
@@ -1991,7 +2021,7 @@ func _check_roll(p: Dictionary) -> void:
 	var ok: bool = c["total"] >= int(c["target"])
 	var label := _check_label(c)
 	_push({"kind": "dice", "what": label, "dice": c["dice"], "bonus": c["bonus"], "target": c["target"],
-		"player": p["id"], "ok": ok})
+		"player": p["id"], "ok": ok, "played": dv})
 	_log("%s: %s 판정 %d%s (목표 %d) → %s" % [p["name"], label, r,
 		(" %+d" % c["bonus"]) if c["bonus"] != 0 else "", c["target"], "성공" if ok else "실패"])
 	if ok:

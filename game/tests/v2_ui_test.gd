@@ -5,6 +5,7 @@ extends Node
 
 var failed := 0
 var first := 0        # 첫 판 번호 (여러 프로세스로 나눠 돌릴 때)
+var seen := {}        # 거친 화면 종류 {이름: 횟수} (행동 메뉴 · 선택 창 종류)
 
 
 func _ready() -> void:
@@ -97,16 +98,43 @@ func _run(n: int) -> void:
 				_fail("판 %d: 화면에 없는 행동 %s (phase=%s)" % [g_i, str(a), game.phase])
 				break
 			if a["type"] == "choose":
+				var ck := "choose:" + str(game.pending.get("kind", ""))
+				seen[ck] = int(seen.get(ck, 0)) + 1
 				screen.choose_now(a["value"])
 			else:
+				if a.has("die") and int(a["die"]) >= 0:
+					await _try_menu(screen, game, a, g_i)
 				screen.act_now(a)
 		endings[game.ending.get("id", "멈춤")] = int(endings.get(game.ending.get("id", "멈춤"), 0)) + 1
 		print("판 %d: %s · %d일째 · %d막 · 액션 %d" % [g_i, game.ending.get("id", "-"), game.day, game.act, game.actions.size()])
 		screen.queue_free()
 		await get_tree().process_frame
 	print("엔딩: %s" % str(endings))
+	print("거친 화면: %s" % str(seen))
 	print("v2 화면 시험: %s" % ("실패 %d건" % failed if failed > 0 else "통과"))
 	get_tree().quit(1 if failed > 0 else 0)
+
+
+func _try_menu(screen: GameScreenV2, game: RulesV2, a: Dictionary, g_i: int) -> void:
+	## 행동 메뉴를 실제로 열어 본다: 같은 주사위의 행동이 모두 단추로 나오고, 미리 보기(이동 도달 칸)가 그려지는지
+	var die := int(a["die"])
+	var acts := game.legal_actions().filter(func(x): return int(x.get("player", -1)) == 0 and x.has("die") and int(x["die"]) == die)
+	screen._die_menu(acts, die)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	if screen._menu == null or not is_instance_valid(screen._menu):
+		_fail("판 %d: 행동 메뉴가 안 열림 (%s)" % [g_i, str(a)])
+		return
+	seen["menu"] = int(seen.get("menu", 0)) + 1
+	seen["menu:" + str(a["type"])] = int(seen.get("menu:" + str(a["type"]), 0)) + 1
+	for x in acts:
+		screen._hover_action(x)
+		if x["type"] == "move_die":
+			if screen._board.reach.is_empty() and not game.reach_cells(game.players[0], game.move_value(game.players[0], die)).is_empty():
+				_fail("판 %d: 이동 미리 보기가 비어 있음" % g_i)
+		if screen._hint(x) == null:
+			_fail("판 %d: 힌트 없음" % g_i)
+	screen._close_menu()
 
 
 func _fail(msg: String) -> void:
