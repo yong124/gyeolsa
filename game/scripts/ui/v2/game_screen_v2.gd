@@ -59,6 +59,7 @@ var _primary_action: Dictionary = {}  # 주 버튼 액션 (스페이스)
 func _init(g: RulesV2, human_id := 0, meta_info := {}) -> void:
 	game = g
 	human = human_id
+	game.human = human_id   # 결행 혜택은 사람이 고른다
 	meta = meta_info
 	_auto = bool(meta.get("autoplay", false))
 	_fast = _auto
@@ -389,6 +390,10 @@ func _refresh_mid() -> void:
 			v.add_child(UiKit.text("지금 장면 %d / %d" % [i + 1, game.scenes.size()], 11, Style.INK_3, false))
 			v.add_child(UiKit.title(str(card.get("name", "")), 17, Style.INK))
 			v.add_child(UiKit.text(_cond_text(card.get("condition", {}), card), 12, Style.INK_2))
+			if game.act == 2 and int(game.counter.get("day", -1)) == game.day:
+				var blocked: bool = bool(game.counter.get("blocked", false))
+				v.add_child(UiKit.text("반격 막음 — 오늘 밤 버틴 날로 셈" if blocked else "반격! 이 자리에서 작전 판정 %d에 성공해야 오늘 밤 버틴 날로 셈 (못 막으면 자리에 선 요원은 회피 판정, 실패하면 투옥)" % int(game.data.rules["counter"]["target"]),
+					12, Style.GOOD if blocked else Style.SEAL, false, 800))
 			var need := game.scene_need()
 			var parts := []
 			for key in need:
@@ -533,6 +538,8 @@ func _refresh_actions() -> void:
 					hint = "주사위를 다 썼습니다 · 「차례 마치기」"
 				if game.act == 2:
 					hint += " · 장면 자리(금색 점선)에서 바치기 · 판정"
+				if game.counter_active():
+					hint += " · 반격! 자리에 선 요원이 작전 판정 %d에 성공해야 오늘 밤 버틴 날로 칩니다" % int(game.data.rules["counter"]["target"])
 				if game.steps_left == 0:
 					primary = _best_check(mine)
 					if primary.is_empty():
@@ -675,7 +682,7 @@ func _rank(a: Dictionary) -> int:
 
 func _best_check(mine: Array) -> Dictionary:
 	## 주 단추용: 판정 행동 중 성공 확률이 가장 높은 것 (미션 → 탈옥 → 장면)
-	for t in ["mission_check", "escape", "scene_check"]:
+	for t in ["counter_check", "mission_check", "escape", "scene_check"]:
 		var best: Dictionary = GameAIV2._check_action(game, game.players[human], mine, t)
 		if not best.is_empty():
 			return best
@@ -700,7 +707,7 @@ func _best_move_die(mine: Array) -> Dictionary:
 
 func _icon(a: Dictionary) -> String:
 	match a["type"]:
-		"start_day", "move_die", "scene_check", "use_intel", "mission_check": return "dice"
+		"start_day", "move_die", "scene_check", "use_intel", "mission_check", "counter_check": return "dice"
 		"hide": return "escape"
 		"give_die": return "give"
 		"begin_turn", "end_move", "end_turn", "scene_pay": return "end"
@@ -984,6 +991,33 @@ func _play_event(e: Dictionary) -> void:
 			Sfx.play("success")
 		"launch":
 			Music.play("tension")
+		"vote_reveal":
+			Sfx.play("click")
+			var yes := 0
+			for pid in e["votes"]:
+				yes += 1 if e["votes"][pid] else 0
+			var tally := {}
+			for pid in e["targets"]:
+				tally[e["targets"][pid]] = int(tally.get(e["targets"][pid], 0)) + 1
+			var tparts := []
+			for id in tally:
+				tparts.append("%s %d표" % [game.base_name(game.data.base_index(str(id))), int(tally[id])])
+			var who := []
+			for pid in e["targets"]:
+				who.append("%s → %s%s" % [_name(int(pid)), game.base_name(game.data.base_index(str(e["targets"][pid]))),
+					"" if e["forced"] else (" (찬성)" if e["votes"].get(pid, false) else " (반대)")])
+			await _fx.banner("강제 결행 · 대상 투표" if e["forced"] else "결행 투표 공개", "info", m,
+				"%s%s\n%s" % ["" if e["forced"] else "찬성 %d · 반대 %d · " % [yes, e["votes"].size() - yes], ", ".join(tparts), " · ".join(who)])
+		"counter":
+			Sfx.play("alert")
+			await _fx.banner("반격!", "bad", m, "오늘 이 장면 자리에서 작전 판정 %d에 성공해야 합니다" % int(game.data.rules["counter"]["target"]))
+		"counter_blocked":
+			Sfx.play("success")
+		"benefit":
+			var bn := str(e["id"])
+			for b in game.data.rules["launch"]["benefits"]:
+				if str(b["id"]) == bn:
+					_fx.toast("결행 혜택 · %s" % b.get("name", ""), "good")
 		"confiscate":
 			Sfx.play("fail")
 			var lost: Array = e["items"].map(func(id): return str(game.item_def(str(id)).get("name", "")))
@@ -1065,7 +1099,7 @@ func _cond_text(c: Dictionary, card := {}) -> String:
 			var nm: String = {"generic": "판정", "lock": "자물쇠 판정", "assassin": "암살 판정", "evade": "회피 판정"}.get(str(c.get("check", "")), "판정")
 			return "%s에서 %s %d 이상" % [where, nm, int(c.get("target", game.data.rules["checks"].get(str(c.get("check", "")), 9)))]
 		"check_pair":
-			return "%d명이 같은 날 %s에서 회피 판정 성공" % [int(c.get("count", 2)), where]
+			return "서로 다른 %d명이 같은 날 %s에서 각각 작전 판정 %d 이상" % [int(c.get("count", 2)), where, int(c.get("target", 7))]
 		"dice":
 			return "%s에서 아침 주사위 합 %d 이상을 바침" % [where, int(c.get("sum", 0))]
 		"pay_item":
@@ -1078,6 +1112,11 @@ func _cond_text(c: Dictionary, card := {}) -> String:
 			return "%d명이 %s에서 %d밤을 넘김" % [int(c.get("count", 1)), where, int(c.get("days", 1))]
 		"jailed_here":
 			return "결행 거점 감옥에 요원이 갇혀 있음"
+		"sequence":
+			var steps := []
+			for i in c.get("steps", []).size():
+				steps.append("%d단계 %s" % [i + 1, _cond_text(c["steps"][i], card)])
+			return " → ".join(steps)
 		"any_of":
 			var parts := []
 			for o in c.get("options", []):
@@ -1106,6 +1145,7 @@ func _label(a: Dictionary) -> String:
 		"end_turn": return "차례 마치기"
 		"escape": return "탈옥 판정 (주사위 %d · 성공 %d%%)" % [game.die_value(int(a["die"])), _chance(a)]
 		"mission_check": return "미션 판정 (주사위 %d · 성공 %d%%)" % [game.die_value(int(a["die"])), _chance(a)]
+		"counter_check": return "반격 막기 (주사위 %d · 성공 %d%%)" % [game.die_value(int(a["die"])), _chance(a)]
 		"hide": return "숨기 (주사위 %d)" % game.die_value(int(a["die"]))
 		"scout": return "정찰 (주사위 %d: %d칸 안의 덮인 칸 %d곳)" % [game.die_value(int(a["die"])), game.die_value(int(a["die"])), int(game.data.rules["scout"]["count"])]
 		"market": return "장터 (주사위 %d)" % game.die_value(int(a["die"]))
@@ -1156,7 +1196,7 @@ func _show_choice() -> void:
 	var panel := UiKit.paper_panel(22)
 	panel.custom_minimum_size = Vector2(560, 0)
 	panel.add_child(box)
-	box.add_child(UiKit.title({"launch_vote": "결행 투표", "saga_keep": "남길 사연", "reroll": "다시 하기", "discard": "버릴 아이템"}.get(kind, "선택"), Style.FS_H3))
+	box.add_child(UiKit.title({"launch_vote": "결행 투표", "launch_target": "결행 대상 투표", "strike_target": "결행 대상 (리더)", "launch_benefit": "결행 혜택", "threat_look": "위협 덱 보기", "saga_keep": "남길 사연", "reroll": "다시 하기", "discard": "버릴 아이템"}.get(kind, "선택"), Style.FS_H3))
 	box.add_child(UiKit.text(str(pd.get("prompt", "")), Style.FS_BODY))
 	if kind in ["pick_cell", "hop"]:
 		box.add_child(UiKit.text("보드에서 빨간 점선 칸을 눌러도 됩니다.", 14, Style.INK_3))
@@ -1166,6 +1206,9 @@ func _show_choice() -> void:
 		if kind == "saga_keep":
 			var s: Dictionary = game.data.saga(str(val))
 			label = "%s — %s" % [s.get("name", ""), s.get("condition_text", "")]
+		if kind in ["launch_target", "strike_target"] and str(val) in GameDataV2.BASE_IDS:
+			var d := game.walk_dist(game.players[human]["pos"], game.data.bases[game.data.base_index(str(val))])
+			label += (" · 거리 %d칸" % d) if d < 100 else (" · 길이 이어지지 않음 (직선 %d칸)" % (d - 100))
 		if kind == "reroll" and not game.check.is_empty() and str(val) == "grant":
 			label += " · 성공 %d%%" % roundi(game.check_chance(game.check, int(game.check.get("die_value", 0))) * 100.0)
 		var b := UiKit.button(label, func():
