@@ -30,6 +30,7 @@ var _ai_timer := 0.0
 var _ai_waiting := false
 var _walk: Array = []
 var _let_allies := false          # 낮: 사람이 "동료 먼저"를 눌러 둔 상태
+var _ai_first := true             # 낮의 순서: AI 동료가 먼저 하고 내가 마지막에 한다 (토글)
 var _auto := false                # 자동 진행 (내 자리도 AI가 둠, 화면 확인·캡처용)
 
 var _board: BoardViewV2
@@ -495,50 +496,58 @@ func _refresh_actions() -> void:
 	var hint := ""
 	var primary: Dictionary = {}
 	var others := []
-	var extra_btn: Array = []    # [글, 콜백] — 액션이 아닌 단추 (동료 먼저)
+	var extra_btns: Array = []    # [{"text", "cb", "tip", "action"?}] — 액션이 아닌 단추 (순서 정하기)
 	for a in mine:
-		if a["type"] in ["step", "choose"] + ["move_die", "give_die"] or (a["type"] == "scene_pay" and a["what"] == "die"):
+		if a["type"] in ["step", "choose"] or _die_of(a) >= 0:
 			continue   # 주사위로 하는 일은 주사위를 눌러서
 		others.append(a)
 	match game.phase:
 		"plan":
 			title = "아 침 계 획"
-			hint = "오늘의 작전 주사위 · 큰 눈을 이동에 쓸지, 판정에 남길지 정하세요"
+			hint = "오늘의 작전 주사위 · 주사위 1개 = 행동 1개 · 큰 눈을 이동에 쓸지, 판정에 남길지 정하세요"
 			primary = _take_type(others, "start_day")
+			extra_btns.append(_order_toggle())
 		"day":
 			title = "누 가 먼 저 ?"
 			if game.can_begin_turn(me):
-				hint = "자유 순서 · 내가 먼저 할지, 동료에게 먼저 맡길지 고르세요"
+				hint = "자유 순서 · 다음 차례를 고르세요 (내 차례 또는 동료 한 명)"
 				primary = _take_type(others, "begin_turn")
-				extra_btn = ["동료 먼저", func():
-					_let_allies = true
-					_after_queue()]
+				extra_btns.append(_order_toggle())
+				for x in legal:
+					if x["type"] == "begin_turn" and int(x["player"]) != human:
+						var xa: Dictionary = x
+						extra_btns.append({"text": "%s 차례" % _name(int(x["player"])), "icon": "swap", "action": xa,
+							"cb": func(): _act(xa), "tip": "이 동료가 지금 차례를 진행합니다."})
 			else:
 				hint = "동료들이 움직이는 중입니다."
 		"turn":
 			if game.current == human:
 				title = "내 차 례"
 				if me["jailed"]:
-					hint = "감옥 · 탈옥 판정 %d 이상, 또는 동료의 구출을 기다리며 차례 넘기기" % game.check_target("escape")
+					hint = "감옥 · 주사위로 탈옥 판정 %d 이상 · 면회 온 동료와 주사위를 주고받을 수 있습니다" % game.check_target("escape")
 				elif game.steps_left > 0:
-					hint = "이동 %d칸 남음 · 보드에서 칸을 누르면 그 길로 걸어갑니다 · 주사위를 더 써서 늘릴 수도 있습니다" % game.steps_left
+					hint = "이동 %d칸 남음 · 보드에서 칸을 누르면 그 길로 걸어갑니다 · 이동을 마치면 다른 행동을 고를 수 있습니다" % game.steps_left
 				elif not game.my_dice(human).is_empty():
-					hint = "주사위를 눌러 이동하거나 쓰세요 · 판정 때는 어느 주사위로 할지 묻습니다"
+					hint = "주사위 1개 = 행동 1개 · 주사위를 눌러 이동·판정·건네기·정찰·숨기를 고르세요 · 다 하면 「차례 마치기」"
 				else:
-					hint = "주사위를 다 썼습니다"
+					hint = "주사위를 다 썼습니다 · 「차례 마치기」"
 				if game.act == 2:
 					hint += " · 장면 자리(금색 점선)에서 바치기 · 판정"
-				for t in ["scene_pay", "scene_check", "escape"]:
-					primary = _take_type(others, t)
-					if not primary.is_empty():
-						break
+				if game.steps_left == 0:
+					primary = _best_check(mine)
+					if primary.is_empty():
+						for t in ["scene_pay"]:
+							primary = _take_die_type(mine, t)
+							if not primary.is_empty():
+								break
 				if primary.is_empty() and game.steps_left == 0 and not me["jailed"]:
 					primary = _best_move_die(mine)
-					if not primary.is_empty():
-						others.append(primary)   # 아래에서 주 단추로 빠진다
+				if not primary.is_empty():
+					others.append(primary)   # 아래에서 주 단추로 빠진다
 				for t in ["end_move", "end_turn"]:
 					if primary.is_empty():
 						primary = _take_type(others, t)
+				others.sort_custom(func(x, y): return _rank(x) < _rank(y))
 			else:
 				title = "동 료 차 례"
 				hint = "%s의 차례입니다." % _name(game.current)
@@ -580,8 +589,9 @@ func _refresh_actions() -> void:
 	_act_row.add_child(pb)
 	# 보조 버튼
 	var secs := []
-	if not extra_btn.is_empty() and not _playing:
-		secs.append({"text": extra_btn[0], "icon": "swap", "cb": extra_btn[1], "tip": "동료 중 한 명이 먼저 차례를 합니다."})
+	if not _playing:
+		for x in extra_btns:
+			secs.append(x)
 	if not _playing:
 		for a in others:
 			if a == primary:
@@ -638,6 +648,47 @@ func _take_type(list: Array, t: String) -> Dictionary:
 	return {}
 
 
+func _order_toggle() -> Dictionary:
+	## 낮의 순서: AI 동료가 먼저 / 내가 먼저 (한 번에 한 요원씩)
+	return {"text": "순서: AI 먼저" if _ai_first else "순서: 내가 먼저", "icon": "swap", "tip": "누르면 바뀝니다. AI 먼저: 동료가 모두 차례를 마친 뒤 내가 합니다. 내가 먼저: 다음 차례를 내가 고릅니다.",
+		"cb": func():
+			_ai_first = not _ai_first
+			_after_queue()}
+
+
+func _die_of(a: Dictionary) -> int:
+	## 주사위 하나를 내는 행동이면 그 주사위 번호, 아니면 -1 (아이템·폭탄을 바칠 때는 with)
+	if a.has("die"):
+		return int(a["die"])
+	if a.has("with"):
+		return int(a["with"])
+	return -1
+
+
+func _rank(a: Dictionary) -> int:
+	## 보조 단추 순서: 마치기 → 능력·아이템 → 나머지
+	match a["type"]:
+		"end_move", "end_turn": return 0
+		"ability", "use_item": return 1
+	return 2
+
+
+func _best_check(mine: Array) -> Dictionary:
+	## 주 단추용: 판정 행동 중 성공 확률이 가장 높은 것 (미션 → 탈옥 → 장면)
+	for t in ["mission_check", "escape", "scene_check"]:
+		var best: Dictionary = GameAIV2._check_action(game, game.players[human], mine, t)
+		if not best.is_empty():
+			return best
+	return {}
+
+
+func _take_die_type(list: Array, t: String) -> Dictionary:
+	for a in list:
+		if a["type"] == t and a.get("what", "die") == "die":
+			return a
+	return {}
+
+
 func _best_move_die(mine: Array) -> Dictionary:
 	## 주 단추용: 가장 큰 눈으로 이동
 	var best: Dictionary = {}
@@ -649,7 +700,8 @@ func _best_move_die(mine: Array) -> Dictionary:
 
 func _icon(a: Dictionary) -> String:
 	match a["type"]:
-		"start_day", "move_die", "scene_check", "use_intel": return "dice"
+		"start_day", "move_die", "scene_check", "use_intel", "mission_check": return "dice"
+		"hide": return "escape"
 		"give_die": return "give"
 		"begin_turn", "end_move", "end_turn", "scene_pay": return "end"
 		"escape": return "escape"
@@ -674,7 +726,7 @@ func _refresh_dice(mine: Array) -> void:
 		var d: Dictionary = game.op_dice[i]
 		var acts := []
 		for a in mine:
-			if (a["type"] in ["move_die", "give_die"] or (a["type"] == "scene_pay" and a["what"] == "die")) and int(a["die"]) == i:
+			if _die_of(a) == i:
 				acts.append(a)
 		var v := VBoxContainer.new()
 		v.add_theme_constant_override("separation", 2)
@@ -697,7 +749,7 @@ func _refresh_dice(mine: Array) -> void:
 		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		v.add_child(l)
 		_dice_row.add_child(v)
-	var tip := UiKit.text("주사위 하나 = 이동(눈만큼) · 작전 판정(눈 + 주사위 1개)\n장면 바치기 · 같은 칸 동료에게 건네기 (하루 1번)\n남은 주사위는 밤에 사라집니다", 11, Style.INK_3, false)
+	var tip := UiKit.text("주사위 1개 = 행동 1개: 이동(눈만큼) · 작전 판정(눈 + 주사위 1개) · 바치기\n건네기 · 미끼 · 숨기 · 정찰 · 장터 — 주사위를 눌러 고르세요\n남은 주사위는 밤에 사라집니다", 11, Style.INK_3, false)
 	tip.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	_dice_row.add_child(tip)
 
@@ -849,7 +901,7 @@ func _ai_actor() -> int:
 			return -1
 		"day":
 			var me: Dictionary = game.players[human]
-			if game.can_begin_turn(me) and not _let_allies:
+			if game.can_begin_turn(me) and not _let_allies and not _ai_first:
 				return -1
 			for a in game.legal_actions():
 				if a["type"] == "begin_turn" and int(a["player"]) != human:
@@ -1039,37 +1091,49 @@ func _cond_text(c: Dictionary, card := {}) -> String:
 	return str(c.get("kind", ""))
 
 
+func _chance(a: Dictionary) -> int:
+	## 작전 판정 행동의 성공 확률 (%)
+	var c: Dictionary = game.check_preview(game.players[human], a)
+	return roundi(game.check_chance(c, game.die_value(int(a["die"]))) * 100.0)
+
+
 func _label(a: Dictionary) -> String:
 	var me: Dictionary = game.players[human]
 	match a["type"]:
 		"start_day": return "하루 시작"
 		"begin_turn": return "내 차례 시작"
-		"end_move": return "이동 마치기" if game.steps_left > 0 else "차례 마치기"
-		"end_turn": return "차례 넘기기"
-		"escape": return "탈옥 시도"
+		"end_move": return "이동 마치기"
+		"end_turn": return "차례 마치기"
+		"escape": return "탈옥 판정 (주사위 %d · 성공 %d%%)" % [game.die_value(int(a["die"])), _chance(a)]
+		"mission_check": return "미션 판정 (주사위 %d · 성공 %d%%)" % [game.die_value(int(a["die"])), _chance(a)]
+		"hide": return "숨기 (주사위 %d)" % game.die_value(int(a["die"]))
+		"scout": return "정찰 (주사위 %d: %d칸 안의 덮인 칸 %d곳)" % [game.die_value(int(a["die"])), game.die_value(int(a["die"])), int(game.data.rules["scout"]["count"])]
+		"market": return "장터 (주사위 %d)" % game.die_value(int(a["die"]))
 		"use_item":
 			return "[%s] 사용" % game.item_def(str(me["items"][int(a["index"])])).get("name", "")
 		"ability":
 			var ab := game.ability_def(me)
 			if a.has("target"):
 				return "능력 「%s」 → %s" % [ab.get("name", ""), _name(int(a["target"]))]
+			if a.has("die"):
+				return "능력 「%s」 (주사위 %d를 냄)" % [ab.get("name", ""), game.die_value(int(a["die"]))]
 			return "능력 「%s」" % ab.get("name", "")
 		"give_item":
-			return "[%s] → %s 건네기" % [game.item_def(str(me["items"][int(a["index"])])).get("name", ""), _name(int(a["to"]))]
+			return "[%s] → %s 건네기 (주사위 %d)" % [game.item_def(str(me["items"][int(a["index"])])).get("name", ""), _name(int(a["to"])), game.die_value(int(a["die"]))]
 		"decoy":
-			return "미끼: %s의 경찰을 내 쪽으로" % _name(int(a["from"]))
+			return "미끼: %s의 경찰을 내 쪽으로 (주사위 %d)" % [_name(int(a["from"])), game.die_value(int(a["die"]))]
 		"move_die":
 			var mv := game.move_value(me, int(a["die"]))
 			return "주사위 %d로 이동 (+%d칸)" % [game.die_value(int(a["die"])), mv]
 		"give_die":
 			return "주사위 %d → %s에게 건네기" % [game.die_value(int(a["die"])), _name(int(a["target"]))]
 		"scene_check":
-			return "장면 판정"
+			return "장면 판정 (주사위 %d · 성공 %d%%)" % [game.die_value(int(a["die"])), _chance(a)]
 		"scene_pay":
 			match a["what"]:
 				"die": return "주사위 %d 장면에 바치기" % game.die_value(int(a["die"]))
-				"item": return "[%s] 바치기" % game.item_def(str(me["items"][int(a["index"])])).get("name", "")
-				"bomb": return "폭탄 바치기"
+				"item": return "[%s] 바치기 (주사위 %d를 냄)" % [game.item_def(str(me["items"][int(a["index"])])).get("name", ""), game.die_value(int(a["with"]))]
+				"bomb": return "폭탄 바치기 (주사위 %d를 냄)" % game.die_value(int(a["with"]))
 		"use_intel":
 			return "첩보 토큰: 판정 +%d" % int(game.data.rules["intel_token"]["check_bonus"]) if a["mode"] == "check" \
 				else "첩보 토큰: 주사위 조건 −%d" % int(game.data.rules["intel_token"]["dice_reduce"])
@@ -1092,7 +1156,7 @@ func _show_choice() -> void:
 	var panel := UiKit.paper_panel(22)
 	panel.custom_minimum_size = Vector2(560, 0)
 	panel.add_child(box)
-	box.add_child(UiKit.title({"launch_vote": "결행 투표", "saga_keep": "남길 사연", "reroll": "다시 하기", "check_die": "판정 주사위", "discard": "버릴 아이템"}.get(kind, "선택"), Style.FS_H3))
+	box.add_child(UiKit.title({"launch_vote": "결행 투표", "saga_keep": "남길 사연", "reroll": "다시 하기", "discard": "버릴 아이템"}.get(kind, "선택"), Style.FS_H3))
 	box.add_child(UiKit.text(str(pd.get("prompt", "")), Style.FS_BODY))
 	if kind in ["pick_cell", "hop"]:
 		box.add_child(UiKit.text("보드에서 빨간 점선 칸을 눌러도 됩니다.", 14, Style.INK_3))
@@ -1102,15 +1166,8 @@ func _show_choice() -> void:
 		if kind == "saga_keep":
 			var s: Dictionary = game.data.saga(str(val))
 			label = "%s — %s" % [s.get("name", ""), s.get("condition_text", "")]
-		if kind in ["check_die", "reroll"] and not game.check.is_empty():
-			var sv := str(val)
-			var dv := 0
-			if sv.begins_with("die:"):
-				dv = game.die_value(int(sv.substr(4)))
-			elif sv == "grant":
-				dv = int(game.check.get("die_value", 0))
-			if sv != "no":
-				label += " · 성공 %d%%" % roundi(game.check_chance(game.check, dv) * 100.0)
+		if kind == "reroll" and not game.check.is_empty() and str(val) == "grant":
+			label += " · 성공 %d%%" % roundi(game.check_chance(game.check, int(game.check.get("die_value", 0))) * 100.0)
 		var b := UiKit.button(label, func():
 			_choice.visible = false
 			_board.pick_cells = []
@@ -1159,8 +1216,9 @@ func _show_rules() -> void:
 	panel.add_child(box)
 	box.add_child(UiKit.title("v2 규칙 요약", Style.FS_H3))
 	var lines := [
-		"하루: 아침에 위협 카드 → (1막) 결행 투표 → 공개 미션 줄 채우기 → 팀 주사위. 팀 주사위에서 하나씩 골라 오늘 이동으로 씁니다. 남은 주사위는 예비입니다.",
-		"차례는 자유 순서입니다. 아직 안 한 사람 중 누구든 합니다. 경찰은 각자 차례 끝에 자기가 쫓는 요원 쪽으로 움직입니다.",
+		"하루: 아침에 위협 카드 → (1막) 결행 투표 → 공개 미션 줄 채우기 → 요원마다 작전 주사위 굴리기 → 낮 → 밤. 남은 주사위는 밤에 사라집니다.",
+		"낮: 요원마다 한 차례씩, 순서는 자유입니다 (한 번에 한 요원). 주사위 1개 = 행동 1개: 이동 · 작전 판정 · 바치기 · 건네기 · 미끼 · 숨기 · 정찰 · 장터. 아이템 1장과 능력 1번은 공짜. 원하면 언제든 「차례 마치기」.",
+		"요원끼리는 같은 칸에 설 수 있고, 경찰이 있는 칸에는 못 들어갑니다. 같은 칸의 효과는 한 차례에 한 번만 받습니다. 거리는 깔린 길을 따라 걷는 칸 수입니다. 경찰은 쫓기는 요원이 차례를 마칠 때 다가옵니다 (숨기를 하면 안 옴).",
 		"1막: 공개 미션을 이뤄 결행 준비를 %d까지 올리면 아침에 결행 투표가 열립니다. 남은 날이 %d일이 되면 강제로 결행합니다." % [int(game.data.rules["launch_min"]), int(game.data.rules["forced_launch_days_left"])],
 		"2막: 첩보가 가장 많은 거점을 칩니다. 장면을 하나씩 돌파하고 마지막 장면을 돌파하면 대성공입니다. 첩보는 토큰이 되어 판정 +1 또는 주사위 조건 −2로 씁니다.",
 		"개인 사연: 비밀입니다. 이루면 즉시 보상을 받습니다.",
@@ -1193,6 +1251,7 @@ func ui_offers(a: Dictionary) -> bool:
 
 
 func press_allies_first() -> void:
+	_ai_first = true
 	_let_allies = true
 	_after_queue()
 

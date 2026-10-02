@@ -252,6 +252,8 @@ func _tooltip(c: Vector2i) -> String:
 		name += "\n들어가려면 회피 판정 (실패하면 경찰이 붙음)"
 	if "hideout" in game.board[c].get("flags", []):
 		name += "\n은신처: 여기서 차례를 마치면 쫓던 경찰이 사라짐"
+	if _can_hide_at(c):
+		name += "\n숨기 가능: 주사위 하나로 숨으면 이번 차례 끝에 경찰이 다가오지 않음"
 	return name
 
 
@@ -302,6 +304,11 @@ func _draw_tiles() -> void:
 		draw_texture_rect(_tex[key], r.grow(-3.0), false)
 		if "hideout" in info.get("flags", []):
 			draw_rect(r.grow(-1), Color(Style.GOOD, 0.8), false, 3.0)
+		if _can_hide_at(c):
+			var bf := maxi(10, int(r.size.x * 0.16))
+			var bw := font.get_string_size("숨", HORIZONTAL_ALIGNMENT_LEFT, -1, bf).x + 6
+			draw_rect(Rect2(r.position + Vector2(2, 2), Vector2(bw, bf * 1.3)), Color(Style.GOOD, 0.9))
+			draw_string(font, r.position + Vector2(5, bf * 1.05 + 2), "숨", HORIZONTAL_ALIGNMENT_LEFT, -1, bf, Color.WHITE)
 		if t == "base":
 			var bi := game.data.bases.find(c)
 			var label: String = game.data.base_names[bi]
@@ -311,6 +318,17 @@ func _draw_tiles() -> void:
 			draw_rect(Rect2(lp.x - 5, lp.y - fs * 0.95, w + 10, fs * 1.3), Style.INK)
 			draw_string(font, lp, label, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Style.PAPER)
 			_draw_intel(r, bi)
+
+
+func _can_hide_at(c: Vector2i) -> bool:
+	## 「숨기」를 할 수 있는 칸 (rules.hide의 타일 종류나 표시가 있는 칸)
+	var h: Dictionary = game.data.rules["hide"]
+	if game.tile_type(c) in h["tiles"]:
+		return true
+	for f in game.board.get(c, {}).get("flags", []):
+		if f in h["flags"]:
+			return true
+	return false
 
 
 func _draw_intel(r: Rect2, bi: int) -> void:
