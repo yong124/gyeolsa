@@ -19,7 +19,7 @@
 		"ug": {
 			"name": "경성 지하조직",
 			"theme": "정보·결속",
-			"_comment": "위협, 설득, 검문"
+			"_comment": "위협, 연락, 검문"
 		}
 	},
 	"characters": [
@@ -325,7 +325,7 @@
 					}
 				]
 			},
-			"ability_text": "연락망: 3칸 안의 동료 설득 1번",
+			"ability_text": "연락망: 3칸 안의 동료에게 내 주사위 하나를 건넴 (하루 건네기 횟수에 세지 않음)",
 			"ability": {
 				"name": "연락망",
 				"when": "turn",
@@ -333,13 +333,13 @@
 				"range": 3,
 				"effects": [
 					{
-						"op": "persuade",
-						"range": 3,
-						"mode": "random"
+						"op": "give_die",
+						"who": "ally_in_range",
+						"range": 3
 					}
 				]
 			},
-			"_comment": "threat_peek value 2 = 맨 위 2장. 설득은 무작위(random) 방식"
+			"_comment": "threat_peek value 2 = 맨 위 2장. give_die: 내 주사위 하나를 건넴 (감옥의 동료에게도 닿음, 하루 건네기 횟수에 안 셈)"
 		},
 		{
 			"id": "seo",
@@ -357,20 +357,28 @@
 					}
 				]
 			},
-			"ability_text": "다방 밀담: 같은 칸 동료의 심문 카드 1장을 보고, 원하면 버림",
+			"ability_text": "다방 밀담: 3칸 안의 거점 하나에 첩보 +1, 대신 노출 +1",
 			"ability": {
 				"name": "다방 밀담",
 				"when": "turn",
-				"target": "ally_same_cell",
+				"target": "self",
+				"requires": {
+					"base_in_range": 3
+				},
 				"effects": [
 					{
-						"op": "persuade",
-						"range": 0,
-						"mode": "look"
+						"op": "intel",
+						"base": "choose",
+						"range": 3,
+						"value": 1
+					},
+					{
+						"op": "exposure",
+						"value": 1
 					}
 				]
 			},
-			"_comment": "persuade mode look: 대상의 심문 카드 1장을 무작위로 뽑아 보고, 원하면 버림"
+			"_comment": "intel base choose + range: 그 칸수 안의 거점 중에서 고름 (하나뿐이면 바로). requires base_in_range: 그 안에 거점이 있어야 쓸 수 있음"
 		},
 		{
 			"id": "lee",

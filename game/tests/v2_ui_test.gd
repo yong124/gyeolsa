@@ -87,7 +87,7 @@ func _run(n: int) -> void:
 				# 사람은 할 일이 없음 (아침: 동료가 고를 때까지 기다림)
 				idle_frames += 1
 				if idle_frames > 600:
-					var nodie := game.players.filter(func(q): return q["die"] < 0).map(func(q): return "%d(감옥%s·변절%s)" % [q["id"], q["jailed"], q["traitor"]])
+					var nodie := game.players.filter(func(q): return q["die"] < 0).map(func(q): return "%d(감옥%s)" % [q["id"], q["jailed"]])
 					_fail("판 %d: 아무도 두지 않음 — phase=%s 주사위 없는 요원=%s" % [g_i, game.phase, str(nodie)])
 					break
 				continue

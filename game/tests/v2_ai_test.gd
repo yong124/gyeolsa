@@ -21,9 +21,8 @@ func _init() -> void:
 	for kind in GameAIV2.CHOICE_KINDS:
 		if not kind in found and not kind in RulesV2.PICK_KINDS:
 			errors.append("엔진에 없는 선택 종류: " + kind)
-	var traitors := 0
-	var ambush := 0
-	var informs := 0
+	var confiscated := 0
+	var abilities := {}
 	var choices := {}
 	var total := 0
 	for i in 220:
@@ -63,16 +62,15 @@ func _init() -> void:
 				break
 			step += 1
 			for e in g.events:
-				if e.get("kind", "") == "ambush":
-					ambush += 1
-				if e.get("kind", "") == "inform":
-					informs += 1
+				if e.get("kind", "") == "confiscate":
+					confiscated += e["items"].size()
+				if e.get("kind", "") == "ability":
+					abilities[g.players[int(e["player"])]["character"]] = true
+			g.events.clear()
 		if g.phase != "over":
 			errors.append("%d판: 멈춤 (%s, %d동작)" % [i, g.phase, step])
 			continue
 		total += 1
-		if g.traitor_id >= 0:
-			traitors += 1
 		if saved != null and str(saved.save_state()) != str(g.save_state()):
 			errors.append("%d판: 저장 뒤 이어 둔 결과 불일치" % i)
 		var replay := RulesV2.new()
@@ -85,12 +83,10 @@ func _init() -> void:
 			errors.append("%d판: 재생 결과 불일치" % i)
 	if GameAIV2.fallback_count != 0:
 		errors.append("AI 대체 액션 %d회" % GameAIV2.fallback_count)
-	if traitors < 3:
-		errors.append("변절 판이 %d판뿐" % traitors)
-	if ambush == 0 or informs == 0:
-		errors.append("변절 행동 부족: 기습 %d · 밀고 %d" % [ambush, informs])
-	print("v2 AI 시험: 4인 200판 · 2·3인 20판 · 완료 %d/220 · 변절 %d · 기습 %d · 밀고 %d · 선택 %d종 · 대체 %d · 실패 %d" % [
-		total, traitors, ambush, informs, choices.size(), GameAIV2.fallback_count, errors.size()])
+	if confiscated == 0:
+		errors.append("투옥 압수가 한 번도 없음")
+	print("v2 AI 시험: 4인 200판 · 2·3인 20판 · 완료 %d/220 · 압수 %d장 · 능력 쓴 캐릭터 %d명 · 선택 %d종 · 대체 %d · 실패 %d" % [
+		total, confiscated, abilities.size(), choices.size(), GameAIV2.fallback_count, errors.size()])
 	for msg in errors.slice(0, 20):
 		print("실패: ", msg)
 	quit(1 if not errors.is_empty() else 0)

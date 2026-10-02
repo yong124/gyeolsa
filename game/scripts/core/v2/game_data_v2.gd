@@ -10,21 +10,21 @@ const BASE_IDS := ["barracks", "police_hq", "prison", "gg"]
 
 ## 3-1. 대상 (who, target)
 const KNOWN_TARGETS := ["self", "ally", "ally_same_cell", "ally_adjacent", "ally_in_range", "all", "allies",
-	"isolated", "wanted", "nearest_to_base", "all_jailed"]
+	"isolated", "wanted", "nearest_to_base", "all_jailed", "saga_partner"]
 ## 3-2. 효과 op
 const KNOWN_OPS := ["police_dispatch", "police_attach", "police_advance", "police_remove", "police_push",
 	"police_send_far", "checkpoint_place", "dice_mod_today", "police_speed_today", "exposure",
-	"free_all_jailed", "escape_mod_today", "scene_check_mod_today", "search", "interrogate", "intel",
+	"free_all_jailed", "escape_mod_today", "scene_check_mod_today", "search", "intel",
 	"ready", "draw_item", "gain_bomb", "discard_item", "move_mod_next", "move_today",
 	"dice_extra_tomorrow", "fewer_dice_tomorrow", "die_reroll", "die_adjust", "die_set",
-	"threat_bury", "grant_once", "persuade", "place_tile", "extra_step",
+	"threat_bury", "grant_once", "give_die", "place_tile", "extra_step",
 	"mark_tile", "move_to_ally", "pull_ally", "give_item", "send_item",
 	"checkpoint_pass", "refill_supply", "choice", "if_players",
-	"if", "interrogate_discard", "threat_flip", "check_or_jail", "entry_no_police"]
+	"if", "threat_flip", "check_or_jail", "entry_no_police"]
 ## if op의 cond
-const KNOWN_IF_CONDS := ["chased", "not_chased", "has_interrogation"]
+const KNOWN_IF_CONDS := ["chased", "not_chased"]
 ## 능력 사용 조건 (ability.requires)
-const KNOWN_REQUIRES := ["near_tile"]
+const KNOWN_REQUIRES := ["near_tile", "base_in_range"]
 ## 3-3. 장면·협동 조건 kind
 const KNOWN_SCENE_CONDITIONS := ["enter_base", "deliver_bomb", "check", "check_pair", "dice", "pay_item", "pay_bomb", "people", "hold",
 	"jailed_here", "any_of", "all_of", "cover_entry", "same_day_assassin", "opposite_edges"]
@@ -41,13 +41,12 @@ const KNOWN_STATS := ["evade_auto", "escape_bonus", "rescued_move_bonus", "assas
 ## where는 이 값 말고 거점 id도 쓸 수 있다.
 const KNOWN_WHERE := ["inside", "adjacent", "inside_or_adjacent"]
 
-const EPILOGUE_KEYS := ["win_done", "win_fail", "lose_done", "lose_fail", "traitor"]
+const EPILOGUE_KEYS := ["win_done", "win_fail", "lose_done", "lose_fail"]
 
 static var _cache: GameDataV2
 
 var rules: Dictionary
 var threats: Dictionary
-var interrogation: Dictionary
 var missions: Dictionary
 var events: Dictionary
 var items: Dictionary
@@ -89,7 +88,6 @@ func load_dir(dir: String) -> void:
 	_unreadable.clear()
 	rules = _read("rules.json")
 	threats = _read("threats.json")
-	interrogation = _read("interrogation.json")
 	missions = _read("missions.json")
 	events = _read("events.json")
 	items = _read("items.json")
@@ -180,7 +178,6 @@ func validate() -> Array[String]:
 		errs.append("파일을 읽을 수 없음: " + p)
 	_validate_rules(errs)
 	_validate_threats(errs)
-	_validate_interrogation(errs)
 	_validate_missions(errs)
 	_validate_events(errs)
 	_validate_items(errs)
@@ -188,7 +185,7 @@ func validate() -> Array[String]:
 	_validate_endings(errs)
 	_validate_sagas(errs)
 	_validate_characters(errs)
-	for name in ["rules", "threats", "interrogation", "missions", "events", "items", "scenes", "endings", "sagas", "characters"]:
+	for name in ["rules", "threats", "missions", "events", "items", "scenes", "endings", "sagas", "characters"]:
 		_collect_todos(get(name), name)
 	return errs
 
@@ -213,21 +210,6 @@ func _validate_threats(errs: Array[String]) -> void:
 			var who: String = "위협 %s" % c.get("id", "?")
 			_check_card(errs, who, c, seen, true)
 			_check_effects(errs, who, c.get("effects", []))
-
-
-func _validate_interrogation(errs: Array[String]) -> void:
-	var cards: Array = interrogation.get("cards", [])
-	var seen := {}
-	var shaken := 0
-	for c in cards:
-		_check_card(errs, "심문 %s" % c.get("id", "?"), c, seen, true)
-		if c.get("shaken", false):
-			shaken += int(c.get("count", 1))
-	if not interrogation.is_empty():
-		_check_count(errs, "심문 카드", _sum_count(cards), 12, true)
-		# "흔들렸다" 장수는 밸런스 레버라 정해 두지 않는다 (변절 빈도로 맞춤). 두 종류가 다 있어야만 한다.
-		if shaken <= 0 or shaken >= _sum_count(cards):
-			errs.append("[장수] 심문 카드: 버텼다와 흔들렸다가 모두 있어야 합니다 (흔들렸다 %d장)" % shaken)
 
 
 func _validate_missions(errs: Array[String]) -> void:
@@ -325,9 +307,9 @@ func _validate_endings(errs: Array[String]) -> void:
 		for key in ["name", "ending"]:
 			if str(entry.get(key, "")).strip_edges() == "":
 				errs.append("엔딩 %s: %s이 비었습니다." % [id, key])
-	for id in ["victory", "fail_final", "operation", "history", "traitor_won"]:
+	for id in ["victory", "fail_final", "operation", "history"]:
 		var entry: Dictionary = endings.get(id, {})
-		var keys := ["text"] if id == "traitor_won" else ["name"] if id == "victory" else ["name", "text"]
+		var keys := ["name"] if id == "victory" else ["name", "text"]
 		for key in keys:
 			if str(entry.get(key, "")).strip_edges() == "":
 				errs.append("엔딩 %s: %s이 비었습니다." % [id, key])

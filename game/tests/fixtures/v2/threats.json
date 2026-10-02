@@ -8,7 +8,7 @@
 		 "_todo": "시험용 경고"}
 	],
 	"act2": [
-		{"id": "lure", "name": "회유 공작", "tone": "bad", "text": "고립된 요원에게 심문", "deck_place": "top_half",
-		 "effects": [{"op": "interrogate", "who": "isolated", "include_jailed": true, "skip_done_saga": true}]}
+		{"id": "bounty", "name": "밀고 포상금", "tone": "bad", "text": "노출 +1, 결행 거점에서 경찰 출동", "deck_place": "top_half",
+		 "effects": [{"op": "exposure", "value": 1}, {"op": "police_dispatch", "from": "strike_base", "count": 1}]}
 	]
 }

@@ -21,20 +21,18 @@ extends RefCounted
 ##   {"type": "ability", "player", "target"?}             캐릭터 능력 (하루 1회)
 ##   {"type": "give_item", "player", "index", "to"}       가까운 동료에게 아이템 건네기
 ##   {"type": "decoy", "player", "from"}                  동료를 쫓는 경찰을 내 쪽으로
-##   {"type": "persuade", "player", "die", "target"}      (turn) 내 주사위 하나로 같은 칸 동료를 설득 (심문 카드를 떼어 냄)
 ##   {"type": "give_die", "player", "die", "target"}      (turn) 같은 칸 동료에게 내 주사위를 건넴 (하루 give_per_day번)
-##   {"type": "inform", "player", "target"}               (turn, 변절자) 가까운 요원에게 경찰을 붙임 (밀고)
 ##   {"type": "scene_check", "player"}                     (2막 turn) 장면 판정
 ##   {"type": "scene_pay", "player", "what", "die"?, "index"?}  (2막 turn) 장면에 바침
 ##   {"type": "use_intel", "player", "mode": "check"|"dice"}  (2막 turn) 첩보 토큰 사용
 ##   {"type": "choose", "player", "value"}                (choice) 선택지 응답
 ##
-## 선택(choice)의 종류에는 saga_keep(결행 순간에 남길 사연, 비밀), persuade_look(다방 밀담, 비밀)도 있다.
+## 선택(choice)의 종류에는 saga_keep(결행 순간에 남길 사연, 비밀)도 있다.
 ## 작전 판정(암살·방해·탈옥·장면)을 시작할 때 주사위가 남아 있으면 check_die 선택: 내 주사위 하나(눈 + op_check_dice개)
 ## 또는 주사위 없이 check_dice개. 실패하면 reroll 선택에서 남은 주사위로 다시 할 수 있다.
 ##
 ## 작전 주사위 (7단계, Dead of Winter식): 아침에 요원마다 personal_dice개(2막 + act2_personal_dice_extra)를 굴린다.
-## 모두 공개. 이동·작전 판정·장면 바치기·설득·건네기에 하나씩 쓰고, 남은 것은 밤에 사라진다.
+## 모두 공개. 이동·작전 판정·장면 바치기·건네기에 하나씩 쓰고, 남은 것은 밤에 사라진다.
 ##
 ## 단계(phase): morning(자동) → plan → day ⇄ turn (+ choice) → (밤) → morning … → over
 
@@ -89,9 +87,6 @@ var morning_step := 0
 var last_roll: Array = []
 var saga_decks := {}            # 더미 이름 -> 남은 사연 id (맨 위 = 맨 뒤)
 var saga_discard: Array = []
-var interro_deck: Array = []
-var interro_discard: Array = []
-var traitor_id := -1            # 변절자 요원 id (없으면 -1)
 var saga_rewards: Array = []    # 이룬 사연의 보상 대기열 [{"player", "id"}] (안전한 자리에서 처리)
 var launch_step := 0            # 결행 순간 처리 단계 (아침의 morning_step처럼 이어 감)
 var launch_i := 0               # 결행 순간 사연 남기기에서 다음에 처리할 요원
@@ -150,9 +145,6 @@ func setup(player_defs: Array, seed_value: int = -1, game_data: GameDataV2 = nul
 	item_discard = []
 	bomb_supply = int(R["bomb_supply"])
 	_setup_saga_decks()
-	interro_deck = _expand(data.interrogation.get("cards", []))
-	interro_discard = []
-	traitor_id = -1
 	saga_rewards = []
 	launch_step = 0
 	launch_i = 0
@@ -165,8 +157,8 @@ func setup(player_defs: Array, seed_value: int = -1, game_data: GameDataV2 = nul
 			"items": [], "bombs": 0, "move_mod_next": 0, "dice_next": 0, "gives_today": 0,
 			"done_today": false, "turns": 0,
 			"ability_day": -1, "item_uses": 0, "grants": [], "flags": {},
-			"sagas": [], "saga_done": "", "saga_kept": "", "saga_track": {}, "interro": [],
-			"traitor": false, "jailed_day": -99,
+			"sagas": [], "saga_done": "", "saga_kept": "", "saga_track": {},
+			"jailed_day": -99,
 			"stats": {"missions": 0, "rescues": 0, "escapes": 0, "jailed": 0, "checkpoints": 0,
 				"assassinations": 0, "items": 0, "abilities": 0, "gives": 0},
 		})
@@ -342,10 +334,10 @@ func move_value(p: Dictionary, i: int) -> int:
 
 func occupied_by_other(p: Dictionary, c: Vector2i) -> bool:
 	## 다른 요원이 서 있는 칸 (출발점·거점은 예외). 경찰 칸은 지나갈 수 있다.
-	if c == data.start or c in data.bases or p["traitor"]:
+	if c == data.start or c in data.bases:
 		return false
 	for q in players:
-		if q["id"] != p["id"] and q["pos"] == c and not q["jailed"] and not q["traitor"]:
+		if q["id"] != p["id"] and q["pos"] == c and not q["jailed"]:
 			return true
 	return false
 
@@ -447,8 +439,6 @@ func _tile_available(tile: String) -> bool:
 
 func _mods_of(p: Dictionary) -> Array:
 	var mods: Array = []
-	if p.get("traitor", false):
-		return mods   # 변절자는 캐릭터 특성도 아이템 지속 효과도 잃는다
 	mods.append_array(char_def(p).get("trait", {}).get("mods", []))
 	for id in p["items"]:
 		mods.append_array(item_def(id).get("mods", []))
@@ -481,8 +471,8 @@ func can_step(p: Dictionary, to: Vector2i) -> bool:
 	if occupied_by_other(p, to):
 		return false
 	if not board.has(to):
-		return not tile_deck.is_empty() and not p["traitor"]   # 변절자는 새 타일을 깔지 않는다
-	return true   # 검문소는 들어가려 할 때 회피 판정 (변절자는 판정 없이)
+		return not tile_deck.is_empty()
+	return true   # 검문소는 들어가려 할 때 회피 판정
 
 
 func legal_steps(p: Dictionary) -> Array:
@@ -683,31 +673,20 @@ func can_move_die(p: Dictionary, i: int) -> bool:
 	return phase == "turn" and p["id"] == current and not p["jailed"] and i in my_dice(p["id"])
 
 
-func can_persuade(p: Dictionary, i: int, target: int) -> bool:
-	return i in my_dice(p["id"]) and target in persuade_targets(p)
-
-
 func give_die_targets(p: Dictionary) -> Array:
-	## 주사위를 건넬 수 있는 동료 (같은 칸, 변절자 제외, 하루 give_per_day번)
+	## 주사위를 건넬 수 있는 동료 (give_range 안, 하루 give_per_day번)
 	var out := []
-	if phase != "turn" or p["id"] != current or p["traitor"] or p["jailed"] \
+	if phase != "turn" or p["id"] != current or p["jailed"] \
 			or int(p["gives_today"]) >= int(data.rules["give_per_day"]) or my_dice(p["id"]).is_empty():
 		return out
 	for q in players:
-		if q["id"] != p["id"] and not q["traitor"] and _manhattan(q["pos"], p["pos"]) <= int(data.rules["give_range"]):
+		if q["id"] != p["id"] and _manhattan(q["pos"], p["pos"]) <= int(data.rules["give_range"]):
 			out.append(q["id"])
 	return out
 
 
 func can_begin_turn(p: Dictionary) -> bool:
-	if phase != "day" or p["done_today"]:
-		return false
-	if p["traitor"]:
-		# 변절자는 늘 마지막 (기획서 19.15): 변절자가 아닌 요원이 모두 차례를 마친 뒤
-		for q in players:
-			if not q["traitor"] and not q["done_today"]:
-				return false
-	return true
+	return phase == "day" and not p["done_today"]
 
 
 func can_end_move(p: Dictionary) -> bool:
@@ -723,7 +702,7 @@ func can_escape(p: Dictionary) -> bool:
 
 
 func can_use_item(p: Dictionary, index: int) -> bool:
-	if p["traitor"] or index < 0 or index >= p["items"].size():
+	if index < 0 or index >= p["items"].size():
 		return false
 	if p["item_uses"] >= int(data.rules["item_uses_per_turn"]):
 		return false
@@ -758,6 +737,9 @@ func _cost_ok(p: Dictionary, effects: Array, items_used: int) -> bool:
 			"give_item", "send_item":
 				if have < 1:
 					return false
+			"give_die":
+				if my_dice(p["id"]).is_empty():
+					return false
 	return true
 
 
@@ -768,7 +750,7 @@ func ability_def(p: Dictionary) -> Dictionary:
 func ability_targets(p: Dictionary) -> Array:
 	## 능력을 쓸 수 있는 대상. 대상이 필요 없는 능력(self)이면 [-1] (target 없이 보냄). 못 쓰면 [].
 	var a: Dictionary = ability_def(p)
-	if a.is_empty() or p["ability_day"] == day or p["jailed"] or p["traitor"]:
+	if a.is_empty() or p["ability_day"] == day or p["jailed"]:
 		return []
 	match str(a.get("when", "")):
 		"morning":
@@ -789,17 +771,15 @@ func ability_targets(p: Dictionary) -> Array:
 				near = true
 		if not near:
 			return []
+	if req.has("base_in_range") and _bases_in_range(p["pos"], int(req["base_in_range"])).is_empty():
+		return []
 	var kind: String = str(a.get("target", "self"))
 	if kind == "self":
 		return [-1]
-	var persuasive := _has_op(a.get("effects", []), "persuade")   # 설득 능력은 심문 카드를 가진 동료만 대상으로 삼는다
-	if persuasive and not _persuade_on():
-		return []
+	var reaches_jailed := _has_op(a.get("effects", []), "give_die")   # 주사위 건네기는 감옥의 동료에게도 닿는다
 	var out := []
 	for q in players:
-		if q["id"] == p["id"] or q["traitor"] or (q["jailed"] and not persuasive):
-			continue
-		if persuasive and q["interro"].is_empty():
+		if q["id"] == p["id"] or (q["jailed"] and not reaches_jailed):
 			continue
 		var d := _manhattan(q["pos"], p["pos"])
 		match kind:
@@ -824,13 +804,13 @@ func can_use_ability(p: Dictionary, target: int) -> bool:
 func give_options(p: Dictionary) -> Array:
 	## 건넬 수 있는 (아이템, 동료) 조합 [{"index", "to"}]
 	var out := []
-	if phase != "turn" or p["id"] != current or p["jailed"] or p["traitor"]:
+	if phase != "turn" or p["id"] != current or p["jailed"]:
 		return out
 	var coop: Dictionary = data.rules["coop"]
 	if bool(coop["give_counts_as_item_use"]) and p["item_uses"] >= int(data.rules["item_uses_per_turn"]):
 		return out
 	for q in players:
-		if q["id"] == p["id"] or q["jailed"] or q["traitor"] or _manhattan(q["pos"], p["pos"]) > int(coop["give_range"]):
+		if q["id"] == p["id"] or q["jailed"] or _manhattan(q["pos"], p["pos"]) > int(coop["give_range"]):
 			continue
 		for i in p["items"].size():
 			out.append({"index": i, "to": q["id"]})
@@ -840,7 +820,7 @@ func give_options(p: Dictionary) -> Array:
 func decoy_options(p: Dictionary) -> Array:
 	## 미끼로 끌어올 수 있는 경찰 [요원 id]
 	var out := []
-	if phase != "turn" or p["id"] != current or p["jailed"] or p["traitor"] or police.has(p["id"]):
+	if phase != "turn" or p["id"] != current or p["jailed"] or police.has(p["id"]):
 		return out
 	var coop: Dictionary = data.rules["coop"]
 	if int(p["flags"].get("decoys", 0)) >= int(coop["decoy_per_turn"]):
@@ -904,14 +884,9 @@ func legal_actions() -> Array:
 				out.append({"type": "give_item", "player": current, "index": o["index"], "to": o["to"]})
 			for from in decoy_options(p):
 				out.append({"type": "decoy", "player": current, "from": from})
-			for t in persuade_targets(p):
-				for i in my_dice(current):
-					out.append({"type": "persuade", "player": current, "die": i, "target": t})
 			for t in give_die_targets(p):
 				for i in my_dice(current):
 					out.append({"type": "give_die", "player": current, "die": i, "target": t})
-			for t in inform_targets(p):
-				out.append({"type": "inform", "player": current, "target": t})
 			out.append_array(scene_options(p))
 	return out
 
@@ -1008,25 +983,12 @@ func _apply(a: Dictionary) -> bool:
 			if not from in decoy_options(p):
 				return false
 			_decoy(p, from)
-		"persuade":
-			var di := _int_of(a.get("die", null))
-			var tgt := _int_of(a.get("target", null))
-			if not can_persuade(p, di, tgt):
-				return false
-			_use_die(p, di, "persuade")
-			_log("%s: 주사위 %d을(를) 써서 %s을(를) 설득합니다." % [p["name"], die_value(di), players[tgt]["name"]])
-			_persuade_once(p, players[tgt], true)
 		"give_die":
 			var di := _int_of(a.get("die", null))
 			var tgt := _int_of(a.get("target", null))
 			if not di in my_dice(pid) or not tgt in give_die_targets(p):
 				return false
 			_give_die(p, di, players[tgt])
-		"inform":
-			var it := _int_of(a.get("target", null))
-			if not it in inform_targets(p):
-				return false
-			_inform(p, players[it])
 		"scene_check":
 			if not _scene_can_check(p):
 				return false
@@ -1071,8 +1033,8 @@ func _begin_morning(first: bool) -> void:
 
 
 func _morning_continue() -> void:
-	## 아침 순서(기획서 19.3): 위협 → 투표 → 변절 확인 → 미션 줄 → 작전 주사위. 선택이 끼면 멈췄다 이어간다.
-	while morning_step <= 5 and phase == "morning":
+	## 아침 순서(기획서 19.3): 위협 → 투표 → 미션 줄 → 작전 주사위. 선택이 끼면 멈췄다 이어간다.
+	while morning_step <= 4 and phase == "morning":
 		var s := morning_step
 		morning_step += 1
 		match s:
@@ -1080,11 +1042,10 @@ func _morning_continue() -> void:
 			2:
 				if act == 1:
 					_morning_vote()
-			3: _morning_traitor_check()
-			4:
+			3:
 				if act == 1:
 					_fill_mission_row()
-			5: _morning_dice()
+			4: _morning_dice()
 
 
 func _morning_threat() -> void:
@@ -1130,12 +1091,6 @@ func _morning_vote() -> void:
 			[{"value": true, "label": "결행한다"}, {"value": false, "label": "하루 더 준비한다"}], {"then": "morning"})
 		pending["votes"] = []
 		pending["voters"] = []
-
-
-func _morning_traitor_check() -> void:
-	## 1막 아침에는 아무것도 하지 않는다. 2막 아침의 변절 확인 (4단계가 아침을 돌릴 때 이 자리를 부른다)
-	if act == 2:
-		_traitor_check("morning")
 
 
 func _fill_mission_row() -> void:
@@ -1217,9 +1172,11 @@ func _move_die(p: Dictionary, i: int) -> void:
 		(" %+d" % extra) if extra != 0 else "", steps_left])
 
 
-func _give_die(p: Dictionary, i: int, q: Dictionary) -> void:
+func _give_die(p: Dictionary, i: int, q: Dictionary, counts_daily := true) -> void:
+	## counts_daily가 false이면 하루 건네기 횟수(gives_today)에 세지 않는다 (정 인쇄공 「연락망」)
 	op_dice[i]["owner"] = q["id"]
-	p["gives_today"] = int(p["gives_today"]) + 1
+	if counts_daily:
+		p["gives_today"] = int(p["gives_today"]) + 1
 	p["stats"]["gives"] += 1
 	_log("%s: %s에게 주사위 %d을(를) 건넸습니다." % [p["name"], q["name"], die_value(i)])
 	_push({"kind": "die_given", "player": p["id"], "target": q["id"], "die": i, "value": die_value(i)})
@@ -1233,7 +1190,6 @@ func _begin_turn(p: Dictionary) -> void:
 	current = p["id"]
 	p["turns"] += 1
 	p["flags"]["decoys"] = 0
-	p["flags"]["informs"] = 0
 	p["flags"]["escape_add"] = 0
 	p["flags"].erase("scene_tried")
 	p["flags"].erase("intel_check")
@@ -1252,7 +1208,7 @@ func _finish_turn(p: Dictionary) -> void:
 	if phase == "over":
 		return
 	p["done_today"] = true
-	if act == 2 and not p["jailed"] and not p["traitor"]:
+	if act == 2 and not p["jailed"]:
 		_scene_turn_end(p)
 		if phase == "over":
 			return
@@ -1320,9 +1276,6 @@ func _do_step(p: Dictionary, to: Vector2i) -> void:
 
 
 func _enter_checkpoint(p: Dictionary, to: Vector2i) -> void:
-	if p["traitor"]:
-		_arrive(p, to)   # 변절자는 검문소를 판정 없이 지난다
-		return
 	if int(p["flags"].get("checkpoint_pass", 0)) > 0:
 		p["flags"]["checkpoint_pass"] = int(p["flags"]["checkpoint_pass"]) - 1
 		_log("%s: 통행증으로 검문소를 그냥 지나갑니다." % p["name"])
@@ -1337,9 +1290,6 @@ func _arrive(p: Dictionary, to: Vector2i) -> void:
 	p["pos"] = to
 	_push({"kind": "move", "player": p["id"], "from": from, "to": to})
 	steps_left -= 1
-	if p["traitor"]:
-		_traitor_arrive(p, to)
-		return
 	_saga_step_on(p, to)
 	var t: String = board[to]["type"]
 	if t == "base":
@@ -1404,9 +1354,6 @@ func _resolve_stop(p: Dictionary) -> void:
 	if phase == "over":
 		return
 	steps_left = 0
-	if p["traitor"]:
-		_post_move(p)   # 변절자는 이벤트·아이템·보급·은신처 같은 칸 효과를 받지 않는다
-		return
 	var tile: Dictionary = board.get(p["pos"], {})
 	var t: String = tile.get("type", "")
 	_check_hideout(p)
@@ -1709,8 +1656,6 @@ func _check_done(p: Dictionary, ok: bool) -> void:
 			else:
 				_jail(p)
 			_resolve_stop(p)
-		"ambush":
-			_ambush_result(p, c, ok)
 		"scene":
 			_scene_check_result(p, c, ok)
 		"search":
@@ -1871,8 +1816,6 @@ func _coop_enter_base(p: Dictionary, bi: int) -> Array:
 
 func _coop_turn_end(p: Dictionary) -> bool:
 	## 협동 미션 — 차례 끝에 확인 (people, opposite_edges). 보상 처리를 시작했으면 true.
-	if p["traitor"]:
-		return false
 	if not p["jailed"]:
 		today["ends"][p["id"]] = p["pos"]
 	var ids := []
@@ -1940,8 +1883,8 @@ func _begin_escape(p: Dictionary) -> void:
 # ================================================================ 경찰 · 감옥 · 노출
 
 func _summon(p: Dictionary) -> void:
-	## 경찰이 이 요원에게 붙는다 (붙은 다음 차례부터 움직임). 변절자는 쫓지 않는다.
-	if p["jailed"] or p["traitor"]:
+	## 경찰이 이 요원에게 붙는다 (붙은 다음 차례부터 움직임).
+	if p["jailed"]:
 		return
 	if _block_police(p):
 		return
@@ -2004,9 +1947,23 @@ func _jail(p: Dictionary) -> void:
 
 
 func _on_jailed(p: Dictionary) -> void:
-	## 투옥되면 갇힌 날을 적고 심문 카드 1장 (옥중 동지 사연과 4인 심문)
+	## 투옥되면 갇힌 날을 적고 (옥중 동지 사연) 들고 있던 아이템을 압수당한다. 폭탄은 압수하지 않는다.
 	p["jailed_day"] = day
-	_interrogate(p)
+	_confiscate(p, int(data.rules["jail"]["confiscate_items"]))
+
+
+func _confiscate(p: Dictionary, n: int) -> void:
+	## 아이템을 무작위로 n장 빼앗아 버림 더미로 보낸다 (없으면 아무 일도 없음)
+	var taken := []
+	for k in n:
+		if p["items"].is_empty():
+			break
+		var id: String = p["items"].pop_at(rng.randi_range(0, p["items"].size() - 1))
+		item_discard.append(id)
+		taken.append(id)
+		_log("%s: 아이템 [%s]을(를) 압수당했습니다." % [p["name"], item_def(id)["name"]])
+	if not taken.is_empty():
+		_push({"kind": "confiscate", "player": p["id"], "items": taken.duplicate()})
 
 
 func _police_act(p: Dictionary) -> void:
@@ -2070,7 +2027,7 @@ func _dispatch_from(bi: int) -> void:
 	var base: Vector2i = data.bases[bi]
 	var best := {}
 	for q in players:
-		if q["jailed"] or q["traitor"] or police.has(q["id"]):
+		if q["jailed"] or police.has(q["id"]):
 			continue
 		if best.is_empty() or _manhattan(q["pos"], base) < _manhattan(best["pos"], base):
 			best = q
@@ -2174,7 +2131,7 @@ func _run_effects(p: Dictionary, effects: Array, ctx: Dictionary) -> void:
 					search_queue = []
 					var base := _base_cell(str(launch_info.get("target", "")))
 					for q in players:
-						if not q["jailed"] and not q["traitor"] and _manhattan(q["pos"], base) <= int(e.get("range", 0)):
+						if not q["jailed"] and _manhattan(q["pos"], base) <= int(e.get("range", 0)):
 							search_queue.append(q["id"])
 					_search_next()
 				"check_or_jail":
@@ -2256,12 +2213,8 @@ func _effect(p: Dictionary, e: Dictionary, ctx: Dictionary, queue: Array) -> boo
 			return _op_grant_once(p, e, ctx, queue)
 		"mark_tile":
 			_op_mark_tile(p, e)
-		"interrogate":
-			return _op_interrogate(p, e, queue)
-		"persuade":
-			return _op_persuade(p, e, ctx, queue)
-		"interrogate_discard":
-			return _op_interrogate_discard(p, e, ctx, queue)
+		"give_die":
+			return _op_give_die(p, e, ctx, queue)
 		"scene_check_mod_today":
 			today["scene_mod"] = int(today.get("scene_mod", 0)) + int(e.get("value", 0))
 			_log("오늘 장면 판정 목표 %+d." % int(e.get("value", 0)))
@@ -2336,8 +2289,6 @@ func _cond_holds(p: Dictionary, cond: String) -> bool:
 			return police.has(p["id"])
 		"not_chased":
 			return not police.has(p["id"])
-		"has_interrogation":
-			return not p["interro"].is_empty()
 	return false
 
 
@@ -2380,7 +2331,7 @@ func _who_pick(p: Dictionary, who: String, e: Dictionary) -> Array:
 		"all":
 			return players.filter(func(q): return not q["jailed"]).map(func(q): return q["id"])
 		"allies":
-			return players.filter(func(q): return q["id"] != p["id"] and not q["traitor"]).map(func(q): return q["id"])
+			return players.filter(func(q): return q["id"] != p["id"]).map(func(q): return q["id"])
 		"all_jailed":
 			return players.filter(func(q): return q["jailed"]).map(func(q): return q["id"])
 		"nearest_to_base":
@@ -2390,7 +2341,7 @@ func _who_pick(p: Dictionary, who: String, e: Dictionary) -> Array:
 			var near_d := 9999
 			var near_ids := []
 			for q in players:
-				if (q["jailed"] and not include_jailed) or not _who_ok(q, e):
+				if (q["jailed"] and not include_jailed):
 					continue
 				var dd := _manhattan(q["pos"], data.bases[bi])
 				if dd < near_d:
@@ -2403,7 +2354,7 @@ func _who_pick(p: Dictionary, who: String, e: Dictionary) -> Array:
 			var best := -1
 			var ids := []
 			for q in players:
-				if (q["jailed"] and not include_jailed) or not _who_ok(q, e):
+				if (q["jailed"] and not include_jailed):
 					continue
 				var near := 9999
 				for r in players:
@@ -2419,7 +2370,7 @@ func _who_pick(p: Dictionary, who: String, e: Dictionary) -> Array:
 			var most := -1
 			var ids2 := []
 			for q in players:
-				if (q["jailed"] and not include_jailed) or not _who_ok(q, e):
+				if (q["jailed"] and not include_jailed):
 					continue
 				if q["jail_count"] > most:
 					most = q["jail_count"]
@@ -2471,7 +2422,7 @@ func _resolve_base_ref(ref: String) -> int:
 func _ally_candidates(p: Dictionary, who: String, e: Dictionary, include_jailed := false) -> Array:
 	var out := []
 	for q in players:
-		if q["id"] == p["id"] or q["traitor"] or (q["jailed"] and not include_jailed):
+		if q["id"] == p["id"] or (q["jailed"] and not include_jailed):
 			continue
 		var d := _manhattan(q["pos"], p["pos"])
 		match who:
@@ -2495,6 +2446,10 @@ func _resolve_who(p: Dictionary, e: Dictionary, ctx: Dictionary, queue: Array, w
 	## - 동점(isolated · wanted · nearest_to_base): 그날의 리더가 고름
 	if e.has("pid"):
 		return [int(e["pid"])]
+	if who == "saga_partner":
+		## 사연이 기억해 둔 동료 (같은 칸에서 세 번 마친 상대). 감옥에 있어도 받는다.
+		var partner := int(p["saga_track"].get(str(ctx.get("saga", "")), {}).get("partner", -1))
+		return [partner] if partner >= 0 and partner != p["id"] else []
 	if who.begins_with("ally"):
 		var t := int(ctx.get("target", -1))
 		if ctx.get("source", "") == "ability" and t >= 0 and t < players.size():
@@ -2511,15 +2466,6 @@ func _resolve_who(p: Dictionary, e: Dictionary, ctx: Dictionary, queue: Array, w
 	return ids
 
 
-func _op_interrogate(p: Dictionary, e: Dictionary, queue: Array) -> bool:
-	var ids = _resolve_who(p, e, {}, queue, str(e.get("who", "self")))
-	if ids == null:
-		return true
-	for id in ids:
-		_interrogate(players[id])
-	return false
-
-
 func _resolve_base(p: Dictionary, base, ctx: Dictionary) -> int:
 	var b: String = str(base)
 	if b == "entered" and ctx.has("entered_base"):
@@ -2533,7 +2479,13 @@ func _op_intel(p: Dictionary, e: Dictionary, ctx: Dictionary) -> bool:
 	var v: int = int(e.get("value", 1))
 	if str(e.get("base", "nearest")) == "choose":
 		var opts := []
-		for id in GameDataV2.BASE_IDS:
+		var near_ids := _bases_in_range(p["pos"], int(e["range"])) if e.has("range") else GameDataV2.BASE_IDS.duplicate()
+		if near_ids.is_empty():
+			return false
+		if near_ids.size() == 1 and e.has("range"):
+			_add_intel(data.base_index(str(near_ids[0])), v)
+			return false
+		for id in near_ids:
 			opts.append({"value": id, "label": data.base_names[data.base_index(id)]})
 		_ask(p, "intel_base", "첩보를 쌓을 거점을 고르세요.", opts, ctx)
 		pending["amount"] = v
@@ -2542,6 +2494,15 @@ func _op_intel(p: Dictionary, e: Dictionary, ctx: Dictionary) -> bool:
 	if bi >= 0:
 		_add_intel(bi, v)
 	return false
+
+
+func _bases_in_range(c: Vector2i, dist: int) -> Array:
+	## c에서 dist칸 안에 있는 거점 id
+	var out := []
+	for id in GameDataV2.BASE_IDS:
+		if _manhattan(c, data.bases[data.base_index(id)]) <= dist:
+			out.append(id)
+	return out
 
 
 func _add_intel(bi: int, v: int) -> void:
@@ -2558,8 +2519,6 @@ func _add_ready(v: int) -> void:
 
 
 func _op_gain_bomb(p: Dictionary, e: Dictionary) -> void:
-	if p["traitor"]:
-		return
 	for k in int(e.get("count", 1)):
 		if p["bombs"] < bomb_slots(p) and bomb_supply > 0:
 			bomb_supply -= 1
@@ -2569,8 +2528,6 @@ func _op_gain_bomb(p: Dictionary, e: Dictionary) -> void:
 
 
 func _op_draw_item(p: Dictionary, e: Dictionary, queue: Array) -> bool:
-	if p["traitor"]:
-		return false   # 변절자는 아이템을 갖지 못한다
 	var count: int = int(e.get("count", 1))
 	if count > 1:
 		var rest_e: Dictionary = e.duplicate()
@@ -2624,8 +2581,6 @@ func _op_grant_once(p: Dictionary, e: Dictionary, ctx: Dictionary, queue: Array)
 		_log("한 번 쓰는 권리를 줄 대상이 없습니다.")
 	for id in ids:
 		var q: Dictionary = players[id]
-		if q["traitor"]:
-			continue
 		q["grants"].append({"kind": e.get("kind", ""), "value": int(e.get("value", 0)), "scope": e.get("scope", "any")})
 		_log("%s: 한 번 쓰는 권리를 얻었습니다 (%s)." % [q["name"], e.get("kind", "")])
 	return false
@@ -2788,12 +2743,22 @@ func _op_free_all_jailed(p: Dictionary) -> void:
 
 
 func _op_discard_item(p: Dictionary, e: Dictionary, queue: Array) -> bool:
-	## 비용: 아이템을 버린다 (여러 장이면 하나씩 고름, 한 장뿐이면 그대로)
+	## 아이템을 버린다 (여러 장이면 하나씩 고름, 한 장뿐이면 그대로). who가 있으면 그 요원이 버린다 (가택 수색).
+	if e.has("who") and not e.has("pid"):
+		var ids = _resolve_who(p, e, {}, queue, str(e["who"]), bool(e.get("include_jailed", false)))
+		if ids == null:
+			return true
+		if ids.is_empty():
+			return false
+		e = e.duplicate()
+		e["pid"] = ids[0]
+	var holder: Dictionary = players[int(e["pid"])] if e.has("pid") else p
 	var count: int = int(e.get("count", 1))
 	if count > 1:
 		var rest_e: Dictionary = e.duplicate()
 		rest_e["count"] = count - 1
 		queue.push_front(rest_e)
+	p = holder
 	if p["items"].is_empty():
 		_log("%s: 버릴 아이템이 없습니다." % p["name"])
 		return false
@@ -2807,6 +2772,27 @@ func _op_discard_item(p: Dictionary, e: Dictionary, queue: Array) -> bool:
 		opts.append({"value": i, "label": item_def(p["items"][i])["name"]})
 	_ask(p, "discard", "버릴 아이템을 고르세요.", opts, {})
 	return true
+
+
+func _op_give_die(p: Dictionary, e: Dictionary, ctx: Dictionary, queue: Array) -> bool:
+	## 내 작전 주사위 하나를 동료에게 건넨다 (능력의 대상, 또는 who). 하루 건네기 횟수에는 세지 않는다.
+	var ids = _resolve_who(p, e, ctx, queue, str(e.get("who", "ally_in_range")), true)
+	if ids == null:
+		return true
+	var mine := my_dice(p["id"])
+	if ids.is_empty() or mine.is_empty():
+		_log("%s: 건넬 상대나 주사위가 없습니다." % p["name"])
+		return false
+	if mine.size() > 1 and not e.has("die"):
+		var opts := []
+		for i in mine:
+			opts.append({"value": i, "label": "주사위 %d" % die_value(i)})
+		return _ask_pick(p, e, queue, "die", "pick_die", "%s에게 건넬 주사위를 고르세요." % players[ids[0]]["name"], opts)
+	var di: int = int(e["die"]) if e.has("die") else mine[0]
+	if not di in mine:
+		return false
+	_give_die(p, di, players[ids[0]], false)
+	return false
 
 
 func _op_move(p: Dictionary, e: Dictionary, ctx: Dictionary, queue: Array) -> bool:
@@ -3087,7 +3073,7 @@ func _resolve_choice(value) -> void:
 				return
 			var yes := votes.count(true)
 			_log("결행 투표: 찬성 %d, 반대 %d" % [yes, votes.size() - yes])
-			# 과반 찬성이면 결행. 동수면 리더의 표를 따른다 (변절자는 투표하지 않는다).
+			# 과반 찬성이면 결행. 동수면 리더의 표를 따른다.
 			var lead_vote: bool = votes[voters.find(leader)] if voters.has(leader) else false
 			if yes * 2 > votes.size() or (yes * 2 == votes.size() and lead_vote):
 				_launch("vote")
@@ -3099,18 +3085,6 @@ func _resolve_choice(value) -> void:
 		"saga_keep":
 			_keep_saga(p, str(value))
 			_launch_continue()
-		"persuade_look":
-			var idx2: int = int(pd["card_index"])
-			var tgt: Dictionary = players[int(pd["target"])]
-			if bool(value) and idx2 < tgt["interro"].size() and tgt["interro"][idx2] == pd["card"]:
-				tgt["interro"].remove_at(idx2)
-				interro_discard.append(pd["card"])
-				_persuade_report(p, tgt, [pd["card"]])
-			else:
-				_log("%s: %s의 심문 카드를 확인하고 돌려주었습니다." % [p["name"], tgt["name"]])
-			_run_effects(actor, pd["rest"], pd["ctx"])
-		"ambush_target":
-			_ambush(players[int(pd["traitor"])], players[int(value)])
 		"reroll":
 			if str(value) == "grant":
 				var gi := _grant_index(players[check["player"]], "reroll", str(check.get("ctx", "")) == "scene")
@@ -3202,26 +3176,14 @@ func _launch(reason: String) -> void:
 
 
 func _finish_launch(base_id: String) -> void:
-	## 목표가 정해지면 결행 순간의 사연 처리와 변절 확인을 먼저 한다.
+	## 목표가 정해지면 결행 순간의 사연 처리를 먼저 한다.
 	launch_info["target"] = base_id
 	launch_step = 1
 	launch_i = 0
 	_launch_continue()
 
 
-# ================================================================ 3단계: 개인 사연 · 심문 · 설득 · 변절
-
-func _interro_on() -> bool:
-	## 심문 카드·설득·변절은 rules.traitor.players에 적힌 인원일 때만 켠다 (사연은 늘 켠다)
-	for n in data.rules["traitor"]["players"]:
-		if int(n) == players.size():
-			return true
-	return false
-
-
-func _persuade_on() -> bool:
-	return _interro_on()
-
+# ================================================================ 3단계: 개인 사연
 
 func _has_op(effects: Array, op: String) -> bool:
 	## 효과 목록(안쪽 then·else·choice 포함)에 이 op가 있는가
@@ -3236,29 +3198,17 @@ func _has_op(effects: Array, op: String) -> bool:
 	return false
 
 
-func _who_ok(q: Dictionary, e: Dictionary) -> bool:
-	## 대상 고르기(고립·수배·가까운 요원)에서 빼는 요원: 변절자는 늘, 사연을 이룬 요원은 skip_done_saga일 때
-	if q["traitor"]:
-		return false
-	if bool(e.get("skip_done_saga", false)) and q["saga_done"] != "":
-		return false
-	return true
-
-
 func _next_voter(after: int) -> int:
-	for i in range(after + 1, players.size()):
-		if not players[i]["traitor"]:
-			return i
-	return -1
+	return after + 1 if after + 1 < players.size() else -1
 
 
 func _police_off(pid: int, reason: String) -> void:
-	## 경찰이 이 요원을 그만 쫓는다. reason: jail | shake | hideout | removed | decoy | traitor
-	## 투옥과 변절이 아닌 이유(따돌림·은신처·제거·미끼)는 「원수」 사연의 shake_police로 센다.
+	## 경찰이 이 요원을 그만 쫓는다. reason: jail | shake | hideout | removed | decoy
+	## 투옥이 아닌 이유(따돌림·은신처·제거·미끼)는 「원수」 사연의 shake_police로 센다.
 	if not police.has(pid):
 		return
 	police.erase(pid)
-	if reason != "jail" and reason != "traitor":
+	if reason != "jail":
 		_saga_note(players[pid], "shake_police")
 
 
@@ -3314,44 +3264,14 @@ func _deal_sagas() -> void:
 
 # ---------------------------------------------------------------- 조회 (6절)
 
-func interrogation_count(pid: int) -> int:
-	## 공개: 심문 카드 장수
-	return players[pid]["interro"].size()
-
-
-func _interro_def(id: String) -> Dictionary:
-	for c in data.interrogation.get("cards", []):
-		if c.get("id", "") == id:
-			return c
-	return {}
-
-
-func shaken_count(pid: int) -> int:
-	## 본인: "흔들렸다" 장수 (id가 아니라 shaken 필드로 센다)
-	var n := 0
-	for id in players[pid]["interro"]:
-		if bool(_interro_def(id).get("shaken", false)):
-			n += 1
-	return n
-
-
 func saga_cards(pid: int) -> Array:
 	## 본인: 들고 있는 사연
 	return players[pid]["sagas"].duplicate()
 
 
 func public_saga(pid: int) -> String:
-	## 공개: 이룬 사연. 변절자는 남긴 사연. 없으면 ""
-	var p: Dictionary = players[pid]
-	if p["saga_done"] != "":
-		return p["saga_done"]
-	if p["traitor"]:
-		return _kept_or_first(p)
-	return ""
-
-
-func is_traitor(pid: int) -> bool:
-	return players[pid]["traitor"]
+	## 공개: 이룬 사연. 없으면 ""
+	return players[pid]["saga_done"]
 
 
 func _kept_or_first(p: Dictionary) -> String:
@@ -3399,45 +3319,15 @@ func saga_progress(pid: int) -> Dictionary:
 
 
 func saga_result(pid: int) -> Dictionary:
-	## 판 끝 조회 (4단계 엔딩): 남긴 사연(없으면 들고 있던 첫 장), 이뤘는가, 변절자인가
+	## 판 끝 조회 (4단계 엔딩): 남긴 사연(없으면 들고 있던 첫 장), 이뤘는가
 	var p: Dictionary = players[pid]
-	return {"saga": _kept_or_first(p), "done": p["saga_done"] != "", "traitor": p["traitor"]}
+	return {"saga": _kept_or_first(p), "done": p["saga_done"] != ""}
 
 
 func epilogue_key(pid: int, team_won: bool) -> String:
-	## 후일담 키: traitor 또는 win_done / win_fail / lose_done / lose_fail
+	## 후일담 키: win_done / win_fail / lose_done / lose_fail
 	var p: Dictionary = players[pid]
-	if p["traitor"]:
-		return "traitor"
 	return "%s_%s" % ["win" if team_won else "lose", "done" if p["saga_done"] != "" else "fail"]
-
-
-func persuade_targets(p: Dictionary) -> Array:
-	## 지금 내 주사위로 설득할 수 있는 대상 (같은 칸 · 심문 카드가 있는 동료, 변절자 제외)
-	var out := []
-	if not _persuade_on() or phase != "turn" or p["id"] != current or p["jailed"] or p["traitor"]:
-		return out
-	var dist := int(data.rules["persuade"]["range"])
-	for q in players:
-		if q["id"] != p["id"] and not q["traitor"] and not q["interro"].is_empty() \
-				and _manhattan(q["pos"], p["pos"]) <= dist:
-			out.append(q["id"])
-	return out
-
-
-func inform_targets(p: Dictionary) -> Array:
-	## 변절자의 밀고 대상 (거리 inform_range 안, 갇히지 않고 아직 쫓기지 않는 요원)
-	var out := []
-	if phase != "turn" or p["id"] != current or not p["traitor"] or p["jailed"]:
-		return out
-	var T: Dictionary = data.rules["traitor"]
-	if int(p["flags"].get("informs", 0)) >= int(T["inform_per_turn"]):
-		return out
-	for q in players:
-		if not q["traitor"] and not q["jailed"] and not police.has(q["id"]) \
-				and _manhattan(q["pos"], p["pos"]) <= int(T["inform_range"]):
-			out.append(q["id"])
-	return out
 
 
 # ---------------------------------------------------------------- 사연 조건 세기 (2절)
@@ -3476,7 +3366,7 @@ func _saga_note(p: Dictionary, kind: String, ctx := {}) -> void:
 
 func _saga_note_multi(p: Dictionary, kinds: Array, ctx: Dictionary) -> void:
 	## 들고 있는 순서대로 세고, 이룬 카드가 나오면 거기서 멈춘다 (두 장이 동시에 이뤄지면 앞 카드만)
-	if p["traitor"] or p["saga_done"] != "":
+	if p["saga_done"] != "":
 		return
 	for id in p["sagas"]:
 		var cond := _saga_cond(id)
@@ -3549,13 +3439,16 @@ func _saga_count(p: Dictionary, id: String, cond: Dictionary, ctx: Dictionary) -
 			var k := int(ctx["with"])
 			w[k] = int(w.get(k, 0)) + 1
 			tr["with"] = w
-			return w[k] >= count
+			if w[k] >= count:
+				tr["partner"] = k
+				return true
+			return false
 	return false
 
 
 func _saga_turn_end(p: Dictionary) -> void:
 	## 차례를 마칠 때 세는 조건. 갇힌 채 끝낸 차례는 세지 않고, 쫓기는 연속은 끊는다.
-	if p["traitor"] or p["saga_done"] != "":
+	if p["saga_done"] != "":
 		return
 	if p["jailed"]:
 		_saga_reset(p, "chased_turns_row")
@@ -3563,7 +3456,7 @@ func _saga_turn_end(p: Dictionary) -> void:
 	_saga_note_multi(p, ["end_turn_near_base", "end_turn_at_start", "chased_turns_row"],
 		{"chased": police.has(p["id"])})
 	for q in players:
-		if q["id"] != p["id"] and not q["jailed"] and not q["traitor"] and q["pos"] == p["pos"]:
+		if q["id"] != p["id"] and not q["jailed"] and q["pos"] == p["pos"]:
 			_saga_note(p, "same_cell_turns", {"with": q["id"]})
 
 
@@ -3582,7 +3475,7 @@ func _coop_participants(id: String, p: Dictionary, ctx: Dictionary) -> Array:
 			var bi := int(ctx.get("entered_base", -1))
 			if bi >= 0:
 				for q in players:
-					if q["id"] != p["id"] and not q["jailed"] and not q["traitor"] \
+					if q["id"] != p["id"] and not q["jailed"] \
 							and _manhattan(q["pos"], data.bases[bi]) == 1:
 						out.append(q["id"])
 		"same_day_assassin":
@@ -3613,7 +3506,7 @@ func _coop_participants(id: String, p: Dictionary, ctx: Dictionary) -> Array:
 
 func _saga_complete(p: Dictionary, id: String) -> void:
 	## 사연을 이룬다. 상태는 곧바로 바꾸고, 보상은 대기열에 넣어 안전한 자리에서 처리한다.
-	if p["saga_done"] != "" or p["traitor"]:
+	if p["saga_done"] != "":
 		return
 	p["saga_done"] = id
 	p["saga_kept"] = id
@@ -3626,12 +3519,6 @@ func _saga_complete(p: Dictionary, id: String) -> void:
 	_record("%s — 사연 「%s」 달성" % [p["name"], sd.get("name", id)], "good")
 	_banner("사연 「%s」 달성!" % sd.get("name", id), "good", p)
 	_push({"kind": "saga_done", "player": p["id"], "id": id})
-	# 심문 면역: 들고 있던 심문 카드를 모두 버리고, 이후 새로 받지 않는다
-	if not p["interro"].is_empty():
-		interro_discard.append_array(p["interro"])
-		_log("%s: 심문 카드를 모두 내려놓았습니다." % p["name"])
-		p["interro"] = []
-		_push({"kind": "interrogation", "player": p["id"], "count": 0})
 	saga_rewards.append({"player": p["id"], "id": id})
 
 
@@ -3659,7 +3546,7 @@ func _saga_idle_flush() -> void:
 func saga_strike_event(kind: String, by_pid: int, ctx: Dictionary) -> void:
 	## 4단계 훅: 결행 장면을 돌파했다. kind: "entry" | "final" | "middle", ctx: {"strike", "present": [요원 id]}
 	for p in players:
-		if p["traitor"] or p["saga_done"] != "":
+		if p["saga_done"] != "":
 			continue
 		for id in p["sagas"]:
 			var cond := _saga_cond(id)
@@ -3678,115 +3565,11 @@ func saga_strike_event(kind: String, by_pid: int, ctx: Dictionary) -> void:
 	_saga_idle_flush()
 
 
-# ---------------------------------------------------------------- 심문 (3절)
-
-func _interrogate(p: Dictionary) -> void:
-	## 심문 카드 1장을 엎어서 받는다. 4인 장치가 꺼짐 · 사연을 이룸 · 이미 변절자가 나옴 · 덱이 빔이면 받지 않는다.
-	if not _interro_on() or p["saga_done"] != "" or p["traitor"] or traitor_id >= 0:
-		return
-	var id := _draw_from(interro_deck, interro_discard)
-	if id == "":
-		return
-	p["interro"].append(id)
-	_log("%s: 심문을 받았습니다. (심문 카드 %d장)" % [p["name"], p["interro"].size()])
-	_push({"kind": "interrogation", "player": p["id"], "count": p["interro"].size()})
-	_push({"kind": "interrogation_card", "player": p["id"], "card": id, "secret": true})
-
-
-func _op_interrogate_discard(p: Dictionary, e: Dictionary, ctx: Dictionary, queue: Array) -> bool:
-	## 대상이 자기 심문 카드를 무작위로 count장 버린다
-	var ids = _resolve_who(p, e, ctx, queue, str(e.get("who", "self")))
-	if ids == null:
-		return true
-	for id in ids:
-		var q: Dictionary = players[id]
-		var taken := _take_random_interro(q, int(e.get("count", 1)))
-		if not taken.is_empty():
-			_log("%s: 심문 카드 %d장을 버렸습니다." % [q["name"], taken.size()])
-			_push({"kind": "interrogation", "player": q["id"], "count": q["interro"].size()})
-			_push({"kind": "interrogation_discard", "player": q["id"], "cards": taken, "secret": true})
-	return false
-
-
-func _take_random_interro(q: Dictionary, n: int) -> Array:
-	## 심문 카드를 무작위로 n장 떼어 버린 더미로 (rng 하나)
-	var taken := []
-	for k in n:
-		if q["interro"].is_empty():
-			break
-		taken.append(q["interro"].pop_at(rng.randi_range(0, q["interro"].size() - 1)))
-	interro_discard.append_array(taken)
-	return taken
-
-
-# ---------------------------------------------------------------- 설득 (3-3)
-
-func _persuade_once(p: Dictionary, q: Dictionary, allow_double: bool) -> void:
-	## 설득 한 번: 대상의 심문 카드를 무작위로 persuade.cards장 버린다. 「의형제」 권리가 있으면 권리의 value장을 더 버린다.
-	var n := int(data.rules["persuade"]["cards"])
-	if allow_double:
-		var gi := _grant_index(p, "persuade_double")
-		if gi >= 0:
-			n += maxi(int(p["grants"][gi].get("value", 1)), 0)
-			p["grants"].remove_at(gi)
-			_log("%s: 한 번 쓰는 권리로 심문 카드를 더 뽑습니다." % p["name"])
-	_persuade_report(p, q, _take_random_interro(q, n))
-
-
-func _persuade_report(p: Dictionary, q: Dictionary, taken: Array) -> void:
-	_log("%s: %s을(를) 설득했습니다. (심문 카드 %d장을 걷어 냈습니다)" % [p["name"], q["name"], taken.size()])
-	_banner("설득", "good", p)
-	_push({"kind": "persuade", "player": p["id"], "target": q["id"], "discarded": taken.size()})
-	_push({"kind": "persuade_cards", "player": q["id"], "cards": taken.duplicate(), "secret": true})
-	_push({"kind": "interrogation", "player": q["id"], "count": q["interro"].size()})
-
-
-func _op_persuade(p: Dictionary, e: Dictionary, ctx: Dictionary, queue: Array) -> bool:
-	## 효과 persuade: 대상은 능력의 target, 능력이 아니면 range 안에서 심문 카드를 가진 동료 (여럿이면 쓰는 사람이 고름)
-	if not _persuade_on():
-		_log("%s: 설득할 일이 없습니다." % p["name"])
-		return false
-	var qid := -1
-	if e.has("pid"):
-		qid = int(e["pid"])
-	elif str(ctx.get("source", "")) == "ability" and int(ctx.get("target", -1)) >= 0:
-		qid = int(ctx["target"])
-	else:
-		var cands := []
-		for q in players:
-			if q["id"] != p["id"] and not q["traitor"] and not q["interro"].is_empty() \
-					and _manhattan(q["pos"], p["pos"]) <= int(e.get("range", 0)):
-				cands.append(q["id"])
-		if cands.is_empty():
-			_log("%s: 설득할 동료가 없습니다." % p["name"])
-			return false
-		if cands.size() > 1:
-			return _ask_pick(p, e, queue, "pid", "pick_player", "설득할 동료를 고르세요.", _player_options(cands))
-		qid = cands[0]
-	var t: Dictionary = players[qid]
-	if t["interro"].is_empty():
-		_log("%s: %s은(는) 심문 카드가 없습니다." % [p["name"], t["name"]])
-		return false
-	if str(e.get("mode", "random")) == "look":
-		var idx := rng.randi_range(0, t["interro"].size() - 1)
-		var card: String = t["interro"][idx]
-		var cd: Dictionary = _interro_def(card)
-		_ask(p, "persuade_look", "%s의 심문 카드: 「%s」 — %s 버리시겠습니까?" % [t["name"], cd.get("name", card), cd.get("text", "")],
-			[{"value": true, "label": "버린다"}, {"value": false, "label": "돌려준다"}], {})
-		pending["secret"] = true
-		pending["card"] = card
-		pending["card_index"] = idx
-		pending["target"] = qid
-		return true
-	_persuade_once(p, t, true)
-	return false
-
-
 # ---------------------------------------------------------------- 결행 순간 (4절)
 
 func _launch_continue() -> void:
-	## 결행 순간의 순서: 결행 때 세는 조건 → 사연 남기기 → 변절 확인 → 2막. 선택이 끼면 멈췄다 이어 간다.
-	while launch_step < 4 and phase != "over":
+	## 결행 순간의 순서: 결행 때 세는 조건 → 사연 남기기 → 2막. 선택이 끼면 멈췄다 이어 간다.
+	while launch_step < 3 and phase != "over":
 		match launch_step:
 			1:
 				launch_step = 2
@@ -3798,10 +3581,7 @@ func _launch_continue() -> void:
 				if _launch_keep_next():
 					return
 				launch_step = 3
-			3:
-				launch_step = 4
-				_traitor_check("launch")
-	if launch_step >= 4 and phase != "over":
+	if launch_step >= 3 and phase != "over":
 		_begin_act2()
 
 
@@ -3832,7 +3612,7 @@ func _launch_keep_next() -> bool:
 	while launch_i < players.size():
 		var q: Dictionary = players[launch_i]
 		launch_i += 1
-		if q["saga_done"] != "" or q["traitor"]:
+		if q["saga_done"] != "":
 			continue
 		var cands := []
 		for id in q["sagas"]:
@@ -3927,100 +3707,6 @@ func _begin_act2() -> void:
 	_run_effects(players[leader], strike.get("on_launch", []), {"then": "morning", "source": "launch"})
 
 
-# ---------------------------------------------------------------- 변절 (5절)
-
-func _traitor_check(when: String) -> void:
-	## 변절 확인: 흔들렸다 카드가 shaken_needed장 이상인 요원이 있으면 한 명만 돌아선다.
-	## 여럿이면 심문 카드가 가장 많은 사람 → 투옥 횟수가 가장 많은 사람 → rng.
-	if not _interro_on() or traitor_id >= 0:
-		return
-	var need := int(data.rules["traitor"]["shaken_needed"])
-	var cands := []
-	for q in players:
-		if not q["traitor"] and q["saga_done"] == "" and shaken_count(q["id"]) >= need:
-			cands.append(q["id"])
-	if cands.is_empty():
-		return
-	cands = _keep_best(cands, func(id): return players[id]["interro"].size())
-	cands = _keep_best(cands, func(id): return players[id]["jail_count"])
-	var pick: int = cands[0] if cands.size() == 1 else cands[rng.randi_range(0, cands.size() - 1)]
-	_turn_traitor(players[pick], when)
-
-
-func _keep_best(ids: Array, score: Callable) -> Array:
-	var best := -999999
-	for id in ids:
-		best = maxi(best, int(score.call(id)))
-	return ids.filter(func(id): return int(score.call(id)) == best)
-
-
-func _turn_traitor(p: Dictionary, when: String) -> void:
-	## 돌아섬: 풀려나고, 경찰·폭탄·아이템·심문 카드를 내려놓고, 캐릭터를 잃는다. 받아들일지 묻지 않고 되돌아오지 않는다.
-	p["traitor"] = true
-	traitor_id = p["id"]
-	if p["jailed"]:
-		p["jailed"] = false   # 자리는 그 거점 칸
-	_police_off(p["id"], "traitor")
-	bomb_supply += p["bombs"]
-	p["bombs"] = 0
-	item_discard.append_array(p["items"])
-	p["items"] = []
-	interro_discard.append_array(p["interro"])
-	p["interro"] = []
-	p["grants"] = []
-	var sid := _kept_or_first(p)
-	var lure := str(data.saga(sid).get("lure", ""))
-	_log("\"%s\" — %s이(가) 돌아섰습니다!" % [lure, p["name"]])
-	_record("%s — 변절 (\"%s\")" % [p["name"], lure], "bad")
-	_banner("\"%s\" — %s이(가) 돌아섰다!" % [lure, p["name"]], "bad", p)
-	_push({"kind": "traitor", "player": p["id"], "lure": lure, "saga": sid, "when": when})
-	_push({"kind": "police"})
-
-
-func _traitor_arrive(p: Dictionary, to: Vector2i) -> void:
-	## 변절자가 칸에 들어섰다: 칸 효과는 없고, 요원이 있는 칸이면 이동이 끝나고 기습
-	var victims := []
-	for q in players:
-		if not q["traitor"] and not q["jailed"] and q["pos"] == to:
-			victims.append(q["id"])
-	if victims.is_empty():
-		_after_step(p)
-		return
-	steps_left = 0
-	if victims.size() == 1:
-		_ambush(p, players[victims[0]])
-		return
-	_ask(players[leader], "ambush_target", "변절자가 요원들이 있는 칸에 들어섰습니다. 리더가 기습당할 요원을 고르세요.",
-		_player_options(victims), {})
-	pending["traitor"] = p["id"]
-
-
-func _ambush(t: Dictionary, q: Dictionary) -> void:
-	_log("%s: 변절자가 %s을(를) 덮쳤습니다!" % [t["name"], q["name"]])
-	_banner("기습!", "bad", q)
-	_push({"kind": "ambush", "player": t["id"], "target": q["id"]})
-	_start_check(q, str(data.rules["traitor"]["ambush_check"]), "ambush", {"traitor": t["id"]})
-
-
-func _ambush_result(p: Dictionary, c: Dictionary, ok: bool) -> void:
-	## 기습 판정 결과: 실패하면 투옥 (변절자가 이미 있으므로 심문 카드는 받지 않는다). 그 뒤 변절자의 이동이 끝난다.
-	if ok:
-		_log("%s: 기습을 피했습니다." % p["name"])
-	else:
-		_log("%s: 기습에 당했습니다!" % p["name"])
-		_jail(p)
-	_resolve_stop(players[int(c["traitor"])])
-
-
-func _inform(p: Dictionary, q: Dictionary) -> void:
-	## 밀고: 가까운 요원에게 경찰을 붙인다 (_summon과 같은 규칙, 막는 특성도 그대로)
-	p["flags"]["informs"] = int(p["flags"].get("informs", 0)) + 1
-	_log("%s: 변절자가 %s의 위치를 밀고했습니다!" % [p["name"], q["name"]])
-	_banner("밀고!", "bad", q)
-	_push({"kind": "inform", "player": p["id"], "target": q["id"]})
-	_summon(q)
-
-
 # ================================================================ 2막 장면 · 엔딩
 
 func _scene_card(id: String) -> Dictionary:
@@ -4046,8 +3732,6 @@ func _scene_where(cond: Dictionary) -> String:
 
 
 func _scene_at(p: Dictionary, cond: Dictionary, jailed_check := false) -> bool:
-	if p["traitor"]:
-		return false
 	var base := _base_cell(str(launch_info.get("target", "")))
 	if p["jailed"]:
 		return jailed_check and p["pos"] == base
@@ -4069,7 +3753,7 @@ func scene_place_cells() -> Array:
 	for y in data.size:
 		for x in data.size:
 			var cell := Vector2i(x, y)
-			var probe := {"pos": cell, "jailed": false, "traitor": false}
+			var probe := {"pos": cell, "jailed": false}
 			if _scene_at(probe, {}):
 				out.append(cell)
 	return out
@@ -4128,7 +3812,7 @@ func _scene_complete(cond: Dictionary, path := "") -> bool:
 		"jailed_here":
 			var base := _base_cell(str(launch_info.get("target", "")))
 			for q in players:
-				if q["jailed"] and not q["traitor"] and q["pos"] == base:
+				if q["jailed"] and q["pos"] == base:
 					return true
 	return false
 
@@ -4161,7 +3845,7 @@ func _scene_break(by_pid: int) -> void:
 	var present := []
 	var base := _base_cell(str(launch_info.get("target", "")))
 	for q in players:
-		if not q["jailed"] and not q["traitor"] and q["pos"] == base:
+		if not q["jailed"] and q["pos"] == base:
 			present.append(q["id"])
 	saga_strike_event(kind, by_pid, {"strike": launch_info["target"], "present": present})
 	if kind == "final":
@@ -4173,7 +3857,7 @@ func _scene_break(by_pid: int) -> void:
 
 
 func _scene_check_leaf(p: Dictionary) -> Dictionary:
-	if act != 2 or phase != "turn" or current != p["id"] or p["traitor"] or p["flags"].get("scene_tried", false):
+	if act != 2 or phase != "turn" or current != p["id"] or p["flags"].get("scene_tried", false):
 		return {}
 	for leaf in _scene_leaves(current_scene().get("condition", {})):
 		if str(leaf["cond"].get("kind", "")) in ["check", "check_pair"] and not _scene_complete(leaf["cond"], str(leaf["path"])) \
@@ -4227,7 +3911,7 @@ func _scene_cond_at(path: String) -> Dictionary:
 
 
 func _scene_pay_leaf(p: Dictionary, what: String, index: int) -> Dictionary:
-	if act != 2 or phase != "turn" or current != p["id"] or p["jailed"] or p["traitor"]:
+	if act != 2 or phase != "turn" or current != p["id"] or p["jailed"]:
 		return {}
 	for leaf in _scene_leaves(current_scene().get("condition", {})):
 		var cond: Dictionary = leaf["cond"]
@@ -4275,7 +3959,7 @@ func _scene_auto_break_by(pid: int) -> void:
 
 
 func _scene_can_intel(p: Dictionary, mode: String) -> bool:
-	if act != 2 or phase != "turn" or current != p["id"] or p["traitor"] or intel_tokens <= 0:
+	if act != 2 or phase != "turn" or current != p["id"] or intel_tokens <= 0:
 		return false
 	for leaf in _scene_leaves(current_scene().get("condition", {})):
 		if _scene_complete(leaf["cond"], str(leaf["path"])):
@@ -4305,7 +3989,7 @@ func scene_options(p: Dictionary) -> Array:
 	var out := []
 	if _scene_can_check(p):
 		out.append({"type": "scene_check", "player": p["id"]})
-	if act != 2 or phase != "turn" or current != p["id"] or p["traitor"]:
+	if act != 2 or phase != "turn" or current != p["id"]:
 		return out
 	for i in my_dice(p["id"]):
 		if _scene_can_pay(p, "die", i):
@@ -4335,7 +4019,7 @@ func _scene_night() -> void:
 		if leaf["cond"].get("kind", "") == "hold":
 			var count := 0
 			for q in players:
-				if not q["jailed"] and not q["traitor"] and _scene_at(q, leaf["cond"]):
+				if not q["jailed"] and _scene_at(q, leaf["cond"]):
 					count += 1
 			if count >= int(leaf["cond"].get("count", 1)):
 				var part := _scene_part(str(leaf["path"]))
@@ -4396,8 +4080,6 @@ func _end_game(won: bool) -> void:
 	var body := str(data.endings.get("strikes", {}).get(target, {}).get("ending", "")) if won else str(def.get("text", ""))
 	if not won and not card.is_empty():
 		body = str(card.get("stop_text", "")) + "\n" + body
-	if traitor_id >= 0 and not won:
-		body += "\n" + str(data.endings.get("traitor_won", {}).get("text", ""))
 	var epilogues := []
 	for p in players:
 		var result := saga_result(p["id"])
@@ -4413,10 +4095,10 @@ func _end_game(won: bool) -> void:
 		var faction := str(data.characters.get("factions", {}).get(character.get("faction", ""), {}).get("name", ""))
 		epilogues.append({"player": p["id"], "saga": saga_id, "key": epkey,
 			"text": "%s %s — %s" % [faction, character.get("name", p["name"]), str(line)],
-			"done": bool(result.get("done", false)), "traitor": bool(result.get("traitor", false))})
+			"done": bool(result.get("done", false))})
 	ending = {"id": id, "won": won, "target": target, "scene": str(card.get("id", "")),
 		"scene_index": scene_index if act == 2 else -1, "title": str(def.get("name", "")), "text": body,
-		"traitor": traitor_id, "traitor_won": traitor_id >= 0 and not won, "epilogues": epilogues}
+		"epilogues": epilogues}
 	phase = "over"
 	pending = {}
 	_record("작전 종료: %s" % ending["title"], "good" if won else "bad")
@@ -4431,8 +4113,8 @@ const SAVE_FIELDS := ["players", "leader", "day", "rounds_total", "rounds_left",
 	"threat_today", "mission_deck", "mission_discard", "mission_row", "event_deck", "event_discard",
 	"item_deck", "item_discard", "bomb_supply", "op_dice", "today", "pending",
 	"launch_info", "ending", "scenes", "scene_index", "scene_state", "intel_tokens", "search_queue", "effect_wait",
-	"check", "morning_step", "last_roll", "saga_decks", "saga_discard", "interro_deck",
-	"interro_discard", "traitor_id", "saga_rewards", "launch_step", "launch_i", "actions", "log_lines", "history"]
+	"check", "morning_step", "last_roll", "saga_decks", "saga_discard",
+	"saga_rewards", "launch_step", "launch_i", "actions", "log_lines", "history"]
 
 
 func save_state() -> Dictionary:

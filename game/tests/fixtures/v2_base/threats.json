@@ -145,17 +145,17 @@
 			]
 		},
 		{
-			"id": "persuasion_plot",
-			"name": "회유 공작",
+			"id": "house_search",
+			"name": "가택 수색",
 			"count": 3,
 			"tone": "bad",
-			"text": "고립된 요원(감옥에 있는 요원 포함)이 심문 카드 1장. 사연을 이룬 요원은 빼고 고름",
+			"text": "고립된 요원(감옥에 있는 요원 포함)이 아이템 1장을 버림",
 			"effects": [
 				{
-					"op": "interrogate",
+					"op": "discard_item",
 					"who": "isolated",
 					"include_jailed": true,
-					"skip_done_saga": true
+					"count": 1
 				}
 			]
 		},
@@ -267,17 +267,20 @@
 			]
 		},
 		{
-			"id": "persuasion_plot2",
-			"name": "회유 공작",
+			"id": "informer_bounty",
+			"name": "밀고 포상금",
 			"count": 2,
 			"tone": "bad",
-			"text": "1막과 같음",
+			"text": "노출 +1. 결행 거점에서 경찰이 출동해 가장 가까운 요원을 쫓음",
 			"effects": [
 				{
-					"op": "interrogate",
-					"who": "isolated",
-					"include_jailed": true,
-					"skip_done_saga": true
+					"op": "exposure",
+					"value": 1
+				},
+				{
+					"op": "police_dispatch",
+					"from": "strike_base",
+					"count": 1
 				}
 			],
 			"deck_place": "top_half"

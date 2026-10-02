@@ -3,11 +3,11 @@
 	"sagas": [
 		{"id": "ring", "name": "약속의 반지", "branch": "strike", "story": "반지를 돌려주고 싶다.", "check_at": "launch", "act": 2,
 		 "condition": {"kind": "strike_final_by_me", "strike": "prison"}, "condition_text": "형무소 결행 마지막을 내가 마친다",
-		 "reward": [{"op": "ready", "value": 1}], "reward_text": "준비 +1", "lure": "그가 기다린다", "redraw_for": ["yun"],
-		 "epilogue": {"win_done": "가", "win_fail": "나", "lose_done": null, "lose_fail": "라", "traitor": "마"}},
+		 "reward": [{"op": "ready", "value": 1}], "reward_text": "준비 +1", "redraw_for": ["yun"],
+		 "epilogue": {"win_done": "가", "win_fail": "나", "lose_done": null, "lose_fail": "라"}},
 		{"id": "home", "name": "고향", "branch": "place", "story": "고향이 그립다.",
 		 "condition": {"kind": "end_turn_near_base", "base": "barracks", "range": 2, "not_chased": true}, "condition_text": "군영 곁에서 마친다",
-		 "reward": [], "reward_text": "", "lure": "고향으로", "redraw_for": [],
-		 "epilogue": {"win_done": "", "win_fail": "", "lose_done": "", "lose_fail": "", "traitor": ""}}
+		 "reward": [], "reward_text": "", "redraw_for": [],
+		 "epilogue": {"win_done": "", "win_fail": "", "lose_done": "", "lose_fail": ""}}
 	]
 }

@@ -33,6 +33,7 @@ func _init() -> void:
 	_run_2b_tests()
 	_run_3_tests()
 	_run_4_tests()
+	_run_a_tests()
 	print("v2 규칙 시험: 통과 %d, 실패 %d" % [passed, failed])
 	quit(1 if failed > 0 else 0)
 
@@ -78,7 +79,7 @@ func _test_fixture_in_sync() -> void:
 	## 고정 수치 사본과 진짜 데이터의 카드 구성(id)이 같아야 "빠짐없이" 검사가 진짜 카드를 덮는다
 	var real := GameDataV2.load_default()
 	var fixed := _fixed_data()
-	for name in ["threats", "interrogation", "missions", "events", "items", "scenes", "sagas", "characters"]:
+	for name in ["threats", "missions", "events", "items", "scenes", "sagas", "characters"]:
 		var a := []
 		var b := []
 		_ids(real.get(name), a)
@@ -138,16 +139,13 @@ func _blank(g: RulesV2) -> RulesV2:
 		q["grants"] = []
 		q["flags"] = {}
 		q["turns"] = 1
-		# 3단계: 무작위로 받은 사연·심문 카드는 치운다 (시험이 필요한 만큼 직접 꾸민다)
+		# 3단계: 무작위로 받은 사연은 치운다 (시험이 필요한 만큼 직접 꾸민다)
 		q["sagas"] = []
 		q["saga_done"] = ""
 		q["saga_kept"] = ""
 		q["saga_track"] = {}
-		q["interro"] = []
-		q["traitor"] = false
 		q["jailed_day"] = -99
 	g.saga_rewards = []
-	g.traitor_id = -1
 	return g
 
 
@@ -186,7 +184,7 @@ func _answer(g: RulesV2, value) -> bool:
 # ------------------------------------------------------------------ 시험
 
 func _test_plan_dice() -> void:
-	## 7단계 작전 주사위: 아침 굴림 · 이동 · 건네기 · 설득
+	## 7단계 작전 주사위: 아침 굴림 · 이동 · 건네기
 	var g := _new(["park", "han", "oh", "seo"])
 	var n := int(g.data.rules["personal_dice"])
 	g.players[1]["jailed"] = true
@@ -234,27 +232,19 @@ func _test_plan_dice() -> void:
 		_turn(g4, pid, 1)
 		g4.apply({"type": "end_move", "player": pid})
 	ok(g4.day == 2 and (g4.phase != "plan" or g4.my_dice(0).size() == n), "작전 주사위: 쓰지 않은 주사위는 밤에 사라지고 아침에 새로 굴림")
-	# 건네기: 같은 칸, 하루 1번, 변절자에게는 못 줌
+	# 건네기: 같은 칸, 하루 1번
 	var g5 := _new(["park", "han", "oh", "seo"])
 	var gd0 := _spare(g5, 6, 0)
 	var gd1 := _spare(g5, 3, 0)
 	g5.players[2]["pos"] = g5.data.bases[0]
-	g5.players[3]["traitor"] = true
+	g5.players[3]["pos"] = Vector2i(9, 9)
 	g5.apply({"type": "begin_turn", "player": 0})
 	var tg := g5.give_die_targets(g5.players[0])
-	ok(1 in tg and not 2 in tg and not 3 in tg, "건네기: 같은 칸 동료만 (멀리 있는 요원, 변절자 제외)")
+	ok(1 in tg and not 2 in tg and not 3 in tg, "건네기: 같은 칸 동료만 (멀리 있는 요원 제외)")
 	ok(g5.apply({"type": "give_die", "player": 0, "die": gd0, "target": 1}) and gd0 in g5.my_dice(1) and not gd0 in g5.my_dice(0),
 		"건네기: 주사위가 동료 것이 됨")
 	ok(not g5.apply({"type": "give_die", "player": 0, "die": gd1, "target": 1}), "건네기: 하루 1번")
 	ok(g5.players[0]["stats"]["gives"] == 1, "건네기: 통계에 셈")
-	# 설득: 내 주사위 하나로 같은 칸 동료의 심문 카드를 뗌
-	var g6 := _new(["park", "han", "oh", "seo"])
-	g6.players[1]["interro"] = ["held", "shaken"]
-	var pd := _spare(g6, 2, 0)
-	g6.apply({"type": "begin_turn", "player": 0})
-	ok(not g6.apply({"type": "persuade", "player": 0, "die": pd, "target": 2}), "설득: 심문 카드가 없는 동료는 대상이 아님")
-	ok(g6.apply({"type": "persuade", "player": 0, "die": pd, "target": 1}) and g6.players[1]["interro"].size() == 1 and g6.op_dice[pd]["used"],
-		"설득: 주사위 하나를 쓰고 심문 카드 1장을 뗌")
 
 
 func _test_gaeddong_dice() -> void:
@@ -1127,9 +1117,42 @@ func _test_threat_cards() -> void:
 
 	g = _new(CH)
 	g.players[0]["pos"] = Vector2i(2, 2)
-	_threat(g, "persuasion_plot")
-	_cov("threat", "persuasion_plot")
-	ok(g.players[0]["interro"].size() == 1 and g.players[1]["interro"].is_empty(), "위협 회유 공작: 고립된 요원이 심문 카드 1장")
+	g.players[0]["items"] = ["train_ticket", "telescope"]
+	g.players[1]["items"] = ["train_ticket"]
+	_threat(g, "house_search")
+	_cov("threat", "house_search")
+	ok(g.phase == "choice" and g.pending["kind"] == "discard" and g.pending["player"] == 0, "위협 가택 수색: 고립된 요원이 버릴 아이템을 고름")
+	_answer(g, 1)
+	ok(g.players[0]["items"] == ["train_ticket"] and g.item_discard == ["telescope"] and g.players[1]["items"] == ["train_ticket"] and g.phase == "day",
+		"위협 가택 수색: 고른 아이템 1장만 버려지고 다른 요원은 그대로")
+	g = _new(CH)
+	g.players[0]["pos"] = Vector2i(2, 2)
+	g.players[0]["items"] = ["telescope"]
+	_threat(g, "house_search")
+	ok(g.phase == "day" and g.players[0]["items"].is_empty() and g.item_discard == ["telescope"], "위협 가택 수색: 아이템이 한 장이면 묻지 않고 버림")
+	g = _new(CH)
+	g.players[0]["pos"] = Vector2i(2, 2)
+	_threat(g, "house_search")
+	ok(g.phase == "day" and g.item_discard.is_empty() and g.exposure == 0 and g.police.is_empty(), "위협 가택 수색: 버릴 아이템이 없으면 아무 일 없음 (군자금은 아직 없음)")
+	g = _new(CH)
+	g.players[0]["pos"] = Vector2i(2, 2)
+	g.players[0]["jailed"] = true
+	g.players[0]["pos"] = g.data.bases[0]
+	g.players[0]["items"] = ["telescope"]
+	g.players[1]["pos"] = Vector2i(5, 5)
+	g.players[2]["pos"] = Vector2i(5, 5)
+	g.players[3]["pos"] = Vector2i(5, 5)
+	_threat(g, "house_search")
+	ok(g.players[0]["items"].is_empty(), "위협 가택 수색: 감옥에 있는 요원도 대상 (include_jailed)")
+	g = _new(CH)
+	g.players[0]["pos"] = Vector2i(2, 2)
+	g.players[3]["pos"] = Vector2i(8, 8)
+	g.players[0]["items"] = ["telescope"]
+	g.players[3]["items"] = ["train_ticket"]
+	_threat(g, "house_search")
+	ok(g.phase == "choice" and g.pending["kind"] == "pick_player" and g.pending["player"] == g.leader, "위협 가택 수색: 고립된 요원이 동점이면 리더가 고름")
+	_answer(g, 3)
+	ok(g.players[3]["items"].is_empty() and g.players[0]["items"] == ["telescope"], "위협 가택 수색: 리더가 고른 요원이 버림")
 
 	g = _new(CH)
 	g.exposure = 3
@@ -1234,10 +1257,20 @@ func _test_event_cards() -> void:
 	g = _new(CH)
 	_event(g, 0, "old_comrade")
 	_cov("event", "old_comrade")
-	ok(g.players[0]["items"].size() == 1, "이벤트 옛 동지와의 재회 (4인, 심문 카드 없음): 아이템 1장")
+	ok(g.phase == "choice" and g.pending["kind"] == "effect_choice" and g.pending["player"] == 0 and g.pending["options"].size() == 2,
+		"이벤트 옛 동지와의 재회: 아이템 1장 / 내일 주사위 +1을 고름")
+	_answer(g, 0)
+	ok(g.players[0]["items"].size() == 1 and g.players[0]["dice_next"] == 0 and g.phase == "day", "이벤트 옛 동지와의 재회: 아이템을 고르면 1장")
+	g = _new(CH)
+	_event(g, 0, "old_comrade")
+	_answer(g, 1)
+	ok(g.players[0]["items"].is_empty() and g.players[0]["dice_next"] == 1 and g.players[1]["dice_next"] == 0, "이벤트 옛 동지와의 재회: 내일 주사위를 고르면 내 몫만 +1")
+	g._morning_dice()
+	ok(g.my_dice(0).size() == int(g.data.rules["personal_dice"]) + 1 and g.my_dice(1).size() == int(g.data.rules["personal_dice"]) and g.players[0]["dice_next"] == 0,
+		"이벤트 옛 동지와의 재회: 내일 아침 내 주사위가 하나 더 (다음 아침에 쓰고 지움)")
 	var g3 := _new(["park", "han", "oh"])
 	_event(g3, 0, "old_comrade")
-	ok(g3.players[0]["items"].size() == 1, "이벤트 옛 동지와의 재회 (3인): 아이템 1장")
+	ok(g3.phase == "choice" and g3.pending["options"].size() == 2, "이벤트 옛 동지와의 재회: 인원과 상관없이 같은 선택")
 
 
 # ------------------------------------------------------------------ 아이템 카드 (10종)
@@ -1627,27 +1660,79 @@ func _test_abilities() -> void:
 	ok(g.board[Vector2i(5, 6)]["type"] == "supply" and g.tile_deck.count("supply") == supply_before - 1 and _log_has(g, "타일 더미를 다시 섞었습니다") and g.phase == "turn", "능력 마을 사람들: 고른 타일이 깔리고 더미를 섞음")
 	_cov("ability", "choi")
 
-	# 정 인쇄공 · 서 마담: 설득은 3단계 (능력은 쓸 수 있고 효과만 훅)
+	# 정 인쇄공: 3칸 안의 동료에게 내 주사위 하나를 건넴 (하루 건네기 횟수에 안 셈)
 	g = _new(["jeong", "han", "oh", "seo"])
 	g.players[1]["pos"] = Vector2i(5, 7)
-	g.players[1]["interro"] = ["held", "shaken"]
-	_turn(g, 0, 2)
-	ok(g.apply({"type": "ability", "player": 0, "target": 1}) and g.players[1]["interro"].size() == 1, "능력 연락망: 3칸 안 동료의 심문 카드 1장 설득")
+	g.players[2]["pos"] = Vector2i(5, 9)
+	g.players[3]["pos"] = Vector2i(9, 9)
+	var cd1 := _spare(g, 4, 0)
+	var cd2 := _spare(g, 2, 0)
+	_turn(g, 0, 0)
+	ok(g.ability_targets(g.players[0]) == [1], "능력 연락망: 3칸 안의 동료만 대상 (4칸 밖은 안 됨)")
+	ok(g.apply({"type": "ability", "player": 0, "target": 1}) and g.phase == "choice" and g.pending["kind"] == "pick_die" and g.pending["options"].size() == 2,
+		"능력 연락망: 주사위가 둘이면 건넬 것을 고름")
+	ok(_answer(g, cd2) and g.op_dice[cd2]["owner"] == 1 and g.op_dice[cd1]["owner"] == 0 and g.phase == "turn", "능력 연락망: 고른 주사위가 동료 것이 됨")
+	ok(g.players[0]["gives_today"] == 0 and g.players[0]["stats"]["gives"] == 1 and g.players[0]["ability_day"] == g.day, "능력 연락망: 하루 건네기 횟수에는 안 세고 통계에는 셈")
+	ok(not g.can_use_ability(g.players[0], 1), "능력 연락망: 능력은 하루 한 번")
 	_cov("ability", "jeong")
 	g = _new(["jeong", "han", "oh", "seo"])
-	g.players[3]["pos"] = Vector2i(9, 9)
-	g.players[3]["interro"] = ["held"]
-	g.players[1]["interro"] = ["held"]
-	_turn(g, 0, 2)
-	ok(not g.can_use_ability(g.players[0], 3) and g.can_use_ability(g.players[0], 1), "능력 연락망: 3칸 밖 동료는 안 됨")
-	g = _new(["seo", "han", "oh", "park"])
+	var one := _spare(g, 5, 0)
 	g.players[1]["pos"] = Vector2i(5, 6)
-	g.players[1]["interro"] = ["held"]
-	g.players[2]["interro"] = ["held"]
-	_turn(g, 0, 2)
-	ok(not g.can_use_ability(g.players[0], 1) and g.can_use_ability(g.players[0], 2), "능력 다방 밀담: 같은 칸 동료만")
-	ok(g.apply({"type": "ability", "player": 0, "target": 2}) and g.pending.get("kind", "") == "persuade_look", "능력 다방 밀담: 쓰면 카드를 보고 버릴지 묻는다")
+	_turn(g, 0, 0)
+	ok(g.apply({"type": "ability", "player": 0, "target": 1}) and g.phase == "turn" and g.op_dice[one]["owner"] == 1, "능력 연락망: 주사위가 하나뿐이면 묻지 않고 건넴")
+	g = _new(["jeong", "han", "oh", "seo"])
+	_turn(g, 0, 0)
+	ok(g.ability_targets(g.players[0]).is_empty(), "능력 연락망: 건넬 주사위가 없으면 쓸 수 없음")
+	# 건네기 액션(하루 1번)과 따로 센다
+	g = _new(["jeong", "han", "oh", "seo"])
+	_spare(g, 3, 0)
+	_spare(g, 4, 0)
+	_spare(g, 5, 0)
+	g.players[2]["pos"] = Vector2i(9, 9)
+	g.players[3]["pos"] = Vector2i(9, 9)
+	_turn(g, 0, 0)
+	g.apply({"type": "ability", "player": 0, "target": 1})
+	_answer(g, 0)
+	ok(g.apply({"type": "give_die", "player": 0, "die": 1, "target": 1}) and not g.apply({"type": "give_die", "player": 0, "die": 2, "target": 1}),
+		"능력 연락망: 건네기 액션은 그대로 하루 1번 (연락망은 그 횟수에 안 들어감)")
+	# 감옥의 동료에게도 닿음 (탈옥 판정에 쓰도록)
+	g = _new(["jeong", "han", "oh", "seo"])
+	g.players[0]["pos"] = Vector2i(2, 2)
+	g.players[1]["jailed"] = true
+	g.players[1]["pos"] = g.data.bases[0]
+	g.players[2]["pos"] = Vector2i(9, 9)
+	g.players[3]["pos"] = Vector2i(9, 9)
+	var jd := _spare(g, 6, 0)
+	_turn(g, 0, 0)
+	ok(g.ability_targets(g.players[0]) == [1] and g.apply({"type": "ability", "player": 0, "target": 1}) and jd in g.my_dice(1), "능력 연락망: 감옥의 동료에게도 건넴")
+
+	# 서 마담: 3칸 안의 거점 하나에 첩보 +1, 노출 +1
+	g = _new(["seo", "han", "oh", "park"])
+	_turn(g, 0, 0)
+	ok(g.ability_targets(g.players[0]).is_empty(), "능력 다방 밀담: 3칸 안에 거점이 없으면 쓸 수 없음")
+	g = _new(["seo", "han", "oh", "park"])
+	g.players[0]["pos"] = Vector2i(2, 2)
+	_turn(g, 0, 0)
+	ok(g.ability_targets(g.players[0]) == [-1], "능력 다방 밀담: 거점이 3칸 안에 있으면 쓸 수 있음 (대상 없이)")
+	ok(g.apply({"type": "ability", "player": 0}) and g.phase == "turn" and g.intel["barracks"] == 1 and g.exposure == 1 and g.players[0]["ability_day"] == g.day,
+		"능력 다방 밀담: 가까운 거점이 하나뿐이면 곧바로 첩보 +1, 노출 +1")
+	var intel_sum := 0
+	for id in g.intel:
+		intel_sum += int(g.intel[id])
+	ok(intel_sum == 1 and not g.can_use_ability(g.players[0], -1), "능력 다방 밀담: 다른 거점은 그대로, 하루 한 번")
 	_cov("ability", "seo")
+	g = _new(["seo", "han", "oh", "park"])
+	g.players[0]["pos"] = Vector2i(3, 2)
+	g.exposure = 2
+	_turn(g, 0, 0)
+	g.apply({"type": "ability", "player": 0})
+	ok(g.exposure == 3 and g.alert_level() == 2 and g.police.size() == 1, "능력 다방 밀담: 노출이 문턱에 닿으면 경계 단계가 오르고 경찰이 출동")
+	g = _new(["seo", "han", "oh", "park"])
+	g.players[0]["pos"] = Vector2i(5, 1)
+	_fx(g, 0, [{"op": "intel", "base": "choose", "range": 4, "value": 1}])
+	ok(g.phase == "choice" and g.pending["kind"] == "intel_base" and g.pending["options"].size() == 2, "효과 intel(choose + range): 그 안의 거점 둘 중에서 고름")
+	_answer(g, "police_hq")
+	ok(g.intel["police_hq"] == 1 and g.intel["barracks"] == 0, "효과 intel(choose + range): 고른 거점에 첩보 +1")
 
 	# 이 차장: 이번 차례 검문소 하나를 판정 없이
 	g = _new(["lee", "han", "oh", "seo"], gd)
@@ -1779,9 +1864,6 @@ func _test_ops_misc() -> void:
 	g.bomb_supply = 0
 	_fx(g, 0, [{"op": "refill_supply"}, {"op": "scene_check_mod_today", "value": 1}])
 	ok(g.bomb_supply == int(g.data.rules["bomb_supply"]) and g.today["scene_mod"] == 1, "2막 효과: 폭탄 보급과 오늘 판정 보정")
-	g.players[0]["interro"] = ["held", "shaken"]
-	_fx(g, 0, [{"op": "persuade", "range": 3, "mode": "random"}, {"op": "interrogate_discard", "who": "self", "count": 1, "mode": "random"}])
-	ok(g.players[0]["interro"].size() == 1, "효과 persuade(대상 없음)는 아무 일 없고 interrogate_discard는 1장을 버림")
 	ok(not _log_has(g, "(2b 미구현)"), "훅: (2b 미구현)은 더 이상 없음")
 
 	# police_send_far
@@ -1924,19 +2006,14 @@ func _test_coverage() -> void:
 			ok(covered.has("coop:" + c["id"]), "빠짐없이: 협동 미션 %s" % c["id"])
 
 
-# ================================================================== 3단계: 개인 사연 · 심문 · 설득 · 변절
+# ================================================================== 3단계: 개인 사연
 
 func _run_3_tests() -> void:
 	_test_saga_deal()
 	_test_saga_cards()
 	_test_saga_boundaries()
 	_test_grant_scope()
-	_test_interrogation()
-	_test_persuasion()
 	_test_launch_moment()
-	_test_traitor_check()
-	_test_traitor_turn()
-	_test_traitor_day()
 	_test_stage3_queries()
 	_test_saga_coverage()
 
@@ -2028,7 +2105,6 @@ func _test_saga_deal() -> void:
 	# 인원과 상관없이 사연은 켜짐
 	var g2 := RulesV2.new_game(["park", "han"], 5)
 	ok(g2.players[0]["sagas"].size() == 2 and g2.players[1]["sagas"].size() == 2, "사연 나눠 주기: 2인 판에서도 사연을 받음")
-	ok(g2.interro_deck.size() == 12, "심문 덱: 12장")
 
 	# redraw_for: 주모 막례는 자금책·스승의 부탁을 받지 않는다
 	var bad := 0
@@ -2222,10 +2298,10 @@ func _test_saga_cards() -> void:
 	# 원수: 쫓던 경찰을 투옥 말고 다른 이유로 세 번 그만 쫓게 함
 	g = _new(CH)
 	_give(g, 0, ["nemesis"])
-	for reason in ["jail", "traitor"]:
+	for reason in ["jail"]:
 		g.police[0] = {"pos": Vector2i(0, 10), "summon_turn": 99}
 		g._police_off(0, reason)
-	ok(g.saga_progress(0)["nemesis"]["have"] == 0, "사연 원수: 투옥·변절로 쫓기를 그만두는 것은 세지 않음")
+	ok(g.saga_progress(0)["nemesis"]["have"] == 0, "사연 원수: 투옥으로 쫓기를 그만두는 것은 세지 않음")
 	g.police[0] = {"pos": Vector2i(0, 10), "summon_turn": 99}
 	g._police_off(0, "shake")
 	g.police[0] = {"pos": Vector2i(0, 10), "summon_turn": 99}
@@ -2340,7 +2416,9 @@ func _test_saga_cards() -> void:
 	g.players[1]["pos"] = Vector2i(5, 6)
 	g.players[2]["pos"] = Vector2i(5, 7)
 	_end_here(g, 0)
-	ok(g.players[0]["saga_done"] == "sworn_brother" and g._grant_index(g.players[0], "persuade_double") >= 0, "사연 의형제: 같은 동료와 세 번이면 이루고 설득 2장 권리")
+	ok(g.players[0]["saga_done"] == "sworn_brother" and g.players[0]["grants"].is_empty() and g.players[2]["grants"].is_empty(), "사연 의형제: 같은 동료와 세 번이면 이룸 (보상은 나나 다른 동료가 아니라 그 동료에게)")
+	var sg: Array = g.players[1]["grants"]
+	ok(sg.size() == 1 and sg[0]["kind"] == "check_bonus" and sg[0]["value"] == 2 and sg[0]["scope"] == "any", "사연 의형제: 그 동료에게 다음 판정 +2 권리")
 	_cov("saga", "sworn_brother")
 	# 갇힌 동료는 같은 칸에 있어도 세지 않음, 갇힌 차례도 세지 않음
 	g = _new(CH)
@@ -2457,20 +2535,15 @@ func _test_saga_boundaries() -> void:
 	g._saga_note(g.players[0], "end_turn_at_start")
 	ok(g.players[0]["saga_track"] == before and g.saga_rewards.size() <= 1, "사연: 이룬 요원은 더 세지 않음")
 
-	# 이룸: 공개 알림과 심문 면역
+	# 이룸: 공개 알림
 	g = _new(CH)
 	_give(g, 0, ["mother", "secret_letter"])
-	g.players[0]["interro"] = ["held", "shaken"]
-	var discarded: int = g.interro_discard.size()
 	g._saga_complete(g.players[0], "secret_letter")
 	var pub := false
 	for e in g.events:
 		if e["kind"] == "saga_done" and e["player"] == 0 and e["id"] == "secret_letter" and not e.has("secret"):
 			pub = true
 	ok(pub and g.players[0]["saga_done"] == "secret_letter" and "mother" in g.saga_discard, "사연 이룸: 공개 알림, 다른 카드는 버림")
-	ok(g.players[0]["interro"].is_empty() and g.interro_discard.size() == discarded + 2, "사연 이룸: 들고 있던 심문 카드를 모두 버림")
-	g._jail(g.players[0])
-	ok(g.players[0]["interro"].is_empty(), "사연 이룸: 이후 투옥되어도 심문 카드를 받지 않음 (심문 면역)")
 	ok(g.history.any(func(h): return "사연" in h["text"] and "달성" in h["text"]), "사연 이룸: 연표에 남김")
 
 	# 이어서 진행: 차례 끝에서 이뤄 선택이 끼어도 하루가 이어진다
@@ -2531,225 +2604,6 @@ func _test_grant_scope() -> void:
 	ok(_last_dice(g, "회피").get("bonus", -1) == 2 and g.players[0]["grants"].is_empty(), "권리 scope: any 권리는 1막 판정에 쓰임")
 	g.players[0]["grants"] = [{"kind": "check_bonus", "value": 2, "scope": "strike"}, {"kind": "check_bonus", "value": 1, "scope": "any"}]
 	ok(g._grant_index(g.players[0], "check_bonus") == 1 and g._grant_index(g.players[0], "check_bonus", true) == 0, "권리 scope: 장면 판정은 strike·any 모두, 1막 판정은 any만 찾음")
-
-
-# ------------------------------------------------------------------ 심문 카드
-
-func _test_interrogation() -> void:
-	var g := _new(CH)
-	g.interro_deck = ["held", "shaken"]
-	g.day = 3
-	g._jail(g.players[0])
-	ok(g.players[0]["interro"] == ["shaken"] and g.players[0]["jailed_day"] == 3, "심문: 투옥되면 카드 1장을 받고 갇힌 날을 적음")
-	var pub := false
-	var sec := false
-	for e in g.events:
-		if e["kind"] == "interrogation" and e["player"] == 0 and e["count"] == 1 and not e.has("card"):
-			pub = true
-		if e["kind"] == "interrogation_card" and e["player"] == 0 and e.get("secret", false) and e["card"] == "shaken":
-			sec = true
-	ok(pub and sec, "심문: 장수는 공개 알림, 카드 내용은 secret 알림")
-	ok(g.interrogation_count(0) == 1 and g.shaken_count(0) == 1 and g._cond_holds(g.players[0], "has_interrogation") and not g._cond_holds(g.players[1], "has_interrogation"), "심문: interrogation_count·shaken_count·has_interrogation")
-
-	var g3 := _new(["park", "han", "oh"])
-	g3._jail(g3.players[0])
-	ok(g3.players[0]["interro"].is_empty() and g3.players[0]["jailed_day"] == g3.day, "심문: 3인 판에서는 카드를 받지 않음 (갇힌 날은 적음)")
-	var g2 := _new(["park", "han"])
-	g2._jail(g2.players[0])
-	ok(g2.players[0]["interro"].is_empty(), "심문: 2인 판에서도 받지 않음")
-
-	g = _new(CH)
-	g.players[0]["saga_done"] = "mother"
-	g._jail(g.players[0])
-	ok(g.players[0]["interro"].is_empty(), "심문: 사연을 이룬 요원은 받지 않음")
-	g.traitor_id = 3
-	g._jail(g.players[1])
-	ok(g.players[1]["interro"].is_empty(), "심문: 이미 변절자가 나왔으면 아무도 받지 않음")
-	g = _new(CH)
-	g.interro_deck = []
-	g.interro_discard = []
-	g._jail(g.players[0])
-	ok(g.players[0]["interro"].is_empty(), "심문: 덱과 버린 더미가 모두 비면 받지 않음")
-	g.interro_discard = ["held", "held"]
-	g._jail(g.players[0])
-	ok(g.players[0]["interro"] == ["held"] and g.interro_discard.is_empty() and g.interro_deck.size() == 1, "심문: 덱이 비면 버린 더미를 섞어 씀")
-
-	# 「회유 공작」 대상: 고립된 요원, 사연을 이룬 요원은 뺌, 변절자는 늘 뺌
-	g = _new(CH)
-	g.players[0]["pos"] = Vector2i(2, 2)
-	g.players[0]["saga_done"] = "mother"
-	_threat(g, "persuasion_plot")
-	ok(g.players[0]["interro"].is_empty() and g.phase == "choice" and g.pending["kind"] == "pick_player" and g.pending["player"] == g.leader, "회유 공작: 사연을 이룬 요원은 빼고, 동점이면 리더가 고름")
-	_answer(g, 2)
-	ok(g.players[2]["interro"].size() == 1 and g.players[1]["interro"].is_empty(), "회유 공작: 리더가 고른 요원이 심문 카드 1장")
-	g = _new(CH)
-	g.players[0]["pos"] = Vector2i(2, 2)
-	g.players[0]["traitor"] = true
-	g.traitor_id = 0
-	_threat(g, "persuasion_plot")
-	ok(g.players[0]["interro"].is_empty(), "회유 공작: 변절자는 늘 뺌")
-	g = _new(CH)
-	g.players[0]["pos"] = Vector2i(2, 2)
-	g.players[0]["jailed"] = true
-	_threat(g, "persuasion_plot")
-	ok(g.players[0]["interro"].size() == 1, "회유 공작: 감옥에 있는 요원도 대상 (include_jailed)")
-
-	# 이벤트 「옛 동지와의 재회」: 심문 카드가 있으면 1장 버림, 없으면 아이템
-	g = _new(CH)
-	g.players[0]["interro"] = ["held", "shaken"]
-	_event(g, 0, "old_comrade")
-	ok(g.players[0]["interro"].size() == 1 and g.players[0]["items"].is_empty(), "이벤트 옛 동지와의 재회: 심문 카드가 있으면 1장을 버림 (interrogate_discard)")
-	var evs := []
-	for e in g.events:
-		if e["kind"] == "interrogation_discard":
-			evs.append(e)
-	ok(evs.size() == 1 and evs[0].get("secret", false) and evs[0]["cards"].size() == 1, "이벤트 옛 동지와의 재회: 버린 카드 내용은 secret 알림")
-	g = _new(CH)
-	g.players[0]["interro"] = ["held", "held"]
-	_fx(g, 0, [{"op": "interrogate_discard", "who": "self", "count": 5, "mode": "random"}])
-	ok(g.players[0]["interro"].is_empty() and g.interro_discard.size() >= 2, "효과 interrogate_discard: 모자라면 있는 만큼만")
-
-	# 4인이 아니면 효과가 아무 일도 안 함
-	g3 = _new(["park", "han", "oh"])
-	_fx(g3, 0, [{"op": "interrogate", "who": "self"}])
-	ok(g3.players[0]["interro"].is_empty(), "효과 interrogate: 3인 판에서는 카드를 받지 않음")
-
-
-# ------------------------------------------------------------------ 설득
-
-func _test_persuasion() -> void:
-	var g := _new(CH)
-	g.players[1]["interro"] = ["held", "shaken", "held"]
-	_spare(g, 3)
-	_spare(g, 5)
-	_turn(g, 0, 2)
-	var legal := g.legal_actions()
-	var found := 0
-	for a in legal:
-		if a["type"] == "persuade":
-			found += 1
-			if a["target"] != 1:
-				found += 100
-	ok(found == 2 and g.persuade_targets(g.players[0]) == [1], "설득: 같은 칸 동료에게 예비 주사위마다 설득 액션이 나옴")
-	ok(not g.apply({"type": "persuade", "player": 0, "die": 0}) and not g.apply({"type": "persuade", "player": 0, "die": 0, "target": 2}), "설득: 대상이 없거나 심문 카드가 없는 동료는 거부")
-	var dis: int = g.interro_discard.size()
-	ok(g.apply({"type": "persuade", "player": 0, "die": 0, "target": 1}), "설득: 예비 주사위로 설득")
-	ok(g.players[1]["interro"].size() == 2 and g.interro_discard.size() == dis + 1 and g.op_dice[0]["used"], "설득: 심문 카드 1장이 버려지고 주사위가 쓰임")
-	ok(not g.apply({"type": "persuade", "player": 0, "die": 0, "target": 1}), "설득: 쓴 예비 주사위는 못 씀 (하루 한 번)")
-	var pe := {}
-	var sec := false
-	for e in g.events:
-		if e["kind"] == "persuade":
-			pe = e
-		if e["kind"] == "persuade_cards" and e.get("secret", false) and e["player"] == 1:
-			sec = true
-	ok(pe.get("player", -1) == 0 and pe.get("target", -1) == 1 and pe.get("discarded", -1) == 1 and sec, "설득: 알림 persuade(공개)와 버린 카드 내용(secret)")
-	ok(g.apply({"type": "persuade", "player": 0, "die": 1, "target": 1}) and g.players[1]["interro"].size() == 1, "설득: 다른 예비 주사위로 한 번 더")
-	ok(g.persuade_targets(g.players[0]) == [1], "설득: 카드가 남은 동료는 계속 대상")
-
-	# 거리: 옆 칸은 안 됨 / 감옥 면회는 됨 / 변절자·갇힌 본인은 안 됨
-	g = _new(CH)
-	g.players[1]["interro"] = ["held"]
-	g.players[1]["pos"] = Vector2i(5, 6)
-	_spare(g, 3)
-	_turn(g, 0, 2)
-	ok(g.persuade_targets(g.players[0]).is_empty(), "설득: 옆 칸 동료는 안 됨 (rules.persuade.range 0)")
-	var gr := _gd(func(d): d.rules["persuade"]["range"] = 1)
-	var g1 := _new(CH, gr)
-	g1.players[1]["interro"] = ["held"]
-	g1.players[1]["pos"] = Vector2i(5, 6)
-	_spare(g1, 3)
-	_turn(g1, 0, 2)
-	ok(g1.persuade_targets(g1.players[0]) == [1], "설득: rules.persuade.range를 1로 바꾸면 옆 칸도 됨")
-	g = _new(CH)
-	var b0 := _base(g, "barracks")
-	g.players[1]["jailed"] = true
-	g.players[1]["pos"] = b0
-	g.players[1]["interro"] = ["shaken"]
-	g.players[0]["pos"] = b0
-	_spare(g, 4)
-	_turn(g, 0, 2)
-	ok(g.persuade_targets(g.players[0]) == [1], "설득: 그 거점 칸에 서면 감옥에 있는 동료도 같은 칸 (면회)")
-	g.apply({"type": "persuade", "player": 0, "die": 0, "target": 1})
-	ok(g.players[1]["interro"].is_empty(), "설득: 면회로 감옥의 동료 심문 카드를 버림")
-	g = _new(CH)
-	g.players[1]["interro"] = ["held"]
-	g.players[1]["traitor"] = true
-	g.traitor_id = 1
-	_spare(g, 3)
-	_turn(g, 0, 2)
-	ok(g.persuade_targets(g.players[0]).is_empty(), "설득: 변절자는 대상이 아님")
-	g = _new(CH)
-	g.players[1]["interro"] = ["held"]
-	g.players[0]["jailed"] = true
-	_spare(g, 3)
-	_turn(g, 0, 2)
-	ok(g.persuade_targets(g.players[0]).is_empty(), "설득: 갇힌 요원은 설득하지 못함")
-	_persuade_off_three()
-
-	# 능력 「연락망」: 심문 카드가 있는 동료만 대상
-	g = _new(["jeong", "han", "oh", "seo"])
-	g.players[1]["pos"] = Vector2i(5, 7)
-	_turn(g, 0, 2)
-	ok(g.ability_targets(g.players[0]).is_empty(), "능력 연락망: 심문 카드를 가진 동료가 없으면 쓸 수 없음")
-	g.players[1]["interro"] = ["held"]
-	g.players[3]["interro"] = ["held"]
-	g.players[3]["pos"] = Vector2i(5, 9)
-	ok(g.ability_targets(g.players[0]) == [1], "능력 연락망: 3칸 안이고 카드가 있는 동료만")
-
-	# 능력 「다방 밀담」: 보고, 버리거나 돌려줌
-	g = _new(["seo", "han", "oh", "park"])
-	g.players[1]["interro"] = ["held", "shaken"]
-	_turn(g, 0, 2)
-	ok(g.apply({"type": "ability", "player": 0, "target": 1}) and g.phase == "choice" and g.pending["kind"] == "persuade_look", "능력 다방 밀담: 대상의 카드 1장을 보고 버릴지 묻는다")
-	var names := []
-	for c in g.data.interrogation["cards"]:
-		names.append(c["name"])
-	var prompt := str(g.pending["prompt"])
-	ok(g.pending.get("secret", false) and names.any(func(n): return n in prompt), "능력 다방 밀담: 프롬프트에 카드 이름이 있어 pending은 secret")
-	ok(g.pending["options"] == [{"value": true, "label": "버린다"}, {"value": false, "label": "돌려준다"}], "능력 다방 밀담: 선택지는 버린다/돌려준다")
-	var legal2 := g.legal_actions()
-	ok(legal2.size() == 2 and legal2[0]["type"] == "choose", "능력 다방 밀담: 선택 중 합법 액션은 답 둘")
-	_answer(g, false)
-	ok(g.players[1]["interro"].size() == 2 and g.phase == "turn", "능력 다방 밀담: 돌려주면 대상 손에 그대로")
-	g = _new(["seo", "han", "oh", "park"])
-	g.players[1]["interro"] = ["held", "shaken"]
-	_turn(g, 0, 2)
-	g.apply({"type": "ability", "player": 0, "target": 1})
-	var seen_card: String = g.pending["card"]
-	_answer(g, true)
-	ok(g.players[1]["interro"].size() == 1 and g.interro_discard.has(seen_card) and g.phase == "turn", "능력 다방 밀담: 버리면 그 카드가 버린 더미로")
-
-	# 「의형제」 권리: 다음 설득에서 2장
-	g = _new(CH)
-	g.players[0]["grants"] = [{"kind": "persuade_double", "value": 1, "scope": "any"}]
-	g.players[1]["interro"] = ["held", "shaken", "held", "held"]
-	_spare(g, 2)
-	_spare(g, 3)
-	_turn(g, 0, 2)
-	g.apply({"type": "persuade", "player": 0, "die": 0, "target": 1})
-	ok(g.players[1]["interro"].size() == 2 and g.players[0]["grants"].is_empty(), "사연 의형제 권리: 설득 한 번에 심문 카드 2장을 버리고 권리를 씀")
-	g.apply({"type": "persuade", "player": 0, "die": 1, "target": 1})
-	ok(g.players[1]["interro"].size() == 1, "사연 의형제 권리: 권리는 한 번뿐, 다음 설득은 1장")
-
-	# 설득에 쓰지 않은 주사위는 이동에 그대로 씀
-	g = _new(CH)
-	_spare(g, 4)
-	_turn(g, 0, 1)
-	ok(g.apply({"type": "move_die", "player": 0, "die": 0}) and g.steps_left == 5, "주사위: 설득과 상관없이 이동에도 씀")
-
-
-func _persuade_off_three() -> void:
-	var g3 := _new(["park", "han", "oh"])
-	g3.players[1]["interro"] = ["held"]
-	_spare(g3, 3)
-	_turn(g3, 0, 2)
-	ok(g3.persuade_targets(g3.players[0]).is_empty(), "설득: 3인 판에서는 설득 액션이 없음")
-	var any := false
-	for a in g3.legal_actions():
-		if a.get("use", "") == "persuade":
-			any = true
-	ok(not any, "설득: 3인 판의 합법 액션에 persuade가 없음")
 
 
 # ------------------------------------------------------------------ 결행 순간
@@ -2845,368 +2699,17 @@ func _test_launch_moment() -> void:
 	ok(g.act == 2 and g.players[0]["saga_kept"] == "last_telegram", "결행 순간: 투표 결행에서도 사연을 남김")
 
 
-# ------------------------------------------------------------------ 변절 확인과 돌아섬
-
-func _test_traitor_check() -> void:
-	var g := _new(CH)
-	g.players[0]["interro"] = ["shaken", "held", "held"]
-	g._traitor_check("launch")
-	ok(g.traitor_id == -1, "변절 확인: 흔들렸다 1장은 기준 미달")
-	g.players[0]["interro"] = ["shaken", "shaken"]
-	g._traitor_check("launch")
-	ok(g.traitor_id == 0 and g.players[0]["traitor"] and g.is_traitor(0), "변절 확인: 흔들렸다 2장이면 변절 (shaken 필드로 셈)")
-	g.players[1]["interro"] = ["shaken", "shaken"]
-	g._traitor_check("launch")
-	ok(g.traitor_id == 0 and not g.players[1]["traitor"], "변절 확인: 한 판에 변절자는 1명")
-
-	# 동점 처리: 심문 카드 수 → 투옥 횟수 → rng
-	g = _new(CH)
-	g.players[0]["interro"] = ["shaken", "shaken"]
-	g.players[1]["interro"] = ["shaken", "shaken", "held"]
-	g._traitor_check("launch")
-	ok(g.traitor_id == 1, "변절 동점 1단계: 심문 카드가 가장 많은 사람")
-	g = _new(CH)
-	g.players[0]["interro"] = ["shaken", "shaken", "held"]
-	g.players[1]["interro"] = ["shaken", "shaken", "held"]
-	g.players[1]["jail_count"] = 2
-	g.players[0]["jail_count"] = 1
-	g._traitor_check("launch")
-	ok(g.traitor_id == 1, "변절 동점 2단계: 투옥 횟수가 가장 많은 사람")
-	var picks := []
-	for s in [3, 3, 4, 5]:
-		var gg := _new(CH, null, s)
-		gg.players[0]["interro"] = ["shaken", "shaken"]
-		gg.players[1]["interro"] = ["shaken", "shaken"]
-		gg._traitor_check("launch")
-		picks.append(gg.traitor_id)
-	ok(picks[0] == picks[1] and picks[0] in [0, 1] and picks[2] in [0, 1] and picks[3] in [0, 1], "변절 동점 3단계: rng로 고르고 같은 시드면 같은 사람")
-	var seen := {}
-	for s in 40:
-		var gs := _new(CH, null, 100 + s)
-		gs.players[0]["interro"] = ["shaken", "shaken"]
-		gs.players[1]["interro"] = ["shaken", "shaken"]
-		gs._traitor_check("launch")
-		seen[gs.traitor_id] = true
-	ok(seen.size() == 2, "변절 동점 3단계: 시드에 따라 두 사람이 모두 뽑힘")
-	# 사연을 이룬 요원은 후보가 아님
-	g = _new(CH)
-	g.players[0]["interro"] = ["shaken", "shaken", "held"]
-	g.players[0]["saga_done"] = "mother"
-	g.players[1]["interro"] = ["shaken", "shaken"]
-	g._traitor_check("launch")
-	ok(g.traitor_id == 1, "변절 확인: 사연을 이룬 요원은 후보에서 뺌")
-	# 3인에서는 꺼짐
-	var g3 := _new(["park", "han", "oh"])
-	g3.players[0]["interro"] = ["shaken", "shaken"]
-	g3._traitor_check("launch")
-	ok(g3.traitor_id == -1, "변절 확인: 3인 판에서는 꺼져 있음")
-	# 아침: 1막은 아무것도 안 하고 2막에서만
-	g = _new(CH)
-	g.players[0]["interro"] = ["shaken", "shaken"]
-	g._morning_traitor_check()
-	ok(g.traitor_id == -1, "변절 확인: 1막 아침에는 아무것도 하지 않음")
-	g.act = 2
-	g._morning_traitor_check()
-	ok(g.traitor_id == 0, "변절 확인: 2막 아침에 확인")
-	# 결행 순간 확인 (끝까지)
-	g = _launch_game(CH, "police_hq")
-	_give(g, 0, ["mother", "secret_letter"])
-	g.players[2]["interro"] = ["shaken", "shaken"]
-	_give(g, 1, ["last_telegram"])
-	_give(g, 2, ["gambler", "nemesis"])
-	_give(g, 3, ["last_telegram"])
-	g._launch("forced")
-	_answer(g, "mother")
-	_answer(g, "gambler")
-	ok(g.act == 2 and g.traitor_id == 2, "변절 확인: 결행 순간(사연 남기기 뒤)에 변절자가 정해짐")
-	var te := {}
-	for e in g.events:
-		if e["kind"] == "traitor":
-			te = e
-	ok(te.get("player", -1) == 2 and te.get("saga", "") == "gambler" and te.get("lure", "") == g.data.saga("gambler")["lure"], "변절: 남긴 사연의 회유 문구가 알림에 담김")
-	ok(g.log_lines.any(func(l): return g.data.saga("gambler")["lure"] in str(l) and "돌아섰" in str(l)) and g.history.any(func(h): return "변절" in h["text"]), "변절: 로그와 연표에 회유 문구를 남김")
-	ok(g.public_saga(2) == "gambler" and g.players[2]["traitor"], "변절: 사연이 공개됨 (public_saga)")
-
-
-func _test_traitor_turn() -> void:
-	var g := _new(CH)
-	var p: Dictionary = g.players[3]   # 김개똥 (move_min3)
-	var b0 := _base(g, "barracks")
-	_give(g, 3, ["gambler", "mother"])
-	p["saga_kept"] = "mother"
-	p["jailed"] = true
-	p["pos"] = b0
-	p["bombs"] = 1
-	p["items"] = ["telegram", "pocket_watch"]
-	p["interro"] = ["shaken", "shaken"]
-	p["grants"] = [{"kind": "evade_auto", "value": 1, "scope": "any"}]
-	g.police[3] = {"pos": Vector2i(5, 5), "summon_turn": 0}
-	var supply: int = g.bomb_supply
-	var idis: int = g.item_discard.size()
-	var sdis: int = g.interro_discard.size()
-	ok(g.stat(p, "move_min3") > 0, "변절 전: 김개똥의 특성이 있음")
-	g._turn_traitor(p, "launch")
-	ok(p["traitor"] and g.traitor_id == 3 and not p["jailed"] and p["pos"] == b0, "돌아섬: 감옥에서 풀려나고 자리는 그 거점 칸")
-	ok(not g.police.has(3), "돌아섬: 쫓던 경찰이 사라짐")
-	ok(p["bombs"] == 0 and g.bomb_supply == supply + 1, "돌아섬: 들고 있던 폭탄은 보급으로")
-	ok(p["items"].is_empty() and g.item_discard.size() == idis + 2, "돌아섬: 아이템은 버린 더미로")
-	ok(p["interro"].is_empty() and g.interro_discard.size() == sdis + 2 and p["grants"].is_empty(), "돌아섬: 심문 카드와 한 번 쓰는 권리를 내려놓음")
-	ok(g.stat(p, "move_min3") == 0 and not g.flag(p, "move_min3"), "돌아섬: 특성 값이 0 (stat·flag)")
-	ok(g.ability_targets(p).is_empty() and g.can_use_item(p, 0) == false, "돌아섬: 능력과 아이템을 쓸 수 없음")
-	var te := {}
-	for e in g.events:
-		if e["kind"] == "traitor":
-			te = e
-	ok(te.get("lure", "") == g.data.saga("mother")["lure"] and te.get("saga", "") == "mother", "돌아섬: 남긴 사연의 회유 문구 (알림)")
-	ok(g.log_lines.any(func(l): return str(l).begins_with("\"" + g.data.saga("mother")["lure"] + "\" — ") and "돌아섰습니다" in str(l)), "돌아섬: 회유 문구 — 이름이 돌아섰습니다!")
-	# 경찰은 변절자를 쫓지 않음
-	g._summon(p)
-	_fx(g, 3, [{"op": "police_attach", "who": "self"}])
-	ok(not g.police.has(3), "돌아섬: 경찰이 변절자에게 붙지 않음 (_summon, police_attach)")
-	g._dispatch_from(0)
-	ok(g.police.size() == 1 and not g.police.has(3), "돌아섬: 출동한 경찰은 변절자가 아닌 요원을 쫓음")
-	g.police.clear()
-	for i in 3:
-		g.players[i]["jailed"] = true
-	g._dispatch_from(1)
-	ok(g.police.is_empty(), "돌아섬: 남은 요원이 변절자뿐이면 출동해도 쫓을 사람이 없음")
-	# 사연을 남기지 않은 변절자는 첫 장
-	g = _new(CH)
-	_give(g, 1, ["nemesis", "supply_line"])
-	g._turn_traitor(g.players[1], "morning")
-	ok(g.public_saga(1) == "nemesis", "돌아섬: 남긴 사연이 없으면 들고 있던 첫 장의 회유 문구")
-	# 투표에서는 빠진다
-	ok(g._next_voter(-1) == 0 and g._next_voter(0) == 2 and g._next_voter(3) == -1, "변절자는 투표하지 않음 (_next_voter)")
-
-
-func _test_traitor_day() -> void:
-	var g := _new(CH)
-	g.act = 2
-	g.players[3]["traitor"] = true
-	g.traitor_id = 3
-	ok(not g.can_begin_turn(g.players[3]) and g.can_begin_turn(g.players[0]), "변절자의 하루: 다른 요원이 남았으면 변절자는 차례를 시작할 수 없음")
-	var legal := g.legal_actions()
-	ok(not legal.any(func(a): return a["type"] == "begin_turn" and a["player"] == 3), "변절자의 하루: legal_actions에도 변절자의 begin_turn이 없음")
-	g.players[0]["done_today"] = true
-	g.players[1]["done_today"] = true
-	ok(not g.apply({"type": "begin_turn", "player": 3}), "변절자의 하루: 둘이 마쳐도 한 명이 남으면 거부")
-	g.players[2]["done_today"] = true
-	ok(g.can_begin_turn(g.players[3]) and g.apply({"type": "begin_turn", "player": 3}), "변절자의 하루: 변절자가 아닌 요원이 모두 마친 뒤에야 차례 (마지막 차례 강제)")
-	g.apply({"type": "end_move", "player": 3})
-	ok(g.phase != "turn", "변절자의 하루: 차례를 마칠 수 있음")
-
-	# 아침: 변절자도 주사위를 굴리고, 이동에만 쓴다
-	g = _new(CH)
-	g.act = 2
-	g.players[3]["traitor"] = true
-	g.traitor_id = 3
-	g.players[0]["interro"] = ["held"]
-	g._morning_dice()
-	ok(g.my_dice(3).size() == int(g.data.rules["personal_dice"]) + int(g.data.rules["act2_personal_dice_extra"]), "변절자의 하루: 변절자도 아침에 주사위를 굴림")
-	g.phase = "day"
-	for q in g.players:
-		q["done_today"] = q["id"] != 3
-	g.apply({"type": "begin_turn", "player": 3})
-	var tl := g.legal_actions()
-	ok(tl.any(func(a): return a["type"] == "move_die") and not tl.any(func(a): return a["type"] in ["persuade", "give_die", "scene_pay"]),
-		"변절자의 하루: 주사위는 이동에만 (설득·건네기·바치기 없음)")
-
-	# 이미 깔린 칸으로만, 검문 없이, 칸 효과 없이
-	g = _traitor_game(["park", "han", "oh", "gaeddong"])
-	var t: Dictionary = g.players[3]
-	_lay(g, [Vector2i(5, 6)], "event")
-	_tile(g, Vector2i(6, 5), "check")
-	_tile(g, Vector2i(4, 5), "supply")
-	_turn_traitor_day(g, 3, 4)
-	var steps: Array = g.legal_steps(t)
-	ok(Vector2i(5, 6) in steps and Vector2i(6, 5) in steps and Vector2i(4, 5) in steps and steps.size() == 3, "변절자의 하루: 깔린 칸으로만 갈 수 있음 (빈 칸으로는 안 감)")
-	var tile_before: int = g.tile_deck.size()
-	var ev_before: int = g.event_deck.size()
-	ok(_step(g, 3, Vector2i(6, 5)), "변절자의 하루: 검문소에도 들어감")
-	ok(_count_dice(g, "회피") == 0 and g.exposure == 0 and t["pos"] == Vector2i(6, 5) and g.phase == "turn", "변절자의 하루: 검문 판정이 없음")
-	_tile(g, Vector2i(6, 5), "normal")
-	g.board[Vector2i(5, 6)]["type"] = "event"
-	t["pos"] = Vector2i(5, 5)
-	_step(g, 3, Vector2i(5, 6))
-	g.apply({"type": "end_move", "player": 3})
-	ok(g.event_deck.size() == ev_before and not g.board[Vector2i(5, 6)]["used"] and g.tile_deck.size() == tile_before, "변절자의 하루: 이벤트 칸 효과를 받지 않고 새 타일도 깔지 않음")
-	g = _traitor_game(["park", "han", "oh", "gaeddong"])
-	_tile(g, Vector2i(5, 6), "supply")
-	_turn_traitor_day(g, 3, 3)
-	_step(g, 3, Vector2i(5, 6))
-	g.apply({"type": "end_move", "player": 3})
-	ok(g.players[3]["bombs"] == 0 and g.bomb_supply == int(g.data.rules["bomb_supply"]), "변절자의 하루: 보급 칸에서 폭탄을 받지 않음")
-	# 거점: 진입 효과·구출·경찰 없음
-	g = _traitor_game(["park", "han", "oh", "gaeddong"])
-	var b0 := _base(g, "barracks")
-	g.players[1]["jailed"] = true
-	g.players[1]["pos"] = b0
-	g.players[3]["pos"] = b0 + Vector2i(1, 0)
-	_tile(g, b0 + Vector2i(1, 0), "normal")
-	g.mission_row = []
-	_turn_traitor_day(g, 3, 3)
-	_step(g, 3, b0)
-	ok(g.players[1]["jailed"] and not g.police.has(3) and g.players[3]["pos"] == b0, "변절자의 하루: 거점에 들어가도 구출·진입 효과·경찰이 없음")
-	ok(g.phase == "turn" and g.steps_left == 2, "변절자의 하루: 거점 진입으로 이동이 끝나지는 않음 (칸 효과 없음)")
-	# 미션 타일
-	g = _traitor_game(["park", "han", "oh", "gaeddong"])
-	var amis := ""
-	for m in g.data.missions["missions"]:
-		if m["type"] == "assassin":
-			amis = m["id"]
-			break
-	g.mission_row = [amis]
-	_tile(g, Vector2i(5, 6), "assassin")
-	_turn_traitor_day(g, 3, 3)
-	_step(g, 3, Vector2i(5, 6))
-	ok(g.phase == "turn" and g.mission_row == [amis] and g.check.is_empty(), "변절자의 하루: 미션 타일에서 판정도 미션도 없음")
-
-	# 기습: 요원이 있는 칸에 들어가면 이동이 끝나고 그 요원이 회피 판정, 실패하면 투옥 (심문 카드 없음)
-	var gfail := _gd(func(d): d.rules["checks"]["evade"] = 99)
-	g = _traitor_game(["park", "han", "oh", "gaeddong"], gfail)
-	_tile(g, Vector2i(5, 6), "normal")
-	g.players[1]["pos"] = Vector2i(5, 6)
-	_turn_traitor_day(g, 3, 4)
-	_step(g, 3, Vector2i(5, 6))
-	ok(g.players[1]["jailed"] and g.players[1]["jail_count"] == 1 and g.players[1]["interro"].is_empty(), "기습 실패: 요원이 투옥되고 이미 변절자가 있으므로 심문 카드는 받지 않음")
-	ok(g.phase != "turn" and _count_dice(g, "회피") == 1, "기습: 이동이 끝나고(남은 칸 버림) 회피 판정 한 번")
-	var gok := _gd(func(d): d.rules["checks"]["evade"] = 0)
-	g = _traitor_game(["park", "han", "oh", "gaeddong"], gok)
-	_tile(g, Vector2i(5, 6), "normal")
-	g.players[1]["pos"] = Vector2i(5, 6)
-	_turn_traitor_day(g, 3, 4)
-	_step(g, 3, Vector2i(5, 6))
-	ok(not g.players[1]["jailed"] and g.phase != "turn", "기습 성공(회피): 요원은 무사하고 변절자의 차례는 끝남")
-	g = _traitor_game(["park", "yun", "oh", "gaeddong"], gfail)
-	_tile(g, Vector2i(5, 6), "normal")
-	g.players[1]["pos"] = Vector2i(5, 6)
-	_turn_traitor_day(g, 3, 4)
-	_step(g, 3, Vector2i(5, 6))
-	ok(not g.players[1]["jailed"] and _count_dice(g, "회피") == 0, "기습: 윤 소위는 회피가 자동 성공")
-	g = _traitor_game(["park", "han", "oh", "gaeddong"], gfail)
-	_tile(g, Vector2i(5, 6), "normal")
-	g.players[1]["pos"] = Vector2i(5, 6)
-	g.players[1]["grants"] = [{"kind": "evade_auto", "value": 1, "scope": "any"}]
-	_turn_traitor_day(g, 3, 4)
-	_step(g, 3, Vector2i(5, 6))
-	ok(not g.players[1]["jailed"] and g.players[1]["grants"].is_empty(), "기습: 회피 자동 성공 권리가 통함")
-	# 같은 칸에 요원이 여럿이면 리더가 대상을 고름
-	g = _traitor_game(["park", "han", "oh", "gaeddong"], gfail)
-	_tile(g, Vector2i(5, 6), "normal")
-	g.players[1]["pos"] = Vector2i(5, 6)
-	g.players[2]["pos"] = Vector2i(5, 6)
-	g.leader = 2
-	_turn_traitor_day(g, 3, 4)
-	_step(g, 3, Vector2i(5, 6))
-	ok(g.phase == "choice" and g.pending["kind"] == "ambush_target" and g.pending["player"] == 2 and g.pending["options"].size() == 2, "기습: 같은 칸에 요원이 여럿이면 리더가 대상을 고름")
-	var la := g.legal_actions()
-	ok(la.size() == 2 and la[0]["player"] == 2, "기습: 선택 중 합법 액션은 리더의 두 답")
-	_answer(g, 1)
-	ok(g.players[1]["jailed"] and not g.players[2]["jailed"] and g.phase != "turn", "기습: 고른 요원만 판정을 받음")
-	# 변절자는 갇힌 요원이 있는 칸이나 요원이 없는 칸에서는 기습하지 않음
-	g = _traitor_game(["park", "han", "oh", "gaeddong"], gfail)
-	_tile(g, Vector2i(5, 6), "normal")
-	g.players[1]["pos"] = Vector2i(5, 6)
-	g.players[1]["jailed"] = true
-	_turn_traitor_day(g, 3, 4)
-	_step(g, 3, Vector2i(5, 6))
-	ok(g.phase == "turn" and _count_dice(g, "회피") == 0, "기습: 갇힌 요원이 있는 칸에서는 기습이 없음")
-
-	# 밀고: 3칸 안, 차례에 한 번, 경찰이 붙음
-	g = _traitor_game(["park", "han", "oh", "gaeddong"])
-	g.players[0]["pos"] = Vector2i(5, 6)
-	g.players[1]["pos"] = Vector2i(5, 9)
-	g.players[2]["pos"] = Vector2i(5, 8)
-	_turn_traitor_day(g, 3, 4)
-	ok(g.inform_targets(g.players[3]) == [0, 2], "밀고: 거리 3 안의 요원만 대상 (4칸 밖은 안 됨)")
-	ok(not g.apply({"type": "inform", "player": 3, "target": 1}), "밀고: 범위 밖 요원은 거부")
-	ok(g.legal_actions().any(func(a): return a["type"] == "inform" and a["target"] == 0), "밀고: legal_actions에 나옴")
-	ok(g.apply({"type": "inform", "player": 3, "target": 0}) and g.police.has(0) and g.police[0]["pos"] == g.players[0]["pos"], "밀고: 그 요원에게 경찰이 붙음")
-	ok(g.inform_targets(g.players[3]).is_empty() and not g.apply({"type": "inform", "player": 3, "target": 2}), "밀고: 차례에 한 번뿐")
-	g._begin_turn(g.players[3])
-	ok(g.inform_targets(g.players[3]) == [2], "밀고: 다음 차례에 다시 쓸 수 있고, 이미 쫓기는 요원은 대상이 아님")
-	g.police[2] = {"pos": Vector2i(0, 0), "summon_turn": 0}
-	ok(g.inform_targets(g.players[3]).is_empty(), "밀고: 이미 경찰이 붙은 요원은 안 됨")
-	var gb := _gd(func(d): d.rules["checks"]["evade"] = 0)
-	g = _traitor_game(["park", "seo", "oh", "gaeddong"], gb)
-	_turn_traitor_day(g, 3, 4)
-	g.apply({"type": "inform", "player": 3, "target": 1})
-	ok(not g.police.has(1), "밀고: 서 마담의 경찰 막기가 그대로 통함")
-	g = _traitor_game(["park", "han", "oh", "gaeddong"])
-	g.players[1]["jailed"] = true
-	_turn_traitor_day(g, 3, 4)
-	ok(not 1 in g.inform_targets(g.players[3]), "밀고: 갇힌 요원은 대상이 아님")
-	ok(g.inform_targets(g.players[0]).is_empty(), "밀고: 변절자만 쓸 수 있음")
-
-	# 쓸 수 없는 것: 아이템, 건네기, 미끼, 능력, 설득, 예비 주사위
-	g = _traitor_game(["park", "han", "oh", "gaeddong"])
-	g.players[3]["items"] = ["telegram", "pocket_watch"]
-	g.police[0] = {"pos": Vector2i(5, 5), "summon_turn": 0}
-	g.players[1]["interro"] = ["held"]
-	_spare(g, 3)
-	_turn_traitor_day(g, 3, 4)
-	var types := {}
-	for a in g.legal_actions():
-		types[a["type"]] = true
-	ok(types.keys().all(func(k): return k in ["step", "end_move", "inform", "move_die"]), "변절자의 하루: 합법 액션은 이동·멈춤·밀고뿐 (%s)" % str(types.keys()))
-	ok(not g.apply({"type": "use_item", "player": 3, "index": 0}) and not g.apply({"type": "give_item", "player": 3, "index": 0, "to": 0}) \
-		and not g.apply({"type": "decoy", "player": 3, "from": 0}) and not g.apply({"type": "give_die", "player": 3, "die": 0, "target": 1}) \
-		and not g.apply({"type": "persuade", "player": 3, "die": 0, "target": 1}), "변절자의 하루: 아이템·건네기·미끼·주사위 건네기·설득은 거부")
-	# 경찰은 변절자의 차례 끝에 움직이지 않는다
-	g = _traitor_game(["park", "han", "oh", "gaeddong"])
-	var pos0: Vector2i = g.players[3]["pos"]
-	_turn_traitor_day(g, 3, 2)
-	g.apply({"type": "end_move", "player": 3})
-	ok(g.police.is_empty() and not g.players[3]["jailed"], "변절자의 하루: 쫓는 경찰이 없으니 차례 끝에 아무 일도 없음")
-	# 같은 칸: 변절자는 다른 요원과 같은 칸에 설 수 있고, 다른 요원도 변절자 칸에 들어갈 수 있음
-	g = _traitor_game(["park", "han", "oh", "gaeddong"])
-	_tile(g, Vector2i(5, 6), "normal")
-	_tile(g, Vector2i(5, 7), "normal")
-	g.players[0]["pos"] = Vector2i(5, 6)
-	g.players[3]["pos"] = Vector2i(5, 7)
-	ok(not g.occupied_by_other(g.players[3], Vector2i(5, 6)), "변절자의 하루: 다른 요원과 같은 칸에 설 수 있음")
-	ok(g.occupied_by_other(g.players[1], Vector2i(5, 6)) and not g.occupied_by_other(g.players[1], Vector2i(5, 7)), "변절자가 선 칸은 다른 요원의 이동을 막지 않음 (요원이 선 칸은 막음)")
-
-
-func _traitor_game(chars: Array, gd: GameDataV2 = null) -> RulesV2:
-	## 2막 하루: 마지막 요원이 변절자, 나머지는 이미 차례를 마침 (done_today). 변절자의 차례는 _turn_traitor_day로 시작.
-	var g := _new(chars, gd)
-	g.act = 2
-	g.rounds_left = 1   # 변절자의 차례가 끝나면 밤에 판이 끝남 (다음 날 아침 효과가 시험을 흐리지 않게)
-	g.players[3]["traitor"] = true
-	g.traitor_id = 3
-	return g
-
-
-func _turn_traitor_day(g: RulesV2, pid: int, die: int) -> void:
-	for q in g.players:
-		if q["id"] != pid:
-			q["done_today"] = true
-	g.players[pid]["done_today"] = false
-	g.phase = "day"
-	g.apply({"type": "begin_turn", "player": pid})
-	if die > 0 and g.phase == "turn":
-		g.apply({"type": "move_die", "player": pid, "die": _spare(g, die, pid)})
-
-
-func _turn_noprep(g: RulesV2, pid: int) -> void:
-	_turn_traitor_day(g, pid, 2)
-
-
 # ------------------------------------------------------------------ 조회
 
 func _test_stage3_queries() -> void:
 	var g := _new(CH)
 	_give(g, 0, ["mother", "secret_letter"])
-	g.players[0]["interro"] = ["held", "shaken", "shaken"]
-	ok(g.interrogation_count(0) == 3 and g.shaken_count(0) == 2 and g.saga_cards(0) == ["mother", "secret_letter"], "조회: interrogation_count · shaken_count · saga_cards")
-	ok(g.public_saga(0) == "" and g.saga_result(0) == {"saga": "mother", "done": false, "traitor": false}, "조회: 이루기 전에는 public_saga가 비고 saga_result는 들고 있던 첫 장")
+	ok(g.saga_cards(0) == ["mother", "secret_letter"], "조회: saga_cards")
+	ok(g.public_saga(0) == "" and g.saga_result(0) == {"saga": "mother", "done": false}, "조회: 이루기 전에는 public_saga가 비고 saga_result는 들고 있던 첫 장")
 	ok(g.epilogue_key(0, true) == "win_fail" and g.epilogue_key(0, false) == "lose_fail", "조회: 못 이룬 후일담 키")
 	g._saga_complete(g.players[0], "secret_letter")
-	ok(g.public_saga(0) == "secret_letter" and g.saga_result(0) == {"saga": "secret_letter", "done": true, "traitor": false}, "조회: 이룬 사연은 공개")
+	ok(g.public_saga(0) == "secret_letter" and g.saga_result(0) == {"saga": "secret_letter", "done": true}, "조회: 이룬 사연은 공개")
 	ok(g.epilogue_key(0, true) == "win_done" and g.epilogue_key(0, false) == "lose_done", "조회: 이룬 후일담 키")
-	g._turn_traitor(g.players[1], "launch")
-	ok(g.epilogue_key(1, true) == "traitor" and g.epilogue_key(1, false) == "traitor" and g.saga_result(1)["traitor"], "조회: 변절자는 늘 traitor 키")
 	g = _new(CH)
 	_give(g, 0, ["moth", "no_greed"])
 	g.players[0]["saga_track"]["moth"] = {"n": 2}
@@ -3221,13 +2724,14 @@ func _test_stage3_queries() -> void:
 	g._jail(g.players[2])
 	_give(g, 3, ["mother"])
 	g._saga_complete(g.players[3], "mother")
-	g.traitor_id = 1
 	var st: Dictionary = g.save_state()
 	var g2 := RulesV2.new()
 	g2.load_state(st, g.data)
-	ok(str(g2.save_state()) == str(st), "저장: 사연·심문·변절 상태를 저장하고 불러오면 같음")
-	for k in ["saga_decks", "saga_discard", "interro_deck", "interro_discard", "traitor_id", "saga_rewards", "launch_step", "launch_i"]:
+	ok(str(g2.save_state()) == str(st), "저장: 사연 상태를 저장하고 불러오면 같음")
+	for k in ["saga_decks", "saga_discard", "saga_rewards", "launch_step", "launch_i"]:
 		ok(st.has(k), "저장: SAVE_FIELDS에 %s" % k)
+	for k in ["interro_deck", "interro_discard", "traitor_id"]:
+		ok(not st.has(k), "저장: 지운 필드 %s는 없음" % k)
 
 
 # ------------------------------------------------------------------ 4단계: 장면 · 2막 · 엔딩
@@ -3447,11 +2951,11 @@ func _test_act2_endings() -> void:
 	var win := _scene_fixture("prison", _fixed_data().strike("prison")["final"])
 	win._end_game(true)
 	ok(win.ending["id"] == "victory" and win.ending["won"] and win.ending["epilogues"].size() == 4, "엔딩: 승리와 후일담")
-	var tr := _scene_fixture("prison", _fixed_data().strike("prison")["final"])
-	tr.traitor_id = 1
-	tr.players[1]["traitor"] = true
-	tr._end_game(false)
-	ok(tr.ending["traitor_won"] and tr.ending["epilogues"][1]["key"] == "traitor" and tr.data.endings["traitor_won"]["text"] in tr.ending["text"], "엔딩: 변절자 승리 문장과 후일담 키")
+	var lose := _scene_fixture("prison", _fixed_data().strike("prison")["final"])
+	lose._end_game(false)
+	var keys: Array = lose.ending["epilogues"].map(func(e): return e["key"])
+	ok(not lose.ending.has("traitor") and not lose.ending.has("traitor_won") and not keys.has("traitor") and not lose.ending["epilogues"][0].has("traitor"),
+		"엔딩: 변절 엔딩과 후일담 키가 없음")
 
 
 func _test_act2_effects() -> void:
@@ -3580,3 +3084,136 @@ func _test_act2_sagas_and_failures() -> void:
 	_turn(g, 0, 1)
 	g.apply({"type": "scene_check", "player": 0})
 	ok(g.players[0]["jailed"], "실패 효과: 사령관실 실패 뒤 회피에도 실패하면 투옥")
+
+
+# ================================================================== A단계: 변절을 빼고 바뀐 규칙
+
+func _run_a_tests() -> void:
+	_test_jail_confiscate()
+	_test_informer_bounty()
+	_test_removed_things()
+
+
+func _test_jail_confiscate() -> void:
+	# 투옥되면 노출 +1에 더해 들고 있던 아이템 1장을 무작위로 압수 (폭탄은 그대로)
+	var g := _new(CH)
+	g.players[0]["items"] = ["train_ticket", "telescope"]
+	g.players[0]["bombs"] = 1
+	g._jail(g.players[0])
+	var left: Array = g.players[0]["items"]
+	var gone := "telescope" if left == ["train_ticket"] else "train_ticket"
+	ok(g.players[0]["jailed"] and left.size() == 1 and g.item_discard == [gone] and g.exposure == int(g.data.rules["exposure"]["on_jail"]),
+		"투옥 압수: 노출이 오르고 아이템 1장이 버림 더미로 감")
+	ok(g.players[0]["bombs"] == 1, "투옥 압수: 폭탄은 압수하지 않음")
+	var ev := {}
+	for e in g.events:
+		if e["kind"] == "confiscate":
+			ev = e
+	ok(ev.get("player", -1) == 0 and ev.get("items", []) == [gone] and _log_has(g, "압수당했습니다"), "투옥 압수: 알림 confiscate와 로그")
+	ok(g.players[0]["jailed_day"] == g.day, "투옥 압수: 갇힌 날은 그대로 적음")
+	g = _new(CH)
+	g.players[0]["bombs"] = 1
+	g._jail(g.players[0])
+	ok(g.players[0]["jailed"] and g.players[0]["items"].is_empty() and g.item_discard.is_empty() and g.players[0]["bombs"] == 1 and g.exposure == 1,
+		"투옥 압수: 아이템이 없으면 노출만 오르고 아무것도 잃지 않음")
+	ok(not g.events.any(func(e): return e["kind"] == "confiscate"), "투옥 압수: 아이템이 없으면 알림도 없음")
+	g = _new(CH)
+	g.players[0]["items"] = ["telescope"]
+	g._jail(g.players[0])
+	ok(g.players[0]["items"].is_empty() and g.item_discard == ["telescope"], "투옥 압수: 한 장뿐이면 그 한 장")
+	# 무작위: 시드에 따라 두 장 모두 압수될 수 있고, 같은 시드는 같은 결과
+	var seen := {}
+	for sd in 30:
+		var gs := _new(CH, null, 200 + sd)
+		gs.players[0]["items"] = ["train_ticket", "telescope"]
+		gs._jail(gs.players[0])
+		seen[gs.item_discard[0]] = true
+	ok(seen.size() == 2, "투옥 압수: 무작위 (시드에 따라 두 장 모두 압수됨)")
+	var a1 := _new(CH, null, 7)
+	a1.players[0]["items"] = ["train_ticket", "telescope"]
+	a1._jail(a1.players[0])
+	var a2 := _new(CH, null, 7)
+	a2.players[0]["items"] = ["train_ticket", "telescope"]
+	a2._jail(a2.players[0])
+	ok(a1.item_discard == a2.item_discard, "투옥 압수: 같은 시드면 같은 카드")
+	# 장수는 데이터 수치
+	var gd2 := _gd(func(d): d.rules["jail"]["confiscate_items"] = 2)
+	g = _new(CH, gd2)
+	g.players[0]["items"] = ["train_ticket", "telescope"]
+	g._jail(g.players[0])
+	ok(g.players[0]["items"].is_empty() and g.item_discard.size() == 2, "투옥 압수: rules.jail.confiscate_items를 2로 바꾸면 2장")
+	# 체포로 투옥돼도, 판정에 실패해 투옥돼도 같다
+	g = _new(CH)
+	_lay(g, [Vector2i(5, 6)])
+	g.players[0]["items"] = ["telescope"]
+	g.police[0] = {"pos": Vector2i(5, 6), "summon_turn": 0}
+	g._police_approach(g.players[0], 2)
+	ok(g.players[0]["jailed"] and g.players[0]["items"].is_empty(), "투옥 압수: 경찰에게 체포되어도 압수")
+	var gdf := _gd(func(d): d.rules["checks"]["evade"] = 99)
+	g = _new(CH, gdf)
+	g.players[0]["items"] = ["telescope"]
+	g.players[0]["bombs"] = 1
+	_turn(g, 0, 0)
+	g._start_check(g.players[0], "evade", "mission_evade")
+	ok(g.players[0]["jailed"] and g.players[0]["items"].is_empty() and g.players[0]["bombs"] == 1, "투옥 압수: 미션 판정에 실패해 투옥되어도 압수, 폭탄은 그대로")
+	# 투옥된 뒤에 동료에게 받은 아이템은 압수당하지 않는다 (압수는 투옥되는 순간뿐)
+	g = _new(CH)
+	g._jail(g.players[0])
+	g.players[0]["items"] = ["telescope"]
+	ok(g.players[0]["items"] == ["telescope"] and g.item_discard.is_empty(), "투옥 압수: 투옥된 뒤에 받은 아이템은 그대로")
+
+
+func _test_informer_bounty() -> void:
+	# 2막 위협 「밀고 포상금」: 노출 +1, 결행 거점에서 경찰이 출동해 가장 가까운 요원을 쫓음
+	var g := _new(CH)
+	g.launch_info = {"target": "prison", "day": 1}
+	var base := _base(g, "prison")
+	g.players[2]["pos"] = base + Vector2i(1, 0)
+	_threat(g, "informer_bounty")
+	ok(g.exposure == 1 and g.police.size() == 1 and g.police.has(2) and g.police[2]["pos"] == base, "위협 밀고 포상금: 노출 +1, 결행 거점에서 가장 가까운 요원에게 경찰이 출동")
+	ok(g.alert_level() == 1, "위협 밀고 포상금: 노출 +1만으로는 경계 단계가 오르지 않음 (0 → 1)")
+	_threat(g, "informer_bounty")
+	ok(g.exposure == 2 and g.police.size() == 2 and g.police.has(0), "위협 밀고 포상금: 이미 쫓기는 요원은 건너뛰고 다음으로 가까운 요원")
+	g = _new(CH)
+	g.launch_info = {"target": "prison", "day": 1}
+	g.players[2]["pos"] = _base(g, "prison")
+	g.players[2]["jailed"] = true
+	_threat(g, "informer_bounty")
+	ok(g.police.size() == 1 and not g.police.has(2), "위협 밀고 포상금: 갇힌 요원은 쫓지 않음")
+	g = _new(CH)
+	g.launch_info = {"target": "prison", "day": 1}
+	g.exposure = 2
+	_threat(g, "informer_bounty")
+	ok(g.exposure == 3 and g.alert_level() == 2 and g.police.size() == 2, "위협 밀고 포상금: 노출이 문턱에 닿으면 경계 출동이 하나 더")
+	var gd := GameDataV2.load_default()
+	ok(gd.threat("informer_bounty").get("deck_place", "") == "top_half" and gd.threat_deck(2).count("informer_bounty") == 2 and gd.threat_deck(1).count("house_search") == 3,
+		"위협: 가택 수색은 1막 3장, 밀고 포상금은 2막 2장 (위쪽 절반)")
+
+
+func _test_removed_things() -> void:
+	# 변절·심문·설득이 데이터와 엔진에서 모두 사라졌는가
+	var real := GameDataV2.load_default()
+	ok(not FileAccess.file_exists("res://data/v2/interrogation.json") and not real.rules.has("traitor") and not real.rules.has("persuade")
+		and not real.endings.has("traitor_won"), "삭제: interrogation.json · rules.traitor · rules.persuade · endings.traitor_won")
+	var lure := 0
+	var tr_ep := 0
+	for c in real.sagas["sagas"]:
+		lure += 1 if c.has("lure") else 0
+		tr_ep += 1 if c["epilogue"].has("traitor") else 0
+	ok(lure == 0 and tr_ep == 0, "삭제: 사연의 lure와 후일담 traitor")
+	ok(not "persuade" in GameDataV2.KNOWN_OPS and not "interrogate" in GameDataV2.KNOWN_OPS and not "interrogate_discard" in GameDataV2.KNOWN_OPS
+		and not "has_interrogation" in GameDataV2.KNOWN_IF_CONDS and not "traitor" in GameDataV2.EPILOGUE_KEYS, "삭제: 검증기 어휘에서 지운 op·cond·후일담 키")
+	ok(real.threat("persuasion_plot").is_empty() and real.threat("persuasion_plot2").is_empty(), "삭제: 회유 공작 위협")
+	var g := _new(CH)
+	ok(not g.players[0].has("traitor") and not g.players[0].has("interro") and not "traitor_id" in g.save_state(), "삭제: 요원 상태에 traitor·interro가 없음")
+	ok(not g.apply({"type": "persuade", "player": 0, "die": 0, "target": 1}) and not g.apply({"type": "inform", "player": 0, "target": 1}), "삭제: persuade·inform 액션은 거부")
+	ok(g._next_voter(-1) == 0 and g._next_voter(2) == 3 and g._next_voter(3) == -1, "투표: 모든 요원이 번호순으로 투표 (_next_voter)")
+	# 아침 순서: 위협 → 투표 → 미션 줄 → 주사위 (변절 확인 자리가 없어짐). 선택이 끼지 않은 아침은 5에서 끝남
+	var gm := _new(CH)
+	gm.act = 1
+	gm.phase = "morning"
+	gm.morning_step = 1
+	gm.threat_deck = ["calm_day"]
+	gm.ready = 0
+	gm._morning_continue()
+	ok(gm.morning_step == 5 and gm.phase == "plan" and not gm.op_dice.is_empty(), "아침 순서: 위협 → 투표 → 미션 줄 → 주사위 네 단계 (morning_step 5에서 끝)")

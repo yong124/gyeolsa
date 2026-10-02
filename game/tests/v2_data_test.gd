@@ -10,13 +10,12 @@ func _init() -> void:
 		print("오류: ", e)
 	print("--- 카드 장수 ---")
 	print("위협 1막 %d장 / 2막 %d장" % [data.threat_deck(1).size(), data.threat_deck(2).size()])
-	print("심문 %d장" % _sum(data.interrogation.get("cards", [])))
 	print("미션 %d장" % data.missions.get("missions", []).size())
 	print("이벤트 %d종 %d장" % [data.events.get("events", []).size(), _sum(data.events.get("events", []))])
 	print("아이템 %d종 %d장" % [data.items.get("items", []).size(), _sum(data.items.get("items", []))])
 	var s: Dictionary = data.scenes.get("strikes", {})
 	print("결행 %d곳, 경비 강화 %d장" % [s.size(), data.scenes.get("reinforce", []).size()])
-	print("엔딩 %d종, 결행별 성공 문장 %d개" % [5, data.endings.get("strikes", {}).size()])
+	print("엔딩 %d종, 결행별 성공 문장 %d개" % [4, data.endings.get("strikes", {}).size()])
 	for id in GameDataV2.BASE_IDS:
 		if not data.endings.get("strikes", {}).has(id):
 			errs.append("엔딩에 결행 거점 %s가 없습니다." % id)

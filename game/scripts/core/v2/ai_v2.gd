@@ -13,7 +13,7 @@ const PERSONA := {
 	"careful": {"risk": 1.4, "vote": 1.2},
 	"support": {"risk": 0.8, "vote": 1.0},
 }
-const CHOICE_KINDS := ["launch_vote", "strike_target", "saga_keep", "persuade_look", "ambush_target", "reroll", "check_die", "react_evade",
+const CHOICE_KINDS := ["launch_vote", "strike_target", "saga_keep", "reroll", "check_die", "react_evade",
 	"discard", "draw_pick", "effect_choice", "pick_player", "pick_cell", "pick_die", "pick_tile", "pick_item",
 	"pick_value", "pick_bury", "hop", "intel_base"]
 
@@ -43,10 +43,8 @@ static func next_actor(g: RulesV2) -> int:
 				score += 10.0
 			if g.police.has(p["id"]):
 				score += 5.0
-			if g.act == 2 and not p["traitor"]:
+			if g.act == 2:
 				score += 3.0
-			if p["traitor"]:
-				score -= 20.0
 			if g.stat(p, "end_move_hop_to_ally") > 0:
 				score -= 2.0
 			score -= float(p["id"]) * 0.01
@@ -126,9 +124,6 @@ static func _choice(g: RulesV2, p: Dictionary, legal: Array, policy: Dictionary)
 			"reroll", "check_die":
 				score = _check_option_score(g, p, str(v))
 			"react_evade": score = 10.0 if bool(v) else 0.0
-			"persuade_look":
-				var card: Dictionary = g.data.interrogation.get("cards", []).filter(func(c): return c["id"] == g.pending.get("card", "")).front() if not g.data.interrogation.get("cards", []).filter(func(c): return c["id"] == g.pending.get("card", "")).is_empty() else {}
-				score = 10.0 if bool(v) == bool(card.get("shaken", false)) else 0.0
 			"discard": score = -float(g.item_def(str(p["items"][int(v)])).get("ai_value", 3))
 			"draw_pick": score = float(g.item_def(str(g.pending.get("cards", [])[int(v)])).get("ai_value", 3))
 			"pick_bury": score = 10.0 if bool(v) else 0.0
@@ -139,7 +134,7 @@ static func _choice(g: RulesV2, p: Dictionary, legal: Array, policy: Dictionary)
 					var sel: PackedStringArray = str(v).split(":")
 					score = float(g.die_value(int(sel[0]))) * signf(float(sel[1]))   # 눈 고치기: 높은 눈을 더 높게
 			"pick_value": score = float(v) if typeof(v) == TYPE_INT else 0.0
-			"pick_player", "ambush_target":
+			"pick_player":
 				if typeof(v) == TYPE_INT and int(v) < g.players.size():
 					score = -float(_dist(g.players[int(v)]["pos"], p["pos"]))
 			"pick_cell", "hop":
@@ -152,7 +147,7 @@ static func _choice(g: RulesV2, p: Dictionary, legal: Array, policy: Dictionary)
 					score = 2.0
 				else:
 					score = 1.0 if str(v) == "item" else 0.0
-			"effect_choice": score = float(g.pending.get("effects", [])[int(v)].size()) if typeof(v) == TYPE_INT else 0.0
+			"effect_choice": score = _effects_value(g, p, g.pending.get("effects", [])[int(v)]) if typeof(v) == TYPE_INT else 0.0
 			_:
 				if typeof(v) == TYPE_BOOL:
 					score = 1.0 if bool(v) else 0.0
@@ -160,6 +155,19 @@ static func _choice(g: RulesV2, p: Dictionary, legal: Array, policy: Dictionary)
 			best_score = score
 			best = a
 	return best
+
+
+static func _effects_value(g: RulesV2, p: Dictionary, effects: Array) -> float:
+	## 효과 선택지의 값. 아는 효과(아이템, 내일 주사위)만 값을 매기고, 나머지는 효과 수로 센다.
+	## 아이템은 손이 가득 차면 값이 낮고, 내일 주사위는 2막(장면에 바칠 눈이 필요함)에서 더 쓸모 있다.
+	var v := 0.0
+	for e in effects:
+		var n := float(e.get("count", 1))
+		match str(e.get("op", "")):
+			"draw_item": v += n * (3.0 if p["items"].size() < g.hand_limit(p) else 1.0)
+			"dice_extra_tomorrow": v += n * (3.2 if g.act == 2 else 2.5)
+			_: v += 0.5
+	return v
 
 
 static func _check_option_score(g: RulesV2, p: Dictionary, v: String) -> float:
@@ -214,8 +222,6 @@ static func _turn(g: RulesV2, p: Dictionary, legal: Array, policy: Dictionary) -
 		if not esc.is_empty():
 			return esc
 		return _find(legal, "end_turn")
-	if p["traitor"]:
-		return _traitor(g, p, legal)
 	if g.tile_type(p["pos"]) == "supply" and p["bombs"] < g.bomb_slots(p) and (_bombs_short(g) > 0 or not g.missions_in_row("bomb").is_empty()):
 		return _find(legal, "end_move")
 	if g.tile_type(p["pos"]) == "item" and not g.board[p["pos"]].get("used", false) and int(g.scene_need().get("item", 0)) > 0:
@@ -233,9 +239,6 @@ static func _turn(g: RulesV2, p: Dictionary, legal: Array, policy: Dictionary) -
 			if not intel.is_empty() and intel.get("mode") == "check" and g.intel_tokens > 0:
 				return intel
 			return sc
-	var small := _smallest(g, p, legal, "persuade")
-	if not small.is_empty() and g.interrogation_count(int(small["target"])) >= 2:
-		return small
 	if _saga_kind(g, p, "give_dice") and g.my_dice(p["id"]).size() >= 2:
 		var gd := _smallest(g, p, legal, "give_die")
 		if not gd.is_empty():
@@ -255,8 +258,11 @@ static func _turn(g: RulesV2, p: Dictionary, legal: Array, policy: Dictionary) -
 							supply_found = true
 					if not supply_found:
 						return a
-				if e.get("op", "") == "persuade" and a.has("target") and g.interrogation_count(int(a["target"])) >= 2:
-					return a
+				if e.get("op", "") == "give_die" and a.has("target") and g.my_dice(p["id"]).size() >= 2 \
+						and (g.players[int(a["target"])]["jailed"] or _saga_kind(g, p, "give_dice")):
+					return a   # 감옥의 동료가 탈옥 판정에 쓰도록, 또는 주사위를 건네는 사연을 위해
+				if e.get("op", "") == "intel" and e.get("base", "") == "choose" and g.act == 1 and _exposure_headroom(g) >= 2:
+					return a   # 경계 단계가 오르기까지 여유가 있을 때만 첩보를 노출과 바꾼다
 				if e.get("op", "") == "police_remove" and g.police.has(p["id"]):
 					return a
 				if e.get("op", "") == "police_push" and g.police.has(p["id"]):
@@ -372,38 +378,12 @@ static func _smallest(g: RulesV2, p: Dictionary, legal: Array, type: String) -> 
 	return best
 
 
-static func _largest(g: RulesV2, legal: Array, type: String) -> Dictionary:
-	var best: Dictionary = {}
-	for a in legal:
-		if a["type"] == type and (best.is_empty() or g.die_value(int(a["die"])) > g.die_value(int(best["die"]))):
-			best = a
-	return best
-
-
-static func _traitor(g: RulesV2, p: Dictionary, legal: Array) -> Dictionary:
-	var target := -1
-	var best := 999
-	var base := g.data.bases[g.data.base_index(str(g.launch_info.get("target", "")))]
-	for q in g.players:
-		if q["traitor"] or q["jailed"]:
-			continue
-		var d := _dist(q["pos"], base)
-		if d < best:
-			best = d
-			target = int(q["id"])
-	for a in legal:
-		if a["type"] == "inform" and a["target"] == target:
-			return a
-	if target >= 0:
-		var now := _dist(p["pos"], g.players[target]["pos"])
-		if g.steps_left < now:
-			var big := _largest(g, legal, "move_die")
-			if not big.is_empty():
-				return big
-		for a in legal:
-			if a["type"] == "step" and _dist(a["to"], g.players[target]["pos"]) < now:
-				return a
-	return _find(legal, "end_move")
+static func _exposure_headroom(g: RulesV2) -> int:
+	## 노출이 오르면 경계 단계가 바뀌는 문턱까지 몇 점 남았나 (문턱을 다 넘었으면 최대치까지)
+	for t in g.data.rules["exposure"]["thresholds"]:
+		if g.exposure < int(t):
+			return int(t) - g.exposure
+	return int(g.data.rules["exposure"]["max"]) - g.exposure
 
 
 static func _goal(g: RulesV2, p: Dictionary, policy: Dictionary) -> Vector2i:
@@ -463,7 +443,7 @@ static func _goal(g: RulesV2, p: Dictionary, policy: Dictionary) -> Vector2i:
 			best_score = score
 			best = near
 	for q in g.players:
-		if q["jailed"] and not q["traitor"] and q["id"] != p["id"]:
+		if q["jailed"] and q["id"] != p["id"]:
 			var d := _dist(p["pos"], q["pos"])
 			if d <= RESCUE_RANGE and RESCUE_VALUE / float(1 + d) > best_score:
 				best_score = RESCUE_VALUE / float(1 + d)
@@ -491,8 +471,7 @@ static func _bombs_short(g: RulesV2) -> int:
 		need += int(g.scene_need(g.scenes.size() - 1).get("bomb", 0))
 	var have := 0
 	for q in g.players:
-		if not q["traitor"]:
-			have += int(q["bombs"])
+		have += int(q["bombs"])
 	return need - have
 
 
@@ -513,7 +492,7 @@ static func _bomb_runner(g: RulesV2, p: Dictionary) -> bool:
 	var runners := short
 	var closer := 0
 	for q in g.players:
-		if q["id"] == p["id"] or q["traitor"] or q["jailed"] or q["bombs"] > 0:
+		if q["id"] == p["id"] or q["jailed"] or q["bombs"] > 0:
 			continue
 		var d := _dist(q["pos"], _nearest(q["pos"], supply))
 		if d < mine or (d == mine and q["id"] < p["id"]):
@@ -522,7 +501,7 @@ static func _bomb_runner(g: RulesV2, p: Dictionary) -> bool:
 
 
 static func _saga_kind(g: RulesV2, p: Dictionary, kind: String) -> bool:
-	if p["saga_done"] != "" or p["traitor"]:
+	if p["saga_done"] != "":
 		return false
 	for id in g.saga_cards(p["id"]):
 		if str(g.data.saga(str(id)).get("condition", {}).get("kind", "")) == kind:
@@ -533,7 +512,7 @@ static func _saga_kind(g: RulesV2, p: Dictionary, kind: String) -> bool:
 static func _saga_targets(g: RulesV2, p: Dictionary) -> Array:
 	## 내 사연 조건을 채울 칸 후보: [[칸들], 가치]. 사연 id는 보지 않고 condition.kind로만 고른다.
 	var out := []
-	if p["saga_done"] != "" or p["traitor"]:
+	if p["saga_done"] != "":
 		return out
 	var prog: Dictionary = g.saga_progress(p["id"])
 	var last := g.data.size - 1
@@ -586,7 +565,7 @@ static func _saga_targets(g: RulesV2, p: Dictionary) -> Array:
 						cells.append(c)
 			"same_cell_turns", "give_items":
 				for q in g.players:
-					if q["id"] != p["id"] and not q["jailed"] and not q["traitor"]:
+					if q["id"] != p["id"] and not q["jailed"]:
 						cells.append(q["pos"])
 		if not cells.is_empty():
 			out.append([cells, value])

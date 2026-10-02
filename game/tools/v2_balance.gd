@@ -75,10 +75,9 @@ func _run(opt: Dictionary, sets: Array) -> Dictionary:
 		"ended": 0, "stuck": 0, "rejected": 0, "fallback": 0, "actions": 0, "victory": 0,
 		"endings": {}, "launch_days": [], "launch_percent": [], "launch_reason": {}, "act2_days": [],
 		"strikes": {}, "strike_wins": {}, "scene_shown": {}, "scene_broken": {}, "stopped_scene": {},
-		"traitor_launch": 0, "traitor_morning": 0, "traitor_wins": 0, "no_traitor_wins": 0,
 		"saga_dealt": {}, "saga_done": {}, "saga_per_game": 0, "character_games": {}, "character_wins": {},
-		"jails": 0, "escapes": 0, "rescues": 0, "persuades": 0, "interrogations": 0,
-		"exposure_peak": 0, "alert_days": {}, "missions": {}, "threats": {}, "ambush": 0, "inform": 0}
+		"jails": 0, "escapes": 0, "rescues": 0, "confiscated": 0,
+		"exposure_peak": 0, "alert_days": {}, "missions": {}, "threats": {}}
 	for i in n:
 		var selector := RandomNumberGenerator.new()
 		selector.seed = seed + i
@@ -121,15 +120,7 @@ func _run(opt: Dictionary, sets: Array) -> Dictionary:
 					"threat": _inc(s["threats"], str(e["id"]))
 					"morning": _inc(s["alert_days"], str(g.alert_level()))
 					"rescue": s["rescues"] += 1
-					"persuade": s["persuades"] += 1
-					"interrogation_card": s["interrogations"] += 1
-					"ambush": s["ambush"] += 1
-					"inform": s["inform"] += 1
-					"traitor":
-						if e.get("when", "") == "launch":
-							s["traitor_launch"] += 1
-						else:
-							s["traitor_morning"] += 1
+					"confiscate": s["confiscated"] += e["items"].size()
 			g.events.clear()
 			s["exposure_peak"] = maxi(int(s["exposure_peak"]), g.exposure)
 		s["actions"] += steps
@@ -155,11 +146,6 @@ func _run(opt: Dictionary, sets: Array) -> Dictionary:
 			s["act2_days"].append(g.day - int(g.launch_info.get("day", g.day)) + 1)
 			if not won and not g.current_scene().is_empty():
 				_inc(s["stopped_scene"], str(g.current_scene().get("id", "")))
-		if g.traitor_id >= 0:
-			if won:
-				s["traitor_wins"] += 1
-		elif won:
-			s["no_traitor_wins"] += 1
 		for p in g.players:
 			if won:
 				_inc(s["character_wins"], str(p["character"]))
@@ -184,9 +170,6 @@ func _run(opt: Dictionary, sets: Array) -> Dictionary:
 	s["character_diff_pp"] = {}
 	for id in s["character_win_rate"]:
 		s["character_diff_pp"][id] = 100.0 * (float(s["character_win_rate"][id]) - float(s["win_rate"]))
-	s["traitor_rate"] = _rate(int(s["traitor_launch"]) + int(s["traitor_morning"]), n)
-	s["traitor_win_rate"] = _rate(s["traitor_wins"], int(s["traitor_launch"]) + int(s["traitor_morning"]))
-	s["no_traitor_win_rate"] = _rate(s["no_traitor_wins"], n - int(s["traitor_launch"]) - int(s["traitor_morning"]))
 	return s
 
 
@@ -228,8 +211,7 @@ func _print_rows(rows: Array) -> void:
 		print("%s | %.1f%% | %.1f%%p | %.1f%% | %.1f%% | %.2f일 | %d | %d" % [
 			str(r["set"]), 100.0 * r["win_rate"], 100.0 * r["standard_error"], r["launch_percent_mean"],
 			100.0 * r["vote_rate"], r["act2_days_mean"], r["stuck"], r["fallback"]])
-		print("엔딩: ", r["endings"], " · 거점: ", r["strikes"], " · 변절: ", r["traitor_launch"] + r["traitor_morning"])
+		print("엔딩: ", r["endings"], " · 거점: ", r["strikes"])
 		print("거점별 승률: ", r["strike_win_rate"], " · 장면 돌파율: ", r["scene_break_rate"])
 		print("사연 이룸률: ", r["saga_rate"], " · 캐릭터 승률 차이(%p): ", r["character_diff_pp"])
-		print("변절 승률: %.1f%% · 비변절 승률: %.1f%% · 투옥 %d · 탈옥 %d · 구출 %d · 설득 %d · 심문 %d" % [
-			100.0 * r["traitor_win_rate"], 100.0 * r["no_traitor_win_rate"], r["jails"], r["escapes"], r["rescues"], r["persuades"], r["interrogations"]])
+		print("투옥 %d · 탈옥 %d · 구출 %d · 압수 %d장 · 판당 사연 %.2f" % [r["jails"], r["escapes"], r["rescues"], r["confiscated"], r["saga_per_game"]])
