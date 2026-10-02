@@ -481,9 +481,12 @@
 			"story": "동생은 군영 앞에서 쓰러졌다.",
 			"condition": {
 				"kind": "strike_final_by_me",
-				"strike": "barracks"
+				"or": {
+					"kind": "mission_done_by_me",
+					"mission": "m_mp_captain"
+				}
 			},
-			"condition_text": "결행 목표가 군영이고, 군영의 마지막 장면을 내가 돌파",
+			"condition_text": "「헌병 대위 암살」을 내가 이루거나, 결행의 마지막 장면을 내가 돌파",
 			"reward": [
 				{
 					"op": "grant_once",
@@ -511,9 +514,17 @@
 			"condition": {
 				"kind": "present_at_final"
 			},
-			"condition_text": "마지막 장면을 돌파할 때 결행 거점에 있음",
-			"reward": [],
-			"reward_text": "없음 (후일담만)",
+			"condition_text": "마지막 장면이 펼쳐질 때 결행 거점 안에 있음",
+			"reward": [
+				{
+					"op": "grant_once",
+					"kind": "check_bonus",
+					"value": 2,
+					"scope": "final",
+					"who": "self"
+				}
+			],
+			"reward_text": "마지막 장면 판정 +2 한 번",
 			"redraw_for": [],
 			"epilogue": {
 				"win_done": "첫 전보는 짧았다. \"경성 해방.\"",

@@ -10,7 +10,7 @@ const BASE_IDS := ["barracks", "police_hq", "prison", "gg"]
 
 ## 3-1. 대상 (who, target)
 const KNOWN_TARGETS := ["self", "ally", "ally_same_cell", "ally_adjacent", "ally_in_range", "all", "allies",
-	"isolated", "wanted", "nearest_to_base", "all_jailed", "saga_partner"]
+	"isolated", "wanted", "nearest_to_base", "all_jailed", "saga_partner", "everyone"]
 ## 3-2. 효과 op
 const KNOWN_OPS := ["police_dispatch", "police_attach", "police_advance", "police_remove", "police_push",
 	"police_send_far", "checkpoint_place", "dice_mod_today", "police_speed_today", "exposure",
@@ -20,7 +20,8 @@ const KNOWN_OPS := ["police_dispatch", "police_attach", "police_advance", "polic
 	"threat_bury", "grant_once", "give_die", "place_tile", "extra_step",
 	"mark_tile", "move_to_ally", "pull_ally", "give_item", "send_item",
 	"checkpoint_pass", "refill_supply", "choice", "if_players",
-	"if", "threat_flip", "check_or_jail", "entry_no_police"]
+	"if", "threat_flip", "check_or_jail", "entry_no_police",
+	"no_reinforce", "intel_token_bonus", "threat_look_discard"]
 ## if op의 cond
 const KNOWN_IF_CONDS := ["chased", "not_chased"]
 ## 능력 사용 조건 (ability.requires)
@@ -29,12 +30,12 @@ const KNOWN_REQUIRES := ["near_tile", "base_in_range"]
 const KNOWN_COSTS := ["die"]
 ## 3-3. 장면·협동 조건 kind
 const KNOWN_SCENE_CONDITIONS := ["enter_base", "deliver_bomb", "check", "check_pair", "dice", "pay_item", "pay_bomb", "people", "hold",
-	"jailed_here", "any_of", "all_of", "cover_entry", "same_day_assassin", "opposite_edges"]
+	"jailed_here", "any_of", "all_of", "sequence", "cover_entry", "same_day_assassin", "opposite_edges"]
 ## 3-4. 사연 조건 kind
 const KNOWN_SAGA_CONDITIONS := ["end_turn_near_base", "visit_base_adjacent", "touch_edge", "end_turn_at_start",
 	"visit_tile", "hold_items", "rolled_value", "give_dice", "shake_police", "pass_checkpoint",
 	"never_jailed_until_launch", "chased_turns_row", "rescue_or_escape", "same_cell_turns",
-	"coop_missions", "give_items", "strike_final_by_me", "present_at_final", "strike_entry_by_me"]
+	"coop_missions", "give_items", "strike_final_by_me", "present_at_final", "strike_entry_by_me", "mission_done_by_me"]
 ## 3-5. 캐릭터 특성·아이템 지속 효과 stat
 const KNOWN_STATS := ["evade_auto", "escape_bonus", "rescued_move_bonus", "assassin_rerolls", "bomb_slots",
 	"sabotage_bonus", "sabotage_exposure", "move_min3", "hand_limit", "item_draw_choice",
@@ -212,6 +213,26 @@ func _validate_rules(errs: Array[String]) -> void:
 		errs.append("rules.market에 tile(문자열)과 effects(목록)가 있어야 합니다.")
 	else:
 		_check_effects(errs, "rules.market", market["effects"])
+	var launch = rules.get("launch", null)
+	if typeof(launch) != TYPE_DICTIONARY or int(launch.get("target_min_intel", 0)) < 1 or typeof(launch.get("benefits", null)) != TYPE_ARRAY:
+		errs.append("rules.launch에 target_min_intel(1 이상)과 benefits(목록)가 있어야 합니다.")
+	else:
+		var bseen := {}
+		for b in launch["benefits"]:
+			var bwho := "결행 혜택 %s" % b.get("id", "?")
+			if str(b.get("id", "")) == "" or bseen.has(b.get("id")):
+				errs.append("%s: id가 비었거나 겹칩니다." % bwho)
+			bseen[b.get("id")] = true
+			for k in ["name", "text"]:
+				if str(b.get(k, "")).strip_edges() == "":
+					errs.append("%s: %s가 비었습니다." % [bwho, k])
+			_check_effects(errs, bwho, b.get("effects", []))
+	var cnt = rules.get("counter", null)
+	if typeof(cnt) != TYPE_DICTIONARY or int(cnt.get("target", 0)) < 1:
+		errs.append("rules.counter.target(1 이상)이 있어야 합니다.")
+	var ai_r = rules.get("ai", null)
+	if typeof(ai_r) != TYPE_DICTIONARY or typeof(ai_r.get("launch_target", null)) != TYPE_DICTIONARY:
+		errs.append("rules.ai.launch_target(가중치)이 있어야 합니다.")
 	var police_r = rules.get("police", {})
 	if int(police_r.get("escape_distance", 0)) < 1 or int(police_r.get("rejoin_distance", 0)) < 1:
 		errs.append("rules.police에 escape_distance와 rejoin_distance(1 이상)가 있어야 합니다.")
@@ -499,6 +520,16 @@ func _check_cond(errs: Array[String], who: String, cond, known: Array) -> void:
 	if kind == "any_of" or kind == "all_of":
 		for o in cond.get("options", []):
 			_check_cond(errs, who, o, known)
+	if kind == "sequence":
+		if cond.get("steps", []).size() < 2:
+			errs.append("%s: sequence에는 단계(steps)가 둘 이상 있어야 합니다." % who)
+		for o in cond.get("steps", []):
+			_check_cond(errs, who, o, known)
+	if known == KNOWN_SAGA_CONDITIONS:
+		if kind == "mission_done_by_me" and not _missions.has(str(cond.get("mission", ""))):
+			errs.append("%s: mission_done_by_me의 미션 '%s'가 없습니다." % [who, cond.get("mission", "")])
+		if cond.has("or"):
+			_check_cond(errs, who, cond["or"], known)
 
 
 func _where_ok(w) -> bool:

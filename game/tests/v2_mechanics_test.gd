@@ -35,6 +35,7 @@ func _init() -> void:
 	_run_4_tests()
 	_run_a_tests()
 	_run_b_tests()
+	_run_e_tests()
 	print("v2 규칙 시험: 통과 %d, 실패 %d" % [passed, failed])
 	quit(1 if failed > 0 else 0)
 
@@ -203,6 +204,11 @@ func _flat(g: RulesV2) -> void:
 	g._dist_cache = {}
 
 
+func _cc(g: RulesV2, pid: int, die_value := 3) -> bool:
+	## 반격을 막는 작전 판정 행동 (주사위 하나를 새로 받아 낸다)
+	return g.apply({"type": "counter_check", "player": pid, "die": _spare(g, die_value, pid)})
+
+
 func _sc(g: RulesV2, pid: int) -> bool:
 	## 장면 작전 판정 행동 (주사위 하나를 새로 받아 낸다)
 	return g.apply({"type": "scene_check", "player": pid, "die": _spare(g, 3, pid)})
@@ -332,11 +338,21 @@ func _test_free_order_and_night() -> void:
 	ok(g2.phase == "over" and g2.ending.get("id") == "history", "밤: 1막에서 남은 날이 0이 되면 정사로 끝남")
 
 
-func _vote_all(g: RulesV2, votes: Array) -> void:
-	for v in votes:
-		if g.phase != "choice" or g.pending.get("kind") != "launch_vote":
-			return
-		g.apply({"type": "choose", "player": g.pending["player"], "value": v})
+func _vote_all(g: RulesV2, votes: Array, targets: Array = []) -> void:
+	## 투표 선택을 차례로 답한다: 찬반은 votes에서, 대상은 targets에서 (없으면 첫 후보)
+	var vi := 0
+	var ti := 0
+	var guard := 0
+	while g.phase == "choice" and g.pending.get("kind") in ["launch_vote", "launch_target"] and guard < 40:
+		guard += 1
+		var value
+		if g.pending["kind"] == "launch_vote":
+			value = votes[vi] if vi < votes.size() else true
+			vi += 1
+		else:
+			value = targets[ti] if ti < targets.size() else g.pending["options"][0]["value"]
+			ti += 1
+		g.apply({"type": "choose", "player": g.pending["player"], "value": value})
 
 
 func _begin_vote(g: RulesV2) -> void:
@@ -385,6 +401,8 @@ func _test_vote() -> void:
 	g7.phase = "morning"
 	g7.morning_step = 2
 	g7._morning_continue()
+	ok(g7.phase == "choice" and g7.pending["kind"] == "launch_target" and g7.vote_state["forced"], "투표: 강제 결행은 찬반 없이 대상만 묻는다")
+	_vote_all(g7, [])
 	ok(g7.act == 2 and g7.phase == "plan" and g7.launch_info.get("reason") == "forced", "투표: 남은 날이 기준 이하면 투표 없이 강제 결행")
 	# 목표: 첩보가 가장 많은 거점
 	var g8 := _new(["park", "han", "oh", "seo"])
@@ -394,7 +412,8 @@ func _test_vote() -> void:
 	g8.phase = "morning"
 	g8.morning_step = 2
 	g8._morning_continue()
-	ok(g8.launch_info.get("target") == "gg", "결행: 첩보가 가장 많은 거점이 목표")
+	_vote_all(g8, [])
+	ok(g8.launch_info.get("target") == "gg", "결행: 첩보가 가장 많은 거점이 목표 (후보가 하나뿐이면 그곳)")
 	# 동점이면 리더가 고른다
 	var g9 := _new(["park", "han", "oh", "seo"])
 	g9.intel["gg"] = 2
@@ -404,7 +423,8 @@ func _test_vote() -> void:
 	g9.phase = "morning"
 	g9.morning_step = 2
 	g9._morning_continue()
-	ok(g9.phase == "choice" and g9.pending["kind"] == "strike_target" and g9.pending["player"] == 3, "결행: 첩보가 같으면 리더가 목표를 고름")
+	_vote_all(g9, [], ["gg", "gg", "prison", "prison"])
+	ok(g9.phase == "choice" and g9.pending["kind"] == "strike_target" and g9.pending["player"] == 3, "결행: 대상 표가 같으면 리더가 목표를 고름")
 	_answer(g9, "prison")
 	ok(g9.act == 2 and g9.launch_info.get("target") == "prison", "결행: 리더가 고른 거점이 목표")
 
@@ -2619,19 +2639,42 @@ func _test_saga_cards() -> void:
 	g = _new(CH)
 	_give(g, 0, ["sibling_revenge"])
 	_give(g, 1, ["sibling_revenge"])
-	g.saga_strike_event("final", 0, {"strike": "police_hq", "present": [0, 1]})
-	ok(g.players[0]["saga_done"] == "", "사연 동생의 원수: 결행 목표가 군영이 아니면 이루지 못함")
-	g.saga_strike_event("final", 1, {"strike": "barracks", "present": [0, 1]})
-	ok(g.players[0]["saga_done"] == "" and g.players[1]["saga_done"] == "sibling_revenge", "사연 동생의 원수: 군영의 마지막 장면을 내가 돌파해야 이룸")
+	g.saga_strike_event("entry", 0, {"strike": "police_hq", "present": [0, 1]})
+	ok(g.players[0]["saga_done"] == "", "사연 동생의 원수: 진입 장면 돌파로는 안 이뤄짐")
+	g.saga_strike_event("final", 1, {"strike": "police_hq", "present": [0, 1]})
+	ok(g.players[0]["saga_done"] == "" and g.players[1]["saga_done"] == "sibling_revenge", "사연 동생의 원수: 어느 결행이든 마지막 장면을 내가 돌파하면 이룸")
+	var gm := _new(CH)
+	_give(gm, 0, ["sibling_revenge"])
+	_give(gm, 1, ["sibling_revenge"])
+	gm._saga_note(gm.players[0], "mission_done_by_me", {"id": "m_police_chief"})
+	ok(gm.players[0]["saga_done"] == "", "사연 동생의 원수: 다른 미션을 이뤄서는 안 이뤄짐")
+	gm._saga_note(gm.players[0], "mission_done_by_me", {"id": "m_mp_captain"})
+	ok(gm.players[0]["saga_done"] == "sibling_revenge" and gm.players[1]["saga_done"] == "", "사연 동생의 원수: 「헌병 대위 암살」을 내가 이루면 이룸")
+	var gm2 := _new(CH)
+	gm2.mission_row = ["m_mp_captain"]
+	_give(gm2, 2, ["sibling_revenge"])
+	gm2._complete_missions(gm2.players[2], ["m_mp_captain"], {"then": "resume", "source": "mission"})
+	ok(gm2.players[2]["saga_done"] == "sibling_revenge", "사연 동생의 원수: 실제 미션 이룸 처리에서도 셈")
 	ok(g._grant_index(g.players[1], "reroll") >= 0, "사연 동생의 원수: 판정 다시 굴리기 한 번")
 	_cov("saga", "sibling_revenge")
 	g = _new(CH)
 	_give(g, 0, ["last_telegram"])
 	_give(g, 1, ["last_telegram"])
-	g.saga_strike_event("entry", 0, {"strike": "barracks", "present": [0]})
-	ok(g.players[0]["saga_done"] == "", "사연 마지막 전보: 진입 장면 돌파로는 안 이뤄짐")
+	g.launch_info = {"target": "barracks"}
+	g.players[0]["pos"] = g.data.bases[0]
 	g.saga_strike_event("final", 2, {"strike": "barracks", "present": [0]})
-	ok(g.players[0]["saga_done"] == "last_telegram" and g.players[1]["saga_done"] == "", "사연 마지막 전보: 마지막 장면을 돌파할 때 결행 거점에 있던 요원만 이룸 (보상 없음)")
+	ok(g.players[0]["saga_done"] == "", "사연 마지막 전보: 마지막 장면을 돌파할 때가 아니라 펼쳐질 때 센다")
+	g._saga_final_reveal()
+	g._saga_idle_flush()
+	ok(g.players[0]["saga_done"] == "last_telegram" and g.players[1]["saga_done"] == "", "사연 마지막 전보: 마지막 장면이 펼쳐질 때 결행 거점 안에 있던 요원만 이룸")
+	ok(g.players[0]["grants"][0]["scope"] == "final" and g.players[0]["grants"][0]["value"] == 2, "사연 마지막 전보: 마지막 장면 판정 +2 한 번 (scope final)")
+	ok(g._grant_index(g.players[0], "check_bonus", false) < 0, "사연 마지막 전보: 결행 장면 밖에서는 쓰이지 않음")
+	g.act = 2
+	g.scenes = ["a", "b", "c"]
+	g.scene_index = 1
+	ok(g._grant_index(g.players[0], "check_bonus", true) < 0, "사연 마지막 전보: 마지막이 아닌 장면 판정에는 쓰이지 않음")
+	g.scene_index = 2
+	ok(g._grant_index(g.players[0], "check_bonus", true) >= 0, "사연 마지막 전보: 마지막 장면 판정에 쓰임")
 	_cov("saga", "last_telegram")
 	g = _new(CH)
 	_give(g, 0, ["first_step"])
@@ -2715,9 +2758,9 @@ func _test_saga_boundaries() -> void:
 	g.launch_info = {"target": "police_hq"}
 	var p0: Dictionary = g.players[0]
 	ok(not g.saga_feasible(p0, "survivor") and not g.saga_feasible(p0, "ring"), "이룰 수 있는가: 결행 순간에만 세는 조건은 결행이 지나면 불가")
-	ok(not g.saga_feasible(p0, "sibling_revenge") and g.saga_feasible(p0, "last_telegram") and g.saga_feasible(p0, "first_step"), "이룰 수 있는가: 군영이 아닌 결행의 「동생의 원수」는 불가, 나머지 결행 갈래는 가능")
+	ok(g.saga_feasible(p0, "sibling_revenge") and g.saga_feasible(p0, "last_telegram") and g.saga_feasible(p0, "first_step"), "이룰 수 있는가: 결행 갈래는 어느 결행이든 가능 (동생의 원수는 마지막 장면 돌파)")
 	g.launch_info = {"target": "barracks"}
-	ok(g.saga_feasible(p0, "sibling_revenge"), "이룰 수 있는가: 목표가 군영이면 「동생의 원수」 가능")
+	ok(g.saga_feasible(p0, "sibling_revenge"), "이룰 수 있는가: 목표가 군영이어도 「동생의 원수」 가능")
 	g.tile_deck = []
 	for c in g.board.keys():
 		if g.board[c]["type"] == "supply":
@@ -2754,7 +2797,7 @@ func _test_launch_moment() -> void:
 		_give(g, i, ["last_telegram"])
 	g._launch("forced")
 	ok(g.phase == "choice" and g.pending["kind"] == "saga_keep" and g.pending["player"] == 0 and g.pending.get("secret", false), "결행 순간: 이룰 수 있는 사연이 둘이면 saga_keep을 묻는다 (secret)")
-	ok(g.launch_step == 2 and g.launch_i == 1, "결행 순간: 단계 launch_step 2, 다음 요원 launch_i 1")
+	ok(g.launch_step == 3 and g.launch_i == 1, "결행 순간: 단계 launch_step 3(사연 남기기), 다음 요원 launch_i 1")
 	var opts: Array = g.pending["options"]
 	ok(opts.size() == 2 and opts[0]["value"] == "secret_letter" and opts[1]["value"] == "mother", "결행 순간: 선택지는 이룰 수 있는 두 사연")
 	# 저장·불러오기: 선택 중에도 이어진다
@@ -2774,11 +2817,11 @@ func _test_launch_moment() -> void:
 
 	# 이룰 수 있는 카드가 하나면 자동으로
 	g = _launch_game(CH, "police_hq")
-	_give(g, 0, ["sibling_revenge", "mother"])
+	_give(g, 0, ["ring", "mother"])
 	for i in range(1, 4):
 		_give(g, i, ["last_telegram"])
 	g._launch("forced")
-	ok(g.act == 2 and g.players[0]["saga_kept"] == "mother" and "sibling_revenge" in g.saga_discard, "결행 순간: 군영이 아닌 결행의 「동생의 원수」는 후보에서 빠져 나머지를 자동으로 남김")
+	ok(g.act == 2 and g.players[0]["saga_kept"] == "mother" and "ring" in g.saga_discard, "결행 순간: 결행 뒤에는 못 이루는 「약속의 반지」는 후보에서 빠져 나머지를 자동으로 남김")
 	g = _launch_game(CH, "barracks")
 	_give(g, 0, ["sibling_revenge", "mother"])
 	for i in range(1, 4):
@@ -2790,16 +2833,16 @@ func _test_launch_moment() -> void:
 
 	# 두 장 다 못 이루면 두 더미에서 이룰 수 있는 카드가 나올 때까지 뽑는다
 	g = _launch_game(CH, "police_hq")
-	_give(g, 0, ["sibling_revenge", "survivor"])
+	_give(g, 0, ["ring", "survivor"])
 	g.players[0]["jail_count"] = 1
 	for i in range(1, 4):
 		_give(g, i, ["last_telegram"])
-	g.saga_decks = {"a": ["mother", "ring"], "b": ["fugitive", "sibling_revenge"]}
+	g.saga_decks = {"a": ["mother", "ring"], "b": ["fugitive", "survivor"]}
 	g.saga_discard = []
 	g._launch("forced")
 	# 더미 a의 맨 위 「약속의 반지」(결행 순간 조건)는 불가 → 버림, 더미 b의 맨 위 「동생의 원수」도 불가 → 버림, 다시 a의 「어머니의 소식」
 	ok(g.act == 2 and g.players[0]["saga_kept"] == "mother" and g.players[0]["sagas"] == ["mother"], "결행 순간: 둘 다 못 이루면 새로 뽑아 이룰 수 있는 카드를 남김")
-	ok("ring" in g.saga_discard and "sibling_revenge" in g.saga_discard and "survivor" in g.saga_discard and g.saga_decks["b"] == ["fugitive"], "결행 순간: 새로 뽑다 나온 불가 카드와 기존 카드는 버림, 더미 b는 그대로")
+	ok("ring" in g.saga_discard and "survivor" in g.saga_discard and g.saga_decks["b"] == ["fugitive"], "결행 순간: 새로 뽑다 나온 불가 카드와 기존 카드는 버림, 더미 b는 그대로")
 
 	# 요원 번호순으로 묻는다
 	g = _launch_game(CH, "police_hq")
@@ -2958,6 +3001,16 @@ func _test_one_scene(target: String, card: Dictionary) -> void:
 				g.apply({"type": "scene_pay", "player": 0, "what": "bomb", "with": _spare(g, 2, 0)})
 				if g.phase == "over":
 					break
+		"sequence":
+			g.players[0]["grants"] = [{"kind": "check_bonus", "value": 99}]
+			_turn(g, 0, 0)
+			_sc(g, 0)
+			g.phase = "day"
+			g.current = -1
+			g.players[1]["grants"] = [{"kind": "check_bonus", "value": 99}]
+			_turn(g, 1, 0)
+			_cc(g, 1)
+			g._scene_night()
 		"people":
 			for i in int(cond.get("count", 1)):
 				g.phase = "day"
@@ -3035,11 +3088,6 @@ func _test_scene_boundaries() -> void:
 	_turn(g, 0, 0)
 	ok(_sc(g, 0) and g.ending.get("won", false), "감옥: 결행 거점에 갇혀도 판정 참여·결행 권리 사용")
 	ok(not g.apply({"type": "escape", "player": 0}), "감옥: 장면 판정 뒤 탈옥 시도 불가")
-	g = _scene_fixture("gg", data.strike("gg")["final"])
-	for i in 2:
-		g.players[i]["pos"] = g._base_cell("gg")
-	g._scene_night()
-	ok(g.ending.get("won", false), "버티기: 두 명이 필요한 깃발 돌파")
 	g = _scene_fixture("gg", data.strike("gg")["entry"])
 	g.players[0]["pos"] = g._base_cell("gg")
 	g.players[0]["items"] = [data.items["items"][0]["id"]]
@@ -3186,9 +3234,12 @@ func _test_act2_sagas_and_failures() -> void:
 	g.players[1]["pos"] = g._base_cell("prison")
 	g.players[1]["sagas"] = ["last_telegram"]
 	g.players[0]["grants"] = [{"kind": "check_bonus", "value": 99}]
+	g._saga_final_reveal()
+	g._saga_idle_flush()
+	ok(g.players[1]["saga_done"] == "last_telegram", "사연 훅: 마지막 장면이 펼쳐질 때 현장에 있던 동료가 마지막 전보를 이룸")
 	_turn(g, 0, 0)
 	_sc(g, 0)
-	ok(g.ending.get("won", false) and g.players[1]["saga_done"] == "last_telegram", "사연 훅: 마지막 장면 현장에 있던 동료가 마지막 전보를 이룸")
+	ok(g.ending.get("won", false), "사연 훅: 그 뒤 마지막 장면 돌파")
 	g = _scene_fixture("prison", data.strike("prison")["middle"][0])
 	g.players[0]["pos"] = g._base_cell("prison")
 	g.today["scene_mod"] = 100
@@ -3816,3 +3867,469 @@ func _test_b_save_resume() -> void:
 			replay_ok = false
 			break
 	ok(steps > 100 and replay_ok and str(a2.save_state()) == str(a1.save_state()), "다시보기: 행동 기록을 되풀이하면 같은 상태 (%d 행동)" % steps)
+
+
+# ------------------------------------------------------------------ E단계: 결행·2막 (12단계 4·5절)
+
+func _run_e_tests() -> void:
+	_test_e_vote()
+	_test_e_benefits()
+	_test_e_counter()
+	_test_e_flag_and_pair()
+	_test_e_jail_at_strike()
+	_test_e_data()
+
+
+func _set_intel(g: RulesV2, values: Dictionary) -> void:
+	for id in GameDataV2.BASE_IDS:
+		g.intel[id] = int(values.get(id, 0))
+
+
+func _test_e_vote() -> void:
+	# 후보: 첩보 2 이상. 없으면 첩보가 가장 높은 거점(동점이면 모두)
+	var g := _new(CH)
+	_set_intel(g, {"barracks": 1, "prison": 2, "gg": 3})
+	ok(g.launch_candidates() == ["prison", "gg"], "대상 후보: 첩보 2 이상인 거점")
+	_set_intel(g, {"barracks": 1, "police_hq": 1})
+	ok(g.launch_candidates() == ["barracks", "police_hq"], "대상 후보: 없으면 첩보가 가장 높은 거점 (동점이면 모두)")
+	_set_intel(g, {})
+	ok(g.launch_candidates().size() == 4, "대상 후보: 첩보가 모두 0이면 네 곳 모두")
+	# 투표는 비공개: 모두 낼 때까지 공개하지 않는다
+	var g2 := _new(CH)
+	g2.leader = 2
+	_set_intel(g2, {"prison": 2, "gg": 2})
+	g2.ready = int(g2.data.rules["launch_min"])
+	g2.phase = "morning"
+	g2.morning_step = 2
+	g2._morning_continue()
+	g2.events.clear()
+	ok(g2.pending["kind"] == "launch_vote" and g2.pending.get("secret", false) and g2.pending["player"] == 0, "투표: 먼저 찬반을 묻고 (비공개) 0번부터")
+	_answer(g2, true)
+	ok(g2.pending["kind"] == "launch_target" and g2.pending["player"] == 0 and g2.pending["options"].map(func(o): return o["value"]) == ["prison", "gg"],
+		"투표: 이어서 대상을 묻는다 (후보만 선택지)")
+	var revealed := g2.events.any(func(e): return e["kind"] == "vote_reveal")
+	_answer(g2, "gg")
+	ok(not revealed and g2.pending["player"] == 1 and not g2.events.any(func(e): return e["kind"] == "vote_reveal"), "투표: 한 요원이 내도 다른 요원 표는 공개되지 않음")
+	_vote_all(g2, [true, true, false], ["prison", "gg", "gg"])
+	var rev: Array = g2.events.filter(func(e): return e["kind"] == "vote_reveal")
+	ok(rev.size() == 1 and rev[0]["votes"].size() == 4 and rev[0]["targets"].size() == 4 and not rev[0]["forced"], "투표: 모두 낸 뒤 한꺼니 공개 (vote_reveal에 네 명의 표)")
+	ok(g2.act == 2 and g2.launch_info["target"] == "gg", "투표: 과반 찬성이면 결행, 가장 많은 표를 받은 곳(gg 3표)이 대상")
+	# 동수(대상 표)는 리더가 정한다
+	var g3 := _new(CH)
+	g3.leader = 3
+	_set_intel(g3, {"prison": 2, "gg": 2})
+	g3.ready = int(g3.data.rules["launch_min"])
+	g3.phase = "morning"
+	g3.morning_step = 2
+	g3._morning_continue()
+	_vote_all(g3, [true, true, true, true], ["gg", "gg", "prison", "prison"])
+	ok(g3.pending["kind"] == "strike_target" and g3.pending["player"] == 3 and g3.pending["options"].size() == 2, "투표: 대상 표가 같으면 리더가 정함")
+	_answer(g3, "prison")
+	ok(g3.launch_info["target"] == "prison", "투표: 리더가 고른 곳이 대상")
+	# 반대가 많으면 결행하지 않지만 표는 공개된다
+	var g4 := _new(CH)
+	_set_intel(g4, {"prison": 2})
+	g4.ready = int(g4.data.rules["launch_min"])
+	g4.phase = "morning"
+	g4.morning_step = 2
+	g4._morning_continue()
+	g4.events.clear()
+	_vote_all(g4, [true, false, false, false])
+	ok(g4.act == 1 and g4.phase == "plan" and g4.events.any(func(e): return e["kind"] == "vote_reveal") and g4.vote_state.is_empty(), "투표: 반대가 많으면 결행하지 않음 (표는 공개, 아침이 이어짐)")
+	# 강제 결행: 찬반 없이 대상만
+	var g5 := _new(CH)
+	g5.rounds_left = int(g5.data.rules["forced_launch_days_left"])
+	_set_intel(g5, {"prison": 3, "gg": 3, "police_hq": 1})
+	g5.phase = "morning"
+	g5.morning_step = 2
+	g5._morning_continue()
+	var kinds := []
+	var guard := 0
+	while g5.phase == "choice" and g5.pending.get("kind") == "launch_target" and guard < 10:
+		kinds.append(g5.pending["kind"])
+		_answer(g5, "gg")
+		guard += 1
+	ok(kinds.size() == 4 and g5.act == 2 and g5.launch_info["reason"] == "forced" and g5.launch_info["target"] == "gg", "투표: 강제 결행은 찬반 없이 대상 투표만 (네 명 모두)")
+	# 연습 모드: 사람이 먼저 내고 AI 표와 함께 공개된다
+	var gh := _new(CH)
+	gh.human = 2
+	_set_intel(gh, {"prison": 2, "gg": 2})
+	gh.ready = int(gh.data.rules["launch_min"])
+	gh.phase = "morning"
+	gh.morning_step = 2
+	gh._morning_continue()
+	var order := []
+	var gd2 := 0
+	while gh.phase == "choice" and gh.pending.get("kind") in ["launch_vote", "launch_target"] and gd2 < 20:
+		gd2 += 1
+		if not gh.pending["player"] in order:
+			order.append(gh.pending["player"])
+		_answer(gh, gh.pending["options"][0]["value"])
+	ok(order == [2, 0, 1, 3], "투표: 사람(2번)이 먼저 내고 나머지는 번호순")
+	# 저장·불러오기: 투표 도중에도 이어진다
+	var g6 := _new(CH)
+	_set_intel(g6, {"prison": 2, "gg": 2})
+	g6.ready = int(g6.data.rules["launch_min"])
+	g6.phase = "morning"
+	g6.morning_step = 2
+	g6._morning_continue()
+	_answer(g6, true)
+	_answer(g6, "gg")
+	var clone := RulesV2.new()
+	clone.load_state(g6.save_state(), g6.data)
+	_vote_all(g6, [true, true, true], ["gg", "gg", "gg"])
+	_vote_all(clone, [true, true, true], ["gg", "gg", "gg"])
+	ok(g6.launch_info["target"] == "gg" and str(clone.launch_info) == str(g6.launch_info), "투표: 도중에 저장한 판도 같은 결과")
+
+
+func _benefit_ids(g: RulesV2) -> Array:
+	return g.pending["options"].map(func(o): return o["value"])
+
+
+func _test_e_benefits() -> void:
+	var g := _launch_game(CH, "gg")
+	g.ready = int(g.data.rules["launch_min"])
+	g._launch("forced", "gg")
+	ok(g.act == 2 and not g.launch_info["benefits"].size() > 0, "혜택: 결행 준비가 문턱(3)이면 혜택이 없음")
+	# 3을 넘는 1점마다 하나, 같은 것은 한 번, 군자금은 숨김
+	var g2 := _launch_game(CH, "gg")
+	g2.ready = int(g2.data.rules["launch_min"]) + 2
+	g2.exposure = 6
+	g2._launch("forced", "gg")
+	ok(g2.phase == "choice" and g2.pending["kind"] == "launch_benefit" and g2.pending["player"] == g2.leader, "혜택: 사람이 없으면 리더가 고름")
+	ok(_benefit_ids(g2) == ["no_reinforce", "dice_plus", "intel_tokens", "threat_look"], "혜택: 목록은 데이터대로 (군자금은 D단계 전이라 숨김)")
+	_answer(g2, "no_reinforce")
+	ok(g2.pending["kind"] == "launch_benefit" and not "no_reinforce" in _benefit_ids(g2), "혜택: 둘째는 같은 것을 못 고름")
+	_answer(g2, "intel_tokens")
+	ok(g2.act == 2 and g2.launch_info["benefits"] == ["no_reinforce", "intel_tokens"], "혜택: 준비 5는 혜택 2개")
+	ok(g2.scenes.size() == 4, "혜택 경비 강화 빼기: 경계 3단계여도 경비 강화 장면이 없음 (4장)")
+	ok(g2.intel_tokens == 3 + 2, "혜택 첩보 토큰 +2: 첩보 3 + 2")
+	# 경비 강화 빼기가 없으면 경계 3단계는 2장이 더 들어간다 (대조)
+	var g3 := _launch_game(CH, "gg")
+	g3.exposure = 6
+	g3._launch("forced", "gg")
+	ok(g3.scenes.size() == 6, "혜택: 고르지 않으면 경계 3단계 경비 강화 2장 (대조)")
+	# 사람이 있으면 사람이 고른다 (리더가 아니어도)
+	var g4 := _launch_game(CH, "gg")
+	g4.human = 2
+	g4.ready = int(g4.data.rules["launch_min"]) + 1
+	g4._launch("forced", "gg")
+	ok(g4.pending["kind"] == "launch_benefit" and g4.pending["player"] == 2 and g4.leader == 0, "혜택: 사람 요원이 리더가 아니어도 사람이 고름")
+	_answer(g4, "dice_plus")
+	ok(g4.act == 2 and g4.players.all(func(q): return q["dice_next"] == 1), "혜택 첫날 주사위 +1: 모든 요원의 다음 굴림 +1 (갇힌 요원 포함)")
+	# 위협 덱 보기: 맨 위 2장을 보고 1장을 버림
+	var g5 := _launch_game(CH, "gg")
+	g5.human = 1
+	g5.ready = int(g5.data.rules["launch_min"]) + 1
+	g5._launch("forced", "gg")
+	_answer(g5, "threat_look")
+	ok(g5.phase == "choice" and g5.pending["kind"] == "threat_look" and g5.pending["player"] == 1 and g5.pending["options"].size() == 2, "혜택 위협 덱 보기: 맨 위 2장 중 버릴 한 장을 사람이 고름")
+	var top: String = g5.threat_deck[-1]
+	var second: String = g5.threat_deck[-2]
+	var size_before := g5.threat_deck.size()
+	_answer(g5, 1)
+	ok(g5.threat_deck.size() == size_before - 1 and g5.threat_deck[-1] == top and second in g5.threat_discard and g5.act == 2 and g5.scenes.size() > 0,
+		"혜택 위협 덱 보기: 고른 카드를 버리고 2막 장면을 깔기 계속")
+	# 점수가 혜택보다 많으면 있는 만큼만
+	var g6 := _launch_game(CH, "gg")
+	g6.ready = int(g6.data.rules["launch_min"]) + 6
+	g6._launch("forced", "gg")
+	var picked := 0
+	var guard := 0
+	while g6.phase == "choice" and g6.pending.get("kind") == "launch_benefit" and guard < 10:
+		_answer(g6, _benefit_ids(g6)[0])
+		picked += 1
+		guard += 1
+	if g6.phase == "choice" and g6.pending.get("kind") == "threat_look":
+		_answer(g6, 0)
+	ok(picked == 4 and g6.act == 2, "혜택: 혜택 수(4)보다 점수가 많으면 있는 만큼만 고름")
+	# AI: 경계 2단계 이상이면 경비 강화 빼기, 그다음 첩보 토큰, 주사위 +1 순
+	var g7 := _launch_game(CH, "gg")
+	g7.ready = int(g7.data.rules["launch_min"]) + 2
+	g7.exposure = 3
+	g7._launch("forced", "gg")
+	var c1 := GameAIV2.decide(g7, g7.pending["player"])
+	_answer(g7, c1["value"])
+	var c2 := GameAIV2.decide(g7, g7.pending["player"])
+	ok(c1["value"] == "no_reinforce" and c2["value"] == "intel_tokens", "혜택 AI: 경계 2단계면 경비 강화 빼기 → 첩보 토큰")
+	_answer(g7, c2["value"])
+	var g8 := _launch_game(CH, "gg")
+	g8.ready = int(g8.data.rules["launch_min"]) + 2
+	g8._launch("forced", "gg")
+	var d1 := GameAIV2.decide(g8, g8.pending["player"])
+	_answer(g8, d1["value"])
+	var d2 := GameAIV2.decide(g8, g8.pending["player"])
+	ok(d1["value"] == "intel_tokens" and d2["value"] == "dice_plus", "혜택 AI: 경계 1단계면 첩보 토큰 → 첫날 주사위 +1 (경비 강화 빼기는 뒤로)")
+	# AI 대상 투표: 첩보 + 사연과 맞는 정도 + 거리
+	var g9 := _new(CH)
+	_set_intel(g9, {"prison": 3, "gg": 3})
+	g9.players[0]["pos"] = g9.data.bases[2]
+	var at_prison := GameAIV2._best_target(g9, g9.players[0])
+	g9.players[0]["pos"] = g9.data.bases[3]
+	var at_gg := GameAIV2._best_target(g9, g9.players[0])
+	ok(at_prison == "prison" and at_gg == "gg", "대상 AI: 첩보가 같으면 가까운 거점")
+	_set_intel(g9, {"prison": 3, "gg": 2})
+	g9.players[0]["pos"] = Vector2i(5, 5)
+	ok(GameAIV2._best_target(g9, g9.players[0]) == "prison", "대상 AI: 거리가 같으면 첩보가 높은 거점")
+	var gdd := _gd(func(d):
+		for c in d.sagas["sagas"]:
+			if c["id"] == "sibling_revenge":
+				c["condition"] = {"kind": "strike_final_by_me", "strike": "gg"})
+	var g10 := _new(CH, gdd)
+	_set_intel(g10, {"prison": 3, "gg": 3})
+	g10.players[0]["pos"] = Vector2i(5, 5)
+	g10.players[0]["sagas"] = ["sibling_revenge"]
+	ok(GameAIV2._best_target(g10, g10.players[0]) == "gg", "대상 AI: 내 사연과 맞는 거점에 가점 (rules.ai.launch_target.saga)")
+	g10.ready = int(g10.data.rules["launch_min"]) + int(g10.data.rules["ai"]["vote_ready_margin"])
+	g10.intel["gg"] = 0
+	g10.intel["prison"] = 0
+	g10.phase = "morning"
+	g10.morning_step = 2
+	g10._morning_continue()
+	var yes := GameAIV2.decide(g10, 0)
+	ok(yes["value"] == true, "투표 AI: 첩보가 모자라도 준비가 문턱 + 1이면 결행 혜택을 노려 찬성")
+
+
+func _scene_by_id(g: RulesV2, strike: String, id: String) -> Dictionary:
+	var s: Dictionary = g.data.strike(strike)
+	for c in [s["entry"], s["final"]] + s["middle"]:
+		if c["id"] == id:
+			return c
+	return {}
+
+
+func _test_e_counter() -> void:
+	var gd_ok := _gd(func(d): d.rules["checks"]["evade"] = 0)
+	var gd_bad := _gd(func(d): d.rules["checks"]["evade"] = 99)
+	# 버티기 장면이 펼쳐진 날에는 반격이 걸린다 (장면 id가 아니라 조건 kind로)
+	var card: Dictionary = _scene_by_id(_new(CH), "prison", "prison_search")
+	var g := _scene_fixture("prison", card)
+	g._counter_refresh()
+	ok(g.counter_active() and g.counter["day"] == g.day, "반격: 버티기 장면이 펼쳐져 있으면 그날 반격이 걸림")
+	var g0 := _scene_fixture("prison", _scene_by_id(_new(CH), "prison", "prison_wall"))
+	g0._counter_refresh()
+	ok(not g0.counter_active() and g0.counter.is_empty(), "반격: 버티기가 아닌 장면에서는 걸리지 않음")
+	var g0b := _scene_fixture("prison", card)
+	g0b.phase = "morning"
+	g0b.morning_step = 3
+	g0b._morning_continue()
+	ok(g0b.counter_active(), "반격: 2막 아침에 걸림 (아침 순서의 한 단계)")
+	# 막기: 그 자리에 선 요원이 작전 판정 7
+	g.players[3]["pos"] = START
+	g.players[0]["grants"] = [{"kind": "check_bonus", "value": 99}]
+	_turn(g, 3, 0)
+	_spare(g, 6, 3)
+	ok(not g.can_counter_check(g.players[3]), "반격: 장면 자리에 서지 않은 요원은 막을 수 없음")
+	g.phase = "day"
+	g.current = -1
+	_turn(g, 0, 0)
+	var cdie := _spare(g, 4, 0)
+	ok(g.can_counter_check(g.players[0]) and g.apply({"type": "counter_check", "player": 0, "die": cdie}), "반격: 자리에 선 요원은 주사위 하나로 작전 판정 (행동)")
+	ok(g.op_dice[cdie]["used"] and g.counter["blocked"] and not g.counter_active(), "반격: 성공하면 막은 것 (주사위를 씀)")
+	ok(int(g.check_preview(g.players[0], {"type": "counter_check"})["target"]) == 7, "반격: 판정 목표는 rules.counter.target (7)")
+	g._scene_night()
+	ok(g.ending.get("won", false), "반격: 막았으면 그날 밤 버틴 날로 세어 돌파 (마지막 장면이라 승리)")
+	# 실패해도 다른 주사위로 또 막을 수 있다
+	var gr := _scene_fixture("prison", card)
+	gr._counter_refresh()
+	_turn(gr, 0, 0)
+	var f1 := _spare(gr, 1, 0)
+	var f2 := _spare(gr, 6, 0)
+	gr.players[0]["grants"] = [{"kind": "check_bonus", "value": -99}]
+	gr.apply({"type": "counter_check", "player": 0, "die": f1})
+	ok(gr.counter_active() and gr.op_dice[f1]["used"], "반격: 실패하면 못 막은 채 (주사위는 씀)")
+	gr.players[0]["grants"] = [{"kind": "check_bonus", "value": 99}]
+	ok(gr.apply({"type": "counter_check", "player": 0, "die": f2}) and gr.counter["blocked"], "반격: 실패해도 다른 주사위로 또 막을 수 있음")
+	# 못 막으면: 그날은 세지 않고, 자리에 선 요원이 회피 판정, 실패하면 투옥
+	var gb := _scene_fixture("prison", card)
+	gb.data = gd_bad
+	gb._counter_refresh()
+	gb.players[3]["pos"] = START
+	gb._night_end()
+	var jailed_n := 0
+	for q in gb.players:
+		jailed_n += 1 if q["jailed"] else 0
+	ok(jailed_n == 3 and not gb.players[3]["jailed"], "반격: 못 막은 밤 자리에 선 요원은 모두 회피 판정, 실패하면 투옥 (자리 밖 요원은 무사)")
+	ok(gb.ending.is_empty() and gb.day == 2 and gb.scene_index == 1, "반격: 못 막은 날은 세지 않아 장면이 안 끝나고 다음 날로")
+	ok(gb.counter.get("day", -1) == 2 and not gb.counter["blocked"], "반격: 버티기 장면이 그대로면 다음 날 아침에 반격이 다시 걸림")
+	var gs := _scene_fixture("prison", card)
+	gs.data = gd_ok
+	gs._counter_refresh()
+	gs._night_end()
+	var jailed_s := 0
+	for q in gs.players:
+		jailed_s += 1 if q["jailed"] else 0
+	ok(jailed_s == 0 and gs.ending.is_empty() and gs.day == 2, "반격: 못 막았어도 회피에 성공하면 투옥은 없지만 그날은 세지 않음")
+	# 반격이 없는 날(막았거나 걸리지 않음)은 지금처럼 센다
+	var gn := _scene_fixture("prison", card)
+	gn._scene_night()
+	ok(gn.ending.get("won", false), "반격: 걸리지 않은 장면(시험 꾸밈)에서는 예전처럼 밤에 셈")
+	# 사람(요원 번호순)과 선택: 회피에 연막탄이 있으면 쓸지 묻는다 (강제 판정 흐름 그대로)
+	var gc := _scene_fixture("prison", card)
+	gc.data = gd_bad
+	gc._counter_refresh()
+	gc.players[0]["items"] = ["smoke_bomb"]
+	for i in [1, 2, 3]:
+		gc.players[i]["pos"] = START
+	gc._night_end()
+	ok(gc.phase == "choice" and gc.pending["kind"] == "react_evade" and gc.pending["player"] == 0, "반격: 회피 판정 직전에 연막탄을 쓸지 물음")
+	_answer(gc, true)
+	ok(not gc.players[0]["jailed"] and gc.day == 2, "반격: 연막탄으로 피하면 투옥 없이 밤이 이어짐")
+	# 저장·불러오기: 반격 상태가 들어간다
+	var gv := _scene_fixture("prison", card)
+	gv._counter_refresh()
+	var cl := RulesV2.new()
+	cl.load_state(gv.save_state(), gv.data)
+	ok(cl.counter_active() and str(cl.counter) == str(gv.counter), "반격: 저장·불러오기에 들어감")
+
+
+func _test_e_flag_and_pair() -> void:
+	var gd_ok := _gd(func(d): d.rules["checks"]["evade"] = 0)
+	var flag: Dictionary = _scene_by_id(_new(CH), "gg", "gg_flag")
+	ok(flag["condition"]["kind"] == "sequence" and flag["condition"]["steps"].size() == 2, "깃발: 장면 하나가 두 단계 (sequence)")
+	var g := _scene_fixture("gg", flag)
+	g.data = gd_ok
+	var need := g.scene_need()
+	ok(not need.has("hold") and not g.counter_active(), "깃발: 첫 단계(깃발 올리기)에는 버티기도 반격도 없음")
+	g._counter_refresh()
+	ok(g.counter.is_empty(), "깃발: 첫 단계에서는 반격이 걸리지 않음")
+	g.players[0]["grants"] = [{"kind": "check_bonus", "value": 99}]
+	_turn(g, 0, 0)
+	ok(g.apply({"type": "scene_check", "player": 0, "die": _spare(g, 3, 0)}) and g.ending.is_empty(), "깃발: 깃발 올리기(판정 9)에 성공해도 아직 안 끝남")
+	ok(g.scene_need().get("hold", -1) == 1 and g.counter_active(), "깃발: 두 번째 단계 「지키기」(2명 1일 버팀)가 열리고 반격이 걸림")
+	var steps_leaf := g._scene_leaves(g.current_scene()["condition"])
+	ok(steps_leaf.size() == 1 and steps_leaf[0]["cond"]["kind"] == "hold" and steps_leaf[0]["cond"]["days"] == 1 and steps_leaf[0]["cond"]["count"] == 2, "깃발: 지키기는 2명이 하루")
+	g.phase = "day"
+	g.current = -1
+	g._scene_night()
+	ok(g.ending.is_empty(), "깃발: 반격을 막지 못하면 하루를 버텨도 세지 않아 안 끝남")
+	ok(g.day == 2, "깃발: 못 막은 밤이 지나 다음 날 (회피 판정은 성공)")
+	g.threat_deck = []
+	g.threat_discard = []
+	g.phase = "day"
+	g.current = -1
+	g._counter_refresh()
+	g.players[1]["grants"] = [{"kind": "check_bonus", "value": 99}]
+	_turn(g, 1, 0)
+	_cc(g, 1)
+	g._scene_night()
+	ok(g.ending.get("won", false), "깃발: 반격을 막고 2명이 하루를 지키면 마지막 장면 돌파 (대성공)")
+	# 지키는 단계에 한 명뿐이면 안 됨
+	var g2 := _scene_fixture("gg", flag)
+	g2.data = gd_ok
+	g2.players[0]["grants"] = [{"kind": "check_bonus", "value": 99}]
+	_turn(g2, 0, 0)
+	g2.apply({"type": "scene_check", "player": 0, "die": _spare(g2, 3, 0)})
+	for i in [1, 2, 3]:
+		g2.players[i]["pos"] = START
+	g2.counter["blocked"] = true
+	g2._scene_night()
+	ok(g2.ending.is_empty(), "깃발: 막았어도 자리에 한 명뿐이면 버틴 날이 아님")
+	# 두 명 판정: 서로 다른 두 요원이 같은 날 각각 작전 판정 7
+	var data := _fixed_data()
+	var all_seven := true
+	var count := 0
+	var cards: Array = data.scenes["reinforce"].duplicate()
+	for strike in GameDataV2.BASE_IDS:
+		var s: Dictionary = data.strike(strike)
+		cards.append_array([s["entry"], s["final"]] + s["middle"])
+	for c in cards:
+		if true:
+			var stack: Array = [c["condition"]]
+			while not stack.is_empty():
+				var cond: Dictionary = stack.pop_back()
+				stack.append_array(cond.get("options", []))
+				if cond.get("kind", "") == "check_pair":
+					count += 1
+					all_seven = all_seven and int(cond.get("target", 0)) == 7 and cond.get("check", "") == "generic" and int(cond.get("count", 0)) == 2
+	ok(count == 4 and all_seven, "두 명 판정: 서로 다른 두 요원이 각각 작전 판정 7 (4곳 모두 target 7)")
+	var guards := _scene_fixture("prison", _scene_by_id(_new(CH), "prison", "prison_guards"))
+	_turn(guards, 0, 0)
+	ok(int(guards.check_preview(guards.players[0], {"type": "scene_check"})["target"]) == 7, "두 명 판정: 작전 판정 목표 7")
+	for i in 2:
+		guards.players[i]["grants"] = [{"kind": "check_bonus", "value": 99}]
+	_sc(guards, 0)
+	ok(not _sc(guards, 0) and guards.ending.is_empty(), "두 명 판정: 같은 요원이 또 성공해도 한 명으로만 셈")
+	guards.phase = "day"
+	guards.current = -1
+	_turn(guards, 1, 0)
+	_sc(guards, 1)
+	ok(guards.ending.get("won", false), "두 명 판정: 서로 다른 두 요원이 같은 날 성공하면 돌파")
+
+
+func _test_e_jail_at_strike() -> void:
+	var gd := _gd(func(d): d.rules["checks"]["escape"] = 0)
+	var base := Vector2i(0, 0)
+	var g := _scene_fixture("prison", _scene_by_id(_new(CH), "prison", "prison_wall"))
+	g.data = gd
+	base = g._base_cell("prison")
+	var next := base + Vector2i(0, -1)
+	_tile(g, next, "normal")
+	g.players[1]["jailed"] = true
+	g.players[1]["pos"] = base
+	g.players[0]["pos"] = next
+	g.players[2]["pos"] = START
+	g.players[3]["pos"] = START
+	_turn(g, 0, 2)
+	_step(g, 0, base, false)
+	ok(g.players[0]["pos"] == base and g.players[1]["jailed"], "결행 거점 감옥: 2막에 결행 거점에 동료가 들어와도 구출되지 않음")
+	ok(g.players[0]["stats"]["rescues"] == 0, "결행 거점 감옥: 구출 수도 오르지 않음")
+	# 탈옥은 된다
+	g.phase = "day"
+	g.current = -1
+	_turn(g, 1, 0)
+	var ed := _spare(g, 2, 1)
+	ok(g.apply({"type": "escape", "player": 1, "die": ed}) and not g.players[1]["jailed"], "결행 거점 감옥: 탈옥 판정으로는 풀려남")
+	# 다른 거점이 결행 거점이면 그 밖의 감옥에서는 구출된다 (1막 규칙 그대로)
+	var g2 := _scene_fixture("barracks", _scene_by_id(_new(CH), "barracks", "barracks_wire"))
+	var pb: Vector2i = g2._base_cell("prison")
+	var pn := pb + Vector2i(0, -1)
+	_tile(g2, pn, "normal")
+	g2.players[1]["jailed"] = true
+	g2.players[1]["pos"] = pb
+	g2.players[0]["pos"] = pn
+	_turn(g2, 0, 2)
+	_step(g2, 0, pb, false)
+	ok(not g2.players[1]["jailed"], "결행 거점 감옥: 결행 거점이 아닌 거점의 감옥은 예전처럼 구출")
+	# 1막에는 예외가 없다
+	var g3 := _new(CH)
+	var b3: Vector2i = g3.data.bases[2]
+	_tile(g3, b3 + Vector2i(0, -1), "normal")
+	g3.players[1]["jailed"] = true
+	g3.players[1]["pos"] = b3
+	g3.players[0]["pos"] = b3 + Vector2i(0, -1)
+	_turn(g3, 0, 2)
+	_step(g3, 0, b3, false)
+	ok(not g3.players[1]["jailed"], "결행 거점 감옥: 1막에는 예외 없이 구출")
+	# 장면 「지하 유치장」: 결행 거점에 갇힌 동료가 있으면 돌파
+	var cells := _scene_fixture("police_hq", _scene_by_id(_new(CH), "police_hq", "police_cells"))
+	cells.players[1]["jailed"] = true
+	cells.players[1]["pos"] = cells._base_cell("police_hq")
+	cells._scene_auto_break()
+	ok(cells.ending.get("won", false), "결행 거점 감옥: 장면 「지하 유치장」은 갇힌 동료가 있으면 돌파")
+	# 밀고 포상금: 출동한 경찰이 결행 거점에서 가장 가까운 요원을 쫓는다
+	var gp := _new(CH)
+	gp.act = 2
+	gp.launch_info = {"target": "gg", "reason": "test", "day": 1}
+	var gg: Vector2i = gp._base_cell("gg")
+	_flat(gp)
+	gp.players[2]["pos"] = gg + Vector2i(-1, 0)
+	gp.police.clear()
+	_threat(gp, "informer_bounty")
+	ok(gp.police.has(2) and gp.police[2]["pos"] == gg and gp.exposure >= 1, "밀고 포상금: 노출 +1, 결행 거점에서 경찰이 출동해 가장 가까운 요원을 쫓음")
+
+
+func _test_e_data() -> void:
+	var real := GameDataV2.load_default()
+	var ids: Array = real.rules["launch"]["benefits"].map(func(b): return b["id"])
+	ok(ids == ["no_reinforce", "dice_plus", "intel_tokens", "threat_look", "funds"], "데이터: 결행 혜택 5가지 (군자금은 enabled false)")
+	ok(not bool(real.rules["launch"]["benefits"][4].get("enabled", true)) and int(real.rules["launch"]["target_min_intel"]) == 2, "데이터: 군자금 혜택은 숨김, 후보 첩보 문턱 2")
+	ok(int(real.rules["counter"]["target"]) == 7, "데이터: 반격 판정 목표 7")
+	var w: Dictionary = real.rules["ai"]["launch_target"]
+	ok(w.has("intel") and w.has("saga") and w.has("distance"), "데이터: AI 대상 점수식의 가중치 (첩보·사연·거리)")
+	var sib: Dictionary = real.saga("sibling_revenge")
+	ok(sib["condition"]["kind"] == "strike_final_by_me" and sib["condition"]["or"]["kind"] == "mission_done_by_me" and sib["condition"]["or"]["mission"] == "m_mp_captain",
+		"데이터: 동생의 원수는 「헌병 대위 암살」을 이루거나 마지막 장면을 돌파")
+	var lt: Dictionary = real.saga("last_telegram")
+	ok(lt["reward"].size() == 1 and lt["reward"][0]["scope"] == "final" and lt["reward"][0]["value"] == 2, "데이터: 마지막 전보의 보상은 마지막 장면 판정 +2 한 번")
+	ok(real.validate().is_empty(), "데이터: 새 데이터가 검증기를 통과")

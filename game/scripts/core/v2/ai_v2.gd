@@ -13,7 +13,7 @@ const PERSONA := {
 	"careful": {"risk": 1.4, "vote": 1.2},
 	"support": {"risk": 0.8, "vote": 1.0},
 }
-const CHOICE_KINDS := ["launch_vote", "strike_target", "saga_keep", "reroll", "react_evade",
+const CHOICE_KINDS := ["launch_vote", "launch_target", "launch_benefit", "threat_look", "strike_target", "saga_keep", "reroll", "react_evade",
 	"discard", "draw_pick", "effect_choice", "pick_player", "pick_cell", "pick_die", "pick_tile", "pick_item",
 	"pick_value", "pick_bury", "hop", "intel_base"]
 
@@ -117,13 +117,20 @@ static func _choice(g: RulesV2, p: Dictionary, legal: Array, policy: Dictionary)
 		var score := 0.0
 		match kind:
 			"launch_vote":
-				var target: String = str(g.launch_target_preview()[0])
+				var target := _best_target(g, p)
 				var needed := float(4 + g.alert_level() - 1) * ACT2_DAYS_PER_SCENE * float(policy["vote"])
-				# 첩보가 쌓였거나, 2막에 쓸 날이 빠듯해지면 찬성 (기다려도 날만 줄어듦)
-				var ready_now := int(g.intel.get(target, 0)) >= 2 or g.ready >= int(g.data.rules["launch_min"]) + 2
+				# 첩보가 쌓였거나, 준비가 넉넉해 결행 혜택을 받을 수 있거나, 2막에 쓸 날이 빠듯해지면 찬성 (기다려도 날만 줄어듦)
+				var margin := int(g.data.rules["ai"]["vote_ready_margin"])
+				var ready_now := int(g.intel.get(target, 0)) >= int(g.data.rules["launch"]["target_min_intel"]) or g.ready >= int(g.data.rules["launch_min"]) + margin
 				var no_slack := float(g.rounds_left) <= needed + 1.0 or g.rounds_left <= g.rounds_total * 0.55
 				var yes := ready_now or no_slack
 				score = 10.0 if bool(v) == yes else 0.0
+			"launch_target":
+				score = _target_score(g, p, str(v))
+			"launch_benefit":
+				score = _benefit_score(g, str(v))
+			"threat_look":
+				score = _threat_harm(g, int(v))
 			"strike_target", "intel_base":
 				score = float(g.intel.get(str(v), 0)) * 2.0 - float(_dist(p["pos"], g.data.bases[g.data.base_index(str(v))])) * 0.1
 			"saga_keep":
@@ -170,6 +177,54 @@ static func _choice(g: RulesV2, p: Dictionary, legal: Array, policy: Dictionary)
 			best_score = score
 			best = a
 	return best
+
+
+static func _target_score(g: RulesV2, p: Dictionary, base_id: String) -> float:
+	## 결행 대상 점수 = 첩보 + 내 사연과 맞는 정도 + 거기까지의 거리 (가중치는 rules.ai.launch_target)
+	var w: Dictionary = g.data.rules["ai"]["launch_target"]
+	var match_saga := 0.0
+	for id in g.saga_cards(p["id"]):
+		for cond in g._saga_conds(str(id)):
+			if str(cond.get("strike", "")) == base_id:
+				match_saga = 1.0
+	var d := _dist(p["pos"], g.data.bases[g.data.base_index(base_id)])
+	return float(g.intel.get(base_id, 0)) * float(w["intel"]) + match_saga * float(w["saga"]) - float(d) * float(w["distance"])
+
+
+static func _best_target(g: RulesV2, p: Dictionary) -> String:
+	var best := ""
+	var best_score := -1.0e20
+	for id in g.launch_candidates():
+		var sc := _target_score(g, p, str(id))
+		if sc > best_score:
+			best_score = sc
+			best = str(id)
+	return best
+
+
+static func _benefit_score(g: RulesV2, id: String) -> float:
+	## 결행 혜택: 경계 2단계 이상이면 경비 강화 빼기가 먼저, 그다음 첩보 토큰, 첫날 주사위, 위협 덱 보기 (효과 op만 본다)
+	var v := 0.0
+	for b in g.data.rules["launch"]["benefits"]:
+		if str(b["id"]) != id:
+			continue
+		for e in b.get("effects", []):
+			match str(e.get("op", "")):
+				"no_reinforce": v += 4.0 if g.alert_level() >= 2 else 0.5
+				"intel_token_bonus": v += 3.0
+				"dice_extra_tomorrow": v += 2.0
+				"threat_look_discard": v += 1.0
+				_: v += 0.2
+	return v
+
+
+static func _threat_harm(g: RulesV2, i: int) -> float:
+	## 2막 위협 덱 맨 위 i번째 카드를 버릴 값: 해로운(tone bad) 카드, 효과가 많은 카드일수록 높다
+	var idx := g.threat_deck.size() - 1 - i
+	if idx < 0 or idx >= g.threat_deck.size():
+		return 0.0
+	var card: Dictionary = g.data.threat(str(g.threat_deck[idx]))
+	return (2.0 if str(card.get("tone", "bad")) == "bad" else 0.0) + float(card.get("effects", []).size())
 
 
 static func _effects_value(g: RulesV2, p: Dictionary, effects: Array) -> float:
@@ -244,6 +299,9 @@ static func _turn(g: RulesV2, p: Dictionary, legal: Array, policy: Dictionary) -
 	if not pay.is_empty():
 		return pay
 	if g.act == 2:
+		var cc := _check_action(g, p, legal, "counter_check")
+		if not cc.is_empty():
+			return cc   # 반격을 막아야 오늘 버틴 날로 치고 투옥도 피한다
 		var sc := _check_action(g, p, legal, "scene_check")
 		if not sc.is_empty():
 			var intel := _find(legal, "use_intel")
@@ -474,6 +532,7 @@ static func _scene_has_check(g: RulesV2) -> bool:
 		if str(c.get("kind", "")) == "check":
 			return true
 		stack.append_array(c.get("options", []))
+		stack.append_array(c.get("steps", []))
 	return false
 
 

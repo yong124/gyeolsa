@@ -98,6 +98,10 @@ var saga_discard: Array = []
 var saga_rewards: Array = []    # 이룬 사연의 보상 대기열 [{"player", "id"}] (안전한 자리에서 처리)
 var launch_step := 0            # 결행 순간 처리 단계 (아침의 morning_step처럼 이어 감)
 var launch_i := 0               # 결행 순간 사연 남기기에서 다음에 처리할 요원
+var human := -1                 # 사람이 맡은 요원 (-1이면 AI끼리). 결행 혜택은 사람이 고르고, 사람이 없으면 리더가 고른다
+var vote_state := {}            # 결행 투표 중: {"forced", "order", "votes": {요원: 찬반}, "targets": {요원: 거점}} (모두 낼 때까지 비공개)
+var counter := {}               # 반격: {"day", "blocked"} (버티기 장면이 펼쳐진 날)
+var counter_queue: Array = []   # 밤에 반격 회피 판정을 기다리는 요원
 
 var actions: Array = []
 var events: Array = []
@@ -158,9 +162,15 @@ func setup(player_defs: Array, seed_value: int = -1, game_data: GameDataV2 = nul
 	saga_rewards = []
 	launch_step = 0
 	launch_i = 0
+	vote_state = {}
+	counter = {}
+	counter_queue = []
+	human = -1
 	players = []
 	for i in player_defs.size():
 		var d: Dictionary = player_defs[i]
+		if bool(d.get("human", false)):
+			human = i
 		players.append({
 			"id": i, "name": d.get("name", "요원 %d" % (i + 1)), "character": d["character"],
 			"pos": data.start, "jailed": false, "jail_count": 0,
@@ -674,7 +684,7 @@ func evade_chance(p: Dictionary) -> float:
 
 
 func launch_target_preview() -> Array:
-	## 지금 결행하면 목표가 될 거점 id들 (첩보가 가장 많은 곳, 동점이면 여럿)
+	## 첩보가 가장 많은 거점 (동점이면 여럿)
 	var best := -1
 	for id in intel:
 		best = maxi(best, int(intel[id]))
@@ -682,6 +692,29 @@ func launch_target_preview() -> Array:
 	for id in GameDataV2.BASE_IDS:
 		if int(intel[id]) == best:
 			out.append(id)
+	return out
+
+
+func launch_candidates() -> Array:
+	## 결행 대상 후보: 첩보가 rules.launch.target_min_intel 이상인 거점. 없으면 첩보가 가장 높은 거점.
+	var out := []
+	for id in GameDataV2.BASE_IDS:
+		if int(intel[id]) >= int(data.rules["launch"]["target_min_intel"]):
+			out.append(id)
+	return out if not out.is_empty() else launch_target_preview()
+
+
+func benefit_chooser() -> int:
+	## 결행 혜택을 고르는 요원: 사람이 있으면 사람 (리더가 아니어도), 없으면 리더
+	return human if human >= 0 and human < players.size() else leader
+
+
+func benefits_left() -> Array:
+	## 아직 안 고른 결행 혜택 (rules.launch.benefits 중 켜져 있는 것)
+	var out := []
+	for b in data.rules["launch"]["benefits"]:
+		if bool(b.get("enabled", true)) and not str(b["id"]) in launch_info.get("benefits", []):
+			out.append(b)
 	return out
 
 
@@ -1063,6 +1096,7 @@ func apply(action: Dictionary) -> bool:
 	var ok := _apply(action)
 	if ok:
 		actions.append(action.duplicate(true))
+		_counter_refresh()
 		_saga_idle_flush()
 	return ok
 
@@ -1116,6 +1150,11 @@ func _apply(a: Dictionary) -> bool:
 			if not md in my_dice(pid) or not mc in mission_check_cells(p):
 				return false
 			_begin_mission_check(p, mc, md)
+		"counter_check":
+			var cd := _int_of(a.get("die", null))
+			if not can_counter_check(p) or not cd in my_dice(pid):
+				return false
+			_start_check(p, "generic", "counter", {"target": int(data.rules["counter"]["target"]), "die_i": cd})
 		"hide":
 			var hd := _int_of(a.get("die", null))
 			if not can_hide(p) or not hd in my_dice(pid):
@@ -1235,6 +1274,8 @@ func _morning_continue() -> void:
 			3:
 				if act == 1:
 					_fill_mission_row()
+				else:
+					_counter_refresh()
 			4: _morning_dice()
 
 
@@ -1264,23 +1305,77 @@ func _flip_threat(ctx: Dictionary) -> void:
 func _morning_vote() -> void:
 	var R: Dictionary = data.rules
 	if rounds_left <= int(R["forced_launch_days_left"]):
-		_log("작전일이 코앞입니다. 더 기다릴 수 없습니다!")
-		_launch("forced")
+		_log("작전일이 코앞입니다. 더 기다릴 수 없습니다! 결행 대상을 정합니다.")
+		_start_vote(true)
 		return
 	if ready >= int(R["launch_min"]):
-		var tg := launch_target_preview()
-		var names := []
-		for id in tg:
-			names.append(data.base_names[data.base_index(id)])
-		var prompt := "결행하시겠습니까? 목표: %s (첩보 %d) · 결행 준비 %d · 경계 %d단계 · 남은 %d일" % [
-			" / ".join(names), intel[tg[0]], ready, alert_level(), rounds_left]
-		var first := _next_voter(-1)
-		if first < 0:
+		_start_vote(false)
+
+
+func _start_vote(forced: bool) -> void:
+	## 결행 투표: 요원마다 찬반(강제 결행이면 대상만)과 대상을 비공개로 고르고, 모두 낸 뒤 한꺼번에 공개한다.
+	var order: Array = players.map(func(q): return q["id"])
+	if human >= 0 and human < players.size():
+		order.erase(human)
+		order.push_front(human)   # 연습 모드: 사람이 먼저 내고 AI 표와 함께 공개된다
+	vote_state = {"forced": forced, "order": order, "votes": {}, "targets": {}}
+	_vote_next()
+
+
+func _vote_next() -> void:
+	var forced: bool = vote_state["forced"]
+	for pid in vote_state["order"]:
+		var q: Dictionary = players[pid]
+		if not forced and not vote_state["votes"].has(pid):
+			var prompt := "결행하시겠습니까? 결행 준비 %d · 경계 %d단계 · 남은 %d일 (표는 모두 낸 뒤 공개됩니다)" % [ready, alert_level(), rounds_left]
+			_ask(q, "launch_vote", prompt, [{"value": true, "label": "결행한다"}, {"value": false, "label": "하루 더 준비한다"}], {"then": "morning"})
+			pending["secret"] = true
 			return
-		_ask(players[first], "launch_vote", prompt,
-			[{"value": true, "label": "결행한다"}, {"value": false, "label": "하루 더 준비한다"}], {"then": "morning"})
-		pending["votes"] = []
-		pending["voters"] = []
+		if not vote_state["targets"].has(pid):
+			var opts := []
+			for id in launch_candidates():
+				opts.append({"value": id, "label": "%s · 첩보 %d" % [data.base_names[data.base_index(id)], int(intel[id])]})
+			var tp := "결행할 거점을 고르세요. 첩보 %d 이상인 곳이 후보입니다." % int(data.rules["launch"]["target_min_intel"])
+			_ask(q, "launch_target", tp, opts, {"then": "morning"})
+			pending["secret"] = true
+			return
+	_vote_resolve()
+
+
+func _vote_resolve() -> void:
+	var vs := vote_state
+	vote_state = {}
+	var forced: bool = vs["forced"]
+	var votes: Dictionary = vs["votes"]
+	var targets: Dictionary = vs["targets"]
+	_push({"kind": "vote_reveal", "forced": forced, "votes": votes.duplicate(), "targets": targets.duplicate()})
+	var tally := {}
+	for pid in targets:
+		tally[targets[pid]] = int(tally.get(targets[pid], 0)) + 1
+	var parts := []
+	for id in tally:
+		parts.append("%s %d표" % [data.base_names[data.base_index(id)], tally[id]])
+	if not forced:
+		var yes := 0
+		for pid in votes:
+			if votes[pid]:
+				yes += 1
+		_log("결행 투표: 찬성 %d, 반대 %d · 대상 %s" % [yes, votes.size() - yes, ", ".join(parts)])
+		var lead_vote: bool = bool(votes.get(leader, false))
+		if not (yes * 2 > votes.size() or (yes * 2 == votes.size() and lead_vote)):
+			_log("결행을 하루 미루고 준비를 계속합니다.")
+			_morning_continue()
+			return
+	else:
+		_log("강제 결행 대상 투표: %s" % ", ".join(parts))
+	var best := 0
+	for id in tally:
+		best = maxi(best, int(tally[id]))
+	var top := []
+	for id in GameDataV2.BASE_IDS:
+		if int(tally.get(id, 0)) == best:
+			top.append(id)
+	_launch("forced" if forced else "vote", "", top)
 
 
 func _fill_mission_row() -> void:
@@ -1460,9 +1555,14 @@ func _night_end() -> void:
 	if _saga_flush({"then": "night_end"}):
 		return
 	if act == 2:
-		_scene_night()
+		if _scene_night():
+			return   # 반격 회피 판정 처리 중 (끝나면 _counter_next가 이어 감)
 		if phase == "over":
 			return
+	_night_after_scene()
+
+
+func _night_after_scene() -> void:
 	rounds_left -= 1
 	if rounds_left <= 0:
 		rounds_left = 0
@@ -1526,7 +1626,8 @@ func _enter_base(p: Dictionary) -> void:
 	var bi := base_index_at(p["pos"])
 	_log("%s: %s에 들어갔습니다. 이동이 끝납니다." % [p["name"], base_name(bi)])
 	for q in players:
-		if q["jailed"] and q["pos"] == p["pos"] and q["id"] != p["id"]:
+		if q["jailed"] and q["pos"] == p["pos"] and q["id"] != p["id"] \
+				and not (act == 2 and p["pos"] == _base_cell(str(launch_info.get("target", "")))):
 			q["jailed"] = false
 			q["move_mod_next"] += stat(p, "rescued_move_bonus")
 			p["stats"]["rescues"] += 1
@@ -1735,6 +1836,9 @@ func check_preview(p: Dictionary, a: Dictionary) -> Dictionary:
 		"escape":
 			out["target"] = check_target("escape")
 			out["bonus"] = stat(p, "escape_bonus") + int(today.get("escape_mod", 0)) + int(p["flags"].get("escape_add", 0))
+		"counter_check":
+			out["target"] = int(data.rules["counter"]["target"])
+			out["bonus"] = stat(p, "generic_bonus")
 		"scene_check":
 			var leaf := _scene_check_leaf(p)
 			if leaf.is_empty():
@@ -1783,6 +1887,8 @@ func _grant_index(p: Dictionary, kind: String, scene := false) -> int:
 		if g.get("kind", "") != kind:
 			continue
 		if str(g.get("scope", "any")) == "strike" and not scene:
+			continue
+		if str(g.get("scope", "any")) == "final" and not (scene and act == 2 and scene_index == scenes.size() - 1):
 			continue
 		return i
 	return -1
@@ -1864,6 +1970,18 @@ func _check_done(p: Dictionary, ok: bool) -> void:
 			_finish_move(p)
 		"scene":
 			_scene_check_result(p, c, ok)
+		"counter":
+			if ok:
+				counter["blocked"] = true
+				_log("%s: 반격을 막아 냈습니다!" % p["name"])
+				_banner("반격을 막았다", "good", p)
+				_push({"kind": "counter_blocked", "player": p["id"]})
+			else:
+				_log("%s: 반격을 막지 못했습니다." % p["name"])
+		"counter_evade":
+			if not ok:
+				_jail(p)
+			_counter_next()
 		"search":
 			if not ok:
 				_summon(p)
@@ -1955,6 +2073,7 @@ func _complete_missions(p: Dictionary, ids: Array, ctx: Dictionary, loud_type :=
 		mission_discard.append(id)
 		p["stats"]["missions"] += 1
 		_log("%s: 미션 「%s」 성공!" % [p["name"], m.get("name", id)])
+		_saga_note(p, "mission_done_by_me", {"id": id})
 		_record("%s — %s 성공" % [p["name"], m.get("name", id)], "good")
 		_banner("%s 성공!" % m.get("name", id), "good", p)
 		_push({"kind": "mission_done", "id": id, "player": p["id"]})
@@ -2411,6 +2530,8 @@ func _continue(p: Dictionary, ctx: Dictionary) -> void:
 			_stage4_resume()
 		"scene_check_done":
 			_finish_scene_check(p)
+		"act2_scenes":
+			_act2_scenes()
 		_:
 			pass   # "resume": 원래 단계로 돌아가 계속 진행
 
@@ -2456,6 +2577,14 @@ func _effect(p: Dictionary, e: Dictionary, ctx: Dictionary, queue: Array) -> boo
 			return _op_give_die(p, e, ctx, queue)
 		"scout_tiles":
 			return _op_scout(p, e, queue)
+		"no_reinforce":
+			launch_info["no_reinforce"] = true
+			_log("경비 강화 장면이 들어가지 않습니다.")
+		"intel_token_bonus":
+			intel_tokens += int(e.get("value", 1))
+			_log("첩보 토큰 %+d (토큰 %d)." % [int(e.get("value", 1)), intel_tokens])
+		"threat_look_discard":
+			return _op_threat_look(e)
 		"scene_check_mod_today":
 			today["scene_mod"] = int(today.get("scene_mod", 0)) + int(e.get("value", 0))
 			_log("오늘 장면 판정 목표 %+d." % int(e.get("value", 0)))
@@ -2571,6 +2700,8 @@ func _who_pick(p: Dictionary, who: String, e: Dictionary) -> Array:
 			return [int(e["pid"])]
 		"all":
 			return players.filter(func(q): return not q["jailed"]).map(func(q): return q["id"])
+		"everyone":
+			return players.map(func(q): return q["id"])
 		"allies":
 			return players.filter(func(q): return q["id"] != p["id"]).map(func(q): return q["id"])
 		"all_jailed":
@@ -3051,6 +3182,19 @@ func _op_scout(p: Dictionary, e: Dictionary, queue: Array) -> bool:
 	return false
 
 
+func _op_threat_look(e: Dictionary) -> bool:
+	## 2막 위협 덱 맨 위 count장을 보고 1장을 버린다 (결행 혜택)
+	var n := mini(int(e.get("count", 2)), threat_deck.size())
+	if n <= 0:
+		return false
+	var opts := []
+	for i in n:
+		var id: String = threat_deck[threat_deck.size() - 1 - i]
+		opts.append({"value": i, "label": "%s — %s" % [data.threat(id).get("name", id), data.threat(id).get("text", "")]})
+	_ask(players[benefit_chooser()], "threat_look", "2막 위협 맨 위 %d장입니다. 버릴 한 장을 고르세요." % n, opts, {})
+	return true
+
+
 func _op_give_die(p: Dictionary, e: Dictionary, ctx: Dictionary, queue: Array) -> bool:
 	## 내 작전 주사위 하나를 동료에게 건넨다 (능력의 대상, 또는 who). 하루 건네기 횟수에는 세지 않는다.
 	var ids = _resolve_who(p, e, ctx, queue, str(e.get("who", "ally_in_range")), true)
@@ -3332,27 +3476,23 @@ func _resolve_choice(value) -> void:
 	phase = pd["resume_phase"]
 	match str(pd["kind"]):
 		"launch_vote":
-			var votes: Array = pd["votes"] + [bool(value)]
-			var voters: Array = pd["voters"] + [p["id"]]
-			_push({"kind": "vote", "player": p["id"], "value": bool(value)})
-			var nxt := _next_voter(pd["player"])
-			if nxt >= 0:
-				_ask(players[nxt], "launch_vote", pd["prompt"], pd["options"], pd["ctx"])
-				pending["votes"] = votes
-				pending["voters"] = voters
-				pending["resume_phase"] = pd["resume_phase"]
-				return
-			var yes := votes.count(true)
-			_log("결행 투표: 찬성 %d, 반대 %d" % [yes, votes.size() - yes])
-			# 과반 찬성이면 결행. 동수면 리더의 표를 따른다.
-			var lead_vote: bool = votes[voters.find(leader)] if voters.has(leader) else false
-			if yes * 2 > votes.size() or (yes * 2 == votes.size() and lead_vote):
-				_launch("vote")
-				return
-			_log("결행을 하루 미루고 준비를 계속합니다.")
-			_morning_continue()
+			vote_state["votes"][p["id"]] = bool(value)
+			_vote_next()
+		"launch_target":
+			vote_state["targets"][p["id"]] = str(value)
+			_vote_next()
 		"strike_target":
 			_finish_launch(str(value))
+		"launch_benefit":
+			_take_benefit(str(value))
+			_launch_continue()
+		"threat_look":
+			var idx := threat_deck.size() - 1 - int(value)
+			if idx >= 0 and idx < threat_deck.size():
+				var gone: String = threat_deck.pop_at(idx)
+				threat_discard.append(gone)
+				_log("2막 위협 「%s」을(를) 버렸습니다." % data.threat(gone).get("name", gone))
+			_run_effects(actor, pd["rest"], pd["ctx"])
 		"saga_keep":
 			_keep_saga(p, str(value))
 			_launch_continue()
@@ -3422,23 +3562,28 @@ func _resolve_choice(value) -> void:
 
 # ================================================================ 결행
 
-func _launch(reason: String) -> void:
-	## 결행 선언: 첩보가 가장 많은 거점이 목표. 동점이면 그날의 리더가 고른다.
+func _launch(reason: String, target := "", tied: Array = []) -> void:
+	## 결행 선언. target이 정해져 있으면 그곳, 아니면 후보(tied, 없으면 첩보가 가장 많은 거점) 중에서 정한다.
+	## 후보가 여럿이면 그날의 리더가 고른다.
 	launch_info = {"reason": reason, "day": day, "rounds_left": rounds_left, "ready": ready,
-		"exposure": exposure, "alert": alert_level(), "intel": intel.duplicate(), "target": ""}
+		"exposure": exposure, "alert": alert_level(), "intel": intel.duplicate(), "target": "",
+		"benefits": [], "benefit_left": maxi(0, ready - int(data.rules["launch_min"]))}
 	_record("결행 선언 (%s)" % {"vote": "투표", "forced": "작전일 임박"}.get(reason, reason), "good")
-	var tied := launch_target_preview()
-	if tied.size() == 1:
-		_finish_launch(tied[0])
+	if target != "":
+		_finish_launch(target)
+		return
+	var cands: Array = tied if not tied.is_empty() else launch_target_preview()
+	if cands.size() == 1:
+		_finish_launch(cands[0])
 		return
 	var opts := []
-	for id in tied:
+	for id in cands:
 		opts.append({"value": id, "label": data.base_names[data.base_index(id)]})
-	_ask(players[leader], "strike_target", "첩보가 같은 거점이 여럿입니다. 리더가 결행할 곳을 고르세요.", opts, {})
+	_ask(players[leader], "strike_target", "표가 같은 거점이 여럿입니다. 리더가 결행할 곳을 고르세요.", opts, {})
 
 
 func _finish_launch(base_id: String) -> void:
-	## 목표가 정해지면 결행 순간의 사연 처리를 먼저 한다.
+	## 목표가 정해지면 결행 순간의 처리(사연 → 결행 혜택 → 사연 남기기)를 한다.
 	launch_info["target"] = base_id
 	launch_step = 1
 	launch_i = 0
@@ -3599,6 +3744,15 @@ func _saga_cond(id: String) -> Dictionary:
 	return c if typeof(c) == TYPE_DICTIONARY else {}
 
 
+func _saga_conds(id: String) -> Array:
+	## 사연의 조건 하나, 그리고 「또는」(or)으로 이어 붙인 조건
+	var c := _saga_cond(id)
+	var out := [c]
+	if typeof(c.get("or", null)) == TYPE_DICTIONARY:
+		out.append(c["or"])
+	return out
+
+
 func _saga_check_at(id: String) -> String:
 	## hold_items를 언제 세는가: 사연 카드의 check_at ("launch"면 결행 순간에만), 없으면 아이템을 얻는 즉시
 	return str(data.saga(id).get("check_at", _saga_cond(id).get("check_at", "")))
@@ -3631,12 +3785,12 @@ func _saga_note_multi(p: Dictionary, kinds: Array, ctx: Dictionary) -> void:
 	if p["saga_done"] != "":
 		return
 	for id in p["sagas"]:
-		var cond := _saga_cond(id)
-		if not str(cond.get("kind", "")) in kinds:
-			continue
-		if _saga_count(p, id, cond, ctx):
-			_saga_complete(p, id)
-			return
+		for cond in _saga_conds(id):
+			if not str(cond.get("kind", "")) in kinds:
+				continue
+			if _saga_count(p, id, cond, ctx):
+				_saga_complete(p, id)
+				return
 
 
 func _saga_count(p: Dictionary, id: String, cond: Dictionary, ctx: Dictionary) -> bool:
@@ -3644,6 +3798,8 @@ func _saga_count(p: Dictionary, id: String, cond: Dictionary, ctx: Dictionary) -
 	var tr := _saga_track(p, id)
 	var count := int(cond.get("count", 1))
 	match str(cond.get("kind", "")):
+		"mission_done_by_me":
+			return str(ctx.get("id", "")) == str(cond.get("mission", ""))
 		"end_turn_near_base":
 			if walk_dist(p["pos"], _base_cell(str(cond.get("base", "")))) > int(cond.get("range", 0)):
 				return false
@@ -3810,28 +3966,41 @@ func saga_strike_event(kind: String, by_pid: int, ctx: Dictionary) -> void:
 	for p in players:
 		if p["saga_done"] != "":
 			continue
+		var hit := false
 		for id in p["sagas"]:
-			var cond := _saga_cond(id)
-			var hit := false
-			match str(cond.get("kind", "")):
-				"strike_entry_by_me":
-					hit = kind == "entry" and by_pid == p["id"]
-				"strike_final_by_me":
-					hit = kind == "final" and by_pid == p["id"] \
-						and (str(cond.get("strike", "")) == "" or str(ctx.get("strike", "")) == str(cond["strike"]))
-				"present_at_final":
-					hit = kind == "final" and p["id"] in ctx.get("present", [])
+			for cond in _saga_conds(id):
+				match str(cond.get("kind", "")):
+					"strike_entry_by_me":
+						hit = hit or (kind == "entry" and by_pid == p["id"])
+					"strike_final_by_me":
+						hit = hit or (kind == "final" and by_pid == p["id"] \
+							and (str(cond.get("strike", "")) == "" or str(ctx.get("strike", "")) == str(cond["strike"])))
 			if hit:
 				_saga_complete(p, id)
 				break
 	_saga_idle_flush()
 
 
+func _saga_final_reveal() -> void:
+	## 마지막 장면이 펼쳐질 때 결행 거점 안에 있던 요원의 사연 (present_at_final)
+	var base := _base_cell(str(launch_info.get("target", "")))
+	for p in players:
+		if p["saga_done"] != "" or p["jailed"] or p["pos"] != base:
+			continue
+		var hit := false
+		for id in p["sagas"]:
+			for cond in _saga_conds(id):
+				hit = hit or str(cond.get("kind", "")) == "present_at_final"
+			if hit:
+				_saga_complete(p, id)
+				break
+
+
 # ---------------------------------------------------------------- 결행 순간 (4절)
 
 func _launch_continue() -> void:
-	## 결행 순간의 순서: 결행 때 세는 조건 → 사연 남기기 → 2막. 선택이 끼면 멈췄다 이어 간다.
-	while launch_step < 3 and phase != "over":
+	## 결행 순간의 순서: 결행 때 세는 조건 → 결행 혜택 고르기 → 사연 남기기 → 2막. 선택이 끼면 멈췄다 이어 간다.
+	while launch_step < 4 and phase != "over":
 		match launch_step:
 			1:
 				launch_step = 2
@@ -3840,17 +4009,65 @@ func _launch_continue() -> void:
 				if _saga_flush({"then": "launch"}):
 					return
 			2:
-				if _launch_keep_next():
+				if _launch_benefit_next():
 					return
 				launch_step = 3
-	if launch_step >= 3 and phase != "over":
+				launch_i = 0
+			3:
+				if _launch_keep_next():
+					return
+				launch_step = 4
+	if launch_step >= 4 and phase != "over":
 		_begin_act2()
 
 
+func _launch_benefit_next() -> bool:
+	## 준비가 launch_min을 넘은 점수마다 혜택 하나 (같은 것은 한 번만). 선택을 물었으면 true.
+	if int(launch_info.get("benefit_left", 0)) <= 0:
+		return false
+	var avail := benefits_left()
+	if avail.is_empty():
+		return false
+	var opts := []
+	for b in avail:
+		opts.append({"value": str(b["id"]), "label": "%s — %s" % [b.get("name", ""), b.get("text", "")]})
+	var who: Dictionary = players[benefit_chooser()]
+	_ask(who, "launch_benefit", "결행 혜택을 고르세요 (%d개 남음, 같은 것은 한 번만)." % int(launch_info["benefit_left"]), opts, {"then": "launch"})
+	return true
+
+
+func _take_benefit(id: String) -> void:
+	launch_info["benefits"].append(id)
+	launch_info["benefit_left"] = int(launch_info["benefit_left"]) - 1
+	var name := id
+	for b in data.rules["launch"]["benefits"]:
+		if str(b["id"]) == id:
+			name = str(b.get("name", id))
+	_log("결행 혜택: %s" % name)
+	_push({"kind": "benefit", "id": id})
+
+
+func _benefit_effects() -> Array:
+	var out := []
+	for id in launch_info.get("benefits", []):
+		for b in data.rules["launch"]["benefits"]:
+			if str(b["id"]) == str(id):
+				out.append_array(b.get("effects", []))
+	return out
+
+
 func saga_feasible(p: Dictionary, id: String) -> bool:
-	## 결행 뒤에도 이룰 수 있는 사연인가 (데이터의 kind로만 판정)
-	var cond := _saga_cond(id)
+	## 결행 뒤에도 이룰 수 있는 사연인가 (데이터의 kind로만 판정, 「또는」 조건 중 하나라도 되면 됨)
+	for cond in _saga_conds(id):
+		if _saga_cond_feasible(p, id, cond):
+			return true
+	return false
+
+
+func _saga_cond_feasible(p: Dictionary, id: String, cond: Dictionary) -> bool:
 	match str(cond.get("kind", "")):
+		"mission_done_by_me":
+			return act == 1
 		"never_jailed_until_launch":
 			return false   # 결행 순간에만 세는 조건은 그 순간이 지나면 못 이룬다
 		"hold_items":
@@ -3930,7 +4147,7 @@ func _redraw_feasible_saga(q: Dictionary) -> void:
 
 
 func _begin_act2() -> void:
-	act = 2
+	## 결행 혜택의 선택이 끼는 동안에는 아직 1막 상태(act 1)이고, 장면을 깔 때 act를 2로 바꾼다 (_act2_scenes)
 	var target := str(launch_info["target"])
 	threat_deck = data.threat_deck(2)
 	threat_discard = []
@@ -3947,6 +4164,18 @@ func _begin_act2() -> void:
 	mission_deck = []
 	mission_discard = []
 	intel_tokens = int(intel.get(target, 0))
+	launch_info["no_reinforce"] = false
+	_log("결행! 목표: %s" % base_name(data.base_index(target)))
+	_record("결행: %s" % base_name(data.base_index(target)), "good")
+	_banner("결행!", "good")
+	_push({"kind": "launch", "reason": launch_info.get("reason", ""), "target": target})
+	# 결행 혜택의 효과 (경비 강화 빼기·첩보 토큰·주사위·위협 덱 보기)를 먼저 적용한 뒤 장면을 깐다
+	_run_effects(players[leader], _benefit_effects(), {"then": "act2_scenes", "source": "launch"})
+
+
+func _act2_scenes() -> void:
+	act = 2
+	var target := str(launch_info["target"])
 	var strike: Dictionary = data.strike(target)
 	var middle: Array = strike.get("middle", []).duplicate()
 	_shuffle(middle)
@@ -3956,15 +4185,14 @@ func _begin_act2() -> void:
 	var reinforce: Array = data.scenes.get("reinforce", []).duplicate()
 	_shuffle(reinforce)
 	var n := int(data.rules["scenes"]["reinforce_by_alert"].get(str(alert_level()), 0))
+	if bool(launch_info.get("no_reinforce", false)):
+		n = 0
 	for i in mini(n, reinforce.size()):
 		scenes.insert(rng.randi_range(1, scenes.size()), reinforce[i]["id"])
 	scenes.append(strike["final"]["id"])
 	scene_index = 0
 	scene_state = {}
-	_log("결행! 목표: %s" % base_name(data.base_index(target)))
-	_record("결행: %s" % base_name(data.base_index(target)), "good")
-	_banner("결행!", "good")
-	_push({"kind": "launch", "reason": launch_info.get("reason", ""), "target": target})
+	counter = {}
 	_scene_reveal()
 	_run_effects(players[leader], strike.get("on_launch", []), {"then": "morning", "source": "launch"})
 
@@ -4023,9 +4251,18 @@ func scene_place_cells() -> Array:
 
 func _scene_leaves(cond: Dictionary, path := "") -> Array:
 	var out := []
-	if str(cond.get("kind", "")) in ["any_of", "all_of"]:
+	var kind := str(cond.get("kind", ""))
+	if kind in ["any_of", "all_of"]:
 		for i in cond.get("options", []).size():
 			out.append_array(_scene_leaves(cond["options"][i], "%s/%d" % [path, i]))
+	elif kind == "sequence":
+		## 단계는 차례로: 아직 못 끝낸 첫 단계(다 끝났으면 마지막 단계)의 조건만 지금 할 수 있다
+		var steps: Array = cond.get("steps", [])
+		for i in steps.size():
+			var sp := "%s/%d" % [path, i]
+			if i == steps.size() - 1 or not _scene_complete(steps[i], sp):
+				out.append_array(_scene_leaves(steps[i], sp))
+				break
 	else:
 		out.append({"cond": cond, "path": path})
 	return out
@@ -4051,6 +4288,12 @@ func _scene_part_read(path: String) -> Dictionary:
 
 func _scene_complete(cond: Dictionary, path := "") -> bool:
 	var kind := str(cond.get("kind", ""))
+	if kind == "sequence":
+		var steps: Array = cond.get("steps", [])
+		for i in steps.size():
+			if not _scene_complete(steps[i], "%s/%d" % [path, i]):
+				return false
+		return not steps.is_empty()
 	if kind in ["any_of", "all_of"]:
 		var options: Array = cond.get("options", [])
 		if options.is_empty():
@@ -4084,7 +4327,10 @@ func _scene_reveal() -> void:
 	_push({"kind": "scene", "index": scene_index, "id": card["id"]})
 	_log("장면 %d/%d: %s" % [scene_index + 1, scenes.size(), card["name"]])
 	_banner("장면: %s" % card["name"], "info")
+	if scene_index == scenes.size() - 1:
+		_saga_final_reveal()
 	_scene_auto_break()
+	_counter_refresh()
 
 
 func _scene_auto_break() -> void:
@@ -4171,7 +4417,7 @@ func _finish_scene_check(_p: Dictionary) -> void:
 func _scene_cond_at(path: String) -> Dictionary:
 	var cond: Dictionary = current_scene().get("condition", {})
 	for index in path.split("/", false):
-		cond = cond.get("options", [])[int(index)]
+		cond = cond["steps"][int(index)] if cond.has("steps") else cond.get("options", [])[int(index)]
 	return cond
 
 
@@ -4261,6 +4507,9 @@ func scene_options(p: Dictionary) -> Array:
 	if _scene_can_check(p):
 		for i in dice:
 			out.append({"type": "scene_check", "player": p["id"], "die": i})
+	if can_counter_check(p):
+		for i in dice:
+			out.append({"type": "counter_check", "player": p["id"], "die": i})
 	for i in dice:
 		if _scene_can_pay(p, "die", i):
 			out.append({"type": "scene_pay", "player": p["id"], "what": "die", "die": i})
@@ -4286,16 +4535,82 @@ func _scene_turn_end(p: Dictionary) -> void:
 	_scene_auto_break_by(p["id"])
 
 
-func _scene_night() -> void:
-	for leaf in _scene_leaves(current_scene().get("condition", {})):
-		if leaf["cond"].get("kind", "") == "hold":
-			var count := 0
-			for q in players:
-				if not q["jailed"] and _scene_at(q, leaf["cond"]):
-					count += 1
-			if count >= int(leaf["cond"].get("count", 1)):
-				var part := _scene_part(str(leaf["path"]))
-				part["hold_days"] = int(part["hold_days"]) + 1
+func _scene_hold_leaves() -> Array:
+	return _scene_leaves(current_scene().get("condition", {})).filter(func(l): return str(l["cond"].get("kind", "")) == "hold")
+
+
+func counter_active() -> bool:
+	## 오늘 반격이 걸려 있고 아직 못 막았는가
+	return act == 2 and int(counter.get("day", -1)) == day and not bool(counter.get("blocked", false))
+
+
+func _counter_refresh() -> void:
+	## 「버티기」 장면이 펼쳐진 날에는 반격이 걸린다 (아침, 또는 그날 안에 그 장면이 펼쳐질 때)
+	if act != 2 or phase == "over" or int(counter.get("day", -1)) == day or current_scene().is_empty():
+		return
+	if _scene_hold_leaves().is_empty():
+		return
+	counter = {"day": day, "blocked": false}
+	_log("반격! 오늘 「%s」 자리에서 작전 판정 %d에 성공해야 버틴 날로 칩니다." % [current_scene()["name"], int(data.rules["counter"]["target"])])
+	_push({"kind": "counter", "scene": current_scene()["id"]})
+
+
+func _counter_at(p: Dictionary) -> bool:
+	for leaf in _scene_hold_leaves():
+		if _scene_at(p, leaf["cond"]):
+			return true
+	return false
+
+
+func can_counter_check(p: Dictionary) -> bool:
+	## 반격을 막는 작전 판정: 그 장면 자리에 선 요원이 주사위 하나로 (실패하면 다른 주사위로 또)
+	return counter_active() and _acting(p) and not p["jailed"] and not my_dice(p["id"]).is_empty() and _counter_at(p)
+
+
+func _scene_night() -> bool:
+	## 밤의 장면 처리. 반격을 못 막았으면 버틴 날을 세지 않고, 자리에 선 요원이 회피 판정을 한다 (처리 중이면 true).
+	var attacked := counter_active()
+	for leaf in _scene_hold_leaves():
+		var count := 0
+		for q in players:
+			if not q["jailed"] and _scene_at(q, leaf["cond"]):
+				count += 1
+		if attacked:
+			if count > 0:
+				_log("반격을 막지 못해 오늘은 버틴 날로 치지 않습니다.")
+		elif count >= int(leaf["cond"].get("count", 1)):
+			var part := _scene_part(str(leaf["path"]))
+			part["hold_days"] = int(part["hold_days"]) + 1
+	if attacked:
+		counter_queue = []
+		for q in players:
+			if not q["jailed"] and _counter_at(q):
+				counter_queue.append(q["id"])
+		if not counter_queue.is_empty():
+			_counter_next()
+			return true
+	_scene_night_finish()
+	return false
+
+
+func _counter_next() -> void:
+	## 반격을 못 막은 밤: 자리에 선 요원이 차례로 회피 판정 (실패하면 투옥)
+	if phase == "over":
+		return
+	if counter_queue.is_empty():
+		_scene_night_finish()
+		if phase != "over":
+			_night_after_scene()
+		return
+	var pid: int = counter_queue.pop_front()
+	if players[pid]["jailed"]:
+		_counter_next()
+		return
+	_log("%s: 반격을 피하려 회피 판정을 합니다." % players[pid]["name"])
+	_start_check(players[pid], "evade", "counter_evade")
+
+
+func _scene_night_finish() -> void:
 	if _scene_complete(current_scene().get("condition", {})):
 		_scene_break(-1)
 	if phase == "over":
@@ -4306,6 +4621,7 @@ func _scene_night() -> void:
 		part["people"] = []
 	for q in players:
 		q["flags"].erase("intel_check")
+	counter = {}
 
 
 func scene_need(i := -1) -> Dictionary:
@@ -4385,7 +4701,7 @@ const SAVE_FIELDS := ["players", "leader", "day", "rounds_total", "rounds_left",
 	"item_deck", "item_discard", "bomb_supply", "op_dice", "today", "pending",
 	"launch_info", "ending", "scenes", "scene_index", "scene_state", "intel_tokens", "search_queue", "effect_wait",
 	"check", "morning_step", "last_roll", "saga_decks", "saga_discard",
-	"saga_rewards", "launch_step", "launch_i", "actions", "log_lines", "history"]
+	"saga_rewards", "launch_step", "launch_i", "human", "vote_state", "counter", "counter_queue", "actions", "log_lines", "history"]
 
 
 func save_state() -> Dictionary:

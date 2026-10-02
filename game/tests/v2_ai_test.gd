@@ -87,6 +87,10 @@ func _init() -> void:
 		errors.append("AI 대체 액션 %d회" % GameAIV2.fallback_count)
 	if confiscated == 0:
 		errors.append("투옥 압수가 한 번도 없음")
+	for k in ["launch_vote", "launch_target", "strike_target", "launch_benefit"]:
+		if not choices.has(k) and k != "strike_target":
+			errors.append("AI가 한 번도 답하지 않은 결행 선택: " + k)
+	print("선택 종류: ", choices.keys())
 	for t in ["move_die", "step", "end_move", "end_turn", "mission_check", "escape", "scout", "scene_check", "scene_pay"]:
 		if int(used.get(t, 0)) == 0:
 			errors.append("AI가 한 번도 안 쓴 행동: " + t)

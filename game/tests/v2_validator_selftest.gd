@@ -72,6 +72,24 @@ func _init() -> void:
 	r4.load_dir("res://data/v2/")
 	r4.characters["characters"][0]["trait"] = {"mods": [{"stat": "no_such_stat", "value": 1}]}
 	_check(_has(r4.validate(), "알 수 없는 stat 'no_such_stat'"), "특성의 알 수 없는 stat을 잡는다")
+	var r5 := GameDataV2.new()
+	r5.load_dir("res://data/v2/")
+	r5.rules["launch"]["benefits"][0]["effects"] = [{"op": "no_such_benefit"}]
+	r5.rules["launch"]["benefits"].append(r5.rules["launch"]["benefits"][1].duplicate())
+	r5.rules.erase("counter")
+	var e5 := r5.validate()
+	_check(_has(e5, "알 수 없는 op 'no_such_benefit'") and _has(e5, "겹칩니다") and _has(e5, "rules.counter"), "결행 혜택의 오타 op·중복 id·반격 값 누락을 잡는다")
+	var r6 := GameDataV2.new()
+	r6.load_dir("res://data/v2/")
+	for c in r6.sagas["sagas"]:
+		if c["id"] == "sibling_revenge":
+			c["condition"]["or"]["mission"] = "m_nobody"
+	for st in r6.scenes["strikes"].values():
+		if st is Dictionary and st.has("final") and st["final"]["condition"].get("kind", "") == "sequence":
+			st["final"]["condition"]["steps"] = [st["final"]["condition"]["steps"][0]]
+	var e6 := r6.validate()
+	_check(_has(e6, "미션 'm_nobody'가 없습니다") and _has(e6, "sequence에는 단계"), "사연의 or 조건 미션 id와 장면 sequence 단계 수를 잡는다")
+	_check("sequence" in GameDataV2.KNOWN_SCENE_CONDITIONS and "mission_done_by_me" in GameDataV2.KNOWN_SAGA_CONDITIONS and "everyone" in GameDataV2.KNOWN_TARGETS, "새 어휘(sequence, mission_done_by_me, everyone)")
 	_check("assassin_adjacent" in GameDataV2.KNOWN_STATS and "die" in GameDataV2.KNOWN_COSTS, "새 어휘(assassin_adjacent, cost die)가 등록돼 있다")
 
 	print("v2 검증기 자체 시험: %s" % ("통과" if _fail == 0 else "%d건 실패" % _fail))

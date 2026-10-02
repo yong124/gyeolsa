@@ -76,7 +76,7 @@ func _run(opt: Dictionary, sets: Array) -> Dictionary:
 		"endings": {}, "launch_days": [], "launch_percent": [], "launch_reason": {}, "act2_days": [],
 		"strikes": {}, "strike_wins": {}, "scene_shown": {}, "scene_broken": {}, "stopped_scene": {},
 		"saga_dealt": {}, "saga_done": {}, "saga_per_game": 0, "character_games": {}, "character_wins": {},
-		"jails": 0, "escapes": 0, "rescues": 0, "confiscated": 0, "action_types": {}, "dice_rolled": 0, "dice_left": 0, "turns": 0,
+		"jails": 0, "escapes": 0, "rescues": 0, "confiscated": 0, "action_types": {}, "benefits": {}, "counter_days": 0, "counter_blocked": 0, "vote_target": {}, "dice_rolled": 0, "dice_left": 0, "turns": 0,
 		"exposure_peak": 0, "alert_days": {}, "missions": {}, "threats": {}}
 	for i in n:
 		var selector := RandomNumberGenerator.new()
@@ -124,6 +124,12 @@ func _run(opt: Dictionary, sets: Array) -> Dictionary:
 					"threat": _inc(s["threats"], str(e["id"]))
 					"morning": _inc(s["alert_days"], str(g.alert_level()))
 					"rescue": s["rescues"] += 1
+					"benefit": _inc(s["benefits"], str(e["id"]))
+					"counter": s["counter_days"] += 1
+					"counter_blocked": s["counter_blocked"] += 1
+					"vote_reveal":
+						for tp in e["targets"]:
+							_inc(s["vote_target"], str(e["targets"][tp]))
 					"dice_rolled":
 						if not e.get("again", false):
 							s["dice_rolled"] += e["values"].size()
@@ -226,5 +232,7 @@ func _print_rows(rows: Array) -> void:
 		for k in r["action_types"]:
 			per_game[k] = snappedf(float(r["action_types"][k]) / float(maxi(int(r["games"]), 1)), 0.1)
 		print("판당 행동: ", per_game)
+		print("결행 대상 표 분포: ", r["vote_target"], " · 결행 혜택 선택: ", r["benefits"])
+		print("반격 %d번 중 막은 것 %d번 (%.1f%%)" % [r["counter_days"], r["counter_blocked"], 100.0 * float(r["counter_blocked"]) / float(maxi(int(r["counter_days"]), 1))])
 		print("굴린 주사위 %d개 중 차례를 마치며 남긴 것 %d개 (%.1f%%) · 차례 %d번" % [r["dice_rolled"], r["dice_left"],
 			100.0 * float(r["dice_left"]) / float(maxi(int(r["dice_rolled"]), 1)), r["turns"]])

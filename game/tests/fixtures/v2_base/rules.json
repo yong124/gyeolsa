@@ -37,6 +37,15 @@
 	"hide": {"tiles": ["alley", "tavern"], "flags": ["hideout"], "_comment": "숨기를 할 수 있는 칸: 이 종류의 타일 위, 또는 이 표시(flag)가 있는 칸 (골목·주막 타일은 C단계에서 들어온다, 은신처는 mark_tile의 hideout)"},
 	"scout": {"count": 2, "_comment": "정찰: 주사위 눈만큼 떨어진 곳까지의 덮인 칸을 이만큼 골라 타일을 앞면으로 깐다"},
 	"market": {"tile": "market", "effects": [], "_comment": "장터 행동을 할 수 있는 타일 종류와 그 효과 (군자금 거래는 D단계에서 채운다. 장터 타일은 C단계에서 들어온다)"},
+	"launch": {"target_min_intel": 2, "benefits": [
+		{"id": "no_reinforce", "name": "경비 강화 빼기", "text": "2막에 경비 강화 장면을 넣지 않는다", "effects": [{"op": "no_reinforce"}]},
+		{"id": "dice_plus", "name": "첫날 주사위 +1", "text": "2막 첫날 아침 모든 요원의 작전 주사위 +1", "effects": [{"op": "dice_extra_tomorrow", "who": "everyone", "count": 1}]},
+		{"id": "intel_tokens", "name": "첩보 토큰 +2", "text": "2막에서 쓰는 첩보 토큰 2개를 더 받는다", "effects": [{"op": "intel_token_bonus", "value": 2}]},
+		{"id": "threat_look", "name": "위협 덱 보기", "text": "2막 위협 덱 맨 위 2장을 보고 1장을 버린다", "effects": [{"op": "threat_look_discard", "count": 2}]},
+		{"id": "funds", "name": "군자금 +3", "text": "군자금 3을 얻는다", "enabled": false, "effects": []}
+	], "_comment": "결행 대상 후보의 첩보 문턱, 결행 혜택 (결행 준비가 launch_min을 넘는 1점마다 하나, 같은 것은 한 번). enabled false는 숨김 (군자금은 D단계에서 켠다)"},
+	"counter": {"target": 7, "_comment": "반격을 막는 작전 판정 목표 (버티기 장면이 펼쳐진 날). 못 막으면 그날은 세지 않고 자리에 선 요원이 회피 판정(checks.evade)을 한다"},
+	"ai": {"launch_target": {"intel": 2.0, "saga": 1.5, "distance": 0.15}, "vote_ready_margin": 1, "_comment": "AI 결행 투표: 대상 점수 = 첩보 x intel + 내 사연과 맞으면 saga − 거리 x distance. 준비가 launch_min + vote_ready_margin 이상이면 첩보가 모자라도 찬성"},
 	"hideout_flag": "hideout",
 	"_comment_hideout_flag": "이 표시가 있는 칸에서 차례를 마치면 나를 쫓던 경찰이 사라진다 (mark_tile의 flag 이름)",
 	"tile_names": {"normal": "일반", "event": "이벤트", "item": "아이템", "check": "검문소", "supply": "보급", "assassin": "암살 표적", "sabotage": "방해 공작", "bomb": "폭파 지점", "base": "거점", "start": "출발점"},
