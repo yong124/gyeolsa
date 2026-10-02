@@ -9,676 +9,864 @@
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800&family=Noto+Serif+KR:wght@600;700;900&display=swap" rel="stylesheet">
 <style>
 :root{
-  --paper:#f3ead5; --paper-2:#ebdfc2; --card:#fbf6ea; --ink:#221c16; --ink-2:#4a3f33; --ink-3:#7d6d58;
-  --line:#d3c19c; --seal:#b3261e; --seal-soft:#f6dcd6; --gold:#b98a2e; --gold-soft:#f3e4bf;
-  --green:#4f7a2d; --green-soft:#e2ecd2; --blue:#36588f; --blue-soft:#dfe6f2; --purple:#6b4f8a; --purple-soft:#e8e0f0;
-  --desk:#2a2018; --shadow:0 2px 10px rgba(60,40,20,.12);
+  --desk:#2b2119; --paper:#f4ecd8; --paper-2:#eadfc3; --card:#fbf7ec; --ink:#231c15; --ink-2:#4b4034; --ink-3:#7e6e59;
+  --line:#d4c29e; --seal:#b3261e; --seal-soft:#f5ddd7; --gold:#a97d24; --gold-soft:#f3e5c2;
+  --green:#4f7a2d; --green-soft:#e3ecd4; --blue:#36588f; --blue-soft:#e0e7f2; --purple:#6b4f8a; --purple-soft:#ebe3f2;
+  --shadow:0 10px 30px rgba(0,0,0,.35);
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
-    --paper:#1d1813; --paper-2:#26201a; --card:#2a231c; --ink:#efe6d4; --ink-2:#d2c5ac; --ink-3:#a3937a;
-    --line:#4a3d2e; --seal:#e0574b; --seal-soft:#3d2320; --gold:#d9ad55; --gold-soft:#3a3020;
-    --green:#94c06a; --green-soft:#26301d; --blue:#86a8e0; --blue-soft:#1f2838; --purple:#b79ad6; --purple-soft:#2c2436;
-    --desk:#120e0b; --shadow:0 2px 10px rgba(0,0,0,.4);
+    --desk:#110d0a; --paper:#201a14; --paper-2:#29221b; --card:#2c251e; --ink:#eee5d2; --ink-2:#d0c3aa; --ink-3:#a29278;
+    --line:#4b3e2f; --seal:#e45b4f; --seal-soft:#3e2420; --gold:#dcb15a; --gold-soft:#3a3020;
+    --green:#97c26d; --green-soft:#253019; --blue:#8aabe2; --blue-soft:#1f2838; --purple:#ba9ed8; --purple-soft:#2c2437;
+    --shadow:0 10px 30px rgba(0,0,0,.6);
   }
 }
 :root[data-theme="dark"]{
-  --paper:#1d1813; --paper-2:#26201a; --card:#2a231c; --ink:#efe6d4; --ink-2:#d2c5ac; --ink-3:#a3937a;
-  --line:#4a3d2e; --seal:#e0574b; --seal-soft:#3d2320; --gold:#d9ad55; --gold-soft:#3a3020;
-  --green:#94c06a; --green-soft:#26301d; --blue:#86a8e0; --blue-soft:#1f2838; --purple:#b79ad6; --purple-soft:#2c2436;
-  --desk:#120e0b; --shadow:0 2px 10px rgba(0,0,0,.4);
+  --desk:#110d0a; --paper:#201a14; --paper-2:#29221b; --card:#2c251e; --ink:#eee5d2; --ink-2:#d0c3aa; --ink-3:#a29278;
+  --line:#4b3e2f; --seal:#e45b4f; --seal-soft:#3e2420; --gold:#dcb15a; --gold-soft:#3a3020;
+  --green:#97c26d; --green-soft:#253019; --blue:#8aabe2; --blue-soft:#1f2838; --purple:#ba9ed8; --purple-soft:#2c2437;
+  --shadow:0 10px 30px rgba(0,0,0,.6);
 }
 *{box-sizing:border-box}
-html{scroll-behavior:smooth;scroll-padding-top:16px}
-body{margin:0;background:var(--desk);color:var(--ink);font:16px/1.75 "Noto Sans KR","Malgun Gothic",sans-serif;-webkit-font-smoothing:antialiased}
+html{scroll-behavior:smooth;scroll-padding-top:12px}
+body{margin:0;background:var(--desk);color:var(--ink);font:16px/1.75 "Noto Sans KR","Malgun Gothic",sans-serif;-webkit-font-smoothing:antialiased;padding:28px 16px 80px}
 a{color:var(--seal)}
-.wrap{display:grid;grid-template-columns:260px minmax(0,1fr);max-width:1240px;margin:0 auto;gap:0}
-nav.toc{position:sticky;top:0;align-self:start;height:100vh;overflow:auto;padding:28px 18px 40px;color:#e9dcc2;font-size:14px}
-nav.toc .brand{font:900 26px/1.2 "Noto Serif KR",serif;letter-spacing:.12em;color:#f3e4bf;margin-bottom:4px}
-nav.toc .sub{color:#b6a585;font-size:12.5px;margin-bottom:22px}
-nav.toc ol{list-style:none;margin:0;padding:0;counter-reset:t}
-nav.toc li{margin:1px 0}
-nav.toc a{display:block;color:#e9dcc2;text-decoration:none;padding:5px 10px;border-radius:4px;border-left:3px solid transparent}
-nav.toc a:hover{background:rgba(255,255,255,.06)}
-nav.toc a.on{border-left-color:#e0574b;background:rgba(224,87,75,.12);color:#fff}
-nav.toc .grp{color:#8f7f63;font-size:11.5px;letter-spacing:.15em;margin:16px 10px 4px}
-main{background:var(--paper);padding:48px 56px 80px;min-width:0;box-shadow:0 0 40px rgba(0,0,0,.4)}
-header.cover{border-bottom:3px double var(--line);padding-bottom:26px;margin-bottom:30px}
-.kicker{color:var(--seal);font-weight:800;letter-spacing:.3em;font-size:13px}
-h1{font:900 46px/1.15 "Noto Serif KR",serif;margin:8px 0 6px;letter-spacing:.04em}
-.lead{color:var(--ink-2);font-size:17px;max-width:46em}
-h2{font:900 28px/1.3 "Noto Serif KR",serif;margin:56px 0 14px;padding-top:6px;display:flex;align-items:baseline;gap:12px}
-h2 .no{color:var(--seal);font-size:18px;font-family:"Noto Sans KR",sans-serif;font-weight:800;letter-spacing:.1em}
-h3{font:700 20px/1.4 "Noto Serif KR",serif;margin:30px 0 8px}
-h4{font-size:16px;margin:20px 0 6px}
+.page{max-width:860px;margin:0 auto 34px;background:var(--paper);box-shadow:var(--shadow);border-radius:3px;padding:54px 64px 46px;position:relative}
+.page .run{position:absolute;top:18px;left:64px;right:64px;display:flex;justify-content:space-between;font-size:12px;color:var(--ink-3);letter-spacing:.2em}
+.page .folio{position:absolute;bottom:16px;left:0;right:0;text-align:center;font:700 13px "Noto Serif KR",serif;color:var(--ink-3)}
+h1,h2,h3,h4{font-family:"Noto Serif KR",serif;line-height:1.3}
+h2{font-size:30px;font-weight:900;margin:6px 0 16px;padding-bottom:10px;border-bottom:3px double var(--line)}
+h3{font-size:21px;font-weight:700;margin:30px 0 8px;color:var(--ink)}
+h3::before{content:"◆ ";color:var(--seal);font-size:14px;vertical-align:2px}
+h4{font-size:17px;margin:18px 0 6px}
 p{margin:8px 0}
-ul,ol{margin:8px 0;padding-left:1.4em}
-li{margin:3px 0}
-.box{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:14px 18px;margin:14px 0;box-shadow:var(--shadow)}
-.box.seal{border-left:5px solid var(--seal)}
-.box.gold{border-left:5px solid var(--gold);background:var(--gold-soft)}
-.box.green{border-left:5px solid var(--green)}
+ul,ol{margin:8px 0;padding-left:1.5em}
+li{margin:4px 0}
+b,strong{font-weight:800}
+.small{font-size:14px}
+.muted{color:var(--ink-3)}
+/* 표지 */
+.cover{text-align:center;padding:80px 64px 70px;background:
+  radial-gradient(circle at 50% 38%, rgba(179,38,30,.12), transparent 55%), var(--paper)}
+.cover .seal{width:132px;height:132px;margin:0 auto 26px;border:5px solid var(--seal);border-radius:10px;display:grid;place-items:center;transform:rotate(-4deg);color:var(--seal);font:900 54px/1 "Noto Serif KR",serif;letter-spacing:.02em}
+.cover .title{font:900 76px/1 "Noto Serif KR",serif;letter-spacing:.3em;margin:0 0 8px;padding-left:.3em}
+.cover .subtitle{font:700 20px "Noto Serif KR",serif;color:var(--ink-2);letter-spacing:.35em}
+.cover .story{max-width:520px;margin:34px auto 30px;color:var(--ink-2);font-size:16px}
+.badges{display:flex;justify-content:center;gap:12px;flex-wrap:wrap}
+.badge{border:2px solid var(--ink);border-radius:30px;padding:6px 16px;font-weight:800;font-size:14px;display:flex;gap:8px;align-items:center}
+.badge svg{width:18px;height:18px}
+/* 상자 */
+.box{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:14px 18px;margin:16px 0}
 .box h4{margin-top:0}
-.tag{display:inline-block;font-size:11.5px;font-weight:800;padding:0 7px;border-radius:9px;vertical-align:2px;letter-spacing:.02em;white-space:nowrap}
-.tag.new{background:var(--seal);color:#fff}
-.tag.loud{background:var(--ink-2);color:var(--paper)}
-.tag.k{background:var(--blue-soft);color:var(--blue)}
+.goal{border:3px solid var(--seal);background:var(--seal-soft);border-radius:8px;padding:18px 22px;margin:18px 0}
+.goal .t{font:900 20px "Noto Serif KR",serif;color:var(--seal);margin-bottom:4px}
+.example{background:var(--blue-soft);border-left:6px solid var(--blue);border-radius:4px;padding:14px 18px;margin:16px 0}
+.example .t{font:800 13px "Noto Sans KR";letter-spacing:.25em;color:var(--blue);margin-bottom:4px}
+.note{background:var(--gold-soft);border-left:6px solid var(--gold);border-radius:4px;padding:12px 18px;margin:16px 0}
+.note .t{font:800 13px "Noto Sans KR";letter-spacing:.25em;color:var(--gold);margin-bottom:2px}
+.warn{background:var(--seal-soft);border-left:6px solid var(--seal);border-radius:4px;padding:12px 18px;margin:16px 0}
+.warn .t{font:800 13px "Noto Sans KR";letter-spacing:.25em;color:var(--seal);margin-bottom:2px}
+/* 표 */
 .tw{overflow-x:auto;margin:12px 0;border-radius:6px;border:1px solid var(--line);background:var(--card)}
 table{border-collapse:collapse;width:100%;font-size:14.5px;line-height:1.6}
 th,td{padding:8px 12px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}
 th{background:var(--paper-2);font-weight:800;white-space:nowrap}
 tr:last-child td{border-bottom:0}
 td.n{white-space:nowrap;text-align:center}
-td b{font-weight:800}
-.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
-.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
-.mini{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:12px 14px}
-.mini .t{font:700 16px "Noto Serif KR",serif}
-.mini .s{color:var(--ink-3);font-size:13px}
-.flow{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:12px 0}
-.flow span{background:var(--card);border:1px solid var(--line);border-radius:4px;padding:5px 10px;font-weight:700;font-size:14px}
-.flow i{color:var(--ink-3);font-style:normal}
-.board{display:flex;gap:22px;align-items:flex-start;flex-wrap:wrap}
-.board svg{width:300px;max-width:100%;height:auto;flex:none}
-.muted{color:var(--ink-3)}
-.small{font-size:13.5px}
-kbd{font:700 12px "Noto Sans KR";border:1px solid var(--line);border-bottom-width:2px;border-radius:3px;padding:0 5px;background:var(--card)}
-.legend{display:flex;flex-wrap:wrap;gap:10px;font-size:13px;color:var(--ink-3);margin-top:6px}
-footer{margin-top:60px;padding-top:18px;border-top:1px solid var(--line);color:var(--ink-3);font-size:13px}
-.menu-btn{display:none}
-.theme{position:fixed;right:16px;bottom:16px;z-index:5;background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:20px;padding:6px 12px;font:700 13px "Noto Sans KR";cursor:pointer;box-shadow:var(--shadow)}
-@media (max-width:900px){
-  .wrap{display:block}
-  nav.toc{position:fixed;inset:0 25% 0 0;max-width:300px;height:100%;background:var(--desk);z-index:10;transform:translateX(-105%);transition:transform .2s;box-shadow:4px 0 20px rgba(0,0,0,.5)}
-  nav.toc.open{transform:none}
-  .menu-btn{display:inline-flex;position:sticky;top:0;z-index:4;margin:-48px -16px 16px;width:calc(100% + 32px);background:var(--desk);color:#f3e4bf;border:0;padding:10px 16px;font:800 15px "Noto Sans KR";letter-spacing:.1em;cursor:pointer}
-  main{padding:48px 16px 60px}
-  h1{font-size:34px}
-  h2{font-size:23px}
-  .grid2,.grid3{grid-template-columns:1fr}
+/* 구성물 */
+.parts{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px;margin:16px 0}
+.part{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:12px;text-align:center}
+.part svg{width:64px;height:64px;display:block;margin:4px auto 6px}
+.part .nm{font-weight:800}
+.part .ct{font:900 18px "Noto Serif KR",serif;color:var(--seal)}
+.part .ds{font-size:12.5px;color:var(--ink-3);line-height:1.5}
+/* 흐름 */
+.flow{display:flex;flex-wrap:wrap;gap:8px;align-items:stretch;margin:16px 0}
+.flow .st{flex:1;min-width:130px;background:var(--card);border:1px solid var(--line);border-top:5px solid var(--ink);border-radius:5px;padding:10px 12px}
+.flow .st .k{font:900 15px "Noto Serif KR",serif}
+.flow .st .d{font-size:13px;color:var(--ink-2);line-height:1.5}
+.flow .st.m{border-top-color:var(--gold)} .flow .st.d2{border-top-color:var(--seal)} .flow .st.n{border-top-color:var(--blue)}
+.steps{counter-reset:s;list-style:none;padding:0}
+.steps>li{counter-increment:s;position:relative;padding-left:44px;margin:12px 0}
+.steps>li::before{content:counter(s);position:absolute;left:0;top:0;width:30px;height:30px;border-radius:50%;background:var(--ink);color:var(--paper);font:900 15px/30px "Noto Serif KR",serif;text-align:center}
+/* 행동 카드 */
+.acts{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;margin:14px 0}
+.act{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:12px 14px;position:relative}
+.act .h{display:flex;align-items:center;gap:8px;font:800 16px "Noto Serif KR",serif;margin-bottom:4px}
+.act .h svg{width:22px;height:22px;flex:none}
+.act .v{position:absolute;top:10px;right:12px;font-size:11.5px;font-weight:800;color:var(--ink-3)}
+.act p{margin:0;font-size:14px;color:var(--ink-2);line-height:1.6}
+.free{border-style:dashed}
+/* 보드 그림 */
+.figure{margin:18px 0;text-align:center}
+.figure svg{max-width:100%;height:auto}
+.figure .cap{font-size:13px;color:var(--ink-3);margin-top:6px}
+.two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+/* 요약 카드 */
+.ref{border:3px solid var(--ink);border-radius:10px;padding:20px 24px;background:var(--card)}
+.ref h4{margin:12px 0 4px;font-size:16px;color:var(--seal)}
+.ref ul{margin:2px 0;font-size:14px}
+/* 목차 */
+.toc ol{columns:2;column-gap:40px;padding-left:1.2em}
+.toc li{break-inside:avoid}
+.theme{position:fixed;right:16px;bottom:16px;z-index:5;background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:20px;padding:6px 12px;font:700 13px "Noto Sans KR";cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.3)}
+.dev{font-size:13px;color:var(--ink-3)}
+@media (max-width:720px){
+  body{padding:12px 0 60px}
+  .page{padding:44px 16px 40px;border-radius:0;margin-bottom:14px}
+  .page .run{left:16px;right:16px}
+  .cover{padding:56px 16px 50px}
+  .cover .title{font-size:52px}
+  h2{font-size:25px}
+  .two{grid-template-columns:1fr}
+  .toc ol{columns:1}
 }
 @media print{
-  body{background:#fff}
-  nav.toc,.theme,.menu-btn{display:none}
-  .wrap{display:block}
-  main{box-shadow:none;padding:0}
-  h2{break-after:avoid}
-  .box,.tw{break-inside:avoid}
+  body{background:#fff;padding:0}
+  .page{box-shadow:none;margin:0;break-after:page;max-width:none}
+  .theme{display:none}
+  .box,.example,.note,.tw,.act{break-inside:avoid}
 }
 </style>
 </head>
 <body>
-<div class="wrap">
-<nav class="toc" id="toc">
-  <div class="brand">結社 결사</div>
-  <div class="sub">광복 IF · 규칙서 v2</div>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-die" viewBox="0 0 64 64"><rect x="8" y="8" width="48" height="48" rx="9" fill="#fff" stroke="#231c15" stroke-width="4"/><circle cx="22" cy="22" r="5" fill="#231c15"/><circle cx="32" cy="32" r="5" fill="#231c15"/><circle cx="42" cy="42" r="5" fill="#231c15"/></symbol>
+    <symbol id="i-card" viewBox="0 0 64 64"><rect x="14" y="6" width="36" height="52" rx="4" fill="#f6efdd" stroke="#231c15" stroke-width="3"/><rect x="14" y="6" width="36" height="12" fill="#b3261e"/><path d="M22 30h20M22 38h20M22 46h12" stroke="#7e6e59" stroke-width="3"/></symbol>
+    <symbol id="i-tile" viewBox="0 0 64 64"><rect x="6" y="6" width="52" height="52" rx="3" fill="#5e8a36" stroke="#231c15" stroke-width="3"/><path d="M24 54 30 10M40 54 34 10M32 16v6M32 30v6M32 44v6" stroke="#fff" stroke-width="3"/></symbol>
+    <symbol id="i-agent" viewBox="0 0 64 64"><circle cx="32" cy="32" r="24" fill="#fff" stroke="#36588f" stroke-width="6"/><circle cx="32" cy="26" r="8" fill="#231c15"/><path d="M18 46c3-9 25-9 28 0" fill="#231c15"/></symbol>
+    <symbol id="i-police" viewBox="0 0 64 64"><path d="M14 28c0-12 36-12 36 0v4H14z" fill="#231c15"/><rect x="12" y="30" width="40" height="6" rx="2" fill="#231c15"/><circle cx="32" cy="22" r="4" fill="#d9ad55"/><path d="M20 38h24v8c0 8-24 8-24 0z" fill="#e8d8b8" stroke="#231c15" stroke-width="3"/></symbol>
+    <symbol id="i-coin" viewBox="0 0 64 64"><circle cx="32" cy="32" r="24" fill="#d9ad55" stroke="#7a5a18" stroke-width="4"/><rect x="25" y="25" width="14" height="14" fill="none" stroke="#7a5a18" stroke-width="4"/></symbol>
+    <symbol id="i-bomb" viewBox="0 0 64 64"><circle cx="30" cy="38" r="18" fill="#231c15"/><path d="M40 22l6-6" stroke="#231c15" stroke-width="6"/><path d="M47 15c4-2 6 1 8-2" stroke="#b3261e" stroke-width="3" fill="none"/></symbol>
+    <symbol id="i-marker" viewBox="0 0 64 64"><circle cx="32" cy="32" r="24" fill="#b3261e"/><circle cx="32" cy="32" r="14" fill="none" stroke="#fff" stroke-width="4"/><path d="M32 6v14M32 44v14M6 32h14M44 32h14" stroke="#fff" stroke-width="4"/></symbol>
+    <symbol id="i-intel" viewBox="0 0 64 64"><path d="M12 14h40v36H12z" fill="#fbf7ec" stroke="#231c15" stroke-width="3"/><path d="M12 14l20 18 20-18" fill="none" stroke="#231c15" stroke-width="3"/><circle cx="46" cy="46" r="10" fill="#b3261e"/></symbol>
+    <symbol id="i-move" viewBox="0 0 24 24"><path d="M4 12h13M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.5"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2.2"/><circle cx="12" cy="12" r="3" fill="currentColor"/></symbol>
+    <symbol id="i-pay" viewBox="0 0 24 24"><path d="M5 9h14v10H5zM9 9V6h6v3" fill="none" stroke="currentColor" stroke-width="2.2"/></symbol>
+    <symbol id="i-give" viewBox="0 0 24 24"><path d="M3 14h8l4-3h5M3 18h12l6-4" fill="none" stroke="currentColor" stroke-width="2.2"/></symbol>
+    <symbol id="i-lure" viewBox="0 0 24 24"><path d="M4 12c4-6 12-6 16 0-4 6-12 6-16 0z" fill="none" stroke="currentColor" stroke-width="2.2"/><circle cx="12" cy="12" r="2.5" fill="currentColor"/></symbol>
+    <symbol id="i-hide" viewBox="0 0 24 24"><path d="M4 12c4-6 12-6 16 0-4 6-12 6-16 0zM4 20 20 4" fill="none" stroke="currentColor" stroke-width="2.2"/></symbol>
+    <symbol id="i-shop" viewBox="0 0 24 24"><path d="M3 9l2-5h14l2 5zM5 9v11h14V9" fill="none" stroke="currentColor" stroke-width="2.2"/></symbol>
+    <symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M12 12h9M18 12v3" stroke="currentColor" stroke-width="2.2"/></symbol>
+    <symbol id="i-tram" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="13" rx="3" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M8 21l2-4M16 21l-2-4M5 11h14" stroke="currentColor" stroke-width="2.2"/></symbol>
+    <symbol id="i-people" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3" fill="currentColor"/><circle cx="16" cy="9" r="2.5" fill="currentColor"/><path d="M3 20c1-5 11-5 12 0M13 20c1-4 7-4 8 0" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M12 7v5l3 3" fill="none" stroke="currentColor" stroke-width="2.2"/></symbol>
+  </defs>
+</svg>
+
+<!-- ================================================== 표지 -->
+<section class="page cover" id="top">
+  <div class="seal">結社</div>
+  <h1 class="title">결사</h1>
+  <div class="subtitle">光復 IF · 규칙서</div>
+  <p class="story">1945년 8월, 경성. 해방은 바다 건너에서 오고 있지만, 우리 손으로 문을 열고 싶었다. 광복군, 의용대, 의병, 지하조직의 요원 넷이 한 방에 모였다. 열하루. 일제의 심장부 한 곳을 골라 들이친다.</p>
+  <div class="badges">
+    <span class="badge"><svg><use href="#i-people"/></svg>1~4명 (4인 기준)</span>
+    <span class="badge"><svg><use href="#i-clock"/></svg>60~90분</span>
+    <span class="badge">12세 이상</span>
+    <span class="badge">협력</span>
+  </div>
+</section>
+
+<!-- ================================================== 목차 -->
+<section class="page toc">
+  <div class="run"><span>결사 · 규칙서</span><span>목차</span></div>
+  <h2>목차</h2>
   <ol>
-    <div class="grp">시작하기</div>
-    <li><a href="#about">게임 소개</a></li>
+    <li><a href="#goal">게임의 목표</a></li>
     <li><a href="#parts">구성물</a></li>
-    <li><a href="#setup">준비</a></li>
-    <div class="grp">하루</div>
-    <li><a href="#day">하루의 흐름</a></li>
-    <li><a href="#turn">내 차례</a></li>
-    <li><a href="#dice">작전 주사위</a></li>
+    <li><a href="#setup">게임 준비</a></li>
+    <li><a href="#overview">게임 진행 한눈에</a></li>
+    <li><a href="#morning">아침</a></li>
+    <li><a href="#turn">낮: 내 차례</a></li>
     <li><a href="#check">판정</a></li>
-    <li><a href="#tiles">보드와 타일</a></li>
-    <li><a href="#police">경찰·노출·감옥</a></li>
-    <div class="grp">1막 · 정찰</div>
+    <li><a href="#board">보드와 타일</a></li>
+    <li><a href="#police">경찰, 노출, 감옥</a></li>
     <li><a href="#missions">미션</a></li>
     <li><a href="#ops">일제 작전</a></li>
     <li><a href="#funds">군자금</a></li>
     <li><a href="#launch">결행</a></li>
-    <div class="grp">2막 · 결행</div>
-    <li><a href="#act2">장면 돌파</a></li>
-    <li><a href="#strikes">결행 대상과 장면</a></li>
-    <li><a href="#end">승리와 엔딩</a></li>
-    <div class="grp">카드</div>
-    <li><a href="#chars">요원 (캐릭터)</a></li>
-    <li><a href="#sagas">사연</a></li>
-    <li><a href="#items">아이템</a></li>
-    <li><a href="#events">이벤트</a></li>
-    <li><a href="#threats">일제 위협</a></li>
-    <li><a href="#numbers">수치 한눈에</a></li>
+    <li><a href="#act2">2막: 장면 돌파</a></li>
+    <li><a href="#end">게임의 끝</a></li>
+    <li><a href="#faq">자주 묻는 질문</a></li>
+    <li><a href="#cards">부록: 카드 목록</a></li>
+    <li><a href="#ref">요약 카드</a></li>
   </ol>
-</nav>
+  <p class="dev" style="margin-top:28px">이 설명서는 게임에 들어 있는 규칙과, 설계를 마치고 아직 게임에 넣지 않은 규칙(8~11단계)을 합쳐 쓴 것입니다. 어느 쪽인지는 맨 뒤 <a href="#dev">개발 메모</a>에 적었습니다. 수치는 시험하며 바뀔 수 있습니다.</p>
+  <div class="folio">1</div>
+</section>
 
-<main>
-<button class="menu-btn" onclick="document.getElementById('toc').classList.toggle('open')">☰ 목차</button>
-
-<header class="cover">
-  <div class="kicker">1945 · 경성 · 협력 보드게임</div>
-  <h1>결사 規則書</h1>
-  <p class="lead">1945년 여름, 경성. 광복군·의용대·의병·지하조직의 요원 넷이 손을 잡았습니다. 열하루 안에 일제의 심장부 한 곳을 골라 들이쳐야 합니다. 1막에서 정찰하며 준비를 쌓고, 2막에서 결행합니다.</p>
-  <div class="box gold small">
-    <b>이 규칙서에 대하여.</b> 지금 게임에 들어 있는 v2 규칙(7단계 작전 주사위까지)에, 규칙만 정해 두고 아직 게임에 넣지 않은 8단계(미션·타일 개편), 9단계(변절 제거), 10단계(군자금)를 합쳐 한 권으로 정리했습니다. <span class="tag new">★ 예정</span> 표시는 아직 게임에 없는 규칙입니다. 수치는 밸런스를 맞추며 바뀔 수 있습니다.
+<!-- ================================================== 목표 -->
+<section class="page" id="goal">
+  <div class="run"><span>결사 · 규칙서</span><span>게임의 목표</span></div>
+  <h2>게임의 목표</h2>
+  <p>결사는 <b>모두가 한편</b>인 협력 게임입니다. 함께 이기거나 함께 집니다.</p>
+  <div class="goal">
+    <div class="t">승리</div>
+    열하루 안에 <b>결행 대상 거점</b>의 장면을 하나씩 돌파해 <b>마지막 장면까지 뚫으면</b> 승리합니다.
   </div>
-</header>
+  <p>게임은 두 막으로 나뉩니다.</p>
+  <div class="two">
+    <div class="box"><h4>1막 · 정찰</h4>경성을 누비며 <b>미션</b>을 이룹니다. 미션은 <b>결행 준비</b>를 쌓고, 거점마다 <b>첩보</b>를 모읍니다. 준비가 되면 투표로 결행을 선언합니다.</div>
+    <div class="box"><h4>2막 · 결행</h4>첩보가 가장 많이 모인 거점에 들이칩니다. 진입부터 마지막까지 <b>장면</b>을 하나씩 돌파해야 합니다. 날이 다 가면 실패입니다.</div>
+  </div>
+  <p>맞서야 할 것은 사람이 아닙니다. <b>쫓아오는 경찰</b>, 매일 아침의 <b>일제 위협</b>, 쌓여 가는 <b>노출</b>, 그리고 <b>흘러가는 날</b>입니다.</p>
+  <div class="folio">2</div>
+</section>
 
-<!-- ============================================================ -->
-<h2 id="about"><span class="no">01</span>게임 소개</h2>
-<div class="grid3">
-  <div class="mini"><div class="t">인원</div><div class="s">4인 기준 협력 게임. 디지털판은 사람 1명 + AI 동료 3명</div></div>
-  <div class="mini"><div class="t">기간</div><div class="s">작전 11일. 하루 = 아침 · 낮(각자 한 차례) · 밤</div></div>
-  <div class="mini"><div class="t">목표</div><div class="s">결행 대상 거점의 장면을 모두 돌파하면 대성공</div></div>
-</div>
-<p><b>모두가 함께 이기고 함께 집니다.</b> 배신자는 없습니다. 맞서야 할 것은 경찰, 일제의 위협, 쌓여 가는 노출, 그리고 흘러가는 날입니다.</p>
-<div class="flow"><span>1막 · 정찰</span><i>미션으로 결행 준비와 첩보를 쌓음</i><i>→</i><span>결행 투표</span><i>→</i><span>2막 · 결행</span><i>대상 거점의 장면을 하나씩 돌파</i><i>→</i><span>엔딩</span></div>
+<!-- ================================================== 구성물 -->
+<section class="page" id="parts">
+  <div class="run"><span>결사 · 규칙서</span><span>구성물</span></div>
+  <h2>구성물</h2>
+  <div class="parts">
+    <div class="part"><svg><use href="#i-tile"/></svg><div class="nm">보드</div><div class="ct">1</div><div class="ds">11×11칸 경성 지도. 출발점과 거점 4곳</div></div>
+    <div class="part"><svg><use href="#i-agent"/></svg><div class="nm">요원 카드·말</div><div class="ct">12</div><div class="ds">4개 세력 × 3명</div></div>
+    <div class="part"><svg><use href="#i-tile"/></svg><div class="nm">지형 타일</div><div class="ct">100</div><div class="ds">뒷면으로 쌓아 두고 들어갈 때 뒤집음</div></div>
+    <div class="part"><svg><use href="#i-die"/></svg><div class="nm">작전 주사위</div><div class="ct">12</div><div class="ds">요원마다 2~3개 (6면체)</div></div>
+    <div class="part"><svg><use href="#i-card"/></svg><div class="nm">미션 카드</div><div class="ct">22</div><div class="ds">공개 미션 줄에 4장</div></div>
+    <div class="part"><svg><use href="#i-marker"/></svg><div class="nm">표적 마커</div><div class="ct">10</div><div class="ds">미션·일제 작전의 위치</div></div>
+    <div class="part"><svg><use href="#i-card"/></svg><div class="nm">일제 위협 카드</div><div class="ct">24 + 11</div><div class="ds">1막 덱, 2막 덱</div></div>
+    <div class="part"><svg><use href="#i-card"/></svg><div class="nm">장면 카드</div><div class="ct">28</div><div class="ds">결행 대상 4곳 × 6장, 경비 강화 4장</div></div>
+    <div class="part"><svg><use href="#i-card"/></svg><div class="nm">사연 카드</div><div class="ct">20</div><div class="ds">요원의 비밀 개인 목표</div></div>
+    <div class="part"><svg><use href="#i-card"/></svg><div class="nm">이벤트 · 아이템</div><div class="ct">18 · 15</div><div class="ds">타일에서 뽑음</div></div>
+    <div class="part"><svg><use href="#i-police"/></svg><div class="nm">경찰 말</div><div class="ct">4</div><div class="ds">요원 하나에 하나씩 붙음</div></div>
+    <div class="part"><svg><use href="#i-bomb"/></svg><div class="nm">폭탄</div><div class="ct">5</div><div class="ds">보급 타일에서</div></div>
+    <div class="part"><svg><use href="#i-coin"/></svg><div class="nm">군자금</div><div class="ct">1 트랙</div><div class="ds">팀 공용, 0~10</div></div>
+    <div class="part"><svg><use href="#i-intel"/></svg><div class="nm">첩보·준비·노출</div><div class="ct">트랙</div><div class="ds">거점별 첩보, 결행 준비, 노출</div></div>
+  </div>
+  <div class="folio">3</div>
+</section>
 
-<!-- ============================================================ -->
-<h2 id="parts"><span class="no">02</span>구성물</h2>
-<div class="tw"><table>
-<tr><th>구성물</th><th>수량</th><th>설명</th></tr>
-<tr><td>보드</td><td class="n">1</td><td>11×11칸 경성 지도. 가운데 출발점, 네 귀퉁이에 거점 4곳</td></tr>
-<tr><td>요원 카드</td><td class="n">12</td><td>4개 세력 × 3명. 특성(늘)과 능력(하루 1번)</td></tr>
-<tr><td>지형 타일</td><td class="n">100</td><td>뒷면으로 쌓아 두고, 빈칸에 들어갈 때 뒤집어 깜 <span class="tag new">★ 구성 변경</span></td></tr>
-<tr><td>작전 주사위</td><td class="n">—</td><td>요원마다 아침에 굴리는 6면체 (1막 2개, 2막 3개)</td></tr>
-<tr><td>미션 카드</td><td class="n">22</td><td>공개 미션 줄에 4장씩 펼침 <span class="tag new">★ 개편</span></td></tr>
-<tr><td>표적·미션 마커</td><td class="n">—</td><td>미션과 일제 작전의 위치 표시 <span class="tag new">★</span></td></tr>
-<tr><td>일제 위협 카드</td><td class="n">24 + 11</td><td>1막 덱, 2막 덱. 아침마다 1장</td></tr>
-<tr><td>이벤트 카드</td><td class="n">18</td><td>이벤트 타일에서 뽑음</td></tr>
-<tr><td>아이템 카드</td><td class="n">15</td><td>10종</td></tr>
-<tr><td>사연 카드</td><td class="n">20</td><td>요원마다 비밀로 2장 → 결행 때 1장 남김</td></tr>
-<tr><td>장면 카드</td><td class="n">24 + 4</td><td>결행 대상 4곳 × 6장, 경비 강화 4장</td></tr>
-<tr><td>경찰 말</td><td class="n">4</td><td>요원 한 명에 하나씩 붙어 쫓음</td></tr>
-<tr><td>폭탄</td><td class="n">5</td><td>보급에서 하나씩</td></tr>
-<tr><td>첩보 · 결행 준비 · 노출 · 군자금 표지</td><td class="n">—</td><td>거점별 첩보, 팀 공용 수치들 <span class="tag new">★ 군자금</span></td></tr>
-</table></div>
+<!-- ================================================== 준비 -->
+<section class="page" id="setup">
+  <div class="run"><span>결사 · 규칙서</span><span>게임 준비</span></div>
+  <h2>게임 준비</h2>
+  <div class="figure">
+  <svg viewBox="0 0 520 380" role="img" aria-label="준비된 보드와 더미 배치">
+    <rect x="0" y="0" width="520" height="380" fill="none"/>
+    <g transform="translate(10,10)">
+      <rect width="352" height="352" fill="var(--paper-2)" stroke="var(--ink)" stroke-width="2"/>
+      <g stroke="var(--line)"><path d="M32 0V352M64 0V352M96 0V352M128 0V352M160 0V352M192 0V352M224 0V352M256 0V352M288 0V352M320 0V352M0 32H352M0 64H352M0 96H352M0 128H352M0 160H352M0 192H352M0 224H352M0 256H352M0 288H352M0 320H352"/></g>
+      <g font-family="Noto Sans KR" font-size="10" font-weight="800" text-anchor="middle" fill="var(--ink)">
+        <rect x="32" y="32" width="32" height="32" fill="var(--ink)"/><text x="48" y="80">일본군영</text>
+        <rect x="288" y="32" width="32" height="32" fill="var(--ink)"/><text x="304" y="80">종로경찰서</text>
+        <rect x="32" y="288" width="32" height="32" fill="var(--ink)"/><text x="48" y="282">서대문형무소</text>
+        <rect x="288" y="288" width="32" height="32" fill="var(--ink)"/><text x="304" y="282">조선총독부</text>
+        <rect x="160" y="160" width="32" height="32" fill="var(--seal)"/><text x="176" y="208" fill="var(--seal)">출발점 · 요원 4명</text>
+        <circle cx="168" cy="168" r="5" fill="#36588f"/><circle cx="184" cy="168" r="5" fill="#b3261e"/><circle cx="168" cy="184" r="5" fill="#4f7a2d"/><circle cx="184" cy="184" r="5" fill="#a97d24"/>
+        <g transform="translate(232,120)"><circle r="9" fill="#b3261e"/><text y="24">미션 마커</text></g>
+        <g transform="translate(88,232)"><circle r="9" fill="#b3261e"/></g>
+      </g>
+    </g>
+    <g font-family="Noto Sans KR" font-size="12" font-weight="800" fill="var(--ink)">
+      <g transform="translate(382,14)"><rect width="120" height="44" rx="4" fill="#5e8a36" stroke="var(--ink)"/><text x="60" y="27" text-anchor="middle" fill="#fff">지형 타일 더미</text></g>
+      <g transform="translate(382,68)"><rect width="120" height="44" rx="4" fill="var(--card)" stroke="var(--ink)"/><text x="60" y="27" text-anchor="middle">1막 위협 덱</text></g>
+      <g transform="translate(382,122)"><rect width="120" height="44" rx="4" fill="var(--card)" stroke="var(--ink)"/><text x="60" y="27" text-anchor="middle">미션 덱 · 줄 4장</text></g>
+      <g transform="translate(382,176)"><rect width="56" height="44" rx="4" fill="var(--card)" stroke="var(--ink)"/><text x="28" y="27" text-anchor="middle">이벤트</text><rect x="64" width="56" height="44" rx="4" fill="var(--card)" stroke="var(--ink)"/><text x="92" y="27" text-anchor="middle">아이템</text></g>
+      <g transform="translate(382,230)"><rect width="120" height="44" rx="4" fill="var(--card)" stroke="var(--ink)"/><text x="60" y="20" text-anchor="middle">트랙</text><text x="60" y="36" text-anchor="middle" font-size="10.5" font-weight="500">남은 날 11 · 군자금 2</text></g>
+      <g transform="translate(382,284)"><rect width="120" height="44" rx="4" fill="var(--card)" stroke="var(--ink)"/><text x="60" y="27" text-anchor="middle">폭탄 5 · 경찰 4</text></g>
+    </g>
+  </svg>
+  <div class="cap">준비를 마친 모습</div>
+  </div>
+  <ol class="steps">
+    <li><b>보드</b>를 펼칩니다. 출발점과 거점 4곳만 깔린 상태입니다.</li>
+    <li><b>요원</b>: 각자 요원 카드 2장을 무작위로 받아 1장을 고릅니다. 4인보다 적으면 남는 요원은 AI 동료나 다른 플레이어가 맡습니다. 모든 요원 말을 <b>출발점</b>에 놓습니다.</li>
+    <li><b>사연</b>: 사연 더미 「가」와 「나」에서 1장씩, 2장을 받아 <b>남몰래</b> 봅니다.</li>
+    <li><b>더미</b>: 지형 타일, 1막 위협, 미션, 이벤트, 아이템을 각각 섞어 뒷면으로 놓습니다. 2막 위협과 장면 카드는 옆에 둡니다.</li>
+    <li><b>트랙</b>: 남은 날 11, 결행 준비 0, 노출 0, 모든 거점 첩보 0, <b>군자금 2</b>. 폭탄 5개와 경찰 말 4개를 옆에 둡니다.</li>
+    <li><b>리더</b>: 가장 최근에 편지를 쓴 사람이 첫 리더입니다. 리더는 매일 왼쪽으로 넘어갑니다. 의견이 갈리면 리더가 정합니다.</li>
+  </ol>
+  <p>그다음 첫날 아침을 시작합니다. 첫 아침에 미션 줄을 채우며 미션 마커가 보드에 놓입니다.</p>
+  <div class="folio">4</div>
+</section>
 
-<!-- ============================================================ -->
-<h2 id="setup"><span class="no">03</span>준비</h2>
-<ol>
-  <li><b>요원 고르기:</b> 요원 카드 2장을 무작위로 받아 1장을 고릅니다. 동료 셋은 나머지 요원에서 무작위로 정합니다. 모든 요원은 <b>출발점</b>에서 시작합니다.</li>
-  <li><b>사연:</b> 사연 더미 「가」(장소·소유)와 「나」(위험·관계·결행)에서 1장씩, 모두 2장을 비밀로 받습니다.</li>
-  <li><b>더미:</b> 지형 타일, 1막 위협, 미션, 이벤트, 아이템을 섞어 둡니다. 폭탄 5개를 보급에 둡니다.</li>
-  <li><b>수치:</b> 남은 날 11, 결행 준비 0, 노출 0, 모든 거점 첩보 0, 군자금 2 <span class="tag new">★</span>.</li>
-  <li><b>리더:</b> 첫날 리더는 1번 요원. 매일 옆 사람으로 넘어갑니다. 리더는 의견이 갈릴 때(투표 동수, 대상 고르기 등) 정합니다.</li>
-</ol>
+<!-- ================================================== 진행 -->
+<section class="page" id="overview">
+  <div class="run"><span>결사 · 규칙서</span><span>게임 진행 한눈에</span></div>
+  <h2>게임 진행 한눈에</h2>
+  <p>게임은 <b>하루</b> 단위로 진행합니다. 하루는 <b>아침 → 낮 → 밤</b>입니다.</p>
+  <div class="flow">
+    <div class="st m"><div class="k">아침</div><div class="d">위협 1장 · 표적 이동 · (투표) · 미션 줄 채우기 · <b>작전 주사위 굴리기</b></div></div>
+    <div class="st d2"><div class="k">낮</div><div class="d">요원마다 <b>한 차례</b>씩. 순서는 자유. <b>주사위 1개 = 행동 1개</b></div></div>
+    <div class="st n"><div class="k">밤</div><div class="d">남은 주사위 버림 · (2막 버티기 세기) · 남은 날 −1 · 리더 넘김</div></div>
+  </div>
+  <p>1막에서 결행을 선언하면 그날부터 2막이고, 하루의 모양은 같습니다. 남은 날이 0이 되면 게임이 끝납니다.</p>
+  <div class="note"><div class="t">핵심</div>이 게임의 고민은 <b>아침에 굴린 주사위를 어디에 쓰느냐</b>입니다. 주사위 하나가 행동 하나이고, 눈이 큰 주사위는 멀리 가거나 판정에 강합니다. 큰 눈으로 멀리 갈까요, 판정에 남겨 둘까요?</div>
+  <div class="folio">5</div>
+</section>
 
-<!-- ============================================================ -->
-<h2 id="day"><span class="no">04</span>하루의 흐름</h2>
-<h3>아침</h3>
-<div class="flow">
-  <span>① 위협 1장</span><i>→</i>
-  <span>② 표적 이동 · 기한 <span class="tag new">★</span></span><i>→</i>
-  <span>③ 결행 투표 (1막)</span><i>→</i>
-  <span>④ 미션 줄 채우기</span><i>→</i>
-  <span>⑤ 작전 주사위</span><i>→</i>
-  <span>⑥ 아침 능력·아이템</span><i>→</i>
-  <span>하루 시작</span>
-</div>
-<ol>
-  <li><b>위협:</b> 위협 덱 맨 위 1장을 뒤집어 처리합니다. 일제 작전 위협이면 보드에 마커를 놓습니다.</li>
-  <li><b>표적 이동·기한</b> <span class="tag new">★</span>: 움직이는 표적 마커가 지역 안에서 옮겨 갑니다. 기한이 있는 미션·일제 작전은 남은 날이 1 줄고, 0이 되면 놓친 것으로 처리합니다.</li>
-  <li><b>결행 투표</b>(1막): 결행 준비가 3 이상이면 투표합니다(<a href="#launch">결행</a>). 남은 날이 2일이면 투표 없이 강제 결행합니다.</li>
-  <li><b>미션 줄:</b> 공개 미션이 4장이 되도록 채우고, 새 미션의 마커를 놓습니다.</li>
-  <li><b>작전 주사위:</b> 요원마다 주사위를 굴립니다(<a href="#dice">작전 주사위</a>).</li>
-  <li><b>아침 능력·아이템:</b> 「무전 지원」, 「회중시계」, 「암호 수첩」처럼 아침에 쓰는 것을 씁니다. 다 되면 하루를 시작합니다.</li>
-</ol>
-<h3>낮</h3>
-<p><b>자유 순서.</b> 아직 차례를 안 한 요원 중 누구든 먼저 차례를 시작할 수 있습니다. 모두 한 번씩 차례를 마치면 밤이 됩니다. 순서가 갈리면 리더가 정합니다.</p>
-<h3>밤</h3>
-<ul>
-  <li>2막: 지금 장면의 「버티기」를 셉니다.</li>
-  <li>남은 날 −1. 0이 되면 게임이 끝납니다(<a href="#end">엔딩</a>).</li>
-  <li>쓰지 않은 작전 주사위는 사라집니다.</li>
-</ul>
+<!-- ================================================== 아침 -->
+<section class="page" id="morning">
+  <div class="run"><span>결사 · 규칙서</span><span>아침</span></div>
+  <h2>아침</h2>
+  <p>리더가 아래 순서대로 진행합니다.</p>
+  <ol class="steps">
+    <li><b>일제 위협</b>: 위협 덱 맨 위 1장을 뒤집어 그대로 처리합니다. 「일제 작전」 위협이면 보드에 마커를 놓습니다(<a href="#ops">일제 작전</a>).</li>
+    <li><b>표적 이동과 기한</b>: 움직이는 표적 마커(암살 미션 등)를 지역 안에서 옮깁니다. 기한이 있는 미션과 일제 작전의 남은 날을 1 줄이고, 0이 된 것은 놓친 것으로 처리합니다.</li>
+    <li><b>결행 투표</b> (1막만): 결행 준비가 3 이상이면 투표합니다(<a href="#launch">결행</a>). 남은 날이 2일이면 투표 없이 결행합니다.</li>
+    <li><b>미션 줄 채우기</b>: 공개 미션이 4장이 되도록 채우고, 새 미션의 마커를 보드에 놓습니다.</li>
+    <li><b>작전 주사위</b>: 모든 요원이 자기 주사위를 굴립니다. <b>1막 2개, 2막 3개</b>. 갇힌 요원도 굴립니다. 굴린 눈은 모두에게 공개합니다.</li>
+    <li><b>아침 능력과 아이템</b>: 윤 소위의 「무전 지원」, 「회중시계」, 「암호 수첩」처럼 아침에 쓰는 것을 씁니다. 그다음 낮이 됩니다.</li>
+  </ol>
+  <div class="example"><div class="t">예시</div>아침에 박 하사는 <b>5·2</b>, 주모 막례는 <b>1·1</b>을 굴렸습니다. 윤 소위가 「무전 지원」으로 막례의 1 하나를 다시 굴려 <b>4</b>가 나왔습니다. 이제 막례는 4·1로 하루를 시작합니다.</div>
+  <div class="folio">6</div>
+</section>
 
-<!-- ============================================================ -->
-<h2 id="turn"><span class="no">05</span>내 차례</h2>
-<p>차례를 시작하면 <b>이동 0칸</b>입니다. 작전 주사위를 써야 움직입니다. 차례는 <b>이동을 마치는 순간</b> 끝나므로, 아래 행동들은 이동을 마치기 전에 합니다.</p>
-<div class="tw"><table>
-<tr><th>행동</th><th>내용</th><th>제한</th></tr>
-<tr><td><b>주사위로 이동</b></td><td>주사위 하나를 쓰면 그 눈만큼 걸을 수 있음. 여러 개를 더해도 됨</td><td>이동을 마치기 전까지</td></tr>
-<tr><td><b>한 칸 걷기</b></td><td>상하좌우 한 칸. 빈칸이면 타일을 뒤집어 깜. 다른 요원이 있는 칸은 못 감(출발점·거점 제외)</td><td>남은 걸음만큼</td></tr>
-<tr><td><b>이동 마치기</b></td><td>남은 걸음을 버리고 멈춤 → 칸 효과 → 나를 쫓는 경찰 이동 → 차례 끝</td><td>—</td></tr>
-<tr><td>아이템 쓰기</td><td>「언제」가 맞는 아이템 1장</td><td>차례에 1번</td></tr>
-<tr><td>능력 쓰기</td><td>요원 카드의 능력</td><td>하루 1번</td></tr>
-<tr><td>아이템 건네기</td><td>같은 칸이나 옆 칸 동료에게 1장</td><td>아이템 사용 1번으로 침</td></tr>
-<tr><td>주사위 건네기</td><td>같은 칸 동료에게 내 주사위 하나</td><td>하루 1번</td></tr>
-<tr><td>미끼</td><td>3칸 안 동료를 쫓는 경찰을 내 쪽으로 끌어옴</td><td>차례에 1번</td></tr>
-<tr><td>공작 바치기 <span class="tag new">★</span></td><td>공작 미션 마커 칸에서 주사위를 바침</td><td>—</td></tr>
-<tr><td>장면 바치기·판정·매수</td><td>2막, 장면 자리에서 (<a href="#act2">장면 돌파</a>)</td><td>판정은 차례에 1번</td></tr>
-<tr><td>탈옥 · 보석금 <span class="tag new">★</span></td><td>갇혀 있을 때 (<a href="#police">경찰·노출·감옥</a>)</td><td>—</td></tr>
-</table></div>
-<div class="box seal small"><b>이동이 저절로 끝나는 때:</b> 걸음이 0이 될 때, 거점에 들어갈 때, 검문소가 새로 나왔거나 검문에 걸렸을 때, 미션 판정·폭파를 할 때. 끝나면 그 칸의 효과를 받고, 나를 쫓는 경찰이 움직인 뒤 차례가 끝납니다.</div>
-<p class="small muted">「다음 이동 ±」, 「오늘 이동 +」 같은 보정은 그 차례에 처음 쓰는 이동 주사위에 붙습니다. 주사위를 쓰지 않으면 보정도 쓰지 않습니다.</p>
+<!-- ================================================== 차례 -->
+<section class="page" id="turn">
+  <div class="run"><span>결사 · 규칙서</span><span>낮: 내 차례</span></div>
+  <h2>낮: 내 차례</h2>
+  <p>낮에는 요원마다 <b>한 차례</b>씩 합니다. <b>순서는 자유</b>입니다. 아직 차례를 안 한 요원 중 누구든 먼저 할 수 있고, 갈리면 리더가 정합니다.</p>
+  <div class="goal" style="border-color:var(--ink);background:var(--card)">
+    <div class="t" style="color:var(--ink)">주사위 1개 = 행동 1개</div>
+    차례에는 <b>작전 주사위를 하나씩 내어 행동</b>합니다. 무엇을 할지 고르고, 어떤 주사위를 낼지 고릅니다. 낸 주사위는 옆으로 치웁니다. 원하면 언제든 <b>차례를 마칩니다</b>. 주사위가 남아 있어도 마칠 수 있습니다.
+  </div>
+  <h3>행동</h3>
+  <div class="acts">
+    <div class="act"><div class="h"><svg><use href="#i-move"/></svg>이동</div><span class="v">눈만큼</span><p>눈만큼 상하좌우로 걷습니다. 빈칸에 들어가면 타일을 뒤집어 깝니다. 마친 칸의 효과를 받습니다.</p></div>
+    <div class="act"><div class="h"><svg><use href="#i-check"/></svg>작전 판정</div><span class="v">눈 + 1d6</span><p>암살 표적 칸, 장면 자리, 감옥(탈옥) 등에서 합니다. 실패하면 다른 주사위로 다시 해도 됩니다(행동 하나 더).</p></div>
+    <div class="act"><div class="h"><svg><use href="#i-pay"/></svg>바치기</div><span class="v">눈 · 상관없음</span><p>공작 미션과 장면의 주사위 합에 눈을 바칩니다. 장면에 아이템·폭탄·군자금을 바치는 것도 행동입니다.</p></div>
+    <div class="act"><div class="h"><svg><use href="#i-give"/></svg>건네기</div><span class="v">상관없음</span><p>같은 칸이나 옆 칸 동료에게 아이템 1장. 또는 같은 칸 동료에게 <b>이 주사위</b>를 줍니다(하루 1번).</p></div>
+    <div class="act"><div class="h"><svg><use href="#i-lure"/></svg>미끼</div><span class="v">상관없음</span><p>3칸 안의 동료를 쫓는 경찰을 내 쪽으로 끌어옵니다.</p></div>
+    <div class="act"><div class="h"><svg><use href="#i-hide"/></svg>숨기</div><span class="v">상관없음</span><p>이번 차례 끝에 나를 쫓는 경찰이 다가오지 않습니다.</p></div>
+    <div class="act"><div class="h"><svg><use href="#i-shop"/></svg>장터</div><span class="v">상관없음</span><p>장터 칸에서 군자금으로 사거나 아이템을 팝니다(한 번).</p></div>
+    <div class="act"><div class="h"><svg><use href="#i-tram"/></svg>전차</div><span class="v">상관없음</span><p>정류장 칸에서 깔린 다른 정류장으로 옮깁니다.</p></div>
+    <div class="act"><div class="h"><svg><use href="#i-key"/></svg>보석</div><span class="v">상관없음</span><p>갇혀 있을 때 군자금 4를 내고 풀려납니다.</p></div>
+  </div>
+  <h3>주사위 없이 하는 것</h3>
+  <div class="acts">
+    <div class="act free"><div class="h">아이템 쓰기</div><p>차례에 1장.</p></div>
+    <div class="act free"><div class="h">능력 쓰기</div><p>요원 카드의 능력, 하루 1번.</p></div>
+    <div class="act free"><div class="h">차례 마치기</div><p>「차례를 마치면」 효과를 확인하고, 나를 쫓는 경찰이 다가옵니다.</p></div>
+  </div>
+  <div class="folio">7</div>
+</section>
 
-<!-- ============================================================ -->
-<h2 id="dice"><span class="no">06</span>작전 주사위</h2>
-<p>아침에 <b>요원마다 자기 주사위</b>를 굴립니다. 1막 <b>2개</b>, 2막 <b>3개</b>. 갇힌 요원도 굴립니다. 모두의 눈은 공개합니다. 쓰지 않은 주사위는 <b>밤에 사라집니다.</b></p>
-<div class="tw"><table>
-<tr><th>쓰는 곳</th><th>방식</th></tr>
-<tr><td><b>이동</b></td><td>눈만큼 걸음. 오늘 이동 보정(통금령 −1 등)을 받아도 최소 1</td></tr>
-<tr><td><b>작전 판정</b></td><td>고른 눈 + 새로 굴린 주사위 1개 ≥ 목표 (<a href="#check">판정</a>)</td></tr>
-<tr><td><b>다시 하기</b></td><td>작전 판정에 실패하면 남은 주사위로 다시</td></tr>
-<tr><td><b>장면 바치기</b></td><td>2막 「주사위 합」 장면에 눈을 바침 (여러 요원·여러 날 누적)</td></tr>
-<tr><td><b>공작</b> <span class="tag new">★</span></td><td>공작 미션: 합, 눈 조합(예: 1·3·5), 마커마다 하나</td></tr>
-<tr><td><b>건네기</b></td><td>같은 칸 동료에게 (하루 1번)</td></tr>
-</table></div>
-<div class="box gold"><b>매일의 고민:</b> 큰 눈을 이동에 쓸까, 판정에 남길까? 작은 눈은 공작 조합이나 짧은 이동에 씁니다. 목표 9 판정의 성공률은 주사위 없이 2d6이면 28%, 눈 6을 쓰면 67%, 눈 3이면 17%입니다.</div>
+<section class="page">
+  <div class="run"><span>결사 · 규칙서</span><span>낮: 내 차례</span></div>
+  <h3>이동 자세히</h3>
+  <ul>
+    <li>한 칸씩 상하좌우로 걷습니다. <b>다른 요원이 서 있는 칸</b>에는 들어갈 수 없습니다(출발점과 거점은 됨).</li>
+    <li>빈칸에 들어가면 타일 더미에서 1장을 뒤집어 깝니다. 더미가 다 떨어지면 빈칸에는 들어갈 수 없습니다.</li>
+    <li>걸음을 다 쓰지 않고 멈춰도 됩니다.</li>
+    <li>다음 칸에 들어가면 <b>이동이 그 자리에서 멈춥니다.</b>
+      <ul>
+        <li>거점</li>
+        <li>검문소 (판정에 실패하면 그 앞에서 멈춤)</li>
+        <li>새로 뒤집혀 나온 검문소 (그 앞에서 멈춤)</li>
+        <li>암살 표적 칸</li>
+      </ul></li>
+    <li>이동을 마친 칸에 효과가 있으면 받습니다(<a href="#board">타일</a>). 이동 행동을 두 번 하면 칸 효과도 두 번 받을 수 있습니다.</li>
+    <li>「오늘 이동 +」, 「다음 이동 +」 같은 보정은 그 차례의 <b>첫 이동</b>에 붙습니다.</li>
+  </ul>
+  <h3>차례 마치기</h3>
+  <ol>
+    <li>그 칸의 <b>「차례를 마치면」</b> 효과를 확인합니다. 잠복 미션, 주막, 은신처, 사연 조건, 2막 사람 수 등입니다.</li>
+    <li><b>나를 쫓는 경찰</b>이 다가옵니다(<a href="#police">경찰</a>). 「숨기」를 했으면 다가오지 않습니다.</li>
+    <li>남은 주사위는 그대로 둡니다. 밤에 사라집니다.</li>
+  </ol>
+  <div class="example"><div class="t">예시 · 큰 눈을 어디에</div>
+    박 하사는 <b>5·2</b>를 굴렸습니다. 「순사 부장 암살」의 표적이 <b>2칸</b> 앞에 있습니다.<br>
+    ① <b>2</b>로 이동해 표적 칸에 들어갑니다. 표적 칸이라 이동이 멈춥니다.<br>
+    ② <b>5</b>로 암살 판정을 합니다. 5 + 새 주사위 ≥ 9, 곧 새 주사위가 4 이상이면 성공입니다(50%).<br>
+    만약 5로 이동하고 2로 판정했다면 새 주사위가 7 이상이어야 해서 성공할 수 없었습니다.</div>
+  <div class="example"><div class="t">예시 · 건네기</div>
+    주모 막례는 <b>1·1</b>을 굴렸고, 같은 칸의 박 하사는 장면 판정을 앞두고 있습니다. 막례가 <b>1</b>을 「건네기」로 박 하사에게 줍니다. 1은 판정에는 약하지만, 박 하사가 행동을 하나 더 하게 됩니다. 남은 1로 막례는 「숨기」를 합니다.</div>
+  <div class="folio">8</div>
+</section>
 
-<!-- ============================================================ -->
-<h2 id="check"><span class="no">07</span>판정</h2>
-<div class="grid2">
-  <div class="box green"><h4>작전 판정 — 내가 고름</h4>
-    <p>암살 미션, 탈옥, 2막 장면 판정. 시작할 때 고릅니다.</p>
-    <ul><li><b>주사위 하나 쓰기:</b> 그 눈 + 새 주사위 1개</li><li><b>쓰지 않기:</b> 새 주사위 2개(2d6)</li></ul>
-    <p>실패하면 남은 주사위로 <b>다시 하기</b>를 할 수 있습니다.</p></div>
-  <div class="box seal"><h4>강제 판정 — 그냥 굴림</h4>
-    <p>검문소 통과, 체포·기습 회피, 효과의 「판정 아니면 투옥」, 2막 수색 등.</p>
-    <ul><li>언제나 <b>2d6</b></li><li>주사위로 다시 하지 않음 (「다시 굴리기」 권리는 됨)</li></ul></div>
-</div>
-<div class="tw"><table>
-<tr><th>판정</th><th>목표</th><th>보정</th></tr>
-<tr><td>암살</td><td class="n">9 (카드마다 다름)</td><td>망원경 +1, 저격수 오는 실패 시 한 번 더</td></tr>
-<tr><td>회피</td><td class="n">7</td><td>양장 +2, 윤 소위는 늘 성공, 연막탄은 자동 성공</td></tr>
-<tr><td>탈옥</td><td class="n">8</td><td>박 하사 +3, 위협 「고문」 −2, 옷핀은 바로 탈출</td></tr>
-<tr><td>장면 판정</td><td class="n">카드에 적힘 (8~11)</td><td>첩보 토큰 +1, 한 간호장교 능력 +2, 사연 권리 +2, 「비상 소집」 +1(목표)</td></tr>
-</table></div>
-<h4>한 번 쓰는 권리</h4>
-<p>사연 보상 등으로 받는, 나중에 한 번 쓰는 보너스입니다. 쓰면 사라집니다. <b>판정 +2</b>(일부는 결행 장면에서만), <b>다시 굴리기</b>, <b>회피 자동 성공</b>, <b>즉시 탈옥</b>.</p>
+<!-- ================================================== 판정 -->
+<section class="page" id="check">
+  <div class="run"><span>결사 · 규칙서</span><span>판정</span></div>
+  <h2>판정</h2>
+  <p>판정은 두 가지입니다. 결과가 <b>목표 이상</b>이면 성공합니다.</p>
+  <div class="two">
+    <div class="box" style="border-left:6px solid var(--green)"><h4>작전 판정 · 내가 하는 것</h4>
+      <p>행동으로 합니다. <b>낸 주사위의 눈 + 새로 굴린 주사위 1개</b>.</p>
+      <p class="small">암살, 탈옥, 2막 장면 판정, 일제 작전(밀정 침투).<br>실패하면 다른 주사위로 다시 할 수 있습니다(또 한 행동).</p></div>
+    <div class="box" style="border-left:6px solid var(--seal)"><h4>강제 판정 · 당하는 것</h4>
+      <p>주사위를 쓰지 않고 <b>새 주사위 2개(2d6)</b>를 굴립니다.</p>
+      <p class="small">검문소 통과, 체포·수색 회피, 「판정 아니면 투옥」 같은 효과.<br>다시 하려면 「다시 굴리기」 권리가 있어야 합니다.</p></div>
+  </div>
+  <div class="tw"><table>
+    <tr><th>판정</th><th>목표</th><th>도움이 되는 것</th></tr>
+    <tr><td>암살</td><td class="n">9 (카드마다)</td><td>망원경 +1 · 저격수 오는 실패하면 한 번 더 · 정보원으로 −2</td></tr>
+    <tr><td>회피</td><td class="n">7</td><td>양장 +2 · 윤 소위는 늘 성공 · 연막탄은 자동 성공</td></tr>
+    <tr><td>탈옥</td><td class="n">8</td><td>박 하사 +3 · 옷핀은 바로 탈출 · 위협 「고문」 −2</td></tr>
+    <tr><td>장면</td><td class="n">카드에 적힘</td><td>첩보 토큰 +1 · 한 간호장교 능력 +2 · 권리 +2</td></tr>
+  </table></div>
+  <h3>한 번 쓰는 권리</h3>
+  <p>사연 보상 등으로 <b>나중에 한 번 쓰는 보너스</b>를 받습니다. 요원 카드 옆에 놓아 두고, 쓰면 버립니다.</p>
+  <ul class="small">
+    <li><b>판정 +2</b>: 일부는 결행 장면 판정에서만</li>
+    <li><b>다시 굴리기</b></li>
+    <li><b>회피 자동 성공</b></li>
+    <li><b>즉시 탈옥</b></li>
+  </ul>
+  <div class="note"><div class="t">확률 감</div>작전 판정 목표 9일 때 낸 눈에 따른 성공률은 6이면 67%, 5면 50%, 4면 33%, 3이면 17%입니다. 주사위를 쓰지 않는 강제 판정(2d6)으로 9를 넘길 확률은 28%입니다.</div>
+  <div class="folio">9</div>
+</section>
 
-<!-- ============================================================ -->
-<h2 id="tiles"><span class="no">08</span>보드와 타일</h2>
-<div class="board">
-<svg viewBox="0 0 330 330" role="img" aria-label="보드: 11×11, 가운데 출발점, 네 귀퉁이 근처에 거점">
-  <rect x="0" y="0" width="330" height="330" fill="var(--paper-2)" stroke="var(--line)"/>
-  <g stroke="var(--line)" stroke-width="1">
-    <path d="M30 0V330M60 0V330M90 0V330M120 0V330M150 0V330M180 0V330M210 0V330M240 0V330M270 0V330M300 0V330M0 30H330M0 60H330M0 90H330M0 120H330M0 150H330M0 180H330M0 210H330M0 240H330M0 270H330M0 300H330"/>
-  </g>
-  <g font-family="Noto Sans KR" font-size="9" font-weight="800" text-anchor="middle">
-    <rect x="30" y="30" width="30" height="30" fill="var(--ink)"/><text x="45" y="77" fill="var(--ink)">일본군영</text>
-    <rect x="270" y="30" width="30" height="30" fill="var(--ink)"/><text x="285" y="77" fill="var(--ink)">종로경찰서</text>
-    <rect x="30" y="270" width="30" height="30" fill="var(--ink)"/><text x="45" y="262" fill="var(--ink)">서대문형무소</text>
-    <rect x="270" y="270" width="30" height="30" fill="var(--ink)"/><text x="285" y="262" fill="var(--ink)">조선총독부</text>
-    <rect x="150" y="150" width="30" height="30" fill="var(--seal)"/><text x="165" y="197" fill="var(--seal)">출발점</text>
-  </g>
-</svg>
-<div style="flex:1;min-width:240px">
-<p>보드는 11×11칸입니다. 처음에는 출발점과 거점 4곳만 깔려 있고, 나머지 <b>116칸은 비어 있습니다.</b> 빈칸에 들어갈 때 타일 더미에서 1장을 뒤집어 깝니다. 더미가 떨어지면 빈칸에는 더 들어갈 수 없습니다.</p>
-<p><b>거점</b>에 들어가면 이동이 끝나고 경찰이 붙습니다(결행 거점은 2막에 예외). 그 거점에 갇힌 동료가 있으면 <b>구출</b>합니다.</p>
-</div>
-</div>
-<h3>지형 타일 100장 <span class="tag new">★ 구성 변경</span></h3>
-<p class="small muted">미션은 타일이 아니라 마커로 바뀌어 암살·방해·폭파 타일은 없어졌습니다. 「효과」는 그 칸에서 이동을 마칠 때 받습니다(검문소는 들어갈 때).</p>
-<div class="tw"><table>
-<tr><th>타일</th><th>장</th><th>효과</th></tr>
-<tr><td>길</td><td class="n">34</td><td>없음</td></tr>
-<tr><td>이벤트</td><td class="n">16</td><td>이벤트 카드 1장 (한 번 쓰면 길이 됨)</td></tr>
-<tr><td>아이템</td><td class="n">14</td><td>아이템 1장 (한 번 쓰면 길이 됨)</td></tr>
-<tr><td>검문소</td><td class="n">6</td><td><b>들어가려면</b> 회피 판정 7 (또는 뇌물 군자금 1 <span class="tag new">★</span>). 실패하면 그 앞에 머물고 노출 +1, 경찰이 붙고 이동 끝. 새로 뒤집혀 나오면 그 앞에서 이동 끝</td></tr>
-<tr><td>보급</td><td class="n">5</td><td>폭탄 1개 (보급에 남아 있으면, 손 한도까지)</td></tr>
-<tr><td>골목 <span class="tag new">★</span></td><td class="n">6</td><td>나를 쫓는 경찰이 2칸 물러남. 따돌림 거리를 넘으면 사라짐</td></tr>
-<tr><td>감시탑 <span class="tag new">★</span></td><td class="n">4</td><td>노출 +1. 지나가기만 하면 괜찮음</td></tr>
-<tr><td>장터 <span class="tag new">★</span></td><td class="n">4</td><td>원하면 군자금 2로 아이템 1장, 군자금 3으로 폭탄 1개, 또는 아이템 1장을 팔아 군자금 +1</td></tr>
-<tr><td>전차 정류장 <span class="tag new">★</span></td><td class="n">4</td><td>들어가면, 원하면 주사위 하나(눈 상관없음)를 내고 깔린 다른 정류장으로 옮김. 거기서 이동 끝</td></tr>
-<tr><td>주막 <span class="tag new">★</span></td><td class="n">3</td><td>동료와 같은 칸에서 이동을 마치면 노출 −1 (하루 한 번)</td></tr>
-</table></div>
-<p class="small">이벤트 「동지의 은신처」로 생긴 <b>은신처</b> 칸에서 차례를 마치면 쫓던 경찰이 사라집니다.</p>
+<!-- ================================================== 보드 -->
+<section class="page" id="board">
+  <div class="run"><span>결사 · 규칙서</span><span>보드와 타일</span></div>
+  <h2>보드와 타일</h2>
+  <p><b>거점</b>에 들어가면 이동이 멈추고 경찰이 붙습니다. 2막의 결행 거점에는 붙지 않습니다. 그 거점 감옥에 갇힌 동료가 있으면 <b>구출</b>합니다.</p>
+  <p><b>지형 타일 100장</b>은 처음에 모두 뒷면입니다. 효과는 <b>그 칸에서 이동을 마칠 때</b> 받습니다(검문소는 들어갈 때).</p>
+  <div class="tw"><table>
+    <tr><th>타일</th><th>장</th><th>효과</th></tr>
+    <tr><td><b>길</b></td><td class="n">34</td><td>없음</td></tr>
+    <tr><td><b>이벤트</b></td><td class="n">16</td><td>이벤트 카드 1장. 한 번 쓰면 길이 됨</td></tr>
+    <tr><td><b>아이템</b></td><td class="n">14</td><td>아이템 1장. 한 번 쓰면 길이 됨</td></tr>
+    <tr><td><b>검문소</b></td><td class="n">6</td><td><b>들어가려면</b> 회피 판정 7, 또는 뇌물(군자금 1). 실패하면 그 앞에 머물고 노출 +1, 경찰이 붙고 이동이 멈춤. 새로 뒤집혀 나오면 그 앞에서 멈춤</td></tr>
+    <tr><td><b>보급</b></td><td class="n">5</td><td>폭탄 1개 (보급에 남아 있고 손에 자리가 있으면)</td></tr>
+    <tr><td><b>골목</b></td><td class="n">6</td><td>나를 쫓는 경찰이 2칸 물러남. 3칸 넘게 벌어지면 따돌림</td></tr>
+    <tr><td><b>감시탑</b></td><td class="n">4</td><td>노출 +1 (지나가기만 하면 괜찮음)</td></tr>
+    <tr><td><b>장터</b></td><td class="n">4</td><td>「장터」 행동을 할 수 있는 곳</td></tr>
+    <tr><td><b>전차 정류장</b></td><td class="n">4</td><td>「전차」 행동을 할 수 있는 곳</td></tr>
+    <tr><td><b>주막</b></td><td class="n">3</td><td>동료와 같은 칸에서 차례를 마치면 노출 −1 (하루 한 번)</td></tr>
+  </table></div>
+  <p class="small">이벤트 「동지의 은신처」로 생긴 <b>은신처</b> 칸에서 차례를 마치면 쫓던 경찰이 사라집니다.</p>
+  <div class="folio">10</div>
+</section>
 
-<!-- ============================================================ -->
-<h2 id="police"><span class="no">09</span>경찰·노출·감옥</h2>
-<h3>경찰</h3>
-<ul>
-  <li>경찰 말은 <b>4개</b>. 요원 한 명에 하나씩 <b>붙어서</b> 쫓습니다. 붙은 다음 차례부터 움직입니다.</li>
-  <li>쫓기는 요원이 차례를 마칠 때 경찰이 깔린 길로 <b>경계 단계만큼</b> 다가옵니다. 따라잡으면 <b>체포 → 투옥</b>.</li>
-  <li>다가온 뒤에도 <b>3칸 넘게</b> 떨어져 있으면 따돌린 것이라 사라집니다.</li>
-  <li>경찰이 붙는 때: 거점에 들어감, 시끄러운 미션(암살·폭파) 성공, 검문 실패, 위협(불시 수색, 체포령, 미행 등).</li>
-</ul>
-<h3>노출과 경계</h3>
-<div class="tw"><table>
-<tr><th>노출</th><th>경계 단계</th><th>경찰 이동</th><th>2막 경비 강화 장면</th></tr>
-<tr><td class="n">0~2</td><td class="n">1단계</td><td class="n">2칸</td><td class="n">0장</td></tr>
-<tr><td class="n">3~5</td><td class="n">2단계</td><td class="n">3칸</td><td class="n">1장</td></tr>
-<tr><td class="n">6~9</td><td class="n">3단계</td><td class="n">4칸</td><td class="n">1장</td></tr>
-</table></div>
-<p>노출이 오르는 때: 시끄러운 미션 +1, 투옥 +1, 검문 실패 +1, 감시탑 +1 <span class="tag new">★</span>, 위협·이벤트. 최대 9이고, 9에 닿으면 군자금 −2 <span class="tag new">★</span>.</p>
-<h3>감옥</h3>
-<ul>
-  <li>체포되면 <b>가장 가까운 거점의 감옥</b>에 갇힙니다. 노출 +1, 들고 있던 <b>아이템 1장 압수</b>(무작위) <span class="tag new">★</span>. 쫓던 경찰은 떨어집니다.</li>
-  <li>갇힌 요원은 이동·미션·장면을 하지 못합니다. 자기 차례에 다음 중 하나:
-    <ul><li><b>탈옥:</b> 작전 판정 8. 성공하면 풀려나고 경찰이 붙음, 차례 끝</li>
-    <li><b>보석금</b> <span class="tag new">★</span>: 군자금 4. 풀려나고 경찰이 붙지 않음, 차례 끝</li>
-    <li><b>기다리기:</b> 차례를 넘김</li></ul></li>
-  <li>동료가 그 거점에 들어오면 <b>구출</b>됩니다.</li>
-</ul>
+<!-- ================================================== 경찰 -->
+<section class="page" id="police">
+  <div class="run"><span>결사 · 규칙서</span><span>경찰, 노출, 감옥</span></div>
+  <h2>경찰, 노출, 감옥</h2>
+  <h3>경찰</h3>
+  <ul>
+    <li>경찰 말은 <b>4개</b>이고, 요원 한 명에 하나씩 붙어 쫓습니다. 붙은 <b>다음 차례부터</b> 움직입니다.</li>
+    <li>쫓기는 요원이 <b>차례를 마칠 때</b> 경찰이 깔린 길을 따라 경계 단계만큼 다가옵니다. 따라잡으면 <b>체포</b>입니다.</li>
+    <li>다가온 뒤에도 <b>3칸 넘게</b> 떨어져 있으면 따돌린 것이라 경찰을 치웁니다.</li>
+    <li>경찰이 붙는 때: 거점에 들어감, 암살·폭파 성공, 검문 실패, 위협 카드.</li>
+  </ul>
+  <h3>노출과 경계</h3>
+  <div class="tw"><table>
+    <tr><th>노출</th><th>경계</th><th>경찰 이동</th><th>2막 경비 강화</th></tr>
+    <tr><td class="n">0~2</td><td class="n">1단계</td><td class="n">2칸</td><td class="n">—</td></tr>
+    <tr><td class="n">3~5</td><td class="n">2단계</td><td class="n">3칸</td><td class="n">장면 1장 추가</td></tr>
+    <tr><td class="n">6~9</td><td class="n">3단계</td><td class="n">4칸</td><td class="n">장면 1장 추가</td></tr>
+  </table></div>
+  <p>노출이 오르는 때는 암살·폭파 성공 +1, 투옥 +1, 검문 실패 +1, 감시탑 +1, 위협·이벤트입니다. 최대 9이고, <b>9에 닿으면 군자금 −2</b>입니다(대대적 단속).</p>
+  <h3>감옥</h3>
+  <ul>
+    <li>체포되면 <b>가장 가까운 거점의 감옥</b>으로 갑니다. 노출 +1, 들고 있던 <b>아이템 1장 압수</b>(무작위). 경찰은 떨어집니다.</li>
+    <li>갇힌 요원은 이동, 미션, 장면을 할 수 없습니다. 주사위로 할 수 있는 것은 <b>탈옥</b>(작전 판정 8, 성공하면 풀려나고 경찰이 붙음), <b>보석</b>(군자금 4, 경찰이 안 붙음), 그리고 <b>건네기</b>(같은 칸 동료에게)입니다.</li>
+    <li>동료가 그 거점에 들어오면 <b>구출</b>됩니다.</li>
+  </ul>
+  <div class="folio">11</div>
+</section>
 
-<!-- ============================================================ -->
-<h2 id="missions"><span class="no">10</span>미션 <span class="tag new">★ 개편</span></h2>
-<p>공개 미션 줄에 <b>4장</b>이 펼쳐집니다. 누구든 이룰 수 있고, 이루면 보상을 받고 그 자리에 다음 날 아침 새 미션이 나옵니다.</p>
-<h3>마커</h3>
-<ul>
-  <li>미션이 나오면 <b>카드에 적힌 지역의 칸 하나에 마커</b>를 놓습니다. 지역 「경찰서 2~3」은 경찰서에서 2~3칸 떨어진 칸, 「시내 3~5」는 출발점에서 3~5칸입니다.</li>
-  <li>거점·출발점·다른 마커·요원·경찰이 있는 칸에는 놓지 않습니다. 빈칸에도 놓을 수 있고, 들어가면 타일은 평소처럼 뒤집힙니다.</li>
-  <li>잠입 미션은 거점 자체가 마커입니다. 이룬 미션의 마커는 사라집니다.</li>
-  <li><b>기한:</b> 남은 날이 마커에 적힙니다. 0이 되면 줄에서 빠지고 「놓치면」을 처리합니다.</li>
-  <li><b>보너스:</b> 카드마다 한 줄. 이루는 순간 채웠으면 보너스 보상을 더 받습니다.</li>
-</ul>
-<h3>미션 종류</h3>
-<div class="tw"><table>
-<tr><th>종류</th><th>하는 일</th></tr>
-<tr><td><b>암살</b> <span class="tag loud">시끄러움</span></td><td>표적 칸에 멈춰 작전 판정. 실패하면 회피 판정(7), 그것도 실패하면 투옥. <b>표적은 매일 아침 지역 안에서 움직임.</b> 준비(선택): 정보원 마커에 들러 군자금 1을 내면 표적이 멈추고 판정 −2</td></tr>
-<tr><td><b>잠입</b></td><td>그 거점에 들어감 (경찰이 붙음). 카드마다 꼬임 하나</td></tr>
-<tr><td><b>폭파</b> <span class="tag loud">시끄러움</span></td><td>보급에서 얻은 폭탄을 들고 마커 칸에 들어감</td></tr>
-<tr><td><b>공작</b></td><td>마커 칸에서 주사위를 바침 (판정 없음): 합, 눈 조합, 마커마다 하나. 여러 날·여러 요원이 나눠 채움</td></tr>
-<tr><td><b>연락</b></td><td>받기 마커에서 물건을 들고(지나가기만 해도) 주기 마커까지. 든 요원이 투옥되면 물건은 받기 마커로. 무거운 물건은 이동 주사위 −1</td></tr>
-<tr><td><b>잠복</b></td><td>마커 칸이나 옆 칸에서 쫓기지 않고 차례를 마친 날이 N일 (요원이 바뀌어도 됨, 같은 날은 한 번)</td></tr>
-<tr><td><b>협동</b></td><td>두 명이 함께 하는 조건</td></tr>
-</table></div>
-<p class="small muted">시끄러운 미션을 이루면 노출 +1, 이룬 요원에게 경찰이 붙습니다.</p>
+<!-- ================================================== 미션 -->
+<section class="page" id="missions">
+  <div class="run"><span>결사 · 규칙서</span><span>미션</span></div>
+  <h2>미션</h2>
+  <p>보드 옆 <b>공개 미션 줄</b>에 미션 카드 4장이 펼쳐집니다. 누구든 이룰 수 있습니다. 이루면 카드의 <b>보상</b>(결행 준비, 첩보, 군자금 등)을 받고 마커를 치웁니다. 빈자리는 다음 아침에 채웁니다.</p>
+  <h3>마커와 지역</h3>
+  <ul>
+    <li>미션이 나오면 <b>카드에 적힌 지역의 칸</b>에 마커를 놓습니다. 「경찰서 2~3」은 경찰서에서 2~3칸 떨어진 칸, 「시내 3~5」는 출발점에서 3~5칸입니다. 리더가 조건에 맞는 칸을 고르거나 무작위로 정합니다.</li>
+    <li>거점, 출발점, 다른 마커, 요원·경찰이 있는 칸에는 놓지 않습니다. 빈칸에도 놓을 수 있습니다.</li>
+    <li><b>기한</b>이 적힌 미션은 마커에 남은 날을 둡니다. 0이 되면 「놓치면」을 처리하고 버립니다.</li>
+    <li><b>보너스</b>: 이루는 순간 카드의 보너스 조건을 채웠으면 보너스 보상도 받습니다.</li>
+  </ul>
+  <h3>미션 종류</h3>
+  <div class="tw"><table>
+    <tr><th>종류</th><th>이루는 법</th></tr>
+    <tr><td><b>암살</b></td><td>표적 칸에서 <b>작전 판정</b>. 성공하면 시끄럽습니다(노출 +1, 경찰이 붙음). 실패하면 회피 판정(7)으로 빠져나가고, 그것도 실패하면 투옥. <b>표적은 매일 아침 움직입니다.</b> 같은 지역 <b>정보원</b> 마커에 들어가 군자금 1을 내면 동선을 알아내 표적이 멈추고 판정이 2 쉬워집니다</td></tr>
+    <tr><td><b>잠입</b></td><td>그 거점에 들어갑니다(경찰이 붙음). 카드마다 꼬임이 하나씩 있습니다</td></tr>
+    <tr><td><b>폭파</b></td><td>폭탄을 들고 마커 칸에 들어갑니다. 시끄럽습니다</td></tr>
+    <tr><td><b>공작</b></td><td>마커 칸에서 「바치기」로 주사위를 바칩니다. <b>합 N</b>, <b>눈 조합</b>(예: 1·3·5를 하나씩), <b>마커마다 하나</b>. 여러 요원이 여러 날에 나눠 채워도 됩니다</td></tr>
+    <tr><td><b>연락</b></td><td>받기 마커를 지나가며 물건을 들고, 주기 마커에 들어가면 이룹니다. 든 요원이 잡히면 물건은 받기 마커로 돌아갑니다. <b>무거운 물건</b>은 이동 눈 −1</td></tr>
+    <tr><td><b>잠복</b></td><td>마커 칸이나 옆 칸에서 <b>쫓기지 않고 차례를 마친 날</b>이 정해진 만큼 쌓이면 이룹니다(요원이 바뀌어도 됨)</td></tr>
+    <tr><td><b>협동</b></td><td>두 명이 함께 채우는 조건</td></tr>
+  </table></div>
+  <div class="example"><div class="t">예시 · 눈 조합</div>「징용 명단 불태우기」는 <b>1·3·5</b>가 필요합니다. 첫날 문 선전대원이 <b>3</b>을 바치고, 다음 날 막례가 <b>1</b>을, 김개똥이 <b>5</b>를 바쳐 이룹니다. 큰 눈이 아니어도 쓸모가 있습니다. 문 선전대원이 있으면 조합에서 눈 하나를 빼고 시작합니다.</div>
+  <p class="small">카드 전체 목록은 <a href="#cards">부록</a>에 있습니다.</p>
+  <div class="folio">12</div>
+</section>
 
-<h3>미션 카드 22장</h3>
-<div class="tw"><table>
-<tr><th>종류</th><th>카드</th><th>지역·방식</th><th>기한</th><th>보너스</th><th>보상</th></tr>
-<tr><td rowspan="3">암살</td><td><b>순사 부장 암살</b></td><td>경찰서 2~3, 하루 1칸 · 판정 9 · 정보원 시내 2~4</td><td class="n">4일</td><td>쫓기지 않고 이루면 첩보 +1</td><td>경찰서 첩보 +2, 준비 +2</td></tr>
-<tr><td><b>헌병 대위 암살</b></td><td>군영 2~3, 하루 1칸 · 판정 9 · 준비는 무기 조달(아이템 1장 또는 군자금 2 → 판정 −2)</td><td class="n">4일</td><td>의병이 이루면 준비 +1</td><td>군영 첩보 +2, 준비 +2</td></tr>
-<tr><td><b>밀정 처단</b></td><td>시내 3~5, <b>하루 2칸</b> · 판정 8 · 정보원 시내 1~3</td><td class="n">3일</td><td>2일 이상 남기고 이루면 노출 −1</td><td>노출 −1, 나를 쫓는 경찰 제거, 준비 +2. <b>놓치면 노출 +2</b></td></tr>
-<tr><td rowspan="3">잠입</td><td><b>형무소 간수 매수</b></td><td>형무소. 군자금 2를 내면 경찰이 붙지 않음</td><td class="n">—</td><td>같은 차례에 동료 구출하면 준비 +1</td><td>형무소 첩보 +1, 준비 +2</td></tr>
-<tr><td><b>경찰서 문서 탈취</b></td><td>경찰서에 들어가 문서를 들고 <b>출발점까지</b> 나옴</td><td class="n">—</td><td>든 뒤 쫓기지 않고 나오면 준비 +1</td><td>경찰서 첩보 +2, 준비 +2</td></tr>
-<tr><td><b>총독부 설계도 입수</b></td><td>총독부에 들어감</td><td class="n">—</td><td>결행 대상이 총독부면 권리 1장 더</td><td>총독부 첩보 +1, 준비 +1, 결행 장면 판정 +2 권리</td></tr>
-<tr><td rowspan="2">폭파</td><td><b>철로 폭파</b></td><td>군영 3~4</td><td class="n">—</td><td>옆 칸에 동료가 있으면 경찰이 안 붙음</td><td>군영 첩보 +1, 준비 +2</td></tr>
-<tr><td><b>전신선 폭파</b></td><td>경찰서 3~4</td><td class="n">—</td><td>쫓기지 않고 이루면 준비 +1</td><td>경찰서 첩보 +1, 준비 +1, 모든 경찰 2칸 물러남, 내일 위협을 덱 밑으로</td></tr>
-<tr><td rowspan="5">공작</td><td><b>전단 살포</b></td><td>시내 2~5에 마커 3개, 마커마다 주사위 하나</td><td class="n">—</td><td>하루 만에 셋 다 끝내면 준비 +1</td><td>노출 −2, 준비 +1</td></tr>
-<tr><td><b>쌀 창고 열기</b></td><td>형무소 3~4, 합 8</td><td class="n">—</td><td>두 요원 이상이 바치면 군자금 +2</td><td>아이템 1장, 노출 −1, 준비 +1</td></tr>
-<tr><td><b>징용 명단 불태우기</b></td><td>형무소 2~3, 조합 1·3·5</td><td class="n">—</td><td>하루 만에 끝내면 노출 −1</td><td>형무소 첩보 +2, 준비 +1</td></tr>
-<tr><td><b>암호 해독</b></td><td>총독부 2~3, 조합 2·4·6</td><td class="n">—</td><td>쫓기지 않는 요원이 마지막 눈을 바치면 첩보 +1</td><td>총독부 첩보 +2, 준비 +1</td></tr>
-<tr><td><b>독립 공채</b></td><td>시내 2~5에 마커 2개, 마커마다 주사위 하나</td><td class="n">—</td><td>—</td><td>군자금 +4, 준비 +1</td></tr>
-<tr><td rowspan="3">연락</td><td><b>비밀 문서 전달</b></td><td>받기 총독부 2~3 → 주기 시내 0~1</td><td class="n">5일</td><td>든 요원이 한 번도 안 쫓기면 준비 +1</td><td>총독부 첩보 +2, 준비 +2</td></tr>
-<tr><td><b>무기 운반</b></td><td>받기 군영 3~4 → 주기 형무소 2~3, <b>무거움</b></td><td class="n">—</td><td>하루 만에 나르면 폭탄 +1</td><td>나른 요원 폭탄 2개, 준비 +1</td></tr>
-<tr><td><b>군영 보급 장부</b></td><td>받기 <b>군영 안</b> → 주기 시내 0~2</td><td class="n">5일</td><td>같은 날 받고 주면 준비 +1</td><td>군영 첩보 +2, 준비 +2</td></tr>
-<tr><td rowspan="3">잠복</td><td><b>경찰서 감시</b></td><td>경찰서 2~3, 2일</td><td class="n">—</td><td>—</td><td>경찰서 첩보 +2, 준비 +1, 이번 판 위협 1장 더 미리 봄</td></tr>
-<tr><td><b>총독부 동태 파악</b></td><td>총독부 2~3, 2일</td><td class="n">—</td><td>두 요원이 같은 날 하면 2일로 침</td><td>총독부 첩보 +2, 준비 +1</td></tr>
-<tr><td><b>부호의 헌금</b></td><td>시내 3~5, 1일</td><td class="n">—</td><td>—</td><td>군자금 +3, 준비 +1</td></tr>
-<tr><td rowspan="3">협동</td><td><b>엄호 잠입</b></td><td colspan="2">한 명이 거점에 들어가는 차례에 다른 한 명이 그 옆 칸에 있음</td><td>—</td><td>그 거점 첩보 +2, 경찰이 붙지 않음, 준비 +1</td></tr>
-<tr><td><b>형무소 면회</b></td><td colspan="2">두 명이 같은 날 형무소 옆 칸에서 차례를 마침</td><td>—</td><td>형무소 첩보 +2, 준비 +1</td></tr>
-<tr><td><b>연락선 잇기</b></td><td colspan="2">두 명이 같은 날 보드의 서로 반대쪽 가장자리에서 차례를 마침</td><td>—</td><td>준비 +2, 노출 −1</td></tr>
-</table></div>
-<p class="small muted">기한이 있는 미션을 놓치면 노출 +1 (밀정 처단은 +2).</p>
+<!-- ================================================== 일제 작전 + 군자금 -->
+<section class="page" id="ops">
+  <div class="run"><span>결사 · 규칙서</span><span>일제 작전 · 군자금</span></div>
+  <h2>일제 작전</h2>
+  <p>위협 카드 중 3장은 보드에 <b>일제 작전 마커</b>를 놓습니다. 기한 안에 막지 못하면 벌칙이 있습니다. 막으면 <b>노출 −1</b>입니다.</p>
+  <div class="tw"><table>
+    <tr><th>위협</th><th>마커</th><th>막는 법</th><th>기한</th><th>못 막으면</th></tr>
+    <tr><td><b>일제 검거령</b></td><td>시내 2~4</td><td>그 칸에서 주사위 합 6 바치기</td><td class="n">3일</td><td>노출 +2</td></tr>
+    <tr><td><b>쌀 공출</b></td><td>형무소 2~4</td><td>마커 칸이나 옆 칸에서 쫓기지 않고 차례를 마침</td><td class="n">2일</td><td>모든 요원 아이템 1장 버림</td></tr>
+    <tr><td><b>밀정 침투</b></td><td>시내 1~3, 매일 움직임</td><td>그 칸에서 작전 판정 7</td><td class="n">3일</td><td>결행 준비 −1</td></tr>
+  </table></div>
 
-<!-- ============================================================ -->
-<h2 id="ops"><span class="no">11</span>일제 작전 <span class="tag new">★</span></h2>
-<p>위협 카드 중 3장은 보드에 <b>일제 작전 마커</b>를 놓습니다. 기한 안에 막지 못하면 벌칙이 있습니다. 막는 법은 미션과 같은 방식이고, 막으면 <b>노출 −1</b>. 결행 준비에는 들어가지 않습니다.</p>
-<div class="tw"><table>
-<tr><th>위협</th><th>마커</th><th>막는 법</th><th>기한</th><th>못 막으면</th></tr>
-<tr><td><b>일제 검거령</b></td><td>시내 2~4</td><td>그 칸에서 공작 합 6</td><td class="n">3일</td><td>노출 +2</td></tr>
-<tr><td><b>쌀 공출</b></td><td>형무소 2~4</td><td>잠복 1일 (마커 칸이나 옆 칸)</td><td class="n">2일</td><td>모든 요원 아이템 1장 버림</td></tr>
-<tr><td><b>밀정 침투</b></td><td>시내 1~3, 하루 1칸 움직임</td><td>그 칸에서 작전 판정 7 (시끄럽지 않음)</td><td class="n">3일</td><td>결행 준비 −1</td></tr>
-</table></div>
+  <h2 id="funds" style="margin-top:40px">군자금</h2>
+  <p><b>팀이 함께 쓰는 돈</b>입니다. 시작 2, 최대 10(넘는 몫은 버림). 누구든 자기 차례에 씁니다. 주사위는 그날 사라지지만 군자금은 <b>모아 둘 수 있습니다.</b> 대신 빼앗길 수도 있습니다.</p>
+  <div class="tw"><table>
+    <tr><th>얻는 곳</th><th>쓰는 곳</th><th>잃는 곳</th></tr>
+    <tr><td>
+      <ul class="small" style="margin:0;padding-left:1.1em">
+        <li>「부호의 헌금」 +3</li>
+        <li>「독립 공채」 +4</li>
+        <li>「쌀 창고 열기」 보너스 +2</li>
+        <li>「국내 동지의 밀서」 +2</li>
+        <li>장터에서 팔기 +1</li>
+        <li>사연 「자금책」 +3</li>
+      </ul></td>
+    <td>
+      <ul class="small" style="margin:0;padding-left:1.1em">
+        <li>장터: 아이템 2, 폭탄 3</li>
+        <li>검문소 뇌물 1</li>
+        <li>보석 4</li>
+        <li>간수 매수 2, 정보원 1, 무기 조달 2</li>
+        <li>장면 매수 2~4</li>
+      </ul></td>
+    <td>
+      <ul class="small" style="margin:0;padding-left:1.1em">
+        <li>「가택 수색」 −2 (모자라면 아이템)</li>
+        <li>「자금 동결」 절반</li>
+        <li>노출 9 −2</li>
+      </ul></td></tr>
+  </table></div>
+  <div class="folio">13</div>
+</section>
 
-<!-- ============================================================ -->
-<h2 id="funds"><span class="no">12</span>군자금 <span class="tag new">★</span></h2>
-<p><b>팀 공용 숫자 하나.</b> 시작 2, 최대 10(넘는 몫은 버림). 누구든 쓸 수 있습니다. 주사위가 그날의 자원이라면, 군자금은 <b>날을 넘겨 모으는 자원</b>입니다. 그만큼 빼앗길 수도 있습니다.</p>
-<div class="grid3">
-<div class="box green"><h4>얻는 곳</h4><ul class="small">
-<li>미션 「부호의 헌금」 +3, 「독립 공채」 +4</li>
-<li>「쌀 창고 열기」 보너스 +2</li>
-<li>이벤트 「국내 동지의 밀서」 +2 (아이템 대신)</li>
-<li>장터에서 아이템 팔기 +1</li>
-<li>사연 「자금책」 +3</li></ul></div>
-<div class="box gold"><h4>쓰는 곳</h4><ul class="small">
-<li>장터: 아이템 2, 폭탄 3</li>
-<li>검문소 뇌물 1</li>
-<li>보석금 4</li>
-<li>간수 매수 2, 정보원 1, 무기 조달 2</li>
-<li>2막 장면 매수 2~4</li></ul></div>
-<div class="box seal"><h4>잃는 곳</h4><ul class="small">
-<li>위협 「가택 수색」 −2 (모자라면 아이템)</li>
-<li>위협 「자금 동결」 절반</li>
-<li>노출 9에 닿을 때 −2</li></ul></div>
-</div>
-<p class="small">엔딩: 남은 군자금은 「상하이 임시정부로 보내졌다」는 후일담 한 줄이 됩니다(승패와 무관).</p>
+<!-- ================================================== 결행 -->
+<section class="page" id="launch">
+  <div class="run"><span>결사 · 규칙서</span><span>결행</span></div>
+  <h2>결행</h2>
+  <ol class="steps">
+    <li><b>투표</b>: 1막 아침에 결행 준비가 <b>3 이상</b>이면 리더부터 돌아가며 찬반을 밝힙니다. <b>과반 찬성</b>이면 결행입니다. 동수면 리더의 표를 따릅니다.</li>
+    <li><b>강제 결행</b>: 남은 날이 <b>2일</b>이 된 아침에는 투표 없이 결행합니다.</li>
+    <li><b>대상</b>: 첩보가 <b>가장 높은 거점</b>이 결행 대상입니다. 동점이면 리더가 고릅니다.</li>
+    <li><b>사연</b>: 각자 사연 2장 중 <b>1장을 남기고</b> 1장을 버립니다. 이미 이룬 사연은 그대로 둡니다.</li>
+    <li><b>첩보 토큰</b>: 결행 대상의 첩보만큼 토큰을 받습니다.</li>
+    <li><b>장면</b>: 그 거점의 진입 장면과 마지막 장면을 놓고, 중간 장면 4장 중 2장을 무작위로 뽑습니다. 경계 2단계 이상이면 경비 강화 장면 1장을 마지막 앞에 넣습니다.</li>
+    <li><b>2막 위협 덱</b>으로 바꿉니다. 그날의 나머지 아침을 이어 갑니다.</li>
+  </ol>
+  <div class="note"><div class="t">언제 결행할까</div>일찍 결행하면 2막에 쓸 날이 많지만, 첩보가 적어 장면이 어렵습니다. 늦게 결행하면 준비는 단단하지만 날이 빠듯합니다. 결행 대상은 첩보로 정해지니, 1막에서 <b>어느 거점의 첩보를 모을지</b>가 곧 어디를 칠지입니다.</div>
+  <div class="folio">14</div>
+</section>
 
-<!-- ============================================================ -->
-<h2 id="launch"><span class="no">13</span>결행</h2>
-<ul>
-  <li><b>투표:</b> 아침에 결행 준비가 <b>3 이상</b>이면 모두 찬반을 냅니다. <b>과반 찬성</b>이면 결행, 동수면 리더의 표를 따릅니다. 반대면 하루 더 준비합니다.</li>
-  <li><b>강제 결행:</b> 남은 날이 <b>2일</b>이 되면 투표 없이 결행합니다.</li>
-  <li><b>결행 대상:</b> <b>첩보가 가장 높은 거점</b>. 동점이면 리더가 고릅니다.</li>
-  <li><b>사연 남기기:</b> 결행 순간 사연 2장 중 1장을 남기고 1장을 버립니다(이미 이룬 사연은 그대로).</li>
-  <li><b>첩보 토큰:</b> 결행 대상의 첩보만큼 첩보 토큰을 받습니다(<a href="#act2">장면 돌파</a>).</li>
-  <li>그날부터 2막 위협 덱을 씁니다. 결행 대상의 장면이 정해집니다.</li>
-</ul>
+<!-- ================================================== 2막 -->
+<section class="page" id="act2">
+  <div class="run"><span>결사 · 규칙서</span><span>2막: 장면 돌파</span></div>
+  <h2>2막: 장면 돌파</h2>
+  <div class="flow">
+    <div class="st"><div class="k">진입 장면</div><div class="d">거점마다 정해짐</div></div>
+    <div class="st"><div class="k">중간 장면 ×2</div><div class="d">무작위</div></div>
+    <div class="st"><div class="k">경비 강화</div><div class="d">경계 2단계↑</div></div>
+    <div class="st d2"><div class="k">마지막 장면</div><div class="d">처음부터 공개</div></div>
+  </div>
+  <ul>
+    <li>장면은 <b>하나씩</b> 펼칩니다. 지금 장면의 조건을 채우면 <b>돌파</b>하고 다음 장면을 펼칩니다.</li>
+    <li>장면마다 <b>자리</b>가 있습니다. 거점 <b>안</b>, <b>옆 칸</b>, 또는 <b>안이나 옆 칸</b>입니다. 그 자리에 서 있어야 바치기와 판정을 할 수 있습니다.</li>
+    <li>장면 판정에 실패하면 카드의 「실패하면」을 처리합니다.</li>
+    <li>2막 아침 주사위는 요원마다 <b>3개</b>입니다.</li>
+  </ul>
+  <div class="tw"><table>
+    <tr><th>장면 조건</th><th>채우는 법</th></tr>
+    <tr><td>판정 N</td><td>자리에서 작전 판정에 성공</td></tr>
+    <tr><td>두 명 판정</td><td>같은 날 서로 다른 두 요원이 각각 회피 판정(7)에 성공 (작전 판정으로)</td></tr>
+    <tr><td>주사위 합 N</td><td>자리에서 주사위를 바침. 여러 요원·여러 날 누적</td></tr>
+    <tr><td>아이템·폭탄 바치기</td><td>자리에서 바침</td></tr>
+    <tr><td>사람 N</td><td>같은 날 N명이 자리에서 차례를 마침</td></tr>
+    <tr><td>버티기 N일</td><td>밤에 자리에 정해진 인원이 있으면 1일</td></tr>
+    <tr><td>매수</td><td>일부 장면은 「또는 군자금 N」 (바치기 행동)</td></tr>
+  </table></div>
+  <p><b>첩보 토큰</b>: 하나를 버리고 장면 판정 <b>+1</b>, 또는 「주사위 합」 조건을 <b>−2</b> 줄입니다.</p>
+  <div class="example"><div class="t">예시 · 2막의 하루</div>결행 대상은 형무소입니다. 진입 장면 「담 넘기」는 형무소 옆 칸에서 주사위 합 6입니다. 박 하사가 <b>4</b>로 이동해 옆 칸에 서고 <b>5</b>를 바칩니다. 아직 1이 모자라 남은 <b>2</b>도 바쳐 돌파합니다. 다음 장면 「간수 제압」(두 명 판정)이 펼쳐집니다. 같은 날 안에서 두 명이 회피 판정에 성공해야 하므로, 막례와 김개똥이 큰 눈을 남겨 두고 형무소로 들어갑니다.</div>
+  <div class="folio">15</div>
+</section>
 
-<!-- ============================================================ -->
-<h2 id="act2"><span class="no">14</span>2막 · 장면 돌파</h2>
-<div class="flow"><span>진입 장면</span><i>→</i><span>중간 장면 2장 (무작위)</span><i>→</i><span>경비 강화 (경계 2단계↑)</span><i>→</i><span>마지막 장면</span></div>
-<ul>
-  <li>장면은 <b>하나씩</b> 펼쳐집니다. 지금 장면의 조건을 채우면 돌파하고 다음 장면이 나옵니다. 마지막 장면은 처음부터 공개입니다.</li>
-  <li>장면마다 <b>자리</b>가 있습니다: 거점 <b>안</b>, <b>옆 칸</b>, <b>안이나 옆 칸</b>. 그 자리에 서 있어야 바치기·판정·매수를 할 수 있습니다. 결행 거점에 들어가도 경찰은 붙지 않습니다.</li>
-  <li>장면 판정은 <b>차례에 1번</b>. 판정 실패 효과가 있는 장면도 있습니다.</li>
-  <li>2막 아침 작전 주사위는 요원마다 <b>3개</b>입니다.</li>
-</ul>
-<div class="tw"><table>
-<tr><th>조건</th><th>채우는 법</th></tr>
-<tr><td>판정 N</td><td>자리에서 작전 판정 성공</td></tr>
-<tr><td>두 명 판정</td><td>같은 날 서로 다른 두 요원이 각각 회피 판정(7) 성공</td></tr>
-<tr><td>주사위 합 N</td><td>자리에서 주사위를 바침. 여러 요원·여러 날 누적</td></tr>
-<tr><td>아이템 / 폭탄 바치기</td><td>자리에서 아이템·폭탄을 바침</td></tr>
-<tr><td>사람 N</td><td>같은 날 N명이 자리에서 차례를 마침</td></tr>
-<tr><td>버티기 N일</td><td>밤에 자리에 정해진 인원이 있으면 1일</td></tr>
-<tr><td>매수 <span class="tag new">★</span></td><td>일부 장면은 「또는 군자금 N」</td></tr>
-</table></div>
-<p><b>첩보 토큰</b> 하나로: 장면 판정 <b>+1</b>, 또는 「주사위 합」 조건 <b>−2</b>.</p>
+<!-- ================================================== 끝 -->
+<section class="page" id="end">
+  <div class="run"><span>결사 · 규칙서</span><span>게임의 끝</span></div>
+  <h2>게임의 끝</h2>
+  <p>마지막 장면을 돌파하면 즉시 승리합니다. 남은 날이 0이 된 밤에는 게임이 끝나고, 어디까지 갔는지에 따라 엔딩이 갈립니다.</p>
+  <div class="tw"><table>
+    <tr><th>엔딩</th><th>언제</th></tr>
+    <tr><td><b>진공작전 대성공</b></td><td>마지막 장면 돌파. 결행 대상마다 해방의 장면이 다름</td></tr>
+    <tr><td><b>한 걸음이 모자랐다</b></td><td>마지막 장면에서 날이 다 감</td></tr>
+    <tr><td><b>진공작전 실행</b></td><td>중간 장면에서 날이 다 감</td></tr>
+    <tr><td><b>정사</b></td><td>1막에서 날이 다 갔거나, 진입 장면도 넘지 못함</td></tr>
+  </table></div>
+  <p>엔딩 뒤에는 요원 넷의 <b>후일담</b>을 읽습니다. 결행이 성공했는지, <b>남긴 사연을 이뤘는지</b>에 따라 문장이 다릅니다. 군자금이 남았으면 「상하이 임시정부로 보내졌다」는 한 줄을 더합니다.</p>
 
-<!-- ============================================================ -->
-<h2 id="strikes"><span class="no">15</span>결행 대상과 장면</h2>
-<p class="small muted">중간 장면 4장 중 2장이 무작위로 나옵니다. 「실패」는 판정에 실패했을 때입니다. 매수 <span class="tag new">★</span>는 군자금 선택지입니다.</p>
-<div class="grid2">
-<div>
-<h3>사령관 암살 · 일본군영</h3>
-<div class="tw"><table>
-<tr><th>장면</th><th>자리</th><th>조건</th></tr>
-<tr><td>진입 · 철조망</td><td>옆</td><td>주사위 합 6 또는 아이템 1</td></tr>
-<tr><td>보초 교대</td><td>옆</td><td>1명이 1일 버팀 · <b>매수 3</b></td></tr>
-<tr><td>탄약고</td><td>안</td><td>폭탄 1</td></tr>
-<tr><td>장교 숙소</td><td>안</td><td>판정 8 · 실패: 경찰 출동</td></tr>
-<tr><td>군견</td><td>안</td><td>두 명 판정 · 실패: 경찰이 붙음</td></tr>
-<tr><td>마지막 · 사령관실</td><td>안</td><td>암살 판정 10 · 실패: 판정 아니면 투옥</td></tr>
-</table></div>
-<p class="small muted">결행할 때 보급 폭탄을 다시 채웁니다.</p>
-</div>
-<div>
-<h3>경찰서 폭파 · 종로경찰서</h3>
-<div class="tw"><table>
-<tr><th>장면</th><th>자리</th><th>조건</th></tr>
-<tr><td>진입 · 뒷문 잠입</td><td>안·옆</td><td>같은 날 2명</td></tr>
-<tr><td>당직 순사</td><td>안</td><td>판정 8 · 실패: 경찰 출동 · <b>매수 3</b></td></tr>
-<tr><td>경보 차단</td><td>안</td><td>주사위 합 8</td></tr>
-<tr><td>서류 창고</td><td>안</td><td>아이템 1</td></tr>
-<tr><td>지하 유치장</td><td>안</td><td>여기 갇힌 동료가 있음 또는 판정 8</td></tr>
-<tr><td>마지막 · 폭탄 설치</td><td>안</td><td>폭탄 2 (나눠 바쳐도 됨)</td></tr>
-</table></div>
-<p class="small muted">결행할 때 보급 폭탄을 다시 채웁니다.</p>
-</div>
-<div>
-<h3>형무소 해방 · 서대문형무소</h3>
-<div class="tw"><table>
-<tr><th>장면</th><th>자리</th><th>조건</th></tr>
-<tr><td>진입 · 담 넘기</td><td>옆</td><td>주사위 합 6</td></tr>
-<tr><td>간수 제압</td><td>안</td><td>두 명 판정 · 실패: 경찰이 붙음</td></tr>
-<tr><td>열쇠 꾸러미</td><td>안</td><td>아이템 1 · <b>매수 3</b></td></tr>
-<tr><td>감방 수색</td><td>안</td><td>1명이 1일 버팀</td></tr>
-<tr><td>비상종</td><td>안</td><td>판정 8 · 실패: 위협 1장 더</td></tr>
-<tr><td>마지막 · 옥문</td><td>안</td><td>자물쇠 판정 11 · 실패: 경찰 출동</td></tr>
-</table></div>
-</div>
-<div>
-<h3>총독부 점거 · 조선총독부</h3>
-<div class="tw"><table>
-<tr><th>장면</th><th>자리</th><th>조건</th></tr>
-<tr><td>진입 · 정문</td><td>안</td><td>판정 9 또는 아이템 1 · 실패: 경찰 출동</td></tr>
-<tr><td>회랑</td><td>안</td><td>같은 날 2명</td></tr>
-<tr><td>통신실</td><td>안</td><td>주사위 합 10</td></tr>
-<tr><td>문서고</td><td>안</td><td>1명이 2일 버팀 · <b>매수 4</b></td></tr>
-<tr><td>근위대</td><td>안</td><td>두 명 판정 · 실패: 경찰이 붙음</td></tr>
-<tr><td>마지막 · 깃발</td><td>안</td><td>2명이 2일 버팀</td></tr>
-</table></div>
-</div>
-</div>
-<h3>경비 강화 장면 (경계 2단계 이상이면 1장)</h3>
-<div class="tw"><table>
-<tr><th>장면</th><th>자리</th><th>조건</th></tr>
-<tr><td>초소</td><td>안·옆</td><td>판정 8 또는 같은 날 2명 · 실패: 경찰 출동 · <b>매수 2</b></td></tr>
-<tr><td>탐조등</td><td>안</td><td>주사위 합 6 또는 아이템 1</td></tr>
-<tr><td>군견대</td><td>안</td><td>두 명 판정 · 실패: 경찰이 붙음</td></tr>
-<tr><td>철문</td><td>안·옆</td><td>1명이 1일 버팀</td></tr>
-</table></div>
+  <h2 id="faq" style="margin-top:40px">자주 묻는 질문</h2>
+  <div class="tw"><table>
+    <tr><th>질문</th><th>답</th></tr>
+    <tr><td>주사위가 남았는데 차례를 마쳐도 되나요?</td><td>됩니다. 남은 주사위는 밤에 사라집니다. 아깝다면 먼저 동료에게 건네세요.</td></tr>
+    <tr><td>동료 차례에 내 주사위를 쓸 수 있나요?</td><td>아니요. 주사위는 자기 차례에만 씁니다. 미리 「건네기」로 주세요.</td></tr>
+    <tr><td>이동을 두 번 하면 칸 효과도 두 번인가요?</td><td>네, 이동을 마친 칸마다 받습니다. 이벤트·아이템 타일은 한 번 쓰면 길이 됩니다.</td></tr>
+    <tr><td>작전 판정에 실패하면 끝인가요?</td><td>주사위가 남아 있으면 다른 주사위로 또 할 수 있습니다. 행동 하나를 더 쓰는 셈입니다.</td></tr>
+    <tr><td>표적 칸에 들어갔는데 판정할 주사위가 없어요.</td><td>그 차례에는 판정하지 못합니다. 표적은 다음 아침에 움직입니다.</td></tr>
+    <tr><td>검문소 판정에도 주사위를 쓰나요?</td><td>아니요. 검문소는 강제 판정이라 2d6을 굴립니다. 군자금 1로 뇌물을 줄 수 있습니다.</td></tr>
+    <tr><td>경찰은 언제 움직이나요?</td><td>쫓기는 요원이 차례를 마칠 때 그 요원을 쫓는 경찰만 움직입니다.</td></tr>
+    <tr><td>군자금은 누가 쓰나요?</td><td>팀 공용입니다. 쓰는 요원의 차례에 씁니다. 함께 상의하세요.</td></tr>
+    <tr><td>갇힌 요원도 주사위를 굴리나요?</td><td>네. 탈옥·보석에 쓰거나 같은 칸(면회 온) 동료에게 건넬 수 있습니다.</td></tr>
+  </table></div>
+  <div class="folio">16</div>
+</section>
 
-<!-- ============================================================ -->
-<h2 id="end"><span class="no">16</span>승리와 엔딩</h2>
-<div class="tw"><table>
-<tr><th>엔딩</th><th>언제</th></tr>
-<tr><td><b>진공작전 대성공</b></td><td>마지막 장면 돌파. 결행 대상마다 다른 해방의 장면</td></tr>
-<tr><td><b>한 걸음이 모자랐다</b></td><td>2막 날이 다 됐을 때 마지막 장면에서 멈춤</td></tr>
-<tr><td><b>진공작전 실행</b></td><td>2막 날이 다 됐을 때 중간 장면에서 멈춤</td></tr>
-<tr><td><b>정사</b></td><td>1막에서 날이 다 됐거나, 진입 장면도 못 넘음</td></tr>
-</table></div>
-<p>실패 엔딩은 멈춘 장면의 문장으로 시작합니다. 엔딩 뒤에는 요원 넷의 <b>후일담</b>이 이어집니다. 결행 성공 여부와 <b>남긴 사연을 이뤘는지</b>에 따라 문장이 다릅니다.</p>
+<!-- ================================================== 부록: 요원 -->
+<section class="page" id="cards">
+  <div class="run"><span>결사 · 규칙서</span><span>부록 · 요원</span></div>
+  <h2>부록: 요원</h2>
+  <p class="small muted">특성은 늘 켜져 있고, 능력은 하루 1번 주사위 없이 씁니다.</p>
+  <div class="tw"><table>
+    <tr><th>세력</th><th>요원</th><th>특성</th><th>능력</th></tr>
+    <tr><td rowspan="3">한국광복군</td><td><b>윤 소위</b></td><td>회피 판정 항상 성공</td><td>무전 지원: 아침에 아무 요원의 주사위 하나를 다시 굴림</td></tr>
+    <tr><td><b>박 하사</b></td><td>탈옥 판정 +3</td><td>전령: 동료 하나의 오늘 이동 +1</td></tr>
+    <tr><td><b>한 간호장교</b></td><td>내가 구출한 동료는 다음 이동 +2</td><td>응급 처치: 같은 칸이나 옆 칸 동료의 다음 판정 +2</td></tr>
+    <tr><td rowspan="3">조선의용대</td><td><b>저격수 오</b></td><td>암살 실패 시 한 번 더 굴림</td><td>기습: 내 칸의 경찰 1개 제거</td></tr>
+    <tr><td><b>석 기술자</b></td><td>폭탄 2개까지. 장터 폭탄 값 2</td><td>급조 폭탄: 보급 옆 칸에서 아이템 1장을 버리고 폭탄 1개</td></tr>
+    <tr><td><b>문 선전대원</b></td><td>공작에서 바칠 것 하나를 줄임(합 −2 또는 조합 눈 하나). 이루면 노출 −1</td><td>군중 동원: 내 옆 칸의 경찰 1개를 2칸 물러나게 함</td></tr>
+    <tr><td rowspan="3">의병</td><td><b>포수 김개똥</b></td><td>이동에 쓴 주사위 1·2는 3으로</td><td>길 안내: 동료 하나를 내 옆 칸으로 데려옴</td></tr>
+    <tr><td><b>주모 막례</b></td><td>아이템 3장까지, 뽑을 때 2장 보고 1장. 장터 아이템 값 1</td><td>주막 인심: 같은 칸이나 옆 칸 동료에게 아이템 1장</td></tr>
+    <tr><td><b>최 훈장</b></td><td>잠입 미션의 첩보 +1</td><td>마을 사람들: 타일 더미에서 원하는 타일을 찾아 옆 빈칸에 깖</td></tr>
+    <tr><td rowspan="3">경성 지하조직</td><td><b>정 인쇄공</b></td><td>위협 덱 맨 위 2장을 봄 (모두에게 공개)</td><td>연락망: 3칸 안 동료에게 내 주사위 하나를 건넴</td></tr>
+    <tr><td><b>서 마담</b></td><td>내게 경찰이 붙을 때 회피 판정으로 막을 수 있음</td><td>다방 밀담: 3칸 안 거점 하나에 첩보 +1, 노출 +1</td></tr>
+    <tr><td><b>이 차장</b></td><td>차례를 마칠 때 동료 옆의 깔린 칸으로 한 칸 옮길 수 있음</td><td>표 검사: 이번 차례 검문소 하나를 판정 없이 지나감</td></tr>
+  </table></div>
+  <div class="folio">17</div>
+</section>
 
-<!-- ============================================================ -->
-<h2 id="chars"><span class="no">17</span>요원 (캐릭터)</h2>
-<div class="tw"><table>
-<tr><th>세력</th><th>요원</th><th>특성 (늘)</th><th>능력 (하루 1번)</th></tr>
-<tr><td rowspan="3">한국광복군</td><td><b>윤 소위</b><br><span class="muted small">일본군에서 탈출한 학병</span></td><td>회피 판정 항상 성공</td><td>무전 지원: 아침에 아무 요원의 주사위 하나를 다시 굴림</td></tr>
-<tr><td><b>박 하사</b><br><span class="muted small">충칭에서 온 통신병</span></td><td>탈옥 판정 +3</td><td>전령: 동료 하나의 오늘 이동 +1</td></tr>
-<tr><td><b>한 간호장교</b><br><span class="muted small">전선에서 돌아온 간호장교</span></td><td>내가 구출한 동료는 다음 이동 +2</td><td>응급 처치: 같은 칸이나 옆 칸 동료의 다음 판정 +2</td></tr>
-<tr><td rowspan="3">조선의용대</td><td><b>저격수 오</b><br><span class="muted small">화북 전선의 저격수</span></td><td>암살 실패 시 한 번 더 굴림</td><td>기습: 내 칸의 경찰 1개 제거</td></tr>
-<tr><td><b>석 기술자</b><br><span class="muted small">폭탄을 만드는 기술자</span></td><td>폭탄 2개까지. 장터 폭탄 값 2 <span class="tag new">★</span></td><td>급조 폭탄: 보급 타일 옆 칸에서 아이템 1장을 버리고 폭탄 1개</td></tr>
-<tr><td><b>문 선전대원</b><br><span class="muted small">여학생 출신 선전대원</span></td><td>공작에서 바칠 것 하나를 줄임(합 −2 또는 조합 눈 하나), 이루면 노출 −1 <span class="tag new">★</span></td><td>군중 동원: 내 옆 칸의 경찰 1개를 2칸 물러나게 함</td></tr>
-<tr><td rowspan="3">의병</td><td><b>포수 김개똥</b><br><span class="muted small">산에서 내려온 포수</span></td><td>이동에 쓴 주사위 1·2는 3으로</td><td>길 안내: 동료 하나를 내 옆 칸으로 데려옴</td></tr>
-<tr><td><b>주모 막례</b><br><span class="muted small">의병의 끼니를 대던 주모</span></td><td>아이템 3장까지, 뽑을 때 2장 보고 1장. 장터 아이템 값 1 <span class="tag new">★</span></td><td>주막 인심: 같은 칸이나 옆 칸 동료에게 아이템 1장 (사용으로 안 침)</td></tr>
-<tr><td><b>최 훈장</b><br><span class="muted small">마을 서당의 훈장</span></td><td>잠입 미션의 첩보 +1</td><td>마을 사람들: 타일 더미에서 원하는 타일을 찾아 옆 빈칸에 깖</td></tr>
-<tr><td rowspan="3">경성 지하조직</td><td><b>정 인쇄공</b><br><span class="muted small">지하 인쇄소의 식자공</span></td><td>위협 덱 맨 위 2장을 봄 (팀 공개)</td><td>연락망: 3칸 안의 동료에게 내 주사위 하나를 건넴 (건네기 횟수에 안 셈) <span class="tag new">★</span></td></tr>
-<tr><td><b>서 마담</b><br><span class="muted small">순사들이 드나드는 다방 주인</span></td><td>내게 경찰이 붙을 때 회피 판정으로 막을 수 있음</td><td>다방 밀담: 3칸 안 거점 하나에 첩보 +1, 대신 노출 +1 <span class="tag new">★</span></td></tr>
-<tr><td><b>이 차장</b><br><span class="muted small">전차 차장</span></td><td>이동이 끝날 때 동료 옆의 깔린 칸으로 한 칸 옮길 수 있음</td><td>표 검사: 이번 차례 검문소 하나를 판정 없이 지나감</td></tr>
-</table></div>
+<!-- ================================================== 부록: 미션 -->
+<section class="page">
+  <div class="run"><span>결사 · 규칙서</span><span>부록 · 미션</span></div>
+  <h2>부록: 미션 카드 22장</h2>
+  <div class="tw"><table>
+    <tr><th>카드</th><th>지역 · 방법</th><th>기한</th><th>보너스</th><th>보상</th></tr>
+    <tr><th colspan="5">암살</th></tr>
+    <tr><td><b>순사 부장 암살</b></td><td>경찰서 2~3, 매일 1칸 · 판정 9 · 정보원 시내 2~4</td><td class="n">4일</td><td>쫓기지 않고 이루면 첩보 +1</td><td>경찰서 첩보 +2, 준비 +2</td></tr>
+    <tr><td><b>헌병 대위 암살</b></td><td>군영 2~3, 매일 1칸 · 판정 9 · 무기 조달(아이템 1장 또는 군자금 2)로 −2</td><td class="n">4일</td><td>의병이 이루면 준비 +1</td><td>군영 첩보 +2, 준비 +2</td></tr>
+    <tr><td><b>밀정 처단</b></td><td>시내 3~5, 매일 2칸 · 판정 8 · 정보원 시내 1~3</td><td class="n">3일</td><td>2일 이상 남기면 노출 −1</td><td>노출 −1, 나를 쫓는 경찰 제거, 준비 +2 · 놓치면 노출 +2</td></tr>
+    <tr><th colspan="5">잠입</th></tr>
+    <tr><td><b>형무소 간수 매수</b></td><td>형무소 · 군자금 2를 내면 경찰이 안 붙음</td><td class="n">—</td><td>같은 차례에 구출하면 준비 +1</td><td>형무소 첩보 +1, 준비 +2</td></tr>
+    <tr><td><b>경찰서 문서 탈취</b></td><td>경찰서에 들어가 문서를 들고 출발점까지</td><td class="n">—</td><td>쫓기지 않고 나오면 준비 +1</td><td>경찰서 첩보 +2, 준비 +2</td></tr>
+    <tr><td><b>총독부 설계도 입수</b></td><td>총독부</td><td class="n">—</td><td>결행 대상이 총독부면 권리 1장 더</td><td>총독부 첩보 +1, 준비 +1, 결행 장면 판정 +2 권리</td></tr>
+    <tr><th colspan="5">폭파</th></tr>
+    <tr><td><b>철로 폭파</b></td><td>군영 3~4</td><td class="n">—</td><td>옆 칸에 동료가 있으면 경찰이 안 붙음</td><td>군영 첩보 +1, 준비 +2</td></tr>
+    <tr><td><b>전신선 폭파</b></td><td>경찰서 3~4</td><td class="n">—</td><td>쫓기지 않고 이루면 준비 +1</td><td>경찰서 첩보 +1, 준비 +1, 모든 경찰 2칸 물러남, 내일 위협을 덱 밑으로</td></tr>
+    <tr><th colspan="5">공작</th></tr>
+    <tr><td><b>전단 살포</b></td><td>시내 2~5에 마커 3개, 마커마다 주사위 하나</td><td class="n">—</td><td>하루 만에 셋 다 하면 준비 +1</td><td>노출 −2, 준비 +1</td></tr>
+    <tr><td><b>쌀 창고 열기</b></td><td>형무소 3~4, 합 8</td><td class="n">—</td><td>두 요원 이상이 바치면 군자금 +2</td><td>아이템 1장, 노출 −1, 준비 +1</td></tr>
+    <tr><td><b>징용 명단 불태우기</b></td><td>형무소 2~3, 조합 1·3·5</td><td class="n">—</td><td>하루 만에 끝내면 노출 −1</td><td>형무소 첩보 +2, 준비 +1</td></tr>
+    <tr><td><b>암호 해독</b></td><td>총독부 2~3, 조합 2·4·6</td><td class="n">—</td><td>쫓기지 않는 요원이 마지막 눈을 바치면 첩보 +1</td><td>총독부 첩보 +2, 준비 +1</td></tr>
+    <tr><td><b>독립 공채</b></td><td>시내 2~5에 마커 2개, 마커마다 주사위 하나</td><td class="n">—</td><td>—</td><td>군자금 +4, 준비 +1</td></tr>
+    <tr><th colspan="5">연락</th></tr>
+    <tr><td><b>비밀 문서 전달</b></td><td>받기 총독부 2~3 → 주기 시내 0~1</td><td class="n">5일</td><td>한 번도 안 쫓기면 준비 +1</td><td>총독부 첩보 +2, 준비 +2</td></tr>
+    <tr><td><b>무기 운반</b></td><td>받기 군영 3~4 → 주기 형무소 2~3 · 무거움</td><td class="n">—</td><td>하루 만에 나르면 폭탄 +1</td><td>나른 요원 폭탄 2개, 준비 +1</td></tr>
+    <tr><td><b>군영 보급 장부</b></td><td>받기 군영 안 → 주기 시내 0~2</td><td class="n">5일</td><td>같은 날 받고 주면 준비 +1</td><td>군영 첩보 +2, 준비 +2</td></tr>
+    <tr><th colspan="5">잠복</th></tr>
+    <tr><td><b>경찰서 감시</b></td><td>경찰서 2~3, 2일</td><td class="n">—</td><td>—</td><td>경찰서 첩보 +2, 준비 +1, 이번 판 위협 1장 더 미리 봄</td></tr>
+    <tr><td><b>총독부 동태 파악</b></td><td>총독부 2~3, 2일</td><td class="n">—</td><td>두 요원이 같은 날 하면 2일로 침</td><td>총독부 첩보 +2, 준비 +1</td></tr>
+    <tr><td><b>부호의 헌금</b></td><td>시내 3~5, 1일</td><td class="n">—</td><td>—</td><td>군자금 +3, 준비 +1</td></tr>
+    <tr><th colspan="5">협동</th></tr>
+    <tr><td><b>엄호 잠입</b></td><td colspan="3">한 명이 거점에 들어가는 차례에 다른 한 명이 그 옆 칸에 있음</td><td>그 거점 첩보 +2, 경찰이 안 붙음, 준비 +1</td></tr>
+    <tr><td><b>형무소 면회</b></td><td colspan="3">두 명이 같은 날 형무소 옆 칸에서 차례를 마침</td><td>형무소 첩보 +2, 준비 +1</td></tr>
+    <tr><td><b>연락선 잇기</b></td><td colspan="3">두 명이 같은 날 보드의 서로 반대쪽 가장자리에서 차례를 마침</td><td>준비 +2, 노출 −1</td></tr>
+  </table></div>
+  <p class="small muted">기한이 있는 미션을 놓치면 노출 +1 (밀정 처단은 +2). 암살·폭파는 시끄럽습니다.</p>
+  <div class="folio">18</div>
+</section>
 
-<!-- ============================================================ -->
-<h2 id="sagas"><span class="no">18</span>사연</h2>
-<p>사연은 요원의 <b>비밀 개인 목표</b>입니다. 2장을 받아 결행 때 1장을 남깁니다. 이루면 공개하고 보상을 받습니다. 엔딩 후일담이 사연에 따라 달라집니다.</p>
-<div class="tw"><table>
-<tr><th>더미</th><th>갈래</th><th>사연</th><th>조건</th><th>보상</th></tr>
-<tr><td rowspan="9">가</td><td rowspan="5">장소</td><td>어머니의 소식</td><td>종로경찰서 3칸 안에서 쫓기지 않고 차례를 마침</td><td>다음 날 아침 내 주사위 1개 더</td></tr>
-<tr><td>기록자</td><td>거점 두 곳의 옆 칸을 밟음</td><td>원하는 거점에 첩보 1개</td></tr>
-<tr><td>밀서 전달</td><td>보드 가장자리 칸에 두 번 닿음</td><td>노출 −2</td></tr>
-<tr><td>피난민 안내</td><td>출발점에서 차례를 네 번 마침</td><td>위협 덱 맨 위를 보고 원하면 맨 아래로</td></tr>
-<tr><td>보급선 잇기</td><td>보급 타일 두 곳을 밟음</td><td>폭탄 1개</td></tr>
-<tr><td rowspan="4">소유</td><td>자금책 <span class="tag new">★</span></td><td>내가 번 군자금이 모두 5</td><td>군자금 +3</td></tr>
-<tr><td>노름꾼</td><td>아침에 내 주사위에 6이 나온 날이 세 번</td><td>내 주사위 하나를 원하는 눈으로 한 번</td></tr>
-<tr><td>욕심 없는 사람</td><td>동료에게 주사위를 세 번 건넴</td><td>다음 날 아침 모두 주사위 1개 더</td></tr>
-<tr><td>약속의 반지</td><td>결행 순간 아이템을 2장 이상 가짐</td><td>결행 판정 +2 한 번</td></tr>
-<tr><td rowspan="11">나</td><td rowspan="4">위험</td><td>원수</td><td>나를 쫓던 경찰을 두 번 따돌리거나 제거</td><td>경찰 하나 제거</td></tr>
-<tr><td>불나방</td><td>검문소를 판정 성공으로 세 번 통과</td><td>연막탄 1장</td></tr>
-<tr><td>살아서 돌아간다</td><td>결행까지 한 번도 잡히지 않음</td><td>회피 자동 성공 한 번</td></tr>
-<tr><td>도망자</td><td>쫓기는 채로 차례를 두 번 연달아 마침</td><td>나를 쫓는 경찰을 가장 먼 거점으로</td></tr>
-<tr><td rowspan="4">관계</td><td>옥중 동지</td><td>갇힌 동료를 그날이나 다음 날 안에 구출, 또는 탈옥 두 번</td><td>다음 투옥 때 바로 탈출</td></tr>
-<tr><td>의형제 <span class="tag new">★</span></td><td>같은 동료와 같은 칸에서 차례를 세 번 마침</td><td>그 동료의 다음 판정 +2</td></tr>
-<tr><td>이름 없는 영웅</td><td>협동 미션에 한 번 참여</td><td>동료의 결행 판정 +2 한 번</td></tr>
-<tr><td>스승의 부탁</td><td>동료에게 아이템을 두 번 건넴</td><td>동료 모두 다음 이동 +1</td></tr>
-<tr><td rowspan="3">결행</td><td>동생의 원수</td><td>결행 대상이 군영이고 마지막 장면을 내가 돌파</td><td>판정 다시 굴리기 한 번</td></tr>
-<tr><td>마지막 전보</td><td>마지막 장면을 돌파할 때 결행 거점에 있음</td><td>없음 (후일담만)</td></tr>
-<tr><td>첫걸음</td><td>결행의 진입 장면을 내가 돌파</td><td>장면 판정 +2 한 번</td></tr>
-</table></div>
+<!-- ================================================== 부록: 사연 -->
+<section class="page">
+  <div class="run"><span>결사 · 규칙서</span><span>부록 · 사연</span></div>
+  <h2>부록: 사연 20장</h2>
+  <div class="tw"><table>
+    <tr><th>더미</th><th>사연</th><th>조건</th><th>보상</th></tr>
+    <tr><td rowspan="9">가<br><span class="small muted">장소·소유</span></td><td>어머니의 소식</td><td>종로경찰서 3칸 안에서 쫓기지 않고 차례를 마침</td><td>다음 날 아침 내 주사위 1개 더</td></tr>
+    <tr><td>기록자</td><td>거점 두 곳의 옆 칸을 밟음</td><td>원하는 거점에 첩보 1개</td></tr>
+    <tr><td>밀서 전달</td><td>보드 가장자리 칸에 두 번 닿음</td><td>노출 −2</td></tr>
+    <tr><td>피난민 안내</td><td>출발점에서 차례를 네 번 마침</td><td>위협 덱 맨 위를 보고 원하면 맨 아래로</td></tr>
+    <tr><td>보급선 잇기</td><td>보급 타일 두 곳을 밟음</td><td>폭탄 1개</td></tr>
+    <tr><td>자금책</td><td>내가 번 군자금이 모두 5</td><td>군자금 +3</td></tr>
+    <tr><td>노름꾼</td><td>아침에 내 주사위에 6이 나온 날이 세 번</td><td>내 주사위 하나를 원하는 눈으로 한 번</td></tr>
+    <tr><td>욕심 없는 사람</td><td>동료에게 주사위를 세 번 건넴</td><td>다음 날 아침 모두 주사위 1개 더</td></tr>
+    <tr><td>약속의 반지</td><td>결행 순간 아이템을 2장 이상 가짐</td><td>결행 판정 +2 한 번</td></tr>
+    <tr><td rowspan="11">나<br><span class="small muted">위험·관계·결행</span></td><td>원수</td><td>나를 쫓던 경찰을 두 번 따돌리거나 제거</td><td>경찰 하나 제거</td></tr>
+    <tr><td>불나방</td><td>검문소를 판정 성공으로 세 번 통과</td><td>연막탄 1장</td></tr>
+    <tr><td>살아서 돌아간다</td><td>결행까지 한 번도 잡히지 않음</td><td>회피 자동 성공 한 번</td></tr>
+    <tr><td>도망자</td><td>쫓기는 채로 차례를 두 번 연달아 마침</td><td>나를 쫓는 경찰을 가장 먼 거점으로</td></tr>
+    <tr><td>옥중 동지</td><td>갇힌 동료를 그날이나 다음 날 안에 구출, 또는 탈옥 두 번</td><td>다음 투옥 때 바로 탈출</td></tr>
+    <tr><td>의형제</td><td>같은 동료와 같은 칸에서 차례를 세 번 마침</td><td>그 동료의 다음 판정 +2</td></tr>
+    <tr><td>이름 없는 영웅</td><td>협동 미션에 한 번 참여</td><td>동료의 결행 판정 +2 한 번</td></tr>
+    <tr><td>스승의 부탁</td><td>동료에게 아이템을 두 번 건넴</td><td>동료 모두 다음 이동 +1</td></tr>
+    <tr><td>동생의 원수</td><td>결행 대상이 군영이고 마지막 장면을 내가 돌파</td><td>판정 다시 굴리기 한 번</td></tr>
+    <tr><td>마지막 전보</td><td>마지막 장면을 돌파할 때 결행 거점에 있음</td><td>없음 (후일담만)</td></tr>
+    <tr><td>첫걸음</td><td>결행의 진입 장면을 내가 돌파</td><td>장면 판정 +2 한 번</td></tr>
+  </table></div>
+  <div class="folio">19</div>
+</section>
 
-<!-- ============================================================ -->
-<h2 id="items"><span class="no">19</span>아이템</h2>
-<p>손 한도 2장(주모 막례 3장). 차례에 1번 쓰고, 같은 칸이나 옆 칸 동료에게 건넬 수 있습니다. 2막 장면에 바칠 수도 있습니다.</p>
-<div class="tw"><table>
-<tr><th>아이템</th><th>장</th><th>언제</th><th>효과</th></tr>
-<tr><td>승차권</td><td class="n">2</td><td>차례</td><td>오늘 이동 +3</td></tr>
-<tr><td>회중시계</td><td class="n">1</td><td>아침</td><td>내 주사위 하나의 눈 +1 또는 −1</td></tr>
-<tr><td>연막탄</td><td class="n">2</td><td>회피할 때</td><td>회피 자동 성공</td></tr>
-<tr><td>옷핀</td><td class="n">2</td><td>감옥</td><td>바로 탈출</td></tr>
-<tr><td>위조 통행증</td><td class="n">2</td><td>차례</td><td>이번 거점 진입이나 검문소 하나에 경찰이 안 붙음</td></tr>
-<tr><td>암호 수첩</td><td class="n">1</td><td>아침</td><td>내일 위협을 덱 맨 아래로</td></tr>
-<tr><td>전보</td><td class="n">1</td><td>차례</td><td>거리 상관없이 동료에게 아이템 하나를 보냄</td></tr>
-<tr><td>동지들의 엄호</td><td class="n">1</td><td>차례</td><td>모든 경찰 제거. 대신 내일 아침 내 주사위 1개 덜</td></tr>
-<tr><td>망원경</td><td class="n">2</td><td>늘</td><td>암살 판정 +1</td></tr>
-<tr><td>양장</td><td class="n">1</td><td>늘</td><td>회피 판정 +2</td></tr>
-</table></div>
+<!-- ================================================== 부록: 아이템·이벤트 -->
+<section class="page">
+  <div class="run"><span>결사 · 규칙서</span><span>부록 · 아이템 · 이벤트</span></div>
+  <h2>부록: 아이템과 이벤트</h2>
+  <p class="small muted">아이템 손 한도는 2장(주모 막례 3장). 차례에 1장을 주사위 없이 씁니다.</p>
+  <div class="tw"><table>
+    <tr><th>아이템</th><th>장</th><th>언제</th><th>효과</th></tr>
+    <tr><td>승차권</td><td class="n">2</td><td>차례</td><td>오늘 첫 이동 +3</td></tr>
+    <tr><td>회중시계</td><td class="n">1</td><td>아침</td><td>내 주사위 하나 ±1</td></tr>
+    <tr><td>연막탄</td><td class="n">2</td><td>회피할 때</td><td>회피 자동 성공</td></tr>
+    <tr><td>옷핀</td><td class="n">2</td><td>감옥</td><td>바로 탈출</td></tr>
+    <tr><td>위조 통행증</td><td class="n">2</td><td>차례</td><td>이번 거점 진입이나 검문소 하나에 경찰이 안 붙음</td></tr>
+    <tr><td>암호 수첩</td><td class="n">1</td><td>아침</td><td>내일 위협을 덱 맨 아래로</td></tr>
+    <tr><td>전보</td><td class="n">1</td><td>차례</td><td>거리 상관없이 동료에게 아이템 하나</td></tr>
+    <tr><td>동지들의 엄호</td><td class="n">1</td><td>차례</td><td>모든 경찰 제거. 내일 아침 내 주사위 1개 덜</td></tr>
+    <tr><td>망원경</td><td class="n">2</td><td>늘</td><td>암살 판정 +1</td></tr>
+    <tr><td>양장</td><td class="n">1</td><td>늘</td><td>회피 판정 +2</td></tr>
+  </table></div>
+  <div class="tw"><table>
+    <tr><th>이벤트</th><th>장</th><th>효과</th></tr>
+    <tr><td>지하 인쇄소</td><td class="n">2</td><td>가장 가까운 거점 첩보 +1</td></tr>
+    <tr><td>뒷골목 발견</td><td class="n">2</td><td>옆 빈칸에 길 타일을 깔고 그 칸으로 한 칸 더</td></tr>
+    <tr><td>동지의 은신처</td><td class="n">1</td><td>이 칸이 은신처가 됨</td></tr>
+    <tr><td>군중 속으로</td><td class="n">2</td><td>나를 쫓는 경찰 제거. 쫓기지 않으면 노출 −1</td></tr>
+    <tr><td>국내 동지의 밀서</td><td class="n">2</td><td>아이템 1장 또는 군자금 +2</td></tr>
+    <tr><td>밀고자</td><td class="n">2</td><td>이 자리에 경찰이 나타남</td></tr>
+    <tr><td>순사의 눈</td><td class="n">2</td><td>옆 빈칸에 검문소가 깔림</td></tr>
+    <tr><td>쫓기는 학생</td><td class="n">2</td><td>숨겨 준다(노출 +1, 아이템 1장) 또는 외면한다</td></tr>
+    <tr><td>딱한 인력거꾼 김첨지</td><td class="n">2</td><td>탄다(동료 옆으로 바로, 노출 +1) 또는 보낸다</td></tr>
+    <tr><td>옛 동지와의 재회</td><td class="n">1</td><td>아이템 1장 또는 내일 아침 내 주사위 +1</td></tr>
+  </table></div>
+  <div class="folio">20</div>
+</section>
 
-<!-- ============================================================ -->
-<h2 id="events"><span class="no">20</span>이벤트</h2>
-<div class="tw"><table>
-<tr><th>이벤트</th><th>장</th><th>효과</th></tr>
-<tr><td>지하 인쇄소</td><td class="n">2</td><td>가장 가까운 거점 첩보 +1</td></tr>
-<tr><td>뒷골목 발견</td><td class="n">2</td><td>옆 빈칸에 길 타일을 깔고, 그 칸으로 한 칸 더 갈 수 있음</td></tr>
-<tr><td>동지의 은신처</td><td class="n">1</td><td>이 칸이 은신처가 됨</td></tr>
-<tr><td>군중 속으로</td><td class="n">2</td><td>나를 쫓는 경찰 제거. 쫓기지 않으면 노출 −1</td></tr>
-<tr><td>국내 동지의 밀서</td><td class="n">2</td><td>아이템 1장 또는 군자금 +2 <span class="tag new">★</span></td></tr>
-<tr><td>밀고자</td><td class="n">2</td><td>지금 이 자리에 경찰이 나타남</td></tr>
-<tr><td>순사의 눈</td><td class="n">2</td><td>이 칸 옆 빈칸에 검문소가 깔림</td></tr>
-<tr><td>쫓기는 학생</td><td class="n">2</td><td>숨겨 준다: 노출 +1, 아이템 1장 / 외면한다: 아무 일 없음</td></tr>
-<tr><td>딱한 인력거꾼 김첨지</td><td class="n">2</td><td>탄다: 동료 옆 칸으로 바로 옮김, 노출 +1 / 보낸다: 아무 일 없음</td></tr>
-<tr><td>옛 동지와의 재회</td><td class="n">1</td><td>아이템 1장 또는 내일 아침 내 주사위 +1 <span class="tag new">★</span></td></tr>
-</table></div>
+<!-- ================================================== 부록: 위협 -->
+<section class="page">
+  <div class="run"><span>결사 · 규칙서</span><span>부록 · 일제 위협</span></div>
+  <h2>부록: 일제 위협</h2>
+  <p class="small muted">「고립된 요원」은 가장 가까운 동료와의 거리가 가장 먼 요원입니다. 「수배된 요원」은 투옥된 횟수가 가장 많은 요원입니다. 여럿이면 리더가 고릅니다.</p>
+  <div class="two">
+  <div class="tw"><table>
+    <tr><th colspan="3">1막 (24장)</th></tr>
+    <tr><td>불시 수색</td><td class="n">2</td><td>무작위 거점에서 경찰 출동</td></tr>
+    <tr><td>헌병 증원</td><td class="n">1</td><td>무작위 거점 두 곳에서 출동</td></tr>
+    <tr><td>체포령</td><td class="n">2</td><td>수배된 요원에게 경찰</td></tr>
+    <tr><td>미행</td><td class="n">1</td><td>고립된 요원에게 경찰</td></tr>
+    <tr><td>헌병 순찰</td><td class="n">2</td><td>추격 중인 경찰 모두 2칸 다가옴</td></tr>
+    <tr><td>검문소 증설</td><td class="n">2</td><td>고립·수배된 요원 옆에 검문소</td></tr>
+    <tr><td>통금령</td><td class="n">2</td><td>오늘 이동 눈 −1 (최소 1)</td></tr>
+    <tr><td>특별 경계령</td><td class="n">1</td><td>오늘 경찰 이동 +1</td></tr>
+    <tr><td>장맛비</td><td class="n">1</td><td>오늘 이동 눈 −1, 경찰 이동 −1</td></tr>
+    <tr><td>공습경보</td><td class="n">1</td><td>오늘 경찰 이동 −1</td></tr>
+    <tr><td>가택 수색</td><td class="n">3</td><td>군자금 −2 (모자라면 고립된 요원 아이템 1장)</td></tr>
+    <tr><td>자금 동결</td><td class="n">1</td><td>군자금 절반</td></tr>
+    <tr><td>평온한 하루</td><td class="n">1</td><td>노출 −1</td></tr>
+    <tr><td>옥중 소요</td><td class="n">1</td><td>갇힌 요원 모두 탈출</td></tr>
+    <tr><td>일제 검거령</td><td class="n">1</td><td>일제 작전</td></tr>
+    <tr><td>쌀 공출</td><td class="n">1</td><td>일제 작전</td></tr>
+    <tr><td>밀정 침투</td><td class="n">1</td><td>일제 작전</td></tr>
+  </table></div>
+  <div class="tw"><table>
+    <tr><th colspan="3">2막 (11장)</th></tr>
+    <tr><td>증원</td><td class="n">2</td><td>결행 거점에서 경찰 출동</td></tr>
+    <tr><td>봉쇄</td><td class="n">2</td><td>결행 거점 옆 두 곳에 검문소</td></tr>
+    <tr><td>수색</td><td class="n">1</td><td>결행 거점 3칸 안 모두 회피 판정</td></tr>
+    <tr><td>총력 경계</td><td class="n">1</td><td>오늘 경찰 이동 +1</td></tr>
+    <tr><td>비상 소집</td><td class="n">1</td><td>오늘 장면 판정 목표 +1</td></tr>
+    <tr><td>고문</td><td class="n">1</td><td>오늘 탈옥 판정 −2</td></tr>
+    <tr><td>밀고 포상금</td><td class="n">2</td><td>노출 +1, 결행 거점에서 경찰 출동</td></tr>
+    <tr><td>혼란</td><td class="n">1</td><td>아무 일 없음</td></tr>
+  </table></div>
+  </div>
+  <div class="folio">21</div>
+</section>
 
-<!-- ============================================================ -->
-<h2 id="threats"><span class="no">21</span>일제 위협</h2>
-<p>아침마다 1장. 정 인쇄공이 있으면 앞으로 나올 2장을 미리 봅니다.</p>
-<div class="grid2">
-<div>
-<h3>1막 (24장)</h3>
-<div class="tw"><table>
-<tr><th>위협</th><th>장</th><th>효과</th></tr>
-<tr><td>불시 수색</td><td class="n">2</td><td>무작위 거점에서 경찰 출동, 가장 가까운 요원을 쫓음</td></tr>
-<tr><td>헌병 증원</td><td class="n">1</td><td>무작위 거점 두 곳에서 출동</td></tr>
-<tr><td>체포령</td><td class="n">2</td><td>수배된 요원에게 경찰이 붙음</td></tr>
-<tr><td>미행</td><td class="n">1</td><td>고립된 요원에게 경찰이 붙음</td></tr>
-<tr><td>헌병 순찰</td><td class="n">2</td><td>추격 중인 경찰이 모두 즉시 2칸 다가옴</td></tr>
-<tr><td>검문소 증설</td><td class="n">2</td><td>고립·수배된 요원 옆 빈칸에 검문소</td></tr>
-<tr><td>통금령</td><td class="n">2</td><td>오늘 이동에 쓰는 주사위 −1 (최소 1)</td></tr>
-<tr><td>특별 경계령</td><td class="n">1</td><td>오늘 경찰 이동 +1</td></tr>
-<tr><td>장맛비</td><td class="n">1</td><td>오늘 이동 주사위 −1, 경찰 이동 −1</td></tr>
-<tr><td>공습경보</td><td class="n">1</td><td>오늘 경찰 이동 −1</td></tr>
-<tr><td>가택 수색 <span class="tag new">★</span></td><td class="n">3</td><td>군자금 −2, 모자라면 고립된 요원이 아이템 1장 버림</td></tr>
-<tr><td>자금 동결 <span class="tag new">★</span></td><td class="n">1</td><td>군자금 절반 (내림)</td></tr>
-<tr><td>평온한 하루</td><td class="n">1</td><td>아무 일 없음. 노출 −1</td></tr>
-<tr><td>옥중 소요</td><td class="n">1</td><td>갇힌 요원 모두 탈출 (경찰은 안 붙음)</td></tr>
-<tr><td>일제 검거령 <span class="tag new">★</span></td><td class="n">1</td><td>일제 작전 마커 (<a href="#ops">일제 작전</a>)</td></tr>
-<tr><td>쌀 공출 <span class="tag new">★</span></td><td class="n">1</td><td>일제 작전 마커</td></tr>
-<tr><td>밀정 침투 <span class="tag new">★</span></td><td class="n">1</td><td>일제 작전 마커</td></tr>
-</table></div>
-<p class="small muted">「고립된 요원」은 가장 가까운 동료와의 거리가 가장 먼 요원, 「수배된 요원」은 투옥된 횟수가 가장 많은 요원입니다. 여럿이면 리더가 고릅니다.</p>
-</div>
-<div>
-<h3>2막 (11장)</h3>
-<div class="tw"><table>
-<tr><th>위협</th><th>장</th><th>효과</th></tr>
-<tr><td>증원</td><td class="n">2</td><td>결행 거점에서 경찰 출동, 가장 가까운 요원을 쫓음</td></tr>
-<tr><td>봉쇄</td><td class="n">2</td><td>결행 거점 옆 빈칸 두 곳에 검문소</td></tr>
-<tr><td>수색</td><td class="n">1</td><td>결행 거점 3칸 안 요원 모두 회피 판정, 실패하면 경찰</td></tr>
-<tr><td>총력 경계</td><td class="n">1</td><td>오늘 경찰 이동 +1</td></tr>
-<tr><td>비상 소집</td><td class="n">1</td><td>오늘 지금 장면의 판정 목표 +1</td></tr>
-<tr><td>고문</td><td class="n">1</td><td>갇힌 요원은 오늘 탈옥 판정 −2</td></tr>
-<tr><td>밀고 포상금 <span class="tag new">★</span></td><td class="n">2</td><td>노출 +1, 결행 거점에서 경찰 출동</td></tr>
-<tr><td>혼란</td><td class="n">1</td><td>아무 일 없음</td></tr>
-</table></div>
-</div>
-</div>
+<!-- ================================================== 부록: 장면 -->
+<section class="page">
+  <div class="run"><span>결사 · 규칙서</span><span>부록 · 장면</span></div>
+  <h2>부록: 결행 대상과 장면</h2>
+  <p class="small muted">자리: 안 / 옆 / 안·옆. 중간 장면 4장 중 2장이 나옵니다.</p>
+  <div class="two">
+    <div class="tw"><table>
+      <tr><th colspan="3">사령관 암살 · 일본군영</th></tr>
+      <tr><td>진입 · 철조망</td><td>옆</td><td>합 6 또는 아이템 1</td></tr>
+      <tr><td>보초 교대</td><td>옆</td><td>1명 1일 버팀 · 매수 3</td></tr>
+      <tr><td>탄약고</td><td>안</td><td>폭탄 1</td></tr>
+      <tr><td>장교 숙소</td><td>안</td><td>판정 8 · 실패: 경찰 출동</td></tr>
+      <tr><td>군견</td><td>안</td><td>두 명 판정 · 실패: 경찰</td></tr>
+      <tr><td>마지막 · 사령관실</td><td>안</td><td>암살 판정 10 · 실패: 판정 아니면 투옥</td></tr>
+    </table></div>
+    <div class="tw"><table>
+      <tr><th colspan="3">경찰서 폭파 · 종로경찰서</th></tr>
+      <tr><td>진입 · 뒷문 잠입</td><td>안·옆</td><td>같은 날 2명</td></tr>
+      <tr><td>당직 순사</td><td>안</td><td>판정 8 · 실패: 경찰 출동 · 매수 3</td></tr>
+      <tr><td>경보 차단</td><td>안</td><td>합 8</td></tr>
+      <tr><td>서류 창고</td><td>안</td><td>아이템 1</td></tr>
+      <tr><td>지하 유치장</td><td>안</td><td>여기 갇힌 동료 또는 판정 8</td></tr>
+      <tr><td>마지막 · 폭탄 설치</td><td>안</td><td>폭탄 2 (나눠 바쳐도 됨)</td></tr>
+    </table></div>
+    <div class="tw"><table>
+      <tr><th colspan="3">형무소 해방 · 서대문형무소</th></tr>
+      <tr><td>진입 · 담 넘기</td><td>옆</td><td>합 6</td></tr>
+      <tr><td>간수 제압</td><td>안</td><td>두 명 판정 · 실패: 경찰</td></tr>
+      <tr><td>열쇠 꾸러미</td><td>안</td><td>아이템 1 · 매수 3</td></tr>
+      <tr><td>감방 수색</td><td>안</td><td>1명 1일 버팀</td></tr>
+      <tr><td>비상종</td><td>안</td><td>판정 8 · 실패: 위협 1장 더</td></tr>
+      <tr><td>마지막 · 옥문</td><td>안</td><td>자물쇠 판정 11 · 실패: 경찰 출동</td></tr>
+    </table></div>
+    <div class="tw"><table>
+      <tr><th colspan="3">총독부 점거 · 조선총독부</th></tr>
+      <tr><td>진입 · 정문</td><td>안</td><td>판정 9 또는 아이템 1 · 실패: 경찰 출동</td></tr>
+      <tr><td>회랑</td><td>안</td><td>같은 날 2명</td></tr>
+      <tr><td>통신실</td><td>안</td><td>합 10</td></tr>
+      <tr><td>문서고</td><td>안</td><td>1명 2일 버팀 · 매수 4</td></tr>
+      <tr><td>근위대</td><td>안</td><td>두 명 판정 · 실패: 경찰</td></tr>
+      <tr><td>마지막 · 깃발</td><td>안</td><td>2명 2일 버팀</td></tr>
+    </table></div>
+  </div>
+  <div class="tw"><table>
+    <tr><th colspan="3">경비 강화 (경계 2단계 이상이면 1장)</th></tr>
+    <tr><td>초소</td><td>안·옆</td><td>판정 8 또는 같은 날 2명 · 실패: 경찰 출동 · 매수 2</td></tr>
+    <tr><td>탐조등</td><td>안</td><td>합 6 또는 아이템 1</td></tr>
+    <tr><td>군견대</td><td>안</td><td>두 명 판정 · 실패: 경찰</td></tr>
+    <tr><td>철문</td><td>안·옆</td><td>1명 1일 버팀</td></tr>
+  </table></div>
+  <p class="small muted">군영과 경찰서를 결행할 때는 보급 폭탄을 다시 채웁니다.</p>
+  <div class="folio">22</div>
+</section>
 
-<!-- ============================================================ -->
-<h2 id="numbers"><span class="no">22</span>수치 한눈에</h2>
-<div class="tw"><table>
-<tr><th>항목</th><th>값</th><th>항목</th><th>값</th></tr>
-<tr><td>작전 일수</td><td class="n">11일</td><td>강제 결행</td><td class="n">남은 날 2일</td></tr>
-<tr><td>결행 투표 문턱</td><td class="n">준비 3</td><td>공개 미션 줄</td><td class="n">4장</td></tr>
-<tr><td>작전 주사위</td><td class="n">1막 2 · 2막 3</td><td>작전 판정</td><td class="n">눈 + 1d6 (아니면 2d6)</td></tr>
-<tr><td>판정 목표</td><td class="n">암살 9 · 회피 7 · 탈옥 8</td><td>주사위 건네기</td><td class="n">같은 칸, 하루 1번</td></tr>
-<tr><td>손 한도</td><td class="n">아이템 2 · 폭탄 1</td><td>아이템 사용</td><td class="n">차례에 1번</td></tr>
-<tr><td>경찰 말</td><td class="n">4</td><td>따돌림 거리</td><td class="n">3칸 초과</td></tr>
-<tr><td>경찰 이동 (경계 1·2·3)</td><td class="n">2 · 3 · 4칸</td><td>노출 문턱</td><td class="n">3 · 6 (최대 9)</td></tr>
-<tr><td>미끼</td><td class="n">3칸, 차례에 1번</td><td>아이템 건네기</td><td class="n">옆 칸까지</td></tr>
-<tr><td>첩보 토큰</td><td class="n">판정 +1 / 합 −2</td><td>폭탄 보급</td><td class="n">5개</td></tr>
-<tr><td>군자금 <span class="tag new">★</span></td><td class="n">시작 2 · 최대 10</td><td>보석금 · 뇌물 <span class="tag new">★</span></td><td class="n">4 · 1</td></tr>
-</table></div>
+<!-- ================================================== 요약 카드 -->
+<section class="page" id="ref">
+  <div class="run"><span>결사 · 규칙서</span><span>요약 카드</span></div>
+  <h2>요약 카드</h2>
+  <div class="ref">
+    <h4>아침</h4>
+    <ul><li>위협 1장 → 표적 이동·기한 → (1막) 준비 3↑이면 투표 → 미션 줄 4장 → 주사위 굴리기 (1막 2 · 2막 3) → 아침 능력·아이템</li></ul>
+    <h4>내 차례: 주사위 1개 = 행동 1개</h4>
+    <ul>
+      <li><b>이동</b>(눈만큼) · <b>작전 판정</b>(눈 + 1d6) · <b>바치기</b> · <b>건네기</b> · <b>미끼</b> · <b>숨기</b> · <b>장터</b> · <b>전차</b> · <b>보석</b></li>
+      <li>공짜: 아이템 1장, 능력 1번(하루) · 언제든 <b>차례 마치기</b></li>
+      <li>마칠 때: 「차례를 마치면」 효과 → 나를 쫓는 경찰 다가옴</li>
+    </ul>
+    <h4>판정</h4>
+    <ul><li>작전 판정 = 낸 눈 + 새 주사위 1개 · 강제 판정 = 2d6</li><li>암살 9 · 회피 7 · 탈옥 8 · 장면은 카드</li></ul>
+    <h4>경찰·노출</h4>
+    <ul><li>경찰 이동 2·3·4칸 (노출 0~2 · 3~5 · 6~9) · 3칸 넘게 벌어지면 따돌림</li><li>투옥: 노출 +1, 아이템 1장 압수 · 탈옥 8 · 보석 4 · 구출</li></ul>
+    <h4>밤</h4>
+    <ul><li>남은 주사위 버림 · (2막) 버티기 세기 · 남은 날 −1 · 리더 넘김</li></ul>
+    <h4>결행</h4>
+    <ul><li>준비 3↑ 과반 찬성 (동수면 리더) · 남은 날 2일이면 강제 · 대상 = 첩보 최고 · 사연 1장 남김</li></ul>
+  </div>
 
-<footer>
-결사 / 광복 IF · v2 규칙서. 게임 데이터(<code>game/data/v2</code>)와 설계 문서(<code>v2_구현/7~10단계</code>)를 합쳐 만들었습니다. <span class="tag new">★ 예정</span> 표시는 아직 게임에 없는 규칙이고, 모든 수치는 밸런스 조정으로 바뀔 수 있습니다.
-</footer>
-</main>
-</div>
+  <h3 id="dev" style="margin-top:34px">개발 메모</h3>
+  <p class="dev">지금 디지털판에는 v2 기본 규칙과 7단계 작전 주사위가 들어 있습니다. 아래는 규칙만 정하고 아직 게임에 넣지 않은 것입니다.</p>
+  <ul class="dev">
+    <li><b>8단계</b> 미션·타일 개편: 마커, 미션 여섯 종류, 기한·보너스, 일제 작전, 새 타일 다섯 종</li>
+    <li><b>9단계</b> 변절 제거: 심문 카드·설득·회유 공작이 빠지고, 정 인쇄공·서 마담 능력, 가택 수색·밀고 포상금, 의형제 보상이 바뀜</li>
+    <li><b>10단계</b> 군자금</li>
+    <li><b>11단계</b> 주사위 1개 = 행동 1개: 행동 목록, 숨기, 차례 마치기, 작전 판정에서 「주사위 없이 2d6」이 빠짐</li>
+  </ul>
+  <div class="folio">23</div>
+</section>
+
 <button class="theme" id="themeBtn" aria-label="밝기 바꾸기">◐ 밝기</button>
 <script>
 (function(){
@@ -689,16 +877,6 @@ footer{margin-top:60px;padding-top:18px;border-top:1px solid var(--line);color:v
     var next=cur==='dark'?'light':'dark'; root.setAttribute('data-theme',next);
     try{localStorage.setItem('gyeolsa-theme',next);}catch(e){}
   };
-  var links=[].slice.call(document.querySelectorAll('nav.toc a'));
-  var toc=document.getElementById('toc');
-  links.forEach(function(a){a.addEventListener('click',function(){toc.classList.remove('open');});});
-  var secs=links.map(function(a){return document.querySelector(a.getAttribute('href'));});
-  function spy(){
-    var y=window.scrollY+80, cur=0;
-    secs.forEach(function(s,i){ if(s && s.offsetTop<=y) cur=i; });
-    links.forEach(function(a,i){a.classList.toggle('on',i===cur);});
-  }
-  window.addEventListener('scroll',spy,{passive:true}); spy();
 })();
 </script>
 </body>
