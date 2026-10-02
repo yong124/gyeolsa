@@ -103,7 +103,7 @@ func _init() -> void:
 	m1.mission("m_gg_blueprint")["bonus"]["if"]["base"] = "moon"
 	var em := m1.validate()
 	_check(_has(em, "알 수 없는 마커 role 'nobody'") and _has(em, "work 조건에는 work 마커가 있어야") and _has(em, "bonus.if의 kind가 어휘에 없습니다")
-		and _has(em, "알 수 없는 공작 방식 'pile'") and _has(em, "기한이 있으면 놓쳤을 때(missed)") and _has(em, "gear에는 cost(item)")
+		and _has(em, "알 수 없는 공작 방식 'pile'") and _has(em, "기한이 있으면 놓쳤을 때(missed)") and _has(em, "gear에는 cost({item, funds})")
 		and _has(em, "알 수 없는 조건 kind 'dance'") and _has(em, "launch_target 보너스에는 base"), "미션 마커·조건·보너스·기한·돈 대신 아이템의 오타와 누락을 잡는다")
 	var m2 := GameDataV2.new()
 	m2.load_dir("res://data/v2/")
@@ -137,6 +137,35 @@ func _init() -> void:
 	m5.load_dir("res://data/v2/")
 	m5.threats["act1"][0]["count"] = 9
 	_check(_has(m5.validate(), "[장수] 위협 act1"), "1막 위협 덱 장수(21장)를 확인한다")
+	# D단계 어휘: 군자금 op · 장터 · 뇌물 · 매수 · 번 군자금 사연
+	var f1 := GameDataV2.new()
+	f1.load_dir("res://data/v2/")
+	f1.rules["market"]["offers"][0]["cost_stat"] = "no_such_stat"
+	f1.rules["market"]["offers"][1]["needs"] = "wallet"
+	f1.rules["market"]["offers"].append(f1.rules["market"]["offers"][0].duplicate())
+	f1.rules["funds"]["start"] = 11
+	f1.rules["checkpoint"]["bribe"] = 0
+	var ef := f1.validate()
+	_check(_has(ef, "알 수 없는 cost_stat 'no_such_stat'") and _has(ef, "알 수 없는 needs 'wallet'") and _has(ef, "id가 비었거나 겹칩니다") and _has(ef, "rules.funds에") and _has(ef, "rules.checkpoint.bribe"),
+		"장터 값 stat·조건·중복 id와 군자금·뇌물 값의 오류를 잡는다")
+	var f2 := GameDataV2.new()
+	f2.load_dir("res://data/v2/")
+	f2.mission("m_mp_captain")["condition"]["gear"]["cost"] = {"coin": 1}
+	f2.mission("m_informant")["condition"]["informer_cost"] = {"funds": 0}
+	f2.threats["act1"][0]["effects"] = [{"op": "funds", "value": 0}]
+	f2.threats["act1"][1]["effects"] = [{"op": "funds", "value": -2, "short": [{"op": "no_such_short"}]}]
+	var ff := f2.validate()
+	_check(_has(ff, "gear의 알 수 없는 cost 'coin'") and _has(ff, "informer_cost에는 funds") and _has(ff, "funds에는 value(0이 아님)") and _has(ff, "알 수 없는 op 'no_such_short'"),
+		"돈 대신 아이템(gear) 값·정보원 값·funds op의 오류를 잡는다")
+	var f3 := GameDataV2.new()
+	f3.load_dir("res://data/v2/")
+	var last: Dictionary = f3.strike("prison")["final"]
+	last["condition"] = {"kind": "any_of", "options": [last["condition"], {"kind": "pay_funds", "count": 2}]}
+	f3.endings["funds_left"]["text"] = "남은 군자금"
+	var e3f := f3.validate()
+	_check(_has(e3f, "마지막 장면은 매수(pay_funds)할 수 없습니다") and _has(e3f, "funds_left: text에 {n}"), "마지막 장면의 매수와 후일담 문장의 {n} 빠짐을 잡는다")
+	_check("funds" in GameDataV2.KNOWN_OPS and "funds_half" in GameDataV2.KNOWN_OPS and "pay_funds" in GameDataV2.KNOWN_SCENE_CONDITIONS and "funds_earned" in GameDataV2.KNOWN_SAGA_CONDITIONS
+		and "market_item_cost" in GameDataV2.KNOWN_STATS, "새 어휘(funds · funds_half · pay_funds · funds_earned · 장터 값 stat)가 등록돼 있다")
 	_check("work" in GameDataV2.KNOWN_MISSION_KINDS and "contact" in GameDataV2.KNOWN_MISSION_KINDS and "target" in GameDataV2.KNOWN_MARKER_ROLES
 		and "launch_target" in GameDataV2.KNOWN_BONUS_CONDS and "combo" in GameDataV2.KNOWN_WORK_MODES, "새 어휘(미션 kind·마커 역할·공작 방식·보너스 조건)가 등록돼 있다")
 	_check("police_back" in GameDataV2.KNOWN_OPS and "threat_peek_bonus" in GameDataV2.KNOWN_OPS and "event_card" in GameDataV2.KNOWN_OPS

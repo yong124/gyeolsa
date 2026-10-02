@@ -149,26 +149,44 @@
 			"name": "가택 수색",
 			"count": 3,
 			"tone": "bad",
-			"text": "고립된 요원(감옥에 있는 요원 포함)이 아이템 1장을 버림",
+			"text": "군자금 −2 (모자라면 고립된 요원(감옥 포함)이 아이템 1장을 버림)",
 			"effects": [
 				{
-					"op": "discard_item",
-					"who": "isolated",
-					"include_jailed": true,
-					"count": 1
+					"op": "funds",
+					"value": -2,
+					"short": [
+						{
+							"op": "discard_item",
+							"who": "isolated",
+							"include_jailed": true,
+							"count": 1
+						}
+					]
 				}
 			]
 		},
 		{
 			"id": "calm_day",
 			"name": "평온한 하루",
-			"count": 2,
+			"count": 1,
 			"tone": "relief",
 			"text": "아무 일 없음. 노출 −1",
 			"effects": [
 				{
 					"op": "exposure",
 					"value": -1
+				}
+			]
+		},
+		{
+			"id": "fund_freeze",
+			"name": "자금 동결",
+			"count": 1,
+			"tone": "bad",
+			"text": "총독부가 은행 계좌를 묶었다. 군자금 절반 (내림)",
+			"effects": [
+				{
+					"op": "funds_half"
 				}
 			]
 		},

@@ -29,7 +29,7 @@
 		"alley": {"on_stop": [{"op": "police_back", "steps": 2}], "text": "이동을 마치면 나를 쫓는 경찰이 2칸 물러남 (5칸 넘게 벌어지면 따돌림). 「숨기」 가능"},
 		"watchtower": {"on_stop": [{"op": "exposure", "value": 1}], "text": "이동을 마치면 노출 +1 (지나가기만 하면 괜찮음)"},
 		"tavern": {"on_turn_end": [{"op": "exposure", "value": -1}], "needs": "ally_here", "once_per_day": true, "text": "동료와 같은 칸에서 차례를 마치면 노출 −1 (하루 한 번). 「숨기」 가능"},
-		"market": {"text": "「장터」 행동을 할 수 있는 칸 (값은 군자금이 생기면 정함)"},
+		"market": {"text": "「장터」 행동을 할 수 있는 칸: 군자금 2로 아이템, 3으로 폭탄"},
 		"_comment": "타일 효과. on_stop: 이동을 마칠 때(같은 칸은 한 차례에 한 번), on_turn_end: 차례를 마칠 때 (needs ally_here = 같은 칸에 동료, once_per_day = 하루에 한 번만). once = 한 번 쓰면 그 종류의 타일로 바뀜. 검문소·거점·출발점은 엔진이 따로 처리한다"
 	},
 	"ops": {
@@ -59,16 +59,21 @@
 	"coop": {"give_range": 1, "decoy_range": 3, "decoy_per_turn": 1, "give_counts_as_item_use": false, "_comment": "건네기 거리(칸), 미끼 거리(칸), 차례당 미끼 횟수, 건네기를 아이템 사용 1회로 셀지"},
 	"hide": {"tiles": ["alley", "tavern"], "flags": ["hideout"], "_comment": "숨기를 할 수 있는 칸: 이 종류의 타일 위, 또는 이 표시(flag)가 있는 칸 (골목·주막 타일은 C단계에서 들어온다, 은신처는 mark_tile의 hideout)"},
 	"scout": {"count": 2, "_comment": "정찰: 주사위 눈만큼 떨어진 곳까지의 덮인 칸을 이만큼 골라 타일을 앞면으로 깐다"},
-	"market": {"tile": "market", "effects": [], "_comment": "장터 행동을 할 수 있는 타일 종류와 그 효과 (군자금 거래는 D단계에서 채운다. 장터 타일은 C단계에서 들어온다)"},
+	"funds": {"start": 2, "max": 10, "exposure_cap_loss": 2, "_comment": "군자금(팀 공용): 시작 값, 최대(넘는 몫은 버림), 노출이 최대에 닿을 때 잃는 몫"},
+	"checkpoint": {"bribe": 2, "_comment": "검문소 뇌물: 들어갈 때 판정 대신 군자금을 내고 지나감 (이동 중에 내며 행동이 아님)"},
+	"market": {"tile": "market", "offers": [
+		{"id": "item", "name": "아이템", "cost": 2, "cost_stat": "market_item_cost", "effects": [{"op": "draw_item", "count": 1}], "needs": "item_slot"},
+		{"id": "bomb", "name": "폭탄", "cost": 3, "cost_stat": "market_bomb_cost", "effects": [{"op": "gain_bomb", "count": 1}], "needs": "bomb_slot"}
+	], "_comment": "장터 행동(주사위 하나)에서 군자금으로 사는 것. cost_stat은 요원 특성이 값을 깎는 stat (주모 막례 아이템 값 1, 석 기술자 폭탄 값 2), needs는 살 수 있는 조건 (손패·폭탄 칸에 자리가 있고 보급이 남음)"},
 	"launch": {"target_min_intel": 2, "benefits": [
 		{"id": "no_reinforce", "name": "경비 강화 빼기", "text": "2막에 경비 강화 장면을 넣지 않는다", "effects": [{"op": "no_reinforce"}]},
 		{"id": "dice_plus", "name": "첫날 주사위 +1", "text": "2막 첫날 아침 모든 요원의 작전 주사위 +1", "effects": [{"op": "dice_extra_tomorrow", "who": "everyone", "count": 1}]},
 		{"id": "intel_tokens", "name": "첩보 토큰 +2", "text": "2막에서 쓰는 첩보 토큰 2개를 더 받는다", "effects": [{"op": "intel_token_bonus", "value": 2}]},
 		{"id": "threat_look", "name": "위협 덱 보기", "text": "2막 위협 덱 맨 위 2장을 보고 1장을 버린다", "effects": [{"op": "threat_look_discard", "count": 2}]},
-		{"id": "funds", "name": "군자금 +3", "text": "군자금 3을 얻는다", "enabled": false, "effects": []}
-	], "_comment": "결행 대상 후보의 첩보 문턱, 결행 혜택 (결행 준비가 launch_min을 넘는 1점마다 하나, 같은 것은 한 번). enabled false는 숨김 (군자금은 D단계에서 켠다)"},
+		{"id": "funds", "name": "군자금 +3", "text": "군자금 3을 얻는다", "effects": [{"op": "funds", "value": 3, "earned": false}]}
+	], "_comment": "결행 대상 후보의 첩보 문턱, 결행 혜택 (결행 준비가 launch_min을 넘는 1점마다 하나, 같은 것은 한 번). enabled false는 숨김"},
 	"counter": {"target": 7, "_comment": "반격을 막는 작전 판정 목표 (버티기 장면이 펼쳐진 날). 못 막으면 그날은 세지 않고 자리에 선 요원이 회피 판정(checks.evade)을 한다"},
-	"ai": {"launch_target": {"intel": 2.0, "saga": 1.5, "distance": 0.15}, "vote_ready_margin": 1, "mission": {"ready": 1.0, "intel": 0.6, "exposure": 0.5, "item": 0.7, "bomb": 0.5, "police": 0.4, "peek": 0.2, "grant": 0.7, "penalty": 0.8, "urgent": 1.0, "informer_detour": 6}, "_comment": "AI 결행 투표: 대상 점수 = 첩보 x intel + 내 사연과 맞으면 saga − 거리 x distance. 준비가 launch_min + vote_ready_margin 이상이면 첩보가 모자라도 찬성"},
+	"ai": {"launch_target": {"intel": 2.0, "saga": 1.5, "distance": 0.15}, "vote_ready_margin": 1, "mission": {"ready": 1.0, "intel": 0.6, "exposure": 0.5, "item": 0.7, "bomb": 0.5, "police": 0.4, "peek": 0.2, "grant": 0.7, "penalty": 0.8, "urgent": 1.0, "informer_detour": 6}, "funds": {"bribe_below": 0.65, "reserve": 1, "gear_min_gain": 0.12, "gear_funds_value": 0.08, "market_value": 1.6, "buy_slack_days": 3}, "_comment": "AI 군자금(funds): 뇌물은 검문 통과 확률이 bribe_below보다 낮을 때, reserve는 남겨 둘 군자금 (자금 동결·가택 수색이 덱에 남았으면 0), gear_min_gain은 정보원·무기 조달로 오르는 성공률 문턱, market_value는 장터까지 가는 가치, buy_slack_days는 남은 날이 장면 수 x 0.8 + 이 값 이하이면 장면 매수. AI 결행 투표: 대상 점수 = 첩보 x intel + 내 사연과 맞으면 saga − 거리 x distance. 준비가 launch_min + vote_ready_margin 이상이면 첩보가 모자라도 찬성"},
 	"hideout_flag": "hideout",
 	"_comment_hideout_flag": "이 표시가 있는 칸에서 차례를 마치면 나를 쫓던 경찰이 사라진다 (mark_tile의 flag 이름)",
 	"tile_names": {"normal": "길", "event": "이벤트", "item": "아이템", "check": "검문소", "supply": "보급", "alley": "골목", "watchtower": "감시탑", "market": "장터", "tavern": "주막", "base": "거점", "start": "출발점"},

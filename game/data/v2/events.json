@@ -76,11 +76,30 @@
 			"name": "국내 동지의 밀서",
 			"count": 2,
 			"tone": "good",
-			"text": "아이템 1장",
+			"text": "아이템 1장 또는 군자금 +2",
 			"effects": [
 				{
-					"op": "draw_item",
-					"count": 1
+					"op": "choice",
+					"options": [
+						{
+							"label": "아이템 1장",
+							"effects": [
+								{
+									"op": "draw_item",
+									"count": 1
+								}
+							]
+						},
+						{
+							"label": "군자금 +2",
+							"effects": [
+								{
+									"op": "funds",
+									"value": 2
+								}
+							]
+						}
+					]
 				}
 			]
 		},

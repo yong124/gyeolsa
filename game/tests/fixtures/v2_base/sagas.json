@@ -148,20 +148,18 @@
 			"branch": "own",
 			"story": "독립자금을 모아 상해로 보내는 것이 그의 일이었다.",
 			"condition": {
-				"kind": "hold_items",
-				"count": 3
+				"kind": "funds_earned",
+				"count": 5
 			},
-			"condition_text": "아이템 3장을 동시에 가짐 (한도를 넘어도 됨)",
+			"condition_text": "내가 번 군자금이 모두 5 (미션·이벤트로 들어온 몫 중 내가 받은 것)",
 			"reward": [
 				{
-					"op": "draw_item",
-					"count": 2
+					"op": "funds",
+					"value": 3,
+					"earned": false
 				}
 			],
-			"reward_text": "아이템 2장",
-			"redraw_for": [
-				"makrye"
-			],
+			"reward_text": "군자금 +3",
 			"epilogue": {
 				"win_done": "그가 모은 돈은 해방 뒤 학교 하나가 되었다.",
 				"win_fail": "결행은 이뤄졌다. 그가 모은 것은 그날 모두 쓰였다.",

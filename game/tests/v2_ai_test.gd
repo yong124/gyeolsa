@@ -104,7 +104,7 @@ func _init() -> void:
 	if ops_blocked == 0:
 		errors.append("AI가 일제 작전을 한 번도 막지 못함")
 	print("AI가 이룬 미션(종류별): ", done_types, " · 막은 일제 작전 ", ops_blocked)
-	for t in ["move_die", "step", "end_move", "end_turn", "mission_check", "work_give", "escape", "scout", "scene_check", "scene_pay"]:
+	for t in ["move_die", "step", "end_move", "end_turn", "mission_check", "work_give", "market", "escape", "scout", "scene_check", "scene_pay"]:
 		if int(used.get(t, 0)) == 0:
 			errors.append("AI가 한 번도 안 쓴 행동: " + t)
 	if int(used.get("end_turn", 0)) + total < int(used.get("begin_turn", 0)):

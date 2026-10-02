@@ -1,5 +1,5 @@
 {
-	"_comment": "v2 공개 미션 20장 + 일제 작전 4장 (규칙서 부록 · 미션 22장에서 군자금을 쓰는 「부호의 헌금」·「독립 공채」 2장은 D단계에 넣는다). 미션은 타일이 아니라 보드 위 마커로 이뤄진다. markers: 마커 놓는 법 (around = 거점 id 또는 start, min~max = 그 곳에서 맨해튼 거리, at = 그 칸에 고정, count = 개수, move = 매일 아침 움직이는 칸 수). condition: 이루는 법 (kind는 assassinate · infiltrate · bomb · work · contact · lurk, 협동은 cover_entry · people · opposite_edges). bonus: 이루는 순간 if를 채웠으면 reward를 더 받음. 돈이 드는 곳은 D단계 전까지 아이템 1장으로 대신함 (gear).",
+	"_comment": "v2 공개 미션 22장 + 일제 작전 4장 (규칙서 부록 · 미션 22장 중 「부호의 헌금」·「독립 공채」는 군자금을 줌). 미션은 타일이 아니라 보드 위 마커로 이뤄진다. markers: 마커 놓는 법 (around = 거점 id 또는 start, min~max = 그 곳에서 맨해튼 거리, at = 그 칸에 고정, count = 개수, move = 매일 아침 움직이는 칸 수). condition: 이루는 법 (kind는 assassinate · infiltrate · bomb · work · contact · lurk, 협동은 cover_entry · people · opposite_edges). bonus: 이루는 순간 if를 채웠으면 reward를 더 받음. gear: 판정이나 거점 진입 때 내는 값 (cost: item 아이템 / funds 군자금, 둘 다 있으면 하나를 고름). informer_cost: 정보원에게 내는 값.",
 	"types": {
 		"assassin": {"name": "암살", "loud": true},
 		"infiltrate": {"name": "잠입", "loud": false},
@@ -12,7 +12,7 @@
 	"missions": [
 		{
 			"id": "m_police_chief", "name": "순사 부장 암살", "type": "assassin", "intel": null,
-			"condition": {"kind": "assassinate", "check": "assassin", "target": 9, "risky": true, "informed_bonus": 2},
+			"condition": {"kind": "assassinate", "check": "assassin", "target": 9, "risky": true, "informed_bonus": 2, "informer_cost": {"funds": 1}},
 			"markers": [
 				{"role": "target", "around": "police_hq", "min": 2, "max": 3, "move": 1},
 				{"role": "informer", "around": "start", "min": 2, "max": 4}
@@ -23,14 +23,14 @@
 			"ready": 2,
 			"rewards": [{"op": "intel", "base": "police_hq", "value": 2}],
 			"where": "경찰서 2~3칸, 표적은 매일 1칸 움직임 · 정보원은 시내 2~4칸",
-			"how": "표적 칸에서 작전 판정 9. 정보원 마커에 들르면 표적이 멈추고 판정이 2 쉬워짐",
+			"how": "표적 칸에서 작전 판정 9. 정보원 마커에 들러 군자금 1을 내면 표적이 멈추고 판정이 2 쉬워짐",
 			"text": "경찰서 첩보 +2, 결행 준비 +2",
 			"missed_text": "놓치면 노출 +1"
 		},
 		{
 			"id": "m_mp_captain", "name": "헌병 대위 암살", "type": "assassin", "intel": null,
 			"condition": {"kind": "assassinate", "check": "assassin", "target": 9, "risky": true,
-				"gear": {"cost": "item", "count": 1, "check_bonus": 2, "text": "무기 조달: 아이템 1장을 버려 판정 −2"}},
+				"gear": {"cost": {"item": 1, "funds": 2}, "check_bonus": 2, "text": "무기 조달: 아이템 1장 또는 군자금 2로 판정 −2"}},
 			"markers": [
 				{"role": "target", "around": "barracks", "min": 2, "max": 3, "move": 1}
 			],
@@ -40,13 +40,13 @@
 			"ready": 2,
 			"rewards": [{"op": "intel", "base": "barracks", "value": 2}],
 			"where": "군영 2~3칸, 표적은 매일 1칸 움직임",
-			"how": "표적 칸에서 작전 판정 9. 판정 직전에 아이템 1장을 버리면 판정이 2 쉬워짐 (무기 조달)",
+			"how": "표적 칸에서 작전 판정 9. 판정 직전에 아이템 1장이나 군자금 2를 내면 판정이 2 쉬워짐 (무기 조달)",
 			"text": "군영 첩보 +2, 결행 준비 +2",
 			"missed_text": "놓치면 노출 +1"
 		},
 		{
 			"id": "m_informant", "name": "밀정 처단", "type": "assassin", "intel": null,
-			"condition": {"kind": "assassinate", "check": "assassin", "target": 8, "risky": true, "informed_bonus": 2},
+			"condition": {"kind": "assassinate", "check": "assassin", "target": 8, "risky": true, "informed_bonus": 2, "informer_cost": {"funds": 1}},
 			"markers": [
 				{"role": "target", "around": "start", "min": 3, "max": 5, "move": 2},
 				{"role": "informer", "around": "start", "min": 1, "max": 3}
@@ -57,20 +57,20 @@
 			"ready": 2,
 			"rewards": [{"op": "exposure", "value": -1}, {"op": "police_remove", "scope": "mine"}],
 			"where": "시내 3~5칸, 표적은 매일 2칸 움직임 · 정보원은 시내 1~3칸",
-			"how": "표적 칸에서 작전 판정 8. 정보원 마커에 들르면 표적이 멈추고 판정이 2 쉬워짐",
+			"how": "표적 칸에서 작전 판정 8. 정보원 마커에 들러 군자금 1을 내면 표적이 멈추고 판정이 2 쉬워짐",
 			"text": "노출 −1, 나를 쫓는 경찰 제거, 결행 준비 +2",
 			"missed_text": "놓치면 노출 +2"
 		},
 		{
 			"id": "m_bribe_guard", "name": "형무소 간수 매수", "type": "infiltrate", "intel": "prison",
 			"condition": {"kind": "infiltrate", "base": "prison",
-				"gear": {"cost": "item", "count": 1, "effects": [{"op": "entry_no_police"}], "text": "아이템 1장을 내면 경찰이 붙지 않음"}},
+				"gear": {"cost": {"funds": 2}, "effects": [{"op": "entry_no_police"}], "text": "간수 매수: 군자금 2를 내면 경찰이 붙지 않음"}},
 			"markers": [{"role": "base", "at": "prison"}],
 			"bonus": {"if": {"kind": "rescued_this_turn"}, "reward": [{"op": "ready", "value": 1}], "text": "같은 차례에 동료를 구출하면 결행 준비 +1"},
 			"ready": 2,
 			"rewards": [{"op": "intel", "base": "prison", "value": 1}],
 			"where": "형무소",
-			"how": "형무소에 들어감 (경찰이 붙음). 들어갈 때 아이템 1장을 내면 경찰이 붙지 않음",
+			"how": "형무소에 들어감 (경찰이 붙음). 들어갈 때 군자금 2를 내면 경찰이 붙지 않음",
 			"text": "형무소 첩보 +1, 결행 준비 +2"
 		},
 		{
@@ -137,7 +137,7 @@
 			"id": "m_open_rice", "name": "쌀 창고 열기", "type": "work", "intel": null,
 			"condition": {"kind": "work", "mode": "sum", "target": 8},
 			"markers": [{"role": "work", "around": "prison", "min": 3, "max": 4}],
-			"bonus": {"if": {"kind": "contributors", "min": 2}, "reward": [{"op": "draw_item", "count": 1}], "text": "두 요원 이상이 바치면 아이템 1장 (군자금 +2는 D단계)"},
+			"bonus": {"if": {"kind": "contributors", "min": 2}, "reward": [{"op": "funds", "value": 2}], "text": "두 요원 이상이 바치면 군자금 +2"},
 			"ready": 1,
 			"rewards": [{"op": "draw_item", "count": 1}, {"op": "exposure", "value": -1}],
 			"where": "형무소 3~4칸",
@@ -233,6 +233,26 @@
 			"where": "총독부 2~3칸",
 			"how": "마커 칸이나 옆 칸에서 쫓기지 않고 차례를 마친 날이 2일. 두 요원이 같은 날 하면 그날은 2일로 침",
 			"text": "총독부 첩보 +2, 결행 준비 +1"
+		},
+		{
+			"id": "m_rich_donation", "name": "부호의 헌금", "type": "lurk", "intel": null,
+			"condition": {"kind": "lurk", "days": 1, "adjacent": true},
+			"markers": [{"role": "spot", "around": "start", "min": 3, "max": 5}],
+			"ready": 1,
+			"rewards": [{"op": "funds", "value": 3}],
+			"where": "시내 3~5칸",
+			"how": "마커 칸이나 옆 칸에서 쫓기지 않고 차례를 마침 (1일)",
+			"text": "군자금 +3, 결행 준비 +1"
+		},
+		{
+			"id": "m_bond", "name": "독립 공채", "type": "work", "intel": null,
+			"condition": {"kind": "work", "mode": "each"},
+			"markers": [{"role": "work", "around": "start", "min": 2, "max": 5, "count": 2}],
+			"ready": 1,
+			"rewards": [{"op": "funds", "value": 4}],
+			"where": "시내 2~5칸에 마커 2개",
+			"how": "마커마다 주사위 하나를 바침 (눈은 상관없음)",
+			"text": "군자금 +4, 결행 준비 +1"
 		},
 		{
 			"id": "m_cover_entry", "name": "엄호 잠입", "type": "coop", "intel": "entered",

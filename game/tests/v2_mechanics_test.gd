@@ -34,6 +34,8 @@ func _init() -> void:
 	_run_b_tests()
 	_run_e_tests()
 	_run_c_tests()
+	_run_d_tests()
+	_test_c_coverage()
 	print("v2 규칙 시험: 통과 %d, 실패 %d" % [passed, failed])
 	quit(1 if failed > 0 else 0)
 
@@ -123,6 +125,7 @@ func _blank(g: RulesV2) -> RulesV2:
 	g.trend = 0
 	g.peek_bonus = 0
 	g.bonus_wait = []
+	g.funds = 0   # 군자금은 D단계 시험에서 직접 준다 (옛 시험은 돈 없이 돈다)
 	g.op_dice = []
 	g.today = g._new_today()
 	g.pending = {}
@@ -986,6 +989,7 @@ func _run_2b_tests() -> void:
 	_test_abilities()
 	_test_coop_missions()
 	_test_ops_misc()
+	_test_d_threats()
 	_test_coverage()
 
 
@@ -1168,7 +1172,13 @@ func _test_event_cards() -> void:
 	g = _new(CH)
 	_event(g, 0, "secret_letter")
 	_cov("event", "secret_letter")
-	ok(g.players[0]["items"].size() == 1, "이벤트 밀서: 아이템 1장")
+	ok(g.phase == "choice" and g.pending["kind"] == "effect_choice", "이벤트 밀서: 아이템 1장 또는 군자금 +2 중 고름")
+	_answer(g, 0)
+	ok(g.players[0]["items"].size() == 1 and g.funds == 0, "이벤트 밀서: 아이템 1장")
+	g = _new(CH)
+	_event(g, 0, "secret_letter")
+	_answer(g, 1)
+	ok(g.funds == 2 and g.players[0]["funds_earned"] == 2 and g.players[0]["items"].is_empty(), "이벤트 밀서: 군자금 +2 (내가 번 몫에도 셈)")
 
 	g = _new(CH)
 	_event(g, 0, "informer")
@@ -2080,11 +2090,11 @@ func _test_saga_deal() -> void:
 		if cnt != 20:
 			bad += 100
 	ok(bad == 0, "사연 다시 받기: 40판 동안 주모 막례는 redraw_for 카드를 받지 않고 카드도 늘 20장")
-	var gr := _new(CH)
+	var gr := _new(CH, _gd(func(d): d.saga("financier")["redraw_for"] = ["makrye"]))
 	gr.saga_decks = {"a": ["gambler", "financier"], "b": []}
 	var got: String = gr._draw_saga("a", _with_char(gr, "makrye"))
 	ok(got == "gambler" and gr.saga_decks["a"] == ["financier"], "사연 다시 받기: 뺀 카드는 더미 맨 아래로")
-	var gr2 := _new(CH)
+	var gr2 := _new(CH, _gd(func(d): d.saga("financier")["redraw_for"] = ["makrye"]))
 	gr2.saga_decks = {"a": ["financier", "masters_request"], "b": []}
 	var got2: String = gr2._draw_saga("a", _with_char(gr2, "makrye"))
 	ok(got2 != "" and gr2.saga_decks["a"].size() == 1, "사연 다시 받기: 모두 뺄 카드뿐이면 마지막은 그대로 받음")
@@ -2179,24 +2189,26 @@ func _test_saga_cards() -> void:
 	ok(g.players[0]["saga_done"] == "supply_line" and g.players[0]["bombs"] == 1, "사연 보급선 잇기: 세 칸을 밟으면 이루고 폭탄 1개")
 	_cov("saga", "supply_line")
 
-	# 자금책: 한도를 넘어도 되니, 버릴 카드를 묻기 전에 센다
+	# 자금책: 내가 번 군자금이 모두 5 (미션·이벤트로 들어온 몫 중 내가 받은 것), 보상 군자금 +3
 	g = _new(CH)
 	_give(g, 0, ["financier"])
-	g.players[0]["items"] = ["train_ticket", "pocket_watch"]
-	_fx(g, 0, [{"op": "draw_item", "count": 1}])
-	ok(g.players[0]["saga_done"] == "financier" and g.phase == "choice" and g.pending["kind"] == "discard", "사연 자금책: 한도를 넘는 세 번째 아이템이 들어온 순간 이룸 (버릴 카드를 묻기 전)")
-	var asked := _answer_all(g)
-	ok(g.phase == "day" and g.players[0]["items"].size() == 2 and g.saga_rewards.is_empty(), "사연 자금책: 한도로 버린 뒤 보상(아이템 2장)도 받고 끝남 (%d번 답)" % asked)
+	_fx(g, 0, [{"op": "funds", "value": 2}])
+	_fx(g, 1, [{"op": "funds", "value": 3}])
+	ok(g.players[0]["saga_done"] == "" and g.saga_progress(0)["financier"] == {"have": 2, "need": 5}, "사연 자금책: 남이 번 군자금은 안 셈 (내가 번 2 / 5)")
+	_fx(g, 0, [{"op": "funds", "value": 3}])
+	_flush(g)
+	ok(g.players[0]["saga_done"] == "financier" and g.funds == 10, "사연 자금책: 내가 번 군자금이 5가 되면 이룸 — 보상 군자금 +3")
+	ok(g.players[0]["funds_earned"] == 5, "사연 자금책: 보상으로 받은 군자금은 번 몫에 안 셈")
 	_cov("saga", "financier")
-	# 건네받은 아이템도 센다
 	g = _new(CH)
-	_give(g, 1, ["financier"])
-	g.players[1]["items"] = ["train_ticket", "pocket_watch"]
-	g.players[0]["items"] = ["telegram"]
-	g.players[0]["pos"] = Vector2i(5, 6)
-	_turn(g, 0, 0)
-	g.apply({"type": "give_item", "player": 0, "die": _spare(g, 2, 0), "index": 0, "to": 1})
-	ok(g.players[1]["saga_done"] == "financier", "사연 자금책: 동료가 건넨 아이템도 센다")
+	_give(g, 0, ["financier"])
+	g.funds = 9
+	_fx(g, 0, [{"op": "funds", "value": 4}])
+	ok(g.funds == 10 and g.players[0]["funds_earned"] == 1, "사연 자금책: 최대(10)를 넘어 버려진 몫은 번 몫에 안 셈")
+	g = _new(CH)
+	_give(g, 0, ["financier"])
+	_fx(g, 0, [{"op": "funds", "value": -1}])
+	ok(g.players[0]["funds_earned"] == 0, "사연 자금책: 잃은 군자금은 번 몫을 줄이지 않음")
 
 	# 노름꾼: 굴린 눈 6을 가져간 날 세 번. 내려놓고 다시 가져가도 하루 1번
 	g = _new(CH)
@@ -2700,11 +2712,11 @@ func _test_stage3_queries() -> void:
 	g.players[0]["saga_track"]["moth"] = {"n": 2}
 	g.players[0]["items"] = ["telegram"]
 	_give(g, 1, ["financier", "sibling_revenge"])
-	g.players[1]["items"] = ["telegram", "pocket_watch", "train_ticket"]
+	g.players[1]["saga_track"]["financier"] = {"n": 3}
 	var pr: Dictionary = g.saga_progress(0)
 	ok(pr["moth"] == {"have": 2, "need": 3} and pr["no_greed"] == {"have": 0, "need": 3}, "조회: saga_progress {have, need}")
 	var pr1: Dictionary = g.saga_progress(1)
-	ok(pr1["financier"] == {"have": 3, "need": 3} and pr1["sibling_revenge"] == {"have": 0, "need": 1}, "조회: 아이템 수는 현재 값, 결행 갈래는 0/1")
+	ok(pr1["financier"] == {"have": 3, "need": 5} and pr1["sibling_revenge"] == {"have": 0, "need": 1}, "조회: 번 군자금은 쌓은 값, 결행 갈래는 0/1")
 	# 저장·불러오기: 새 상태가 모두 들어 있음
 	g._jail(g.players[2])
 	_give(g, 3, ["mother"])
@@ -3598,14 +3610,15 @@ func _test_b_market_and_misc() -> void:
 	var rcv := _spare(ge, 6, 1)
 	_turn(ge, 1, 0)
 	ok(ge.apply({"type": "escape", "player": 1, "die": rcv}) and not ge.players[1]["jailed"], "면회: 받은 주사위로 탈옥 판정을 할 수 있음")
-	# 장터 행동의 틀: 장터 타일에서 주사위 하나, 효과는 데이터(rules.market.effects)
+	# 장터 행동: 장터 타일에서 주사위 하나, 군자금으로 사기 (D단계)
 	var gm := _new(CH)
+	gm.funds = 5
 	_tile(gm, Vector2i(5, 6), "market")
 	gm.players[0]["pos"] = Vector2i(5, 6)
 	_turn(gm, 0, 0)
 	ok(not gm.can_market(gm.players[0]), "장터: 주사위가 없으면 못 함")
 	var md := _spare(gm, 3, 0)
-	ok(gm.can_market(gm.players[0]) and gm.apply({"type": "market", "player": 0, "die": md}) and gm.op_dice[md]["used"], "장터: 장터 타일에서 주사위 하나를 내는 행동")
+	ok(gm.can_market(gm.players[0]) and gm.apply({"type": "market", "player": 0, "die": md, "offer": "item"}) and gm.op_dice[md]["used"], "장터: 장터 타일에서 주사위 하나를 내고 삼")
 	var gn := _new(CH)
 	_turn(gn, 0, 0)
 	_spare(gn, 3, 0)
@@ -3801,7 +3814,7 @@ func _test_e_benefits() -> void:
 	g2.exposure = 6
 	g2._launch("forced", "gg")
 	ok(g2.phase == "choice" and g2.pending["kind"] == "launch_benefit" and g2.pending["player"] == g2.leader, "혜택: 사람이 없으면 리더가 고름")
-	ok(_benefit_ids(g2) == ["no_reinforce", "dice_plus", "intel_tokens", "threat_look"], "혜택: 목록은 데이터대로 (군자금은 D단계 전이라 숨김)")
+	ok(_benefit_ids(g2) == ["no_reinforce", "dice_plus", "intel_tokens", "threat_look", "funds"], "혜택: 목록은 데이터대로 (군자금 +3 포함)")
 	_answer(g2, "no_reinforce")
 	ok(g2.pending["kind"] == "launch_benefit" and not "no_reinforce" in _benefit_ids(g2), "혜택: 둘째는 같은 것을 못 고름")
 	_answer(g2, "intel_tokens")
@@ -3846,7 +3859,9 @@ func _test_e_benefits() -> void:
 		guard += 1
 	if g6.phase == "choice" and g6.pending.get("kind") == "threat_look":
 		_answer(g6, 0)
-	ok(picked == 4 and g6.act == 2, "혜택: 혜택 수(4)보다 점수가 많으면 있는 만큼만 고름")
+	ok(picked == 5 and g6.act == 2, "혜택: 혜택 수(5)보다 점수가 많으면 있는 만큼만 고름")
+	ok(g6.funds == 3, "혜택: 군자금 +3을 고르면 군자금이 오름")
+	ok(g6.players[g6.leader]["funds_earned"] == 0, "혜택: 군자금 혜택은 번 몫(자금책)에 안 셈")
 	# AI: 경계 2단계 이상이면 경비 강화 빼기, 그다음 첩보 토큰, 주사위 +1 순
 	var g7 := _launch_game(CH, "gg")
 	g7.ready = int(g7.data.rules["launch_min"]) + 2
@@ -4127,7 +4142,7 @@ func _test_e_data() -> void:
 	var real := GameDataV2.load_default()
 	var ids: Array = real.rules["launch"]["benefits"].map(func(b): return b["id"])
 	ok(ids == ["no_reinforce", "dice_plus", "intel_tokens", "threat_look", "funds"], "데이터: 결행 혜택 5가지 (군자금은 enabled false)")
-	ok(not bool(real.rules["launch"]["benefits"][4].get("enabled", true)) and int(real.rules["launch"]["target_min_intel"]) == 2, "데이터: 군자금 혜택은 숨김, 후보 첩보 문턱 2")
+	ok(bool(real.rules["launch"]["benefits"][4].get("enabled", true)) and real.rules["launch"]["benefits"][4]["effects"][0]["op"] == "funds" and int(real.rules["launch"]["target_min_intel"]) == 2, "데이터: 군자금 혜택은 켜져 있음, 후보 첩보 문턱 2")
 	ok(int(real.rules["counter"]["target"]) == 7, "데이터: 반격 판정 목표 7")
 	var w: Dictionary = real.rules["ai"]["launch_target"]
 	ok(w.has("intel") and w.has("saga") and w.has("distance"), "데이터: AI 대상 점수식의 가중치 (첩보·사연·거리)")
@@ -4155,7 +4170,6 @@ func _run_c_tests() -> void:
 	_test_c_morning()
 	_test_c_launch_cleanup()
 	_test_c_save()
-	_test_c_coverage()
 
 
 func _mission_gd(target := 9, evade := 7) -> GameDataV2:
@@ -4205,8 +4219,8 @@ func _test_c_data() -> void:
 	var by_type := {}
 	for c in gd.missions["missions"]:
 		by_type[c["type"]] = int(by_type.get(c["type"], 0)) + 1
-	ok(by_type == {"assassin": 3, "infiltrate": 3, "bomb": 2, "work": 4, "contact": 3, "lurk": 2, "coop": 3},
-		"데이터: 미션 20장 (암살 3 · 잠입 3 · 폭파 2 · 공작 4 · 연락 3 · 잠복 2 · 협동 3)")
+	ok(by_type == {"assassin": 3, "infiltrate": 3, "bomb": 2, "work": 5, "contact": 3, "lurk": 3, "coop": 3},
+		"데이터: 미션 22장 (암살 3 · 잠입 3 · 폭파 2 · 공작 5 · 연락 3 · 잠복 3 · 협동 3)")
 	ok(gd.missions["ops"].size() == 4 and gd.op_deck().size() == 4, "데이터: 일제 작전 4장")
 	var want := {"normal": 42, "event": 16, "item": 14, "check": 6, "supply": 5, "alley": 6, "watchtower": 4, "market": 4, "tavern": 3}
 	var same := true
@@ -4220,9 +4234,10 @@ func _test_c_data() -> void:
 	ok(gd.threat_deck(1).size() == 21 and gd.threat_deck(2).size() == 11, "데이터: 1막 위협 덱 21장 (일제 작전 3장을 뺌), 2막 11장")
 	ok(gd.rules["ops"]["days"] == [2, 4, 6, 8] or gd.rules["ops"]["days"] == [2.0, 4.0, 6.0, 8.0], "데이터: 일제 작전은 2·4·6·8일째")
 	ok(g.card_def("m_mp_captain").get("condition", {}).get("kind", "") == "assassinate" and g.card_def("op_spy_raid").get("type", "") == "op", "카드 조회: 미션과 일제 작전")
-	# 돈이 드는 곳은 D단계 전까지 아이템 1장 (데이터에서 바꿀 수 있음)
-	ok(g.card_def("m_mp_captain")["condition"]["gear"]["cost"] == "item" and g.card_def("m_bribe_guard")["condition"]["gear"]["cost"] == "item", "임시: 무기 조달·간수 매수는 아이템 1장")
-	ok(g.card_def("m_open_rice")["bonus"]["reward"][0]["op"] == "draw_item", "임시: 쌀 창고 보너스는 아이템 1장")
+	# 돈이 드는 곳 (데이터에서 바꿀 수 있음)
+	ok(int(g.card_def("m_mp_captain")["condition"]["gear"]["cost"]["item"]) == 1 and int(g.card_def("m_mp_captain")["condition"]["gear"]["cost"]["funds"]) == 2 and g.card_def("m_bribe_guard")["condition"]["gear"]["cost"].keys() == ["funds"], "군자금: 무기 조달은 아이템 1장 또는 군자금 2, 간수 매수는 군자금 2")
+	ok(g.card_def("m_police_chief")["condition"]["informer_cost"]["funds"] == 1 and g.card_def("m_informant")["condition"]["informer_cost"]["funds"] == 1, "군자금: 정보원 사례금 1")
+	ok(g.card_def("m_open_rice")["bonus"]["reward"][0]["op"] == "funds" and int(g.card_def("m_open_rice")["bonus"]["reward"][0]["value"]) == 2, "군자금: 쌀 창고 보너스는 군자금 +2")
 
 
 func _test_c_placement() -> void:
@@ -4348,9 +4363,12 @@ func _test_c_assassinate() -> void:
 	var g5 := _new(CH, gd)
 	_flat(g5)
 	_mission(g5, "m_police_chief", {"target": Vector2i(5, 8), "informer": Vector2i(5, 6)})
+	g5.funds = 3
 	_turn(g5, 0, 4)
 	_step(g5, 0, Vector2i(5, 6), false)
-	ok(g5.mission_state["m_police_chief"]["informed"] and g5.markers_of("m_police_chief", "informer").is_empty() and g5.steps_left == 3, "정보원: 들르면 동선 파악 (마커는 사라지고 이동은 계속)")
+	ok(g5.phase == "choice" and g5.pending["kind"] == "informer_pay", "정보원: 들르면 사례금(군자금 1)을 낼지 물음")
+	_answer(g5, true)
+	ok(g5.funds == 2 and g5.phase == "turn" and g5.mission_state["m_police_chief"]["informed"] and g5.markers_of("m_police_chief", "informer").is_empty() and g5.steps_left == 3, "정보원: 들르면 동선 파악 (마커는 사라지고 이동은 계속)")
 	var before: Vector2i = g5.markers_of("m_police_chief", "target")[0]["pos"]
 	var moved := false
 	for k in 10:
@@ -4524,23 +4542,32 @@ func _test_c_infiltrate() -> void:
 	# 아이템 1장을 내면 경찰이 붙지 않음 (군자금 2 대신, D단계 전)
 	var g3 := _new(CH, gd)
 	_flat(g3)
+	g3.funds = 3
 	g3.players[0]["items"] = ["train_ticket"]
 	_mission(g3, "m_bribe_guard")
 	g3.players[0]["pos"] = prison + Vector2i(0, -1)
 	_turn(g3, 0, 3)
 	_step(g3, 0, prison, false)
-	ok(g3.phase == "choice" and g3.pending["kind"] == "mission_gear", "간수 매수: 아이템이 있으면 거점에 들어갈 때 낼지 물음")
-	_answer(g3, 0)
-	ok(g3.players[0]["items"].is_empty() and not g3.police.has(0) and g3.ready == 2 and g3.phase == "turn", "간수 매수: 아이템 1장을 내면 경찰이 붙지 않음")
+	ok(g3.phase == "choice" and g3.pending["kind"] == "mission_gear" and g3.pending["options"].size() == 2, "간수 매수: 군자금 2가 있으면 거점에 들어갈 때 낼지 물음 (아이템은 값이 아님)")
+	_answer(g3, 1000)
+	ok(g3.funds == 1 and g3.players[0]["items"].size() == 1 and not g3.police.has(0) and g3.ready == 2 and g3.phase == "turn", "간수 매수: 군자금 2를 내면 경찰이 붙지 않음")
 	var g4 := _new(CH, gd)
 	_flat(g4)
-	g4.players[0]["items"] = ["train_ticket"]
+	g4.funds = 3
 	_mission(g4, "m_bribe_guard")
 	g4.players[0]["pos"] = prison + Vector2i(0, -1)
 	_turn(g4, 0, 3)
 	_step(g4, 0, prison, false)
 	_answer(g4, -1)
-	ok(g4.players[0]["items"].size() == 1 and g4.police.has(0), "간수 매수: 안 내면 경찰이 붙음")
+	ok(g4.funds == 3 and g4.police.has(0), "간수 매수: 안 내면 경찰이 붙음")
+	var g4b := _new(CH, gd)
+	_flat(g4b)
+	g4b.funds = 1
+	_mission(g4b, "m_bribe_guard")
+	g4b.players[0]["pos"] = prison + Vector2i(0, -1)
+	_turn(g4b, 0, 3)
+	_step(g4b, 0, prison, false)
+	ok(g4b.phase == "turn" and g4b.police.has(0), "간수 매수: 군자금이 모자라면 묻지 않음")
 	# 최 훈장: 잠입 미션의 첩보 +1
 	var g5 := _new(["choi", "han", "oh", "seo"], gd)
 	_flat(g5)
@@ -4726,7 +4753,7 @@ func _test_c_work() -> void:
 	_at(g3, 1, Vector2i(5, 7))
 	_give_die_to(g3, 1, 4)
 	_cov("mission", "m_open_rice")
-	ok(g3.mission_row.is_empty() and g3.players[1]["items"].size() == 2 and g3.exposure == 2 and g3.ready == 1, "쌀 창고 열기: 두 요원이 나눠 바치면 아이템 2장(마지막에 바친 요원: 보상 1 + 보너스 1), 노출 −1, 결행 준비 +1")
+	ok(g3.mission_row.is_empty() and g3.players[1]["items"].size() == 1 and g3.funds == 2 and g3.exposure == 2 and g3.ready == 1, "쌀 창고 열기: 두 요원이 나눠 바치면 아이템 1장(마지막에 바친 요원) + 군자금 +2, 노출 −1, 결행 준비 +1")
 	ok(g3.players[0]["items"].is_empty(), "쌀 창고 열기: 아이템은 마지막에 바친 요원만")
 	var g4 := _new(CH)
 	_flat(g4)
@@ -5052,7 +5079,8 @@ func _test_c_tiles() -> void:
 	g7.players[0]["pos"] = Vector2i(5, 6)
 	_turn(g7, 0, 0)
 	var md := _spare(g7, 2, 0)
-	ok(g7.can_market(g7.players[0]) and g7.apply({"type": "market", "player": 0, "die": md}), "장터: 장터 칸에서 「장터」 행동 (주사위 하나)")
+	g7.funds = 2
+	ok(g7.can_market(g7.players[0]) and g7.apply({"type": "market", "player": 0, "die": md, "offer": "item"}) and g7.funds == 0, "장터: 장터 칸에서 「장터」 행동 (주사위 하나, 군자금 2로 아이템)")
 	var g8 := _new(CH)
 	_flat(g8)
 	_turn(g8, 0, 0)
@@ -5406,3 +5434,371 @@ func _test_c_coverage() -> void:
 			ok(covered.has("mission:" + c["id"]), "빠짐없이: 미션 %s 이룸" % c["id"])
 	for c in gd.missions.get("ops", []):
 		ok(covered.has("mission:" + c["id"]), "빠짐없이: 일제 작전 %s 막음" % c["id"])
+
+
+# ================================================================== D단계: 군자금
+
+func _run_d_tests() -> void:
+	_test_d_gain_lose()
+	_test_d_missions()
+	_test_d_market()
+	_test_d_checkpoint()
+	_test_d_gear()
+	_test_d_scene_buy()
+	_test_d_ending()
+	_test_d_data()
+
+
+func _buy_scene(g: RulesV2, strike: String, id: String, at_last := false) -> void:
+	## id 장면이 지금 장면인 2막 (앞뒤 장면이 있어 마지막이 아님). at_last면 이 장면이 마지막 장면
+	var card := _scene_by_id(g, strike, id)
+	g.act = 2
+	g.launch_info = {"target": strike, "reason": "test", "day": g.day}
+	g.scenes = ["앞 장면", card["id"]] if at_last else ["앞 장면", card["id"], g.data.strike(strike)["final"]["id"]]
+	g.scene_index = 1
+	g.scene_state = {}
+	g.phase = "day"
+	var at: Vector2i = g._base_cell(strike)
+	if str(card.get("where", "inside")) == "adjacent":
+		at += Vector2i(1, 0)
+	for p in g.players:
+		p["pos"] = at
+
+
+func _pay_funds_action(g: RulesV2, pid: int) -> Dictionary:
+	for a in g.legal_actions():
+		if a["type"] == "scene_pay" and a["what"] == "funds" and int(a["player"]) == pid:
+			return a
+	return {}
+
+
+func _test_d_gain_lose() -> void:
+	var g0 := RulesV2.new_game(CH, 77)
+	ok(g0.funds == 2 and int(g0.data.rules["funds"]["start"]) == 2 and int(g0.data.rules["funds"]["max"]) == 10, "군자금: 시작 2, 최대 10")
+	var g := _new(CH)
+	_fx(g, 0, [{"op": "funds", "value": 3}])
+	ok(g.funds == 3 and g.players[0]["funds_earned"] == 3, "군자금 얻기: +3 (번 몫에도 셈)")
+	_fx(g, 1, [{"op": "funds", "value": 9}])
+	ok(g.funds == 10 and g.players[1]["funds_earned"] == 7, "군자금: 최대 10, 넘는 몫은 버림 (번 몫은 실제로 들어온 7만)")
+	_fx(g, 2, [{"op": "funds", "value": 4}])
+	ok(g.funds == 10 and g.players[2]["funds_earned"] == 0, "군자금: 이미 최대이면 얻는 것이 없음")
+	_fx(g, 0, [{"op": "funds", "value": -4}])
+	ok(g.funds == 6, "군자금 잃기: −4")
+	_fx(g, 0, [{"op": "funds_half"}])
+	ok(g.funds == 3, "자금 동결(funds_half): 절반 (6 → 3)")
+	_fx(g, 0, [{"op": "funds_half"}])
+	ok(g.funds == 1, "자금 동결: 내림 (3 → 1)")
+	_fx(g, 0, [{"op": "funds", "value": -5}])
+	ok(g.funds == 0, "군자금: 모자라게 잃으면 0 (음수 없음)")
+	# 노출이 최대(9)에 닿으면 군자금 −2 (닿는 순간 한 번)
+	var g2 := _new(CH)
+	g2.funds = 5
+	g2.exposure = 8
+	g2._expose(1)
+	ok(g2.exposure == 9 and g2.funds == 3, "노출 9에 닿으면 군자금 −2 (대대적 단속)")
+	g2._expose(1)
+	ok(g2.funds == 3, "노출이 이미 9이면 또 잃지 않음")
+	var g2b := _new(CH)
+	g2b.funds = 1
+	g2b.exposure = 8
+	g2b._expose(3)
+	ok(g2b.funds == 0, "노출 9: 군자금이 모자라면 0")
+	# 저장·불러오기
+	var g3 := _new(CH)
+	g3.funds = 7
+	g3.players[2]["funds_earned"] = 4
+	var c := RulesV2.new()
+	c.load_state(g3.save_state(), g3.data)
+	ok(c.funds == 7 and c.players[2]["funds_earned"] == 4, "군자금: 저장·불러오기에 들어감")
+	# 가택 수색: 군자금 −2, 모자라면 고립된 요원이 아이템 1장을 버림
+	var g4 := _new(CH)
+	g4.funds = 5
+	g4.players[1]["pos"] = Vector2i(8, 8)
+	g4.players[1]["items"] = ["train_ticket"]
+	_threat(g4, "house_search")
+	ok(g4.funds == 3 and g4.players[1]["items"].size() == 1, "위협 가택 수색: 군자금 −2 (군자금이 있으면 아이템은 안 버림)")
+	var g5 := _new(CH)
+	g5.funds = 1
+	g5.players[1]["pos"] = Vector2i(8, 8)
+	g5.players[1]["items"] = ["train_ticket"]
+	_threat(g5, "house_search")
+	ok(g5.funds == 0 and g5.players[1]["items"].is_empty(), "위협 가택 수색: 군자금이 모자라면 0이 되고 고립된 요원이 아이템 1장을 버림")
+	var g6 := _new(CH)
+	g6.funds = 0
+	_threat(g6, "house_search")
+	ok(g6.funds == 0, "위협 가택 수색: 군자금도 아이템도 없으면 아무 일 없음")
+	_cov("threat", "house_search")
+
+
+func _test_d_missions() -> void:
+	# 부호의 헌금: 잠복 1일 → 군자금 +3, 결행 준비 +1
+	var g := _new(CH)
+	_flat(g)
+	_mission(g, "m_rich_donation", {"spot": Vector2i(5, 7)})
+	_at(g, 0, Vector2i(5, 6))
+	_end(g, 0)
+	_cov("mission", "m_rich_donation")
+	ok(g.mission_row.is_empty() and g.funds == 3 and g.ready == 1 and g.players[0]["funds_earned"] == 3, "부호의 헌금: 잠복 1일이면 군자금 +3, 결행 준비 +1 (그 요원이 번 몫)")
+	# 독립 공채: 마커 2개에 주사위 하나씩 → 군자금 +4
+	var g2 := _new(CH)
+	_flat(g2)
+	_mission(g2, "m_bond")
+	var cells: Array = g2.markers_of("m_bond", "work").map(func(m): return m["pos"])
+	ok(cells.size() == 2 and cells[0] != cells[1], "독립 공채: 마커가 두 곳")
+	_at(g2, 0, cells[0])
+	_give_die_to(g2, 0, 1)
+	ok(g2.funds == 0 and g2.mission_row == ["m_bond"], "독립 공채: 한 곳만으로는 안 이뤄짐")
+	_end(g2, 0)
+	_at(g2, 1, cells[1])
+	_give_die_to(g2, 1, 5)
+	_cov("mission", "m_bond")
+	ok(g2.mission_row.is_empty() and g2.funds == 4 and g2.ready == 1 and g2.players[1]["funds_earned"] == 4, "독립 공채: 두 곳에 바치면 군자금 +4, 결행 준비 +1 (마지막에 바친 요원이 번 몫)")
+	# 쌀 창고 열기: 혼자 채우면 보너스 군자금이 없음
+	var g3 := _new(CH)
+	_flat(g3)
+	_mission(g3, "m_open_rice", {"work": Vector2i(5, 7)})
+	_at(g3, 0, Vector2i(5, 7))
+	_give_die_to(g3, 0, 6)
+	_give_die_to(g3, 0, 3)
+	ok(g3.mission_row.is_empty() and g3.funds == 0, "쌀 창고 열기: 한 요원이 혼자 채우면 군자금 보너스 없음")
+
+
+func _test_d_market() -> void:
+	var g := _new(CH)
+	_flat(g)
+	_tile(g, Vector2i(5, 6), "market")
+	g.funds = 2
+	_at(g, 0, Vector2i(5, 6))
+	_spare(g, 3, 0)
+	var offers := g.market_offers(g.players[0]).map(func(o): return str(o["id"]))
+	ok(offers == ["item"], "장터: 군자금 2면 아이템만 살 수 있음 (폭탄은 3)")
+	var da := g.legal_actions().filter(func(a): return a["type"] == "market")
+	ok(da.size() == 1 and da[0]["offer"] == "item", "장터: 살 수 있는 것마다 행동이 있음")
+	ok(g.apply(da[0]) and g.funds == 0 and g.players[0]["items"].size() == 1, "장터: 군자금 2를 내고 아이템 1장")
+	ok(not g.can_market(g.players[0]), "장터: 군자금이 모자라면 못 함")
+	var g2 := _new(CH)
+	_flat(g2)
+	_tile(g2, Vector2i(5, 6), "market")
+	g2.funds = 4
+	_at(g2, 0, Vector2i(5, 6))
+	var bd := _spare(g2, 3, 0)
+	ok(g2.apply({"type": "market", "player": 0, "die": bd, "offer": "bomb"}) and g2.funds == 1 and g2.players[0]["bombs"] == 1 and g2.bomb_supply == int(g2.data.rules["bomb_supply"]) - 1, "장터: 군자금 3을 내고 폭탄 1개")
+	ok(not g2.apply({"type": "market", "player": 0, "die": _spare(g2, 3, 0), "offer": "nothing"}), "장터: 없는 물건은 거부")
+	# 주모 막례: 아이템 값 1
+	var g3 := _new(["makrye", "han", "oh", "seo"])
+	_flat(g3)
+	_tile(g3, Vector2i(5, 6), "market")
+	g3.funds = 1
+	_at(g3, 0, Vector2i(5, 6))
+	_spare(g3, 3, 0)
+	var item_offer: Dictionary = g3.data.rules["market"]["offers"][0]
+	ok(g3.market_cost(g3.players[0], item_offer) == 1 and g3.can_market(g3.players[0]), "특성 주모 막례: 장터에서 아이템 값 1")
+	g3.apply({"type": "market", "player": 0, "die": 0, "offer": "item"})
+	ok(g3.funds == 0, "특성 주모 막례: 군자금 1로 아이템을 삼")
+	# 석 기술자: 폭탄 값 2
+	var g4 := _new(["seok", "han", "oh", "seo"])
+	_flat(g4)
+	_tile(g4, Vector2i(5, 6), "market")
+	g4.funds = 2
+	_at(g4, 0, Vector2i(5, 6))
+	_spare(g4, 3, 0)
+	var bomb_offer: Dictionary = g4.data.rules["market"]["offers"][1]
+	ok(g4.market_cost(g4.players[0], bomb_offer) == 2 and "bomb" in g4.market_offers(g4.players[0]).map(func(o): return str(o["id"])), "특성 석 기술자: 장터에서 폭탄 값 2")
+	ok(g4.market_cost(g4.players[1], bomb_offer) == 3 and g4.market_cost(g4.players[1], g4.data.rules["market"]["offers"][0]) == 2, "장터: 다른 요원은 아이템 2 · 폭탄 3 (대조)")
+	# 손패가 가득이면 아이템을 못 사고, 폭탄 칸이 차거나 보급이 없으면 폭탄을 못 삼
+	var g5 := _new(CH)
+	_flat(g5)
+	_tile(g5, Vector2i(5, 6), "market")
+	g5.funds = 10
+	g5.players[0]["items"] = ["train_ticket", "pocket_watch"]
+	g5.players[0]["bombs"] = 1
+	_at(g5, 0, Vector2i(5, 6))
+	_spare(g5, 3, 0)
+	ok(g5.market_offers(g5.players[0]).is_empty() and not g5.can_market(g5.players[0]), "장터: 손패와 폭탄 칸이 가득이면 살 것이 없음")
+	g5.players[0]["bombs"] = 0
+	g5.bomb_supply = 0
+	ok(g5.market_offers(g5.players[0]).map(func(o): return str(o["id"])) == [], "장터: 보급에 폭탄이 없으면 폭탄을 못 삼 (아이템 칸도 가득)")
+	_cov("trait", "makrye_market")
+
+
+func _test_d_checkpoint() -> void:
+	var gd := _gd(func(d): d.rules["checks"]["evade"] = 99)
+	var g := _new(CH, gd)
+	_flat(g)
+	_tile(g, Vector2i(5, 6), "check")
+	g.funds = 3
+	_turn(g, 0, 2)
+	g.apply({"type": "step", "player": 0, "to": Vector2i(5, 6)})
+	ok(g.phase == "choice" and g.pending["kind"] == "bribe", "검문소 뇌물: 들어갈 때 판정 대신 뇌물을 낼지 물음 (이동 중에, 행동이 아님)")
+	ok(not g.op_dice.is_empty() and g.my_dice(0).is_empty(), "검문소 뇌물: 주사위는 이동에 쓴 것 하나뿐 (뇌물은 주사위를 더 안 냄)")
+	_answer(g, true)
+	ok(g.funds == 1 and g.players[0]["pos"] == Vector2i(5, 6) and g.exposure == 0 and not g.police.has(0) and g.phase == "turn", "검문소 뇌물: 군자금 2를 내면 판정 없이 지나감 (노출·경찰 없음)")
+	ok(g.players[0]["stats"]["checkpoints"] == 0, "검문소 뇌물: 판정 성공으로 지난 횟수에는 안 셈")
+	# 판정으로 가기를 고르면 판정 (회피 99라 실패)
+	var g2 := _new(CH, gd)
+	_flat(g2)
+	_tile(g2, Vector2i(5, 6), "check")
+	g2.funds = 3
+	_turn(g2, 0, 2)
+	g2.apply({"type": "step", "player": 0, "to": Vector2i(5, 6)})
+	_answer(g2, false)
+	ok(g2.funds == 3 and g2.exposure == 1 and g2.police.has(0), "검문소: 판정으로 가기를 고르면 판정 (군자금 그대로, 실패하면 노출 +1)")
+	# 군자금이 모자라면 고를 수 없다
+	var g3 := _new(CH, gd)
+	_flat(g3)
+	_tile(g3, Vector2i(5, 6), "check")
+	g3.funds = 1
+	_turn(g3, 0, 2)
+	g3.apply({"type": "step", "player": 0, "to": Vector2i(5, 6)})
+	ok(g3.phase != "choice" and g3.exposure == 1, "검문소 뇌물: 군자금이 모자라면 고를 수 없고 바로 판정")
+	# 윤 소위(회피 항상 성공)는 뇌물이 필요 없음
+	var g4 := _new(["yun", "han", "oh", "seo"], gd)
+	_flat(g4)
+	_tile(g4, Vector2i(5, 6), "check")
+	g4.funds = 5
+	_turn(g4, 0, 2)
+	g4.apply({"type": "step", "player": 0, "to": Vector2i(5, 6)})
+	ok(g4.phase != "choice" and g4.funds == 5, "검문소 뇌물: 회피가 항상 성공하는 요원은 묻지 않음")
+	# 통행증이 있으면 뇌물을 묻지 않음
+	var g5 := _new(CH, gd)
+	_flat(g5)
+	_tile(g5, Vector2i(5, 6), "check")
+	g5.funds = 5
+	g5.players[0]["flags"]["checkpoint_pass"] = 1
+	_turn(g5, 0, 2)
+	g5.apply({"type": "step", "player": 0, "to": Vector2i(5, 6)})
+	ok(g5.phase != "choice" and g5.funds == 5, "검문소 뇌물: 통행증으로 지나가면 묻지 않음")
+
+
+func _test_d_gear() -> void:
+	# 헌병 대위: 아이템 1장 또는 군자금 2로 판정 −2
+	var gd := _mission_gd(9, 7)
+	var g := _new(CH, gd)
+	_flat(g)
+	g.funds = 3
+	g.players[0]["items"] = ["train_ticket"]
+	_mission(g, "m_mp_captain", {"target": Vector2i(5, 6)})
+	_turn(g, 0, 2)
+	_step(g, 0, Vector2i(5, 6), false)
+	_mcheck(g, 0)
+	var vals: Array = g.pending["options"].map(func(o): return int(o["value"]))
+	ok(g.phase == "choice" and vals == [-1, 0, 1000], "무기 조달: 아이템 1장 또는 군자금 2 중 고름")
+	_answer(g, 1000)
+	ok(g.funds == 1 and g.players[0]["items"].size() == 1 and _last_dice(g, "암살").get("bonus", -1) == 2, "무기 조달: 군자금 2를 내면 판정 −2 (아이템은 그대로)")
+	var g2 := _new(CH, gd)
+	_flat(g2)
+	g2.funds = 1
+	_mission(g2, "m_mp_captain", {"target": Vector2i(5, 6)})
+	_turn(g2, 0, 2)
+	_step(g2, 0, Vector2i(5, 6), false)
+	_mcheck(g2, 0)
+	ok(g2.phase != "choice", "무기 조달: 군자금이 모자라고 아이템도 없으면 묻지 않음")
+	# 정보원 사례금 1: 안 내면 동선 파악 없음
+	var g3 := _new(CH, gd)
+	_flat(g3)
+	g3.funds = 1
+	_mission(g3, "m_informant", {"target": Vector2i(5, 9), "informer": Vector2i(5, 6)})
+	_turn(g3, 0, 3)
+	_step(g3, 0, Vector2i(5, 6), false)
+	ok(g3.phase == "choice" and g3.pending["kind"] == "informer_pay", "정보원: 군자금 1이 있으면 사례금을 낼지 물음")
+	_answer(g3, false)
+	ok(g3.funds == 1 and not g3.mission_state["m_informant"]["informed"] and g3.markers_of("m_informant", "informer").size() == 1 and g3.steps_left == 2, "정보원: 안 내면 동선 파악이 없고 마커는 그대로 (이동은 계속)")
+	var g4 := _new(CH, gd)
+	_flat(g4)
+	g4.funds = 0
+	_mission(g4, "m_informant", {"target": Vector2i(5, 9), "informer": Vector2i(5, 6)})
+	_turn(g4, 0, 3)
+	_step(g4, 0, Vector2i(5, 6), false)
+	ok(g4.phase == "turn" and not g4.mission_state["m_informant"]["informed"], "정보원: 군자금이 없으면 사례금을 못 내 동선을 못 알아냄")
+
+
+func _test_d_scene_buy() -> void:
+	# 장면 매수: 열쇠 꾸러미 3 · 보초 교대 3 · 당직 순사 3 · 문서고 4 · 초소 2 (바치기 행동, 주사위 하나)
+	var buys := {"prison_keys": ["prison", 3], "barracks_shift": ["barracks", 3], "police_duty": ["police_hq", 3], "gg_archive": ["gg", 4]}
+	for id in buys:
+		var g := _new(CH)
+		_buy_scene(g, buys[id][0], id)
+		g.funds = int(buys[id][1]) - 1
+		_turn(g, 0, 0)
+		_spare(g, 2, 0)
+		ok(_pay_funds_action(g, 0).is_empty(), "장면 매수 %s: 군자금이 모자라면 못 함" % id)
+		g.funds = int(buys[id][1])
+		var a := _pay_funds_action(g, 0)
+		ok(not a.is_empty() and g.apply(a) and g.funds == 0 and g.scene_index == 2, "장면 매수 %s: 군자금 %d을 내면 장면을 돌파 (바치기 행동, 주사위 하나)" % [id, buys[id][1]])
+	var g2 := _new(CH)
+	g2.act = 2
+	g2.launch_info = {"target": "prison", "reason": "test", "day": g2.day}
+	g2.scenes = ["앞 장면", "reinforce_post", g2.data.strike("prison")["final"]["id"]]
+	g2.scene_index = 1
+	g2.scene_state = {}
+	g2.phase = "day"
+	for p in g2.players:
+		p["pos"] = g2._base_cell("prison")
+	g2.funds = 2
+	_turn(g2, 0, 0)
+	_spare(g2, 2, 0)
+	ok(not _pay_funds_action(g2, 0).is_empty() and g2.apply(_pay_funds_action(g2, 0)) and g2.funds == 0 and g2.scene_index == 2, "장면 매수 초소: 군자금 2")
+	# 마지막 장면은 매수할 수 없다 (데이터에 pay_funds를 넣어도 엔진이 막음)
+	var gd := _gd(func(d):
+		var c = d.strike("prison")["final"]
+		c["condition"] = {"kind": "any_of", "options": [c["condition"], {"kind": "pay_funds", "count": 1}]})
+	var g3 := _new(CH, gd)
+	g3.act = 2
+	g3.launch_info = {"target": "prison", "reason": "test", "day": g3.day}
+	g3.scenes = ["앞 장면", g3.data.strike("prison")["final"]["id"]]
+	g3.scene_index = 1
+	g3.scene_state = {}
+	g3.phase = "day"
+	for p in g3.players:
+		p["pos"] = g3._base_cell("prison")
+	g3.funds = 9
+	_turn(g3, 0, 0)
+	_spare(g3, 2, 0)
+	ok(_pay_funds_action(g3, 0).is_empty(), "장면 매수: 마지막 장면은 매수할 수 없음")
+	# 필요 표시와 한 장면에 한 번만
+	var g4 := _new(CH)
+	_buy_scene(g4, "prison", "prison_keys")
+	ok(g4.scene_need().get("funds", -1) == 3 and g4.scene_need().get("item", -1) == 1, "장면 매수: 남은 것에 군자금과 아이템이 둘 다 보임")
+	# 갇힌 요원이나 자리 밖 요원은 못 함
+	var g5 := _new(CH)
+	_buy_scene(g5, "prison", "prison_keys")
+	g5.funds = 5
+	g5.players[0]["pos"] = START
+	_turn(g5, 0, 0)
+	_spare(g5, 2, 0)
+	ok(_pay_funds_action(g5, 0).is_empty(), "장면 매수: 장면 자리에 서 있어야 함")
+
+
+func _test_d_threats() -> void:
+	var g := _new(CH)
+	g.funds = 7
+	_threat(g, "fund_freeze")
+	_cov("threat", "fund_freeze")
+	ok(g.funds == 3, "위협 자금 동결: 군자금 절반 (7 → 3, 내림)")
+	var gd := GameDataV2.load_default()
+	var cards := {}
+	for id in gd.threat_deck(1):
+		cards[id] = int(cards.get(id, 0)) + 1
+	ok(int(cards.get("calm_day", 0)) == 1 and int(cards.get("fund_freeze", 0)) == 1 and int(cards.get("house_search", 0)) == 3 and gd.threat_deck(1).size() == 21, "1막 위협 덱: 평온한 하루 1 · 자금 동결 1 · 가택 수색 3 (규칙서와 같은 21장)")
+
+
+func _test_d_ending() -> void:
+	var g := _new(CH)
+	g.funds = 4
+	g._end_game(false)
+	ok(g.ending["funds_left"] == 4 and "남은 군자금 4원은 상하이 임시정부로 보내졌다." in g.ending["text"] and g.ending["funds_text"] != "", "엔딩: 남은 군자금이 있으면 후일담 한 줄 (실패해도)")
+	var g2 := _new(CH)
+	g2.funds = 0
+	g2._end_game(false)
+	ok(g2.ending["funds_text"] == "" and not "상하이" in g2.ending["text"], "엔딩: 군자금이 없으면 후일담 줄이 없음")
+
+
+func _test_d_data() -> void:
+	var real := GameDataV2.load_default()
+	ok(real.validate().is_empty(), "데이터: 군자금 데이터가 검증기를 통과 (미션 22장)")
+	ok(int(real.rules["checkpoint"]["bribe"]) == 2, "데이터: 검문소 뇌물 2")
+	ok(real.rules["market"]["offers"].size() == 2 and int(real.rules["market"]["offers"][0]["cost"]) == 2 and int(real.rules["market"]["offers"][1]["cost"]) == 3, "데이터: 장터 아이템 2 · 폭탄 3")
+	var makrye: Array = real.character("makrye")["trait"]["mods"]
+	var seok: Array = real.character("seok")["trait"]["mods"]
+	ok(makrye.any(func(m): return m["stat"] == "market_item_cost" and int(m["value"]) == -1), "데이터: 주모 막례 아이템 값 −1 (2 → 1)")
+	ok(seok.any(func(m): return m["stat"] == "market_bomb_cost" and int(m["value"]) == -1), "데이터: 석 기술자 폭탄 값 −1 (3 → 2)")

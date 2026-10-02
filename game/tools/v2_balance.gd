@@ -76,7 +76,7 @@ func _run(opt: Dictionary, sets: Array) -> Dictionary:
 		"endings": {}, "launch_days": [], "launch_percent": [], "launch_reason": {}, "act2_days": [],
 		"strikes": {}, "strike_wins": {}, "scene_shown": {}, "scene_broken": {}, "stopped_scene": {},
 		"saga_dealt": {}, "saga_done": {}, "saga_per_game": 0, "character_games": {}, "character_wins": {},
-		"jails": 0, "escapes": 0, "rescues": 0, "confiscated": 0, "action_types": {}, "benefits": {}, "mission_offered": {}, "mission_missed": {}, "ops_seen": {}, "ops_blocked": {}, "ops_missed": {}, "trend_at_launch": [], "reinforce_at_launch": [],
+		"jails": 0, "escapes": 0, "rescues": 0, "confiscated": 0, "action_types": {}, "benefits": {}, "funds_gained": 0, "funds_spent": {}, "funds_lost": 0, "funds_end": [], "mission_offered": {}, "mission_missed": {}, "ops_seen": {}, "ops_blocked": {}, "ops_missed": {}, "trend_at_launch": [], "reinforce_at_launch": [],
 		"exposure_sum": 0, "exposure_days": 0, "counter_days": 0, "counter_blocked": 0, "vote_target": {}, "dice_rolled": 0, "dice_left": 0, "turns": 0,
 		"exposure_peak": 0, "alert_days": {}, "missions": {}, "threats": {}}
 	for i in n:
@@ -126,6 +126,14 @@ func _run(opt: Dictionary, sets: Array) -> Dictionary:
 						if str(e.get("deck", "")) == "mission":
 							_inc(s["mission_offered"], str(data.mission(str(e["id"])).get("type", "")))
 					"mission_missed": _inc(s["mission_missed"], str(data.mission(str(e["id"])).get("type", "")))
+					"funds":
+						var ch := int(e.get("change", 0))
+						if ch > 0:
+							s["funds_gained"] += ch
+						elif ch < 0 and str(e.get("why", "")) in ["lose", "cap"]:
+							s["funds_lost"] += -ch
+						elif ch < 0:
+							s["funds_spent"][str(e.get("why", "?"))] = int(s["funds_spent"].get(str(e.get("why", "?")), 0)) + -ch
 					"op_appear": _inc(s["ops_seen"], str(e["id"]))
 					"op_blocked": _inc(s["ops_blocked"], str(e["id"]))
 					"op_missed": _inc(s["ops_missed"], str(e["id"]))
@@ -155,6 +163,7 @@ func _run(opt: Dictionary, sets: Array) -> Dictionary:
 				print("멈춘 판 %d: 단계 %s · 날 %d · 현재 %d · 동작 %d" % [i, g.phase, g.day, g.current, steps])
 			continue
 		s["ended"] += 1
+		s["funds_end"].append(g.funds)
 		var won: bool = g.ending.get("id", "") == "victory"
 		if won:
 			s["victory"] += 1
@@ -268,6 +277,12 @@ func _print_rows(rows: Array) -> void:
 		print("일제 작전 %d번 중 막은 것 %d번 (%.1f%%) · 놓친 것 %s · 막은 것 %s" % [ops_n, ops_b, 100.0 * float(ops_b) / float(maxi(ops_n, 1)), r["ops_missed"], r["ops_blocked"]])
 		print("결행 때 일제 동향 평균 %.2f (분포 %s) · 증원 평균 %.2f장 · 판당 하루 아침 노출 평균 %.2f" % [_mean(r["trend_at_launch"]), _counts(r["trend_at_launch"]), _mean(r["reinforce_at_launch"]),
 			float(r["exposure_sum"]) / float(maxi(int(r["exposure_days"]), 1))])
+		var spent_total := 0
+		for w in r["funds_spent"]:
+			spent_total += int(r["funds_spent"][w])
+		var games_f := float(maxi(int(r["games"]), 1))
+		print("군자금: 판당 번 돈 %.2f · 쓴 돈 %.2f %s · 잃은 돈 %.2f · 끝에 남은 돈 평균 %.2f (분포 %s)" % [float(r["funds_gained"]) / games_f, float(spent_total) / games_f,
+			r["funds_spent"], float(r["funds_lost"]) / games_f, _mean(r["funds_end"]), _counts(r["funds_end"])])
 		print("반격 %d번 중 막은 것 %d번 (%.1f%%)" % [r["counter_days"], r["counter_blocked"], 100.0 * float(r["counter_blocked"]) / float(maxi(int(r["counter_days"]), 1))])
 		print("굴린 주사위 %d개 중 차례를 마치며 남긴 것 %d개 (%.1f%%) · 차례 %d번" % [r["dice_rolled"], r["dice_left"],
 			100.0 * float(r["dice_left"]) / float(maxi(int(r["dice_rolled"]), 1)), r["turns"]])

@@ -151,12 +151,16 @@
 			"gender": "m",
 			"origin": "폭탄을 만드는 기술자",
 			"persona": "bold",
-			"trait_text": "폭탄을 2개까지 들 수 있음",
+			"trait_text": "폭탄을 2개까지 들 수 있음. 장터 폭탄 값 2",
 			"trait": {
 				"mods": [
 					{
 						"stat": "bomb_slots",
 						"value": 1
+					},
+					{
+						"stat": "market_bomb_cost",
+						"value": -1
 					}
 				]
 			},
@@ -249,7 +253,7 @@
 			"gender": "f",
 			"origin": "의병의 끼니를 대던 산골 주막 주모",
 			"persona": "support",
-			"trait_text": "아이템을 3장까지 들 수 있고, 아이템을 뽑을 때 2장 보고 1장 고름",
+			"trait_text": "아이템을 3장까지 들 수 있고, 아이템을 뽑을 때 2장 보고 1장 고름. 장터 아이템 값 1",
 			"trait": {
 				"mods": [
 					{
@@ -259,6 +263,10 @@
 					{
 						"stat": "item_draw_choice",
 						"value": 2
+					},
+					{
+						"stat": "market_item_cost",
+						"value": -1
 					}
 				]
 			},

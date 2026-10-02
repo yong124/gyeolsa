@@ -342,6 +342,11 @@ func _check_invariants(g: RulesV2, tag: String, turn_seen: Dictionary) -> void:
 			_fail("%s: 폭탄이 칸 수를 넘음" % tag)
 	if g.exposure < 0 or g.exposure > int(R["exposure"]["max"]):
 		_fail("%s: 노출 %d" % [tag, g.exposure])
+	if g.funds < 0 or g.funds > int(R["funds"]["max"]):
+		_fail("%s: 군자금 %d" % [tag, g.funds])
+	for q in g.players:
+		if int(q["funds_earned"]) < 0:
+			_fail("%s: 번 군자금이 음수" % tag)
 	# 하루에 요원마다 차례 한 번
 	for e in g.events:
 		if e["kind"] == "turn":
