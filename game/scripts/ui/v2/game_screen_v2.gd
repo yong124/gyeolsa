@@ -15,7 +15,6 @@ const SECONDARY_MAX := 3          # 행동 패널의 보조 버튼 수 (나머�
 const MISSION_ART := {"assassin": "res://assets/tiles/assassin.png", "infiltrate": "res://assets/tiles/base.png",
 	"bomb": "res://assets/tiles/bomb.png", "sabotage": "res://assets/tiles/sabotage.png", "coop": "res://assets/tiles/start.png"}
 const SAGA_COL := Color("#6b4f8a")
-const INTERRO_COL := Color("#7a2a24")
 const BOMB_COL := Color("#b86a1e")
 
 var game: RulesV2
@@ -268,15 +267,13 @@ func _refresh_roster() -> void:
 			st.content_margin_bottom = 4
 			row["panel"].add_theme_stylebox_override("panel", st)
 			row["stamp"].visible = is_cur
-		var ring: Color = Style.INK if p["traitor"] else Style.seat(p["id"])
+		var ring: Color = Style.seat(p["id"])
 		var face: AgentPanel.Face = row["face"]
 		if face.jailed != p["jailed"] or face.ring != ring:
 			face.jailed = p["jailed"]
 			face.ring = ring
 			face.queue_redraw()
 		row["bar"].color = ring
-		if p["traitor"]:
-			row["sub"].text = "변절자 · 늘 마지막 차례"
 		var chips := _chips(p)
 		var sig := str(chips)
 		if sig != row["sig"]:
@@ -292,28 +289,18 @@ func _chips(p: Dictionary) -> Array:
 	var me: bool = p["id"] == human
 	if p["id"] == game.leader:
 		out.append(["리더", "★", Style.INK_2, "오늘의 리더: 의견이 갈리면 정합니다 (누가 먼저, 결행 투표 동수, 동점 대상).", false])
-	if p["traitor"]:
-		var lure := ""
-		var s: Dictionary = game.data.saga(game.public_saga(p["id"]))
-		if not s.is_empty():
-			lure = "“%s”" % s.get("lure", "")
-		out.append([lure if lure != "" else "변절자", "✕", Style.SEAL, "일제에 회유되어 돌아섰습니다. 깔린 칸으로만 다니며 요원을 기습하고 밀고합니다.", false])
-		return out
 	if p["jailed"]:
 		out.append(["감옥 · %s" % game.base_name(game.data.bases.find(p["pos"])), "!", Style.SEAL, "감옥에 갇혀 있습니다. 차례마다 탈옥을 시도하거나, 동료가 그 거점에 들어오면 구출됩니다.", false])
 	if game.police.has(p["id"]):
 		out.append(["추격당함", "!", Style.SEAL, "경찰이 이 요원을 쫓고 있습니다. 차례가 끝날 때 다가오고, 같은 칸이 되면 체포됩니다.", false])
 	var dv: Array = game.my_dice(p["id"]).map(func(i): return str(game.die_value(i)))
 	if not dv.is_empty():
-		out.append(["주사위 " + "·".join(dv), "⚄", Style.INK_2, "오늘 남은 작전 주사위: 이동, 작전 판정, 장면 바치기, 설득, 건네기에 씁니다.", false])
+		out.append(["주사위 " + "·".join(dv), "⚄", Style.INK_2, "오늘 남은 작전 주사위: 이동, 작전 판정, 장면 바치기, 건네기에 씁니다.", false])
 	if not p["items"].is_empty():
 		var names: Array = p["items"].map(func(id): return str(game.item_def(str(id)).get("name", "")))
 		out.append([", ".join(names) if me else "아이템", str(p["items"].size()), Style.ITEM, "아이템: " + ", ".join(names), false])
 	if p["bombs"] > 0:
 		out.append(["폭탄", str(p["bombs"]), BOMB_COL, "폭탄: 폭파 미션이나 장면에 씁니다.", false])
-	var ni := game.interrogation_count(p["id"])
-	if ni > 0:
-		out.append(["심문 %d장" % ni, "?", INTERRO_COL, "심문 카드 %d장 (내용은 본인만 압니다). 흔들렸다가 2장 이상이면 결행 순간이나 2막 아침에 변절합니다. 같은 칸에서 예비 주사위로 설득하면 한 장을 무작위로 뗍니다." % ni, false])
 	if p["saga_done"] != "":
 		out.append(["사연 이룸 · %s" % game.data.saga(p["saga_done"]).get("name", ""), "✓", SAGA_COL, str(game.data.saga(p["saga_done"]).get("story", "")), false])
 	elif me:
@@ -464,13 +451,6 @@ func _refresh_hand() -> void:
 			card.add_child(tag)
 			tag.position = Vector2(W - 34, 24)
 		_hand_row.add_child(card)
-	var ni := game.interrogation_count(human)
-	if ni > 0:
-		var sh := game.shaken_count(human)
-		var card := CardView.face("심 문", INTERRO_COL, load("res://assets/cards/event_back.png"), "%d장" % ni,
-			"흔들렸다 %d장\n%d장이면 변절할 수 있음" % [sh, int(game.data.rules["traitor"]["shaken_needed"])], W, H)
-		_peek.attach(card, _interro_info())
-		_hand_row.add_child(card)
 	for i in me["items"].size():
 		var it: Dictionary = game.item_def(str(me["items"][i]))
 		var card := CardView.face("아 이 템", Style.ITEM, load("res://assets/cards/item_back.png"), str(it.get("name", "")), str(it.get("text", "")), W, H)
@@ -485,7 +465,7 @@ func _refresh_hand() -> void:
 	var empty: int = game.hand_limit(me) - me["items"].size()
 	for i in mini(empty, 2):
 		_hand_row.add_child(_slot("아이템 칸\n비어 있음", W, H))
-	_hand_hint.text = "사연은 나만 봅니다 · 심문 카드는 장수만 공개" if game.act == 1 else "남긴 사연은 결행 뒤에도 이룰 수 있습니다"
+	_hand_hint.text = "사연은 나만 봅니다" if game.act == 1 else "남긴 사연은 결행 뒤에도 이룰 수 있습니다"
 
 
 func _slot(text: String, w: float, h: float) -> Control:
@@ -517,7 +497,7 @@ func _refresh_actions() -> void:
 	var others := []
 	var extra_btn: Array = []    # [글, 콜백] — 액션이 아닌 단추 (동료 먼저)
 	for a in mine:
-		if a["type"] in ["step", "choose"] + ["move_die", "persuade", "give_die"] or (a["type"] == "scene_pay" and a["what"] == "die"):
+		if a["type"] in ["step", "choose"] + ["move_die", "give_die"] or (a["type"] == "scene_pay" and a["what"] == "die"):
 			continue   # 주사위로 하는 일은 주사위를 눌러서
 		others.append(a)
 	match game.phase:
@@ -671,18 +651,17 @@ func _icon(a: Dictionary) -> String:
 	match a["type"]:
 		"start_day", "move_die", "scene_check", "use_intel": return "dice"
 		"give_die": return "give"
-		"persuade": return "decoy"
 		"begin_turn", "end_move", "end_turn", "scene_pay": return "end"
 		"escape": return "escape"
 		"ability": return "ability"
 		"give_item": return "give"
-		"decoy", "inform": return "decoy"
+		"decoy": return "decoy"
 		"use_item": return "swap"
 	return "swap"
 
 
 func _refresh_dice(mine: Array) -> void:
-	## 내 작전 주사위. 누르면 그 주사위로 할 수 있는 일(이동·바치기·설득·건네기)이 작은 메뉴로 뜬다.
+	## 내 작전 주사위. 누르면 그 주사위로 할 수 있는 일(이동·바치기·건네기)이 작은 메뉴로 뜬다.
 	var idx: Array = []
 	for i in game.op_dice.size():
 		if int(game.op_dice[i]["owner"]) == human:
@@ -695,7 +674,7 @@ func _refresh_dice(mine: Array) -> void:
 		var d: Dictionary = game.op_dice[i]
 		var acts := []
 		for a in mine:
-			if (a["type"] in ["move_die", "persuade", "give_die"] or (a["type"] == "scene_pay" and a["what"] == "die")) and int(a["die"]) == i:
+			if (a["type"] in ["move_die", "give_die"] or (a["type"] == "scene_pay" and a["what"] == "die")) and int(a["die"]) == i:
 				acts.append(a)
 		var v := VBoxContainer.new()
 		v.add_theme_constant_override("separation", 2)
@@ -718,7 +697,7 @@ func _refresh_dice(mine: Array) -> void:
 		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		v.add_child(l)
 		_dice_row.add_child(v)
-	var tip := UiKit.text("주사위 하나 = 이동(눈만큼) · 작전 판정(눈 + 주사위 1개)\n장면 바치기 · 설득 · 같은 칸 동료에게 건네기 (하루 1번)\n남은 주사위는 밤에 사라집니다", 11, Style.INK_3, false)
+	var tip := UiKit.text("주사위 하나 = 이동(눈만큼) · 작전 판정(눈 + 주사위 1개)\n장면 바치기 · 같은 칸 동료에게 건네기 (하루 1번)\n남은 주사위는 밤에 사라집니다", 11, Style.INK_3, false)
 	tip.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	_dice_row.add_child(tip)
 
@@ -953,18 +932,10 @@ func _play_event(e: Dictionary) -> void:
 			Sfx.play("success")
 		"launch":
 			Music.play("tension")
-		"traitor":
+		"confiscate":
 			Sfx.play("fail")
-			await _fx.banner("%s 변절" % _name(int(e["player"])), "bad", m, "“%s”" % str(e.get("lure", "")))
-		"interrogation":
-			_fx.toast("%s: 심문 카드 %d장" % [_name(int(e["player"])), int(e["count"])], "warn")
-		"interrogation_card":
-			if int(e["player"]) == human:
-				var c := _interro_card(str(e["card"]))
-				_fx.toast("내 심문 카드: %s" % c.get("name", ""), "bad" if c.get("shaken", false) else "info")
-		"persuade_cards":
-			if int(e["player"]) == human:
-				_fx.toast("동료의 설득으로 심문 카드를 덜었습니다", "good")
+			var lost: Array = e["items"].map(func(id): return str(game.item_def(str(id)).get("name", "")))
+			_fx.toast("%s: 투옥되어 아이템 압수 · %s" % [_name(int(e["player"])), ", ".join(lost)], "bad")
 		"card":
 			if str(e.get("deck", "")) == "item" and int(e.get("player", -1)) == human and str(e.get("id", "")) != "bomb":
 				_fx.toast("아이템 획득 · %s" % game.item_def(str(e["id"])).get("name", ""), "info")
@@ -978,17 +949,10 @@ func _play_event(e: Dictionary) -> void:
 				_fx.toast("%s이(가) 주사위 %d을(를) 건넸습니다" % [_name(int(e["player"])), int(e["value"])], "good")
 	if e.has("players_snap"):
 		_board.apply_players_snap(e["players_snap"])
-	if k in ["morning", "threat", "dice_rolled", "die_used", "die_given", "day_start", "mission_done", "launch", "scene", "scene_break", "traitor",
+	if k in ["morning", "threat", "dice_rolled", "die_used", "die_given", "day_start", "mission_done", "launch", "scene", "scene_break", "confiscate",
 			"saga_done", "jail", "rescue", "intel", "ready", "exposure", "turn", "night"]:
 		_refresh_panels()
 	_ticker.refresh()
-
-
-func _interro_card(id: String) -> Dictionary:
-	for c in game.data.interrogation.get("cards", []):
-		if c["id"] == id:
-			return c
-	return {}
 
 
 # ================================================================ 입력
@@ -1097,12 +1061,8 @@ func _label(a: Dictionary) -> String:
 		"move_die":
 			var mv := game.move_value(me, int(a["die"]))
 			return "주사위 %d로 이동 (+%d칸)" % [game.die_value(int(a["die"])), mv]
-		"persuade":
-			return "주사위 %d: %s 설득" % [game.die_value(int(a["die"])), _name(int(a["target"]))]
 		"give_die":
 			return "주사위 %d → %s에게 건네기" % [game.die_value(int(a["die"])), _name(int(a["target"]))]
-		"inform":
-			return "밀고: %s" % _name(int(a["target"]))
 		"scene_check":
 			return "장면 판정"
 		"scene_pay":
@@ -1203,8 +1163,8 @@ func _show_rules() -> void:
 		"차례는 자유 순서입니다. 아직 안 한 사람 중 누구든 합니다. 경찰은 각자 차례 끝에 자기가 쫓는 요원 쪽으로 움직입니다.",
 		"1막: 공개 미션을 이뤄 결행 준비를 %d까지 올리면 아침에 결행 투표가 열립니다. 남은 날이 %d일이 되면 강제로 결행합니다." % [int(game.data.rules["launch_min"]), int(game.data.rules["forced_launch_days_left"])],
 		"2막: 첩보가 가장 많은 거점을 칩니다. 장면을 하나씩 돌파하고 마지막 장면을 돌파하면 대성공입니다. 첩보는 토큰이 되어 판정 +1 또는 주사위 조건 −2로 씁니다.",
-		"개인 사연: 비밀입니다. 이루면 즉시 보상을 받고, 심문 카드를 모두 버린 뒤 더는 받지 않습니다.",
-		"심문 카드: 투옥되거나 「회유 공작」에 걸리면 받습니다. 흔들렸다가 2장 이상이면 결행 순간이나 2막 아침에 변절합니다. 같은 칸의 동료가 예비 주사위로 설득하면 한 장을 무작위로 뗍니다.",
+		"개인 사연: 비밀입니다. 이루면 즉시 보상을 받습니다.",
+		"투옥: 노출이 오르고, 들고 있던 아이템 1장을 무작위로 압수당합니다 (폭탄은 그대로). 동료가 그 거점에 들어오면 구출됩니다.",
 	]
 	for l in lines:
 		box.add_child(UiKit.text("· " + l, 15))
@@ -1254,10 +1214,10 @@ func _char_info(p: Dictionary) -> Dictionary:
 	var fac: String = str(game.data.characters.get("factions", {}).get(ch.get("faction", ""), {}).get("name", ""))
 	var secs := [["특성 (늘)", str(ch.get("trait_text", ""))], ["능력 (하루 1번)", str(ch.get("ability_text", ""))]]
 	for c in _chips(p):
-		if c[0] == "리더" or c[0] == "추격당함" or str(c[0]).begins_with("감옥") or p["traitor"]:
+		if c[0] == "리더" or c[0] == "추격당함" or str(c[0]).begins_with("감옥"):
 			secs.append([str(c[0]), str(c[3]), Style.SEAL if c[2] == Style.SEAL else Style.INK_3])
-	var band := "나" if p["id"] == human else ("변 절 자" if p["traitor"] else "동 료")
-	return {"band": band, "color": Style.INK if p["traitor"] else Style.seat(p["id"]),
+	var band := "나" if p["id"] == human else "동 료"
+	return {"band": band, "color": Style.seat(p["id"]),
 		"art": _board.faction_texture(str(ch.get("faction", ""))), "name": str(ch.get("name", "")),
 		"sub": "%s · %s" % [fac, ch.get("origin", "")], "sections": secs}
 
@@ -1316,18 +1276,7 @@ func _saga_info(id: String, pr: Dictionary, done: bool) -> Dictionary:
 	return {"band": "사 연 · 이룸" if done else "사 연 · 비밀", "color": SAGA_COL, "art": load("res://assets/cards/event_back.png"),
 		"name": str(s.get("name", "")), "sub": "진행 %d / %d" % [int(pr["have"]), int(pr["need"])],
 		"sections": [["", str(s.get("story", ""))], ["조건", str(s.get("condition_text", ""))], ["보상", str(s.get("reward_text", ""))],
-			["", "이룬 사연입니다." if done else "나만 봅니다. 이루면 공개되고, 심문 카드를 모두 버립니다."]]}
-
-
-func _interro_info() -> Dictionary:
-	var ni := game.interrogation_count(human)
-	var sh := game.shaken_count(human)
-	var need := int(game.data.rules["traitor"]["shaken_needed"])
-	return {"band": "심 문", "color": INTERRO_COL, "art": load("res://assets/cards/event_back.png"), "name": "심문 카드 %d장" % ni,
-		"sub": "흔들렸다 %d장 · 버텼다 %d장" % [sh, ni - sh],
-		"sections": [["변절", "흔들렸다가 %d장 이상이면 결행 순간이나 2막 아침에 변절합니다." % need, Style.SEAL],
-			["벗어나기", "같은 칸의 동료가 예비 주사위로 설득하면 한 장을 무작위로 뗍니다. 사연을 이루면 모두 버립니다."],
-			["공개", "다른 요원은 장수만 봅니다."]]}
+			["", "이룬 사연입니다." if done else "나만 봅니다. 이루면 공개됩니다."]]}
 
 
 func _threat_info() -> Dictionary:

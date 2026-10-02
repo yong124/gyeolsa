@@ -51,8 +51,8 @@ func _ready() -> void:
 		var p: Dictionary = game.players[pid]
 		var s: Dictionary = game.data.saga(str(ep.get("saga", "")))
 		var head := "%s%s — 사연 「%s」 %s" % ["(나) " if pid == human else "", game.char_def(p).get("name", ""), s.get("name", ""),
-			"변절" if ep.get("traitor", false) else ("이룸" if ep.get("done", false) else "못 이룸")]
-		v.add_child(UiKit.title(head, 17, Style.SEAL_DARK if ep.get("traitor", false) else Style.INK))
+			"이룸" if ep.get("done", false) else "못 이룸"]
+		v.add_child(UiKit.title(head, 17, Style.INK))
 		v.add_child(UiKit.text(str(ep.get("text", "")), 16, Style.INK_2))
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 12)

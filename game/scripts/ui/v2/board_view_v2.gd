@@ -408,7 +408,7 @@ func _draw_targets() -> void:
 		if not marks.has(c):
 			marks[c] = [mt[c], Style.MISSION]
 	for q in game.players:
-		if q["jailed"] and q["id"] != human_id and not q["traitor"]:
+		if q["jailed"] and q["id"] != human_id:
 			if not marks.has(q["pos"]):
 				marks[q["pos"]] = ["구출", Style.seat(1)]
 	var glow := 0.55 + 0.35 * sin(_pulse * 3.0)
@@ -547,7 +547,7 @@ func _draw_players() -> void:
 				lift = 3.0 + 3.0 * sin(_pulse * 3.5)
 				draw_circle(ctr - Vector2(0, lift), rad + r.size.x * 0.1, Color(Style.GOLD_HI, 0.45 + 0.2 * sin(_pulse * 4.0)))
 			lift += _move_lift.get(id, 0.0)
-			var ring: Color = Style.INK if p["traitor"] else Style.seat(id)
+			var ring: Color = Style.seat(id)
 			var fac: String = str(game.char_def(p).get("faction", ""))
 			_token(ctr - Vector2(0, lift), rad, _faction_tex.get(fac), ring, 0.6 if jailed else 1.0, lift)
 			if jailed:
@@ -556,12 +556,10 @@ func _draw_players() -> void:
 					draw_line(Vector2(x, ctr.y - rad - 2), Vector2(x, ctr.y + rad + 2), Color(0.1, 0.08, 0.06), 3.0)
 				draw_line(Vector2(ctr.x - rad, ctr.y - rad * 0.3), Vector2(ctr.x + rad, ctr.y - rad * 0.3), Color(0.1, 0.08, 0.06), 3.0)
 			var tag: String = "나" if id == human_id else str(game.char_def(p).get("name", p["name"])).replace(" ", "")
-			if p["traitor"]:
-				tag = "변절 · " + tag
 			var fs := maxi(10, int(r.size.x * 0.14))
 			var w := font.get_string_size(tag, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x + 10
 			var tr := Rect2(ctr.x - w / 2, ctr.y - lift - rad - fs * 1.35, w, fs * 1.3)
-			draw_rect(tr, Style.INK if p["traitor"] else Style.seat(id))
+			draw_rect(tr, Style.seat(id))
 			draw_rect(tr, Color(Style.PAPER_HI, 0.9), false, 1.5)
 			draw_string(font, tr.position + Vector2(5, fs * 1.0), tag, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color.WHITE)
 
