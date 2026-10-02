@@ -11,7 +11,7 @@
 				"where": "adjacent",
 				"condition": {
 					"kind": "dice",
-					"sum": 6
+					"sum": 7
 				},
 				"on_fail": [],
 				"stop_text": "높은 담 앞에서 날이 밝았다.",
@@ -28,7 +28,7 @@
 						"count": 2,
 						"same_day": true,
 						"where": "prison",
-						"target": 7
+						"target": 8
 					},
 					"on_fail": [
 						{
@@ -78,7 +78,7 @@
 					"condition": {
 						"kind": "check",
 						"check": "generic",
-						"target": 8
+						"target": 9
 					},
 					"on_fail": [
 						{
@@ -124,7 +124,7 @@
 					"options": [
 						{
 							"kind": "dice",
-							"sum": 6
+							"sum": 7
 						},
 						{
 							"kind": "pay_item",
@@ -178,7 +178,7 @@
 					"condition": {
 						"kind": "check",
 						"check": "generic",
-						"target": 8
+						"target": 9
 					},
 					"on_fail": [
 						{
@@ -199,7 +199,7 @@
 						"count": 2,
 						"same_day": true,
 						"where": "barracks",
-						"target": 7
+						"target": 8
 					},
 					"on_fail": [
 						{
@@ -217,7 +217,7 @@
 				"condition": {
 					"kind": "check",
 					"check": "assassin",
-					"target": 10
+					"target": 12
 				},
 				"on_fail": [
 					{
@@ -260,7 +260,7 @@
 							{
 								"kind": "check",
 								"check": "generic",
-								"target": 8
+								"target": 12
 							},
 							{
 								"kind": "pay_funds",
@@ -283,7 +283,7 @@
 					"where": "inside",
 					"condition": {
 						"kind": "dice",
-						"sum": 8
+						"sum": 11
 					},
 					"on_fail": [],
 					"stop_text": "경보선은 그대로 이어져 있었다."
@@ -313,7 +313,7 @@
 							{
 								"kind": "check",
 								"check": "generic",
-								"target": 8
+								"target": 12
 							}
 						]
 					},
@@ -350,7 +350,7 @@
 						{
 							"kind": "check",
 							"check": "generic",
-							"target": 9
+							"target": 12
 						},
 						{
 							"kind": "pay_item",
@@ -388,7 +388,7 @@
 					"where": "inside",
 					"condition": {
 						"kind": "dice",
-						"sum": 10
+						"sum": 13
 					},
 					"on_fail": [],
 					"stop_text": "통신실의 전보는 본국으로 날아갔다."
@@ -425,7 +425,7 @@
 						"count": 2,
 						"same_day": true,
 						"where": "gg",
-						"target": 7
+						"target": 9
 					},
 					"on_fail": [
 						{
@@ -446,7 +446,7 @@
 						{
 							"kind": "check",
 							"check": "generic",
-							"target": 9,
+							"target": 11,
 							"where": "inside"
 						},
 						{
