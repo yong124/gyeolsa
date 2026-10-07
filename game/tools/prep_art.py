@@ -30,6 +30,9 @@ SPEC = {
     "strike": ((16, 9), (1280, 720)),   # 화면 가운데 크게 · 엔딩 머리 (논리 화면 1600 폭에서 충분)
     "ending": ((16, 9), (1280, 720)),
     "art": ((2, 3), (400, 600)),     # 사연 카드 뒷면
+    "tile": ((1, 1), (320, 320)),    # 보드 칸 (V단계): 확대해도 깨지지 않게 칸 크기의 2배 남짓
+    "screen": ((3, 2), (1536, 1024)),  # 책상 배경
+    "cut": ((3, 2), (1536, 1024)),   # 오프닝 · 투옥 컷신
 }
 
 
@@ -82,6 +85,13 @@ def main():
             os.makedirs(os.path.join(ART, "token"), exist_ok=True)
             token(im, os.path.join(ART, "token", gid + ".webp"))
         made += 1
+    # 일반 길 칸은 규칙상 사방으로 다 이어진다. 일자·굽은 길·다리 그림(normal_1·3·4)은 「옆으로 못 간다」로 읽히므로
+    # 사방이 뚫린 십자 길(normal_2)을 90°씩 돌린 네 장으로 덮어쓴다 (칸마다 모양만 조금 달라 보이게)
+    cross = os.path.join(ART, "tile", "normal_2.webp")
+    if os.path.exists(cross):
+        base = Image.open(cross).convert("RGB")
+        for k in range(4):
+            base.rotate(-90 * k).save(os.path.join(ART, "tile", "normal_%d.webp" % (k + 1)), "WEBP", quality=76)
     total = 0
     for dp, _, fs in os.walk(ART):
         total += sum(os.path.getsize(os.path.join(dp, f)) for f in fs if f.endswith(".webp"))
