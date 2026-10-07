@@ -16,6 +16,8 @@ var fullscreen := false
 var reduce_motion := false     # 연출 줄이기: 내 행동도 빠르게
 var intro_seen := false
 var tutorial_done := false
+var v2_cine := 0               # 연출: 0 전부 · 1 처음만 (같은 컷신은 처음 한 번) · 2 줄임 (컷신 대신 배너) (U4)
+var v2_roster_open := false    # 요원 명부: 동료 상세를 펼쳐 둘지 (U1)
 var v2_tips := true           # v2 첫 판 안내 말풍선 (첫 판이 끝나면 꺼짐, 일시정지 메뉴에서 켜고 끌 수 있음)
 var v2_training_done := false  # v2 훈련 작전을 끝까지 했는가 (타이틀 「처음이라면 추천」)
 var online_url := ""           # 온라인 서버 주소 (비면 NetClientV2.DEFAULT_URL)
@@ -32,6 +34,8 @@ func _ready() -> void:
 		reduce_motion = bool(cfg.get_value("game", "reduce_motion", reduce_motion))
 		playtest = bool(cfg.get_value("game", "playtest", playtest))
 		v2_tips = bool(cfg.get_value("game", "v2_tips", v2_tips))
+		v2_roster_open = bool(cfg.get_value("game", "v2_roster_open", v2_roster_open))
+		v2_cine = clampi(int(cfg.get_value("game", "v2_cine", v2_cine)), 0, 2)
 		v2_training_done = bool(cfg.get_value("game", "v2_training_done", v2_training_done))
 		online_url = str(cfg.get_value("online", "url", online_url))
 		online_name = str(cfg.get_value("online", "name", online_name))
@@ -49,6 +53,8 @@ func save() -> void:
 	cfg.set_value("game", "reduce_motion", reduce_motion)
 	cfg.set_value("game", "playtest", playtest)
 	cfg.set_value("game", "v2_tips", v2_tips)
+	cfg.set_value("game", "v2_roster_open", v2_roster_open)
+	cfg.set_value("game", "v2_cine", v2_cine)
 	cfg.set_value("game", "v2_training_done", v2_training_done)
 	cfg.set_value("online", "url", online_url)
 	cfg.set_value("online", "name", online_name)

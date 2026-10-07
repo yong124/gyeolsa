@@ -40,6 +40,15 @@ func _ready() -> void:
 		Prefs.sfx_volume = x
 		Sfx.play("click")))
 
+	grid.add_child(_key("연출"))
+	var cm := OptionButton.new()
+	for nm in ["컷신 전부", "같은 컷신은 처음만", "컷신 줄임 (배너만)"]:
+		cm.add_item(nm)
+	cm.select(Prefs.v2_cine)
+	cm.item_selected.connect(func(i):
+		Prefs.v2_cine = i
+		Prefs.save())
+	grid.add_child(cm)
 	grid.add_child(_key("동료 차례 속도"))
 	var sp := OptionButton.new()
 	for s in Prefs.SPEEDS:

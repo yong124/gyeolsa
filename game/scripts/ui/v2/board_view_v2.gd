@@ -7,8 +7,9 @@ extends Control
 ## 지도 그림·타일 그림은 v1 데이터(GameData)에서 읽는다 (보드는 v1과 같음).
 
 signal cell_clicked(cell: Vector2i)
+signal cell_hovered(cell: Vector2i)   # U1: 선택 미리보기 띠
 
-const FADE := Color(0.93, 0.88, 0.78, 0.42)   # 빈 땅을 흐리게 덮는 종이색
+const FADE := Color(0.93, 0.88, 0.78, 0.62)   # 빈 땅을 흐리게 덮는 종이색 (U2: 지도 · 격자가 말 · 목표를 묻지 않게 더 흐리게)
 
 var game: RulesV2
 var human_id := 0
@@ -247,6 +248,7 @@ func _gui_input(event: InputEvent) -> void:
 			if _my_move_turn() and c.x >= 0 and game.can_step(game.players[human_id], c):
 				Sfx.play("click", 0.12, 0.22)
 			_update_preview()
+			cell_hovered.emit(c)
 			queue_redraw()
 	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		var c := cell_at(event.position)
@@ -371,6 +373,8 @@ func _draw_tiles() -> void:
 		draw_rect(Rect2(r.position + Vector2(1, 4), r.size), Color(0, 0, 0, 0.35))
 		draw_rect(r, Style.PAPER_HI if t != "base" else Color("#d6c6a2"))
 		draw_texture_rect(face, r.grow(-3.0) if art == null else r, false)
+		if t != "base":
+			draw_rect(r, Color(0.16, 0.12, 0.08, 0.14))   # 길 · 칸 그림을 한 단계 눌러 말 · 마커가 위로 뜨게
 		if "hideout" in info.get("flags", []):
 			draw_rect(r.grow(-1), Color(Style.GOOD, 0.8), false, 3.0)
 		if _can_hide_at(c):
@@ -653,8 +657,8 @@ func _draw_markers() -> void:
 		var is_op := game.data.is_op(id)
 		var col: Color = Style.SEAL if is_op else Style.MISSION
 		var r := cell_rect(m["pos"])
-		var rad := r.size.x * 0.2
-		var ctr := r.position + Vector2(r.size.x * 0.27, r.size.y * 0.3)
+		var rad := r.size.x * 0.24
+		var ctr := r.position + Vector2(r.size.x * 0.29, r.size.y * 0.31)
 		var held := role == "pickup" and int(game.mission_state.get(id, {}).get("holder", -1)) >= 0
 		var alpha := 0.45 if held else 1.0
 		draw_circle(ctr + Vector2(1, 3), rad + 2, Color(0, 0, 0, 0.4 * alpha))
@@ -773,8 +777,9 @@ func _draw_highlights() -> void:
 			var r := cell_rect(c).grow(-3)
 			var risky := game.tile_type(c) == "check"
 			var col := Color("#d9822b") if risky else Style.GOLD
-			draw_rect(r, Color(col, 0.45 if c == hover else glow + 0.12))
-			_dashed_rect(r, col.darkened(0.25), 2.5)
+			draw_rect(r, Color(col.lightened(0.25), 0.55 if c == hover else glow + 0.22))
+			draw_rect(r.grow(1.5), Color(Style.PAPER_HI, 0.9), false, 4.0)
+			draw_rect(r, col.darkened(0.3), false, 3.0)
 			if not game.board.has(c):
 				var fs := int(r.size.x * 0.5)
 				var w := font.get_string_size("?", HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
@@ -789,7 +794,7 @@ func _draw_police() -> void:
 		var r := cell_rect_f(v["pos"])
 		var ctr := r.get_center() + Vector2(r.size.x * 0.26, -r.size.y * 0.24)
 		var alpha: float = v["alpha"] * (1.0 if v["active"] else 0.7)
-		var rad := r.size.x * 0.27
+		var rad := r.size.x * 0.31
 		if v["active"]:
 			var pulse := 0.5 + 0.5 * sin(_pulse * 5.0 + pid)
 			draw_circle(ctr, rad + 6 + pulse * 5, Color(Style.SEAL, 0.25 * alpha * (0.6 + pulse * 0.4)))
@@ -853,6 +858,8 @@ func _draw_players() -> void:
 				draw_line(Vector2(ctr.x - rad, ctr.y - rad * 0.3), Vector2(ctr.x + rad, ctr.y - rad * 0.3), Color(0.1, 0.08, 0.06), 3.0)
 			if group.size() > 1:
 				continue   # 여럿이 한 칸이면 이름표를 아래에서 하나로 합친다
+			if id != human_id and not is_cur and Vector2i(vis_players[id].round()) != hover:
+				continue   # U2: 동료 이름표는 지금 차례이거나 마우스를 올렸을 때만 (초상 고리 색으로 구분)
 			var tag: String = "나" if id == human_id else str(game.char_def(p).get("name", p["name"])).replace(" ", "")
 			var fs := maxi(10, int(r.size.x * 0.14))
 			var w := font.get_string_size(tag, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x + 10

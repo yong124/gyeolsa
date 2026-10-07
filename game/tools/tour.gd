@@ -40,6 +40,10 @@ func _ready() -> void:
 		_tut2()
 	elif "online" in OS.get_cmdline_user_args():
 		_online()
+	elif "measure" in OS.get_cmdline_user_args():
+		_measure()
+	elif "endings" in OS.get_cmdline_user_args():
+		_endings()
 	elif "fx" in OS.get_cmdline_user_args():
 		_fxshots()
 	elif "q" in OS.get_cmdline_user_args():
@@ -687,7 +691,7 @@ func _q() -> void:
 	var screen: GameScreenV2 = main._screen
 	var game: RulesV2 = screen.game
 	await _shot("q_training_morning")
-	for step in 40:   # 아침 → 낮 → 내 차례까지: 안내를 닫고 사람 자리의 다음 수를 둔다
+	for step in 120:   # 아침 → 낮 → 내 차례까지: 안내를 닫고 사람 자리의 다음 수를 둔다
 		screen._tip.visible = false
 		if game.phase == "turn" and game.current == 0:
 			break
@@ -705,6 +709,13 @@ func _q() -> void:
 	screen._tip_check()
 	await _wait(0.3)
 	await _shot("q_training_marker")
+	# U1: 이동 주사위에 올렸을 때 선택 미리보기 띠 · 갈 수 있는 칸
+	screen._tip.visible = false
+	var mv := game.legal_actions().filter(func(a): return int(a.get("player", -1)) == 0 and a["type"] == "move_die")
+	if not mv.is_empty():
+		screen._hover_action(mv[mv.size() - 1])
+		await _wait(0.4)
+		await _shot("q_preview_move")
 	# 엔딩: AI로 한 판을 끝까지 두고 요약을 본다
 	var g := RulesV2.new()
 	var defs := []
@@ -845,4 +856,73 @@ func _v2f() -> void:
 	screen._refresh()
 	await _wait(0.4)
 	await _shot("v2f_counter")
+	get_tree().quit()
+
+
+func _endings() -> void:
+	## U3: 엔딩 네 갈래를 AI 판으로 하나씩 찾아 캡처한다
+	await _wait(0.5)
+	var data := GameDataV2.load_default()
+	var want := ["victory", "fail_final", "fail_middle", "history"]
+	var found := {}
+	for i in 400:
+		if found.size() == want.size():
+			break
+		var g := RulesV2.new()
+		var defs := []
+		for id in ["yun", "jeong", "gaeddong", "oh"]:
+			defs.append({"name": data.character(id).get("name", id), "character": id})
+		g.setup(defs, 520000 + i, data)
+		var steps := 0
+		while g.phase != "over" and steps < 6000:
+			g.apply(GameAIV2.decide(g, GameAIV2.next_actor(g)))
+			g.events.clear()
+			steps += 1
+		var id := str(g.ending.get("id", ""))
+		if id in want and not found.has(id):
+			found[id] = g
+	for id in want:
+		if not found.has(id):
+			print("[tour] 엔딩 못 찾음: ", id)
+			continue
+		main._swap(EndingScreenV2.new(found[id], 0))
+		await _wait(2.6)
+		await _shot("ending_" + id)
+	get_tree().quit()
+
+
+func _measure() -> void:
+	## U4: 한 판 동안 사람이 기다린 시간을 종류별로 잰다 (내 자리도 AI가 두되 연출은 사람 판과 같은 빠르기).
+	## 같은 시드로 「연출 전부 · 동료 보통」과 「같은 컷신은 처음만 · 동료 빠르게」를 견준다. 게임 시간 기준(배속과 무관)
+	await _wait(0.5)
+	var data := GameDataV2.load_default()
+	Engine.time_scale = 3.0   # 너무 빠르면 한 프레임이 길어져 짧은 기다림이 부풀려 재진다
+	for setting in [[0, 1, "연출 전부 · 동료 보통"], [1, 2, "처음만 · 동료 빠르게"], [2, 3, "컷신 줄임 · 동료 즉시"]]:
+		Prefs.v2_cine = setting[0]
+		Prefs.speed = setting[1]
+		var defs := []
+		for id in ["yun", "jeong", "gaeddong", "oh"]:
+			defs.append({"name": str(data.character(id)["name"]), "character": id})
+		var game := RulesV2.new()
+		game.setup(defs, 4242)
+		var screen := GameScreenV2.new(game, 0, {"autoplay": true})
+		var done := [false]
+		screen.finished.connect(func(): done[0] = true)
+		main._swap(screen)
+		await _wait(0.1)
+		screen._fast = false
+		var guard := 0
+		while not done[0] and guard < 200000:
+			guard += 1
+			await _wait(0.05)
+		var total := 0.0
+		var steps := int(screen.wait_stats.get("_ai_steps", 0))
+		screen.wait_stats.erase("_ai_steps")
+		for k in screen.wait_stats:
+			total += float(screen.wait_stats[k])
+		var parts := ["AI 수 %d" % steps]
+		for k in screen.wait_stats:
+			parts.append("%s %.0f초" % [k, float(screen.wait_stats[k])])
+		print("[measure] %s · %d일 · 합계 %.1f분 · %s" % [setting[2], game.day, total / 60.0, " · ".join(parts)])
+	Engine.time_scale = 1.0
 	get_tree().quit()

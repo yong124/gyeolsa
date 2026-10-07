@@ -40,17 +40,24 @@ func _ready() -> void:
 	var e: Dictionary = game.ending
 	var won: bool = e.get("won", false)
 	Music.play("ending")
-	# 엔딩 그림 (R 그림): 이기면 결행 대상의 승리 장면, 아니면 정사
-	var art := ArtV2.get_tex("ending", (str(e.get("target", "")) + "_win") if won else "fail")
+	# 결과 네 갈래(U3): 그림 · 도장 · 제목을 결과의 감정에 맞춘다
+	var look := _look(e)
+	var art: Texture2D = look["art"]
 	if art != null:
 		var img := TextureRect.new()
 		img.texture = art
 		img.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 		img.custom_minimum_size = Vector2(900, 360)
+		if look["gray"]:
+			img.material = _gray_material()
 		v.add_child(img)
-	v.add_child(UiKit.stamp("대 성 공" if won else "작 전 종 료", 26, Style.GOOD if won else Style.SEAL, -6))
-	v.add_child(UiKit.title(str(e.get("title", "")), Style.FS_H1))
+	v.add_child(UiKit.stamp(look["stamp"], 26, Style.GOOD if won else Style.SEAL, -6))
+	v.add_child(UiKit.title(look["title"], Style.FS_H1))
+	for line in _why(e, won):
+		var why := UiKit.text(line, 17, Style.INK_2, false, 700)
+		why.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		v.add_child(why)
 	if training:
 		v.add_child(UiKit.text("훈련 작전을 마쳤습니다. 이제 진짜 작전입니다. 「바로 시작」을 누르면 요원과 판이 새로 정해집니다.", 16, Style.SEAL_DARK, false, 700))
 	v.add_child(_summary(e, won))
@@ -97,6 +104,85 @@ func _ready() -> void:
 	for h in _key_records():
 		var l := UiKit.text("%s · %s" % [h["date"], h["text"]], 14, Style.GOOD if h["tone"] == "good" else (Style.SEAL if h["tone"] == "bad" else Style.INK_2))
 		v.add_child(l)
+
+
+func _look(e: Dictionary) -> Dictionary:
+	## 결과별 그림 · 도장 · 제목: 성공 / 문턱에서 멈춤 / 중간에 멈춤 / 결행 못 함 (지시서 U3)
+	var target := str(e.get("target", ""))
+	var strike: Dictionary = game.data.strike(target) if target != "" else {}
+	var strike_tex := ArtV2.get_tex("strike", target) if target != "" else null
+	var kind := str(e.get("id", ""))
+	if kind == "history" and int(e.get("scene_index", -1)) >= 0:
+		kind = "fail_middle"   # 결행은 했지만 첫 장면에서 멈춤: 엔진 엔딩은 「정사」지만 화면은 멈춘 장면을 보여 준다
+	match kind:
+		"victory":
+			return {"art": ArtV2.get_tex("ending", target + "_win"), "gray": false, "stamp": "대 성 공",
+				"title": "%s — %s" % [e.get("title", ""), strike.get("name", "")] if not strike.is_empty() else str(e.get("title", ""))}
+		"fail_final":
+			return {"art": strike_tex, "gray": true, "stamp": "실 패", "title": str(e.get("title", ""))}
+		"fail_middle":
+			var card := _stopped_scene(e)
+			var t: Texture2D = ArtV2.get_tex("scene", str(card.get("id", "")), strike_tex)
+			return {"art": t, "gray": true, "stamp": "작 전 중 단",
+				"title": "결행은 「%s」에서 멈췄다" % card.get("name", "") if not card.is_empty() else str(e.get("title", ""))}
+	return {"art": ArtV2.get_tex("ending", "fail"), "gray": false, "stamp": "작 전 종 료", "title": str(e.get("title", ""))}
+
+
+func _stopped_scene(e: Dictionary) -> Dictionary:
+	var i := int(e.get("scene_index", -1))
+	return game._scene_card(str(game.scenes[i])) if i >= 0 and i < game.scenes.size() else {}
+
+
+func _why(e: Dictionary, won: bool) -> Array:
+	## 왜 이런 결과가 났는지 한두 문장 + 내 몫 한 문장 (판 기록에서 고름)
+	var out := []
+	var li: Dictionary = game.launch_info
+	var launched := not li.is_empty() and str(li.get("target", "")) != ""
+	if launched:
+		var tgt := str(li["target"])
+		out.append("%d일째, %s 첩보 %d · 결행 준비 %d로 결행했습니다." % [int(li.get("day", 0)),
+			game.base_name(GameDataV2.BASE_IDS.find(tgt)), int(li.get("intel", {}).get(tgt, 0)), int(li.get("ready", 0))])
+	else:
+		out.append("결행 준비가 %d / %d에 그쳐 결행을 선언하지 못했습니다." % [game.ready, int(game.data.rules["launch_min"])])
+	if not won:
+		# 가장 컸던 어려움 하나
+		var missed := int(game.stats.get("ops_seen", 0)) - int(game.stats.get("ops_blocked", 0))
+		var jailed := 0
+		for p in game.players:
+			jailed += int(p["stats"].get("jailed", 0))
+		var peak := int(game.stats.get("max_exposure", game.exposure))
+		var cands := [
+			[float(missed) / 2.0, "일제 작전을 %d번 놓쳐 일제의 압박이 커졌습니다." % missed],
+			[float(jailed) / 5.0, "요원들이 모두 %d번 투옥되어 손이 모자랐습니다." % jailed],
+			[float(peak) / 7.0, "노출이 %d까지 올라 경찰이 거세게 움직였습니다." % peak],
+		]
+		cands.sort_custom(func(a, b): return a[0] > b[0])
+		if cands[0][0] >= 1.0:
+			out.append(cands[0][1])
+	var me: Dictionary = game.players[human] if human >= 0 and human < game.players.size() else {}
+	if not me.is_empty():
+		var st: Dictionary = me["stats"]
+		var bits := ["미션 %d개를 이루었고" % int(st.get("missions", 0))]
+		if int(st.get("rescues", 0)) > 0:
+			bits.append("동료를 %d번 구했고" % int(st["rescues"]))
+		bits.append("%d번 갇혔습니다" % int(st.get("jailed", 0)) if int(st.get("jailed", 0)) > 0 else "한 번도 잡히지 않았습니다")
+		out.append("나(%s)는 %s." % [game.char_def(me).get("name", ""), " ".join(bits)])
+	return out
+
+
+func _gray_material() -> ShaderMaterial:
+	## 실패한 결과의 그림: 흑백 · 조금 어둡게
+	var sh := Shader.new()
+	sh.code = "shader_type canvas_item;
+void fragment() {
+	vec4 c = texture(TEXTURE, UV);
+	float g = dot(c.rgb, vec3(0.299, 0.587, 0.114));
+	COLOR = vec4(vec3(g) * vec3(0.92, 0.88, 0.82), c.a);
+}
+"
+	var m := ShaderMaterial.new()
+	m.shader = sh
+	return m
 
 
 func _summary(e: Dictionary, won: bool) -> Control:
