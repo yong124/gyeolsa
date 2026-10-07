@@ -40,6 +40,15 @@ func _ready() -> void:
 	var e: Dictionary = game.ending
 	var won: bool = e.get("won", false)
 	Music.play("ending")
+	# 엔딩 그림 (R 그림): 이기면 결행 대상의 승리 장면, 아니면 정사
+	var art := ArtV2.get_tex("ending", (str(e.get("target", "")) + "_win") if won else "fail")
+	if art != null:
+		var img := TextureRect.new()
+		img.texture = art
+		img.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+		img.custom_minimum_size = Vector2(900, 360)
+		v.add_child(img)
 	v.add_child(UiKit.stamp("대 성 공" if won else "작 전 종 료", 26, Style.GOOD if won else Style.SEAL, -6))
 	v.add_child(UiKit.title(str(e.get("title", "")), Style.FS_H1))
 	if training:

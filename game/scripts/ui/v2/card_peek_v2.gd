@@ -2,7 +2,7 @@ class_name CardPeekV2
 extends PanelContainer
 ## 마우스를 올리면 옆에 뜨는 큰 카드: 작은 카드에서 잘린 설명을 다 보여 준다.
 ## attach(컨트롤, 정보)로 붙인다. 정보는 사전이거나 사전을 돌려주는 Callable(올릴 때마다 새로 만듦).
-## 정보: band(띠 글), color(띠 색), art(Texture2D), name, sub, sections [[제목, 본문, (색)]...]
+## 정보: band(띠 글), color(띠 색), art(Texture2D), illus(Texture2D, 있으면 카드 맨 위에 폭 가득 그림 띠 · art는 숨김), name, sub, sections [[제목, 본문, (색)]...]
 
 const W := 320.0
 
@@ -10,6 +10,7 @@ var _owner: Control
 var _pinned := false   # 캡처용: 마우스가 없어도 띄워 둠
 var _band: Label
 var _art: TextureRect
+var _illus: TextureRect   # 그림 띠 (R 2부)
 var _name: Label
 var _sub: Label
 var _body: VBoxContainer
@@ -36,6 +37,11 @@ func _ready() -> void:
 	_band.add_theme_font_override("font", Style.sans(800))
 	_band.add_theme_color_override("font_color", Color.WHITE)
 	v.add_child(_band)
+	_illus = TextureRect.new()
+	_illus.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_illus.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	_illus.clip_contents = true
+	v.add_child(_illus)
 	var m := UiKit.margin(14)
 	m.add_theme_constant_override("margin_top", 2)
 	v.add_child(m)
@@ -63,7 +69,7 @@ func _ready() -> void:
 	_body = VBoxContainer.new()
 	_body.add_theme_constant_override("separation", 8)
 	inner.add_child(_body)
-	for c in [v, m, inner, head, hv, _band, _art, _name, _sub, _body]:
+	for c in [v, m, inner, head, hv, _band, _illus, _art, _name, _sub, _body]:
 		c.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 
@@ -85,7 +91,14 @@ func show_for(ctrl: Control, info: Dictionary, pin := false) -> void:
 	bs.corner_radius_top_right = 5
 	_band.add_theme_stylebox_override("normal", bs)
 	_band.text = str(info.get("band", ""))
-	_art.texture = info.get("art", null)
+	var il: Texture2D = info.get("illus", null)
+	_illus.texture = il
+	_illus.visible = il != null
+	if il != null:
+		# 폭 가득, 높이는 그림 비율대로 하되 화면 높이의 35%까지 (넘으면 가운데를 잘라 보여 줌)
+		var h := minf(W * il.get_height() / float(il.get_width()), get_viewport_rect().size.y * 0.35)
+		_illus.custom_minimum_size = Vector2(W, h)
+	_art.texture = null if il != null else info.get("art", null)
 	_art.visible = _art.texture != null
 	_name.text = str(info.get("name", ""))
 	_sub.text = str(info.get("sub", ""))

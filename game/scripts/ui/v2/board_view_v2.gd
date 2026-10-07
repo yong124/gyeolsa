@@ -794,7 +794,9 @@ func _draw_players() -> void:
 			lift += _move_lift.get(id, 0.0)
 			var ring: Color = Style.seat(id)
 			var fac: String = str(game.char_def(p).get("faction", ""))
-			_token(ctr - Vector2(0, lift), rad, _faction_tex.get(fac), ring, 0.6 if jailed else 1.0, lift)
+			var cid := str(p["character"])
+			var portrait := ArtV2.has("token", cid)   # 동그랗게 자른 초상이 있으면 얼굴, 없으면 세력 문양
+			_token(ctr - Vector2(0, lift), rad, ArtV2.get_tex("token", cid, _faction_tex.get(fac)), ring, 0.6 if jailed else 1.0, lift, portrait)
 			if jailed:
 				for k in 4:
 					var x := ctr.x - rad * 0.75 + k * rad * 0.5
@@ -821,11 +823,11 @@ func _draw_players() -> void:
 			draw_string(font, tr2.position + Vector2(5, fs2 * 1.0), tag2, HORIZONTAL_ALIGNMENT_LEFT, -1, fs2, Color.WHITE)
 
 
-func _token(ctr: Vector2, rad: float, t: Texture2D, ring: Color, alpha: float, lift := 0.0) -> void:
+func _token(ctr: Vector2, rad: float, t: Texture2D, ring: Color, alpha: float, lift := 0.0, full := false) -> void:
 	draw_circle(ctr + Vector2(2, 6 + lift), rad + 4, Color(0, 0, 0, 0.4 * alpha))
 	draw_circle(ctr, rad + 4, Color(ring, alpha))
 	draw_circle(ctr, rad + 1, Color(Style.PAPER_HI, alpha))
 	draw_circle(ctr, rad - 1, Color(1, 1, 1, alpha))
 	if t:
-		var ir := rad * 0.8
+		var ir := rad if full else rad * 0.8
 		draw_texture_rect(t, Rect2(ctr - Vector2(ir, ir), Vector2(ir, ir) * 2), false, Color(1, 1, 1, alpha))

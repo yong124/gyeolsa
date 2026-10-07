@@ -10,6 +10,7 @@ var seen := {}        # 거친 화면 종류 {이름: 횟수} (행동 메뉴 · 
 
 func _ready() -> void:
 	SaveGameV2.disabled = true   # 시험이 실제 이어하기 저장을 건드리지 않게
+	ArtV2.disabled = "noart" in OS.get_cmdline_user_args()   # 그림 없이도 화면이 도는가 (R 2.4)
 	Prefs.v2_tips = true   # 가장 넘치기 쉬운 경우(첫 판 고정 안내가 보임)로 잰다. 저장하지 않으므로 설정은 그대로
 	var n := 3
 	var args := OS.get_cmdline_user_args()

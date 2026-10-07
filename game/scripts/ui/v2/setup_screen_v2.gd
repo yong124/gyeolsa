@@ -73,8 +73,11 @@ func _card(id: String) -> Control:
 	var head := HBoxContainer.new()
 	head.add_theme_constant_override("separation", 12)
 	v.add_child(head)
+	var portrait := ArtV2.get_tex("char", id)
 	var path := "res://assets/ui/faction_%s.png" % c.get("faction", "")
-	if ResourceLoader.exists(path):
+	if portrait != null:   # 요원 초상 (R 그림), 없으면 세력 문양
+		head.add_child(UiKit.icon(portrait, Vector2(120, 160)))
+	elif ResourceLoader.exists(path):
 		head.add_child(UiKit.icon(load(path), Vector2(72, 72)))
 	var hv := VBoxContainer.new()
 	hv.size_flags_horizontal = Control.SIZE_EXPAND_FILL

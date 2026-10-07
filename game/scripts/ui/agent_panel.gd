@@ -198,6 +198,7 @@ class Face extends Control:
 	var tex: Texture2D
 	var ring := Color.WHITE
 	var jailed := false
+	var full := false   # 동그랗게 자른 초상: 테두리 안을 가득 채운다 (v2 요원 초상)
 
 	func _draw() -> void:
 		var r := minf(size.x, size.y) / 2.0
@@ -205,7 +206,7 @@ class Face extends Control:
 		draw_circle(c + Vector2(0, 2), r, Color(0, 0, 0, 0.25))
 		draw_circle(c, r, ring)
 		draw_circle(c, r - 3.5, Style.PAPER_HI)
-		var ir := (r - 3.5) * 0.82
+		var ir := (r - 3.5) * (1.0 if full else 0.82)
 		draw_texture_rect(tex, Rect2(c - Vector2(ir, ir), Vector2(ir, ir) * 2), false, Color(1, 1, 1, 0.55 if jailed else 1.0))
 		if jailed:
 			for k in 4:

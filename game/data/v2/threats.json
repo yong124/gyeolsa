@@ -6,6 +6,7 @@
 			"name": "불시 수색",
 			"count": 2,
 			"tone": "bad",
+			"art": "dispatch",
 			"text": "무작위 거점에서 경찰이 출동해 그 거점에 가장 가까운 요원을 쫓음",
 			"effects": [
 				{
@@ -20,6 +21,7 @@
 			"name": "헌병 증원",
 			"count": 1,
 			"tone": "bad",
+			"art": "dispatch",
 			"text": "무작위 거점 두 곳에서 각각 출동",
 			"effects": [
 				{
@@ -35,6 +37,7 @@
 			"name": "체포령",
 			"count": 2,
 			"tone": "bad",
+			"art": "hunt",
 			"text": "수배된 요원에게 경찰이 붙음",
 			"effects": [
 				{
@@ -48,6 +51,7 @@
 			"name": "미행",
 			"count": 1,
 			"tone": "bad",
+			"art": "hunt",
 			"text": "고립된 요원에게 경찰이 붙음",
 			"effects": [
 				{
@@ -61,6 +65,7 @@
 			"name": "헌병 순찰",
 			"count": 2,
 			"tone": "bad",
+			"art": "patrol",
 			"text": "추격 중인 경찰이 모두 즉시 2칸 다가옴",
 			"effects": [
 				{
@@ -74,6 +79,7 @@
 			"name": "검문소 증설",
 			"count": 2,
 			"tone": "bad",
+			"art": "checkpoint",
 			"text": "고립된 요원과 수배된 요원의 옆 빈칸에 검문소 하나씩",
 			"effects": [
 				{
@@ -93,6 +99,7 @@
 			"name": "통금령",
 			"count": 2,
 			"tone": "bad",
+			"art": "weather",
 			"text": "오늘 이동에 쓰는 주사위 −1 (최소 1)",
 			"effects": [
 				{
@@ -106,6 +113,7 @@
 			"name": "특별 경계령",
 			"count": 1,
 			"tone": "bad",
+			"art": "patrol",
 			"text": "오늘 경찰 이동 +1",
 			"effects": [
 				{
@@ -119,6 +127,7 @@
 			"name": "장맛비",
 			"count": 1,
 			"tone": "mixed",
+			"art": "weather",
 			"text": "오늘 이동에 쓰는 주사위 −1, 경찰 이동 −1",
 			"effects": [
 				{
@@ -136,6 +145,7 @@
 			"name": "공습경보",
 			"count": 1,
 			"tone": "relief",
+			"art": "weather",
 			"text": "오늘 경찰 이동 −1",
 			"effects": [
 				{
@@ -149,6 +159,7 @@
 			"name": "가택 수색",
 			"count": 3,
 			"tone": "bad",
+			"art": "money",
 			"text": "군자금 −2 (모자라면 고립된 요원(감옥 포함)이 아이템 1장을 버림)",
 			"effects": [
 				{
@@ -170,6 +181,7 @@
 			"name": "평온한 하루",
 			"count": 1,
 			"tone": "relief",
+			"art": "calm",
 			"text": "아무 일 없음. 노출 −1",
 			"effects": [
 				{
@@ -183,6 +195,7 @@
 			"name": "자금 동결",
 			"count": 1,
 			"tone": "bad",
+			"art": "money",
 			"text": "총독부가 은행 계좌를 묶었다. 군자금 절반 (내림)",
 			"effects": [
 				{
@@ -195,6 +208,7 @@
 			"name": "옥중 소요",
 			"count": 1,
 			"tone": "relief",
+			"art": "prison",
 			"text": "감옥에 있는 요원 모두 탈출 (경찰은 붙지 않음)",
 			"effects": [
 				{
@@ -210,6 +224,7 @@
 			"count": 2,
 			"trend_extra": true,
 			"tone": "bad",
+			"art": "dispatch",
 			"text": "결행 거점에서 경찰이 출동해 가장 가까운 요원을 쫓음",
 			"effects": [
 				{
@@ -224,6 +239,7 @@
 			"name": "봉쇄",
 			"count": 2,
 			"tone": "bad",
+			"art": "checkpoint",
 			"text": "결행 거점 옆 빈칸 두 곳에 검문소",
 			"effects": [
 				{
@@ -238,6 +254,7 @@
 			"name": "수색",
 			"count": 1,
 			"tone": "bad",
+			"art": "checkpoint",
 			"text": "결행 거점 3칸 안의 요원 모두 회피 판정. 실패하면 그 요원에게 경찰",
 			"effects": [
 				{
@@ -251,6 +268,7 @@
 			"name": "총력 경계",
 			"count": 1,
 			"tone": "bad",
+			"art": "patrol",
 			"text": "오늘 경찰 이동 +1",
 			"effects": [
 				{
@@ -264,6 +282,7 @@
 			"name": "비상 소집",
 			"count": 1,
 			"tone": "bad",
+			"art": "patrol",
 			"text": "오늘 지금 장면의 판정 목표 +1",
 			"effects": [
 				{
@@ -277,6 +296,7 @@
 			"name": "고문",
 			"count": 1,
 			"tone": "bad",
+			"art": "prison",
 			"text": "감옥에 있는 요원은 오늘 탈옥 판정 −2",
 			"effects": [
 				{
@@ -290,6 +310,7 @@
 			"name": "밀고 포상금",
 			"count": 2,
 			"tone": "bad",
+			"art": "dispatch",
 			"text": "노출 +1. 결행 거점에서 경찰이 출동해 가장 가까운 요원을 쫓음",
 			"effects": [
 				{
@@ -309,6 +330,7 @@
 			"name": "혼란",
 			"count": 1,
 			"tone": "relief",
+			"art": "chaos",
 			"text": "아무 일 없음",
 			"effects": []
 		}
