@@ -34,6 +34,7 @@ const TRAIL_SECONDS := 9.0
 var _v1: GameData
 var _tex := {}
 var _faction_tex := {}
+var _prints: Array = []   # 먹 발자국 [{"c", "pid", "t"}]
 var _police_tex: Texture2D
 var _map_tex: Texture2D
 var _map := {}
@@ -70,6 +71,9 @@ func faction_texture(f: String) -> Texture2D:
 
 func _process(delta: float) -> void:
 	_pulse += delta
+	for fp in _prints:
+		fp["t"] += delta
+	_prints = _prints.filter(func(fp): return fp["t"] < 4.0)
 	for id in marker_trails.keys():
 		marker_trails[id]["age"] = float(marker_trails[id]["age"]) + delta
 		if float(marker_trails[id]["age"]) > TRAIL_SECONDS:
@@ -99,6 +103,13 @@ func sync_from_game() -> void:
 func note_scouted(c: Vector2i) -> void:
 	scouted[c] = true
 	queue_redraw()
+
+
+func note_footprint(c: Vector2i, pid: int) -> void:
+	## V 연출: 말이 지나간 칸에 먹 발자국 (몇 초 뒤 사라짐)
+	_prints.append({"c": c, "pid": pid, "t": 0.0})
+	if _prints.size() > 40:
+		_prints.pop_front()
 
 
 func note_arrived(c: Vector2i) -> void:
@@ -322,6 +333,7 @@ func _draw() -> void:
 	_draw_highlights()
 	_draw_reach()
 	_draw_preview()
+	_draw_prints()
 	_draw_players()
 	_draw_chase()
 	_draw_police()
@@ -788,6 +800,21 @@ func _draw_police() -> void:
 		draw_texture_rect(_police_tex, Rect2(ctr - Vector2(ir, ir), Vector2(ir, ir) * 2), false, Color(1, 1, 1, alpha))
 		draw_circle(ctr + Vector2(rad * 0.72, rad * 0.72), rad * 0.24, Color(Style.seat(pid), alpha))
 		draw_arc(ctr + Vector2(rad * 0.72, rad * 0.72), rad * 0.24, 0, TAU, 16, Color(1, 1, 1, alpha), 1.5, true)
+
+
+func _draw_prints() -> void:
+	for fp in _prints:
+		var r := cell_rect(fp["c"])
+		var a: float = 1.0 - float(fp["t"]) / 4.0
+		var col := Color(Style.seat(fp["pid"]).darkened(0.5), 0.55 * a)
+		var ctr := r.get_center()
+		var w := r.size.x * 0.07
+		for k in 2:   # 발자국 두 개
+			var o := Vector2(-w * 1.4 if k == 0 else w * 1.4, w * 1.2 if k == 0 else -w * 1.2)
+			draw_set_transform(ctr + o, 0.0, Vector2(0.7, 1.0))
+			draw_circle(Vector2.ZERO, w, col)
+			draw_circle(Vector2(0, -w * 1.2), w * 0.55, col)
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
 func _draw_players() -> void:

@@ -64,6 +64,9 @@ var _tips_seen := {}
 var _ticker: LogTickerV2
 var _fx: FxLayer
 var _cine: CinemaV2              # 컷신 · 화면 효과 (V 연출)
+var _atmos: AtmosV2              # 보드 분위기: 빛 · 날씨 (V 연출)
+var _ended := false               # 끝 연출(만세 · 흑백)을 이미 했는가
+var _mission_cards := {}          # 미션 id → 미션 줄 카드 (이루면 그 카드에 도장)
 var _last_exposure := -1          # 노출이 오를 때만 붉은 비네트
 var _choice: Overlay
 var _peek: CardPeekV2   # 마우스를 올리면 뜨는 큰 카드
@@ -192,6 +195,8 @@ func _build() -> void:
 	add_child(_ticker)
 	add_child(_ticker.drawer)
 
+	_atmos = AtmosV2.new()
+	add_child(_atmos)
 	_fx = FxLayer.new()
 	add_child(_fx)
 	_cine = CinemaV2.new()
@@ -255,6 +260,8 @@ func _layout() -> void:
 	_place_tip()
 	_fx.focus_center = _frame.position + _frame.size / 2.0
 	_fx.board_rect = Rect2(_frame.position, _frame.size)
+	_atmos.position = _frame.position + Vector2(8, 8)
+	_atmos.size = _frame.size - Vector2(16, 16)
 	call_deferred("_fit_right")
 
 
@@ -417,6 +424,7 @@ func _chip(c: Array) -> Control:
 
 func _refresh_mid() -> void:
 	UiKit.clear(_mid_box)
+	_mission_cards = {}
 	if game.act == 1:
 		_mid_title.text = "공 개 미 션 줄"
 		_mid_hint.text = "누구든 이루면 결행 준비가 오릅니다 · 이룬 자리에 새 미션"
@@ -437,6 +445,7 @@ func _refresh_mid() -> void:
 				str(m.get("name", "")), desc, 164, 92, false, 0.40, true)
 			_peek.attach(card, _mission_info(str(id)))
 			_mid_box.add_child(card)
+			_mission_cards[str(id)] = card
 		if game.mission_row.is_empty():
 			_mid_box.add_child(UiKit.text("아침에 미션 줄을 채웁니다.", 14, Style.INK_3))
 		_refresh_ops()
@@ -520,6 +529,23 @@ func _scene_kind(i: int) -> String:
 		if c.get("id", "") == str(game.scenes[i]):
 			return "경비 강화"
 	return "중간"
+
+
+func _cutin(pid: int, m: float, line := "") -> void:
+	## 캐릭터 컷인: 초상 + 이름 + 대사(없으면 능력 이름). 내 요원은 왼쪽에서, 동료는 오른쪽에서
+	var p: Dictionary = game.players[pid]
+	var ch: Dictionary = game.char_def(p)
+	if line == "":
+		line = str(ch.get("quote", ch.get("ability_text", "")))
+	await _cine.cutin(ArtV2.get_tex("char", str(p["character"])), str(ch.get("name", "")), line, Style.seat(pid), m, pid == human)
+
+
+func _hover_lift(b: Control) -> void:
+	## 손맛: 마우스를 올리면 단추가 살짝 커진다 (컨테이너가 위치를 정하므로 크기로만)
+	b.mouse_entered.connect(func():
+		b.pivot_offset = b.size / 2.0
+		b.create_tween().tween_property(b, "scale", Vector2(1.04, 1.04), 0.08))
+	b.mouse_exited.connect(func(): b.create_tween().tween_property(b, "scale", Vector2.ONE, 0.1))
 
 
 func _mission_art(type: String) -> Texture2D:
@@ -717,6 +743,7 @@ func _refresh_actions() -> void:
 	else:
 		pb.text = "기다리는 중"
 		pb.disabled = true
+	_hover_lift(pb)
 	_act_row.add_child(pb)
 	# 보조 버튼
 	var secs := []
@@ -807,6 +834,7 @@ func _sec_btn(s: Dictionary) -> Button:
 	b.tooltip_text = s.get("tip", s["text"])
 	if s.has("action"):
 		_shown_actions.append(s["action"])
+	_hover_lift(b)
 	return b
 
 
@@ -906,6 +934,13 @@ func _refresh_dice(mine: Array) -> void:
 		die.custom_minimum_size = Vector2(44, 44)
 		if die.mine:
 			die.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+			die.mouse_entered.connect(func():
+				die.hover = true
+				Sfx.play("click", 0.3, 0.25)
+				die.queue_redraw())
+			die.mouse_exited.connect(func():
+				die.hover = false
+				die.queue_redraw())
 			die.tooltip_text = "눌러서: " + " / ".join(acts.map(func(a): return _label(a)))
 			var at := acts.duplicate()
 			die.gui_input.connect(func(ev):
@@ -1306,11 +1341,12 @@ class DieFace extends Control:
 	var taken := false
 	var used := false
 	var carry := false
+	var hover := false
 
 	func _draw() -> void:
 		var r := Rect2(Vector2(2, 2), size - Vector2(4, 6))
 		if mine:
-			r.position.y -= 4
+			r.position.y -= 9 if hover else 4   # 손맛: 마우스를 올리면 더 들림
 		var a := 0.45 if taken or used else 1.0
 		draw_rect(Rect2(r.position + Vector2(0, 4), r.size), Color(0.29, 0.25, 0.2, a))
 		draw_rect(r, Color(Color("#fff1e8") if mine else Color.WHITE, a))
@@ -1328,6 +1364,8 @@ class DieFace extends Control:
 # ================================================================ 화면 갱신
 
 func _refresh() -> void:
+	_atmos.set_state(game.phase, game.act, game.threat_today)
+	_cine.heartbeat(game.act == 2 and game.phase != "over" and not game.scenes.is_empty() and game.scene_index == game.scenes.size() - 1)
 	_top.refresh()
 	_refresh_roster()
 	_refresh_mid()
@@ -1352,6 +1390,8 @@ func _act(a: Dictionary) -> void:
 	a = a.duplicate()
 	a["player"] = int(a.get("player", human))
 	Sfx.play("click")
+	if a["type"] == "ability":
+		_cutin(int(a["player"]), _mult())
 	if game.apply(a):
 		_pump()
 	else:
@@ -1395,6 +1435,15 @@ func _after_queue() -> void:
 		if Prefs.v2_tips and not _tips_seen.is_empty():
 			Prefs.v2_tips = false   # 안내는 첫 판에 한해
 			Prefs.save()
+		if _ended:
+			return
+		_ended = true   # 끝 연출은 한 번만
+		_cine.heartbeat(false)
+		if not _auto:
+			if bool(game.ending.get("won", false)):
+				await _cine.victory(1.0)
+			else:
+				await _cine.defeat(1.0)
 		await get_tree().create_timer(0.6).timeout
 		finished.emit()
 		return
@@ -1484,6 +1533,8 @@ func _ai_step() -> void:
 		a = GameAIV2.decide(game, pid)
 	if a.is_empty():
 		return
+	if a["type"] == "ability" and not _auto:
+		_cutin(int(a["player"]), _mult())
 	if game.apply(a):
 		_pump()
 
@@ -1496,17 +1547,21 @@ func _play_event(e: Dictionary) -> void:
 	match k:
 		"move":
 			_board.note_arrived(e["to"])
+			_board.note_footprint(e["from"], int(e["player"]))
 			Sfx.play("step", 0.1, 0.5)
 			await _board.animate_move(int(e["player"]), e["from"], e["to"], 0.13 * m)
 		"reveal":
 			if bool(e.get("scouted", false)):
 				_board.note_scouted(e["pos"])
 			Sfx.play("flip", 0.1, 0.6)
+			_fx.paper_burst(_board.position + _board.cell_center(e["pos"]) + _frame.position, m * 0.6)
 			await _board.reveal(e["pos"], 0.22 * m)
 		"police":
 			if _board.police_changed(e["police_snap"]):
 				await _board.animate_police(e["police_snap"], 0.28 * m)
 		"dice":
+			if int(e.get("player", -1)) >= 0 and (int(e.get("target", 0)) >= 10 or (game.act == 2 and game.scene_index == game.scenes.size() - 1)):
+				await _cutin(int(e["player"]), m)
 			await _fx.roll_dice(e, m)
 			_cine.ink(_fx.focus_center, bool(e.get("ok", false)), m)
 		"banner":
@@ -1528,11 +1583,17 @@ func _play_event(e: Dictionary) -> void:
 					"sub": "탈옥 판정을 하거나 동료가 구하러 올 때까지 기다린다", "stamp": "투 옥", "hold": 1.4}, m)
 		"mission_done":
 			Sfx.play("score")
+			var mc: Control = _mission_cards.get(str(e["id"]), null)
+			if mc != null and is_instance_valid(mc):
+				var at := mc.get_global_rect().get_center() - global_position
+				_fx.paper_burst(at, m)
+				_fx.stamp_at(at, "성 공", Style.GOOD, m)
 			if str(game.mission_def(str(e["id"])).get("type", "")) == "bomb":
 				_cine.shake(_frame, 9.0, 0.35 * m)
 			_fx.toast("미션 성공 · %s (%s)" % [game.mission_def(str(e["id"])).get("name", ""), _name(int(e["player"]))], "good")
 		"saga_done":
 			Sfx.play("success")
+			await _cutin(int(e["player"]), m, "사연 「%s」을(를) 이루다" % game.data.saga(str(e["id"])).get("name", ""))
 			_fx.toast("사연을 이룸 · %s — %s" % [_name(int(e["player"])), game.data.saga(str(e["id"])).get("name", "")], "good")
 		"scene":
 			var card: Dictionary = game.current_scene()
@@ -1557,6 +1618,7 @@ func _play_event(e: Dictionary) -> void:
 					faces.append(ft)
 			await _cine.cut({"tex": ArtV2.get_tex("strike", str(e.get("target", ""))), "title": "결행 · " + str(st.get("name", "")),
 				"sub": "오늘 밤, 들이친다", "portraits": faces, "stamp": "결 행", "hold": 2.2}, m)
+			await _cine.ink_wipe(m)
 		"op_appear":
 			Sfx.play("alert")
 			var oc: Dictionary = game.data.op_card(str(e["id"]))
@@ -1572,6 +1634,13 @@ func _play_event(e: Dictionary) -> void:
 			_fx.toast("일제 작전 저지 · %s (%s)" % [game.data.op_card(str(e["id"])).get("name", ""), _name(int(e["player"]))], "good")
 		"op_missed", "mission_missed":
 			Sfx.play("fail")
+		"ready":
+			# 결행 준비 칸이 찰 때: 위쪽 띠의 준비 칸에서 불꽃
+			var g: Control = _top._gauge
+			if g != null and is_instance_valid(g):
+				var at := g.get_global_rect().get_center() - global_position
+				_fx.paper_burst(at, m)
+				_fx.paper_burst(at + Vector2(0, 6), m)
 		"exposure":
 			if _last_exposure >= 0 and int(e["value"]) > _last_exposure:
 				_cine.vignette(Style.SEAL, 0.55, 1.1 * m)
@@ -1639,6 +1708,7 @@ func _play_event(e: Dictionary) -> void:
 		"card":
 			if str(e.get("deck", "")) == "item" and int(e.get("player", -1)) == human and str(e.get("id", "")) != "bomb":
 				_fx.toast("아이템 획득 · %s" % game.item_def(str(e["id"])).get("name", ""), "info")
+				_fx.fly_card(_fx.focus_center, _hand_row.get_global_rect().get_center() - global_position, str(game.item_def(str(e["id"])).get("name", "")), 0.5 * m)
 			elif str(e.get("deck", "")) == "event":
 				var ev: Dictionary = game.data.event(str(e["id"]))
 				_fx.toast("이벤트 · %s — %s" % [ev.get("name", ""), ev.get("text", "")], "info")
