@@ -15,3 +15,6 @@ Desktop.ini
 
 # 에이전트 작업 공간
 .claude/worktrees/
+
+# 그림 원본 (GPT로 만든 PNG). 게임에는 tools로 줄인 WebP만 넣는다 (v2_구현/지시서/R_그림.md)
+그림_원본/
