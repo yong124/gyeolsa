@@ -24,12 +24,15 @@ import sys
 import time
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-PROMPTS = os.path.join(ROOT, "v2_구현", "그림_프롬프트_GPT.md")
+PROMPTS = [os.path.join(ROOT, "v2_구현", "그림_프롬프트_GPT.md"),   # R: 001~092
+           os.path.join(ROOT, "v2_구현", "그림_프롬프트_V.md")]     # V 연출: 093~116 (타일 · 책상 · 컷신)
 OUT = os.path.join(ROOT, "그림_원본")
 REF = os.path.join(OUT, "char", "001_윤_소위.png")
 LOG = os.path.join(OUT, "_log.jsonl")
 # 초상(002~012)은 얼굴이 기준 인물(윤 소위)을 닮지 않게, 사람 얼굴이 없는 그림을 그림체 기준으로 쓴다
 REF_PORTRAIT = os.path.join(OUT, "mission", "016_공작.png")
+# 타일(093~110)은 물건 하나를 가운데 둔 그림이 그림체 기준으로 더 맞다
+REF_TILE = os.path.join(OUT, "mission", "015_폭파.png")
 PORTRAIT_LINE = ("Match the exact art style, line weight, cross-hatching, paper texture and color palette "
                  "of the attached reference image, which shows no face on purpose. Draw a completely new, distinct person "
                  "exactly as described below; do not reuse any face, hairstyle or uniform from other images.")
@@ -41,7 +44,7 @@ REF_LINE = ("Match the exact art style, line weight, cross-hatching, paper textu
 
 def parse():
     """프롬프트 파일 → [{"no", "path", "name", "size", "prompt", "transparent", "out"}]"""
-    text = io.open(PROMPTS, encoding="utf-8").read()
+    text = "\n".join(io.open(p, encoding="utf-8").read() for p in PROMPTS if os.path.exists(p))
     items = []
     for m in re.finditer(r"^### (\d{3}) · `([^`]+)` · (.+?)\n크기 \*\*(\d+)×(\d+)[^\n]*\n+```\n(.*?)\n```", text, re.S | re.M):
         no, path, name, w, h, prompt = m.groups()
@@ -136,7 +139,7 @@ def next_items(items, n):
             continue
         portrait = it["path"].startswith("char/") and it["no"] != 1
         out.append({"no": it["no"], "name": it["name"], "save_to": it["out"], "size": it["size"],
-                    "transparent": it["transparent"], "reference": REF_PORTRAIT if portrait else REF,
+                    "transparent": it["transparent"], "reference": REF_PORTRAIT if portrait else (REF_TILE if it["path"].startswith("tile/") else REF),
                     "prompt": (PORTRAIT_LINE if portrait else REF_LINE) + "\n\n" + it["prompt"]})
         if len(out) >= n:
             break
@@ -182,8 +185,8 @@ def main():
     a = ap.parse_args()
 
     items = parse()
-    if len(items) != 92:
-        print("경고: 프롬프트가 %d장입니다 (92장이어야 함)" % len(items))
+    if len(items) != 116:
+        print("경고: 프롬프트가 %d장입니다 (R 92장 + V 24장 = 116장이어야 함)" % len(items))
     todo = pick(items, a.only)
 
     if a.sheet:
