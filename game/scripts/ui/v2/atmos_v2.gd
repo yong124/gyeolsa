@@ -35,6 +35,8 @@ func set_state(phase: String, act: int, threat_id: String) -> void:
 		_tint_to = Color(0, 0, 0, 0)
 		_night_to = 0.0
 	_weather = WEATHER.get(threat_id, "")
+	Sfx.loop("rain", _weather == "rain", 0.5)
+	Sfx.loop("siren", _weather == "siren", 0.25)
 
 
 func _process(delta: float) -> void:
@@ -74,3 +76,7 @@ func _draw() -> void:
 		"siren":
 			var p := 0.5 + 0.5 * sin(_t * 5.0)
 			draw_rect(r, Color(0.8, 0.1, 0.08, 0.10 * p))
+
+
+func _exit_tree() -> void:
+	Sfx.stop_loops()   # 화면을 떠나면 빗소리 · 사이렌 · 심장 박동을 끈다

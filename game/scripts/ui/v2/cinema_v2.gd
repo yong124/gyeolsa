@@ -127,7 +127,7 @@ func cut(opts: Dictionary, m: float) -> void:
 			await get_tree().process_frame
 			stamp.position = Vector2(w * 0.5 - stamp.size.x / 2.0, h * 0.42 - stamp.size.y / 2.0)
 			stamp.pivot_offset = stamp.size / 2.0
-			Sfx.play("card", 0.0, 1.0)
+			Sfx.play("stamp")
 			var st := create_tween().set_parallel()
 			st.tween_property(stamp, "modulate:a", 1.0, 0.08 * m)
 			st.tween_property(stamp, "scale", Vector2(1.0, 1.0), 0.16 * m).from(Vector2(1.8, 1.8)).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
@@ -250,7 +250,7 @@ func cutin(tex: Texture2D, name: String, line: String, color: Color, m: float, f
 	nm.position = Vector2(tx, y + 40)
 	ln.position = Vector2(tx, y + 92)
 	holder.modulate.a = 0.0
-	Sfx.play("card", 0.1, 0.8)
+	Sfx.play("whoosh", 0.08)
 	var tw := create_tween().set_parallel()
 	tw.tween_property(holder, "modulate:a", 1.0, 0.12 * m)
 	tw.tween_property(face, "position:x", fx_, 0.28 * m).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
@@ -273,6 +273,7 @@ func ink_wipe(m: float) -> void:
 	add_child(cover)
 	cover.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	var full := size.length() * 0.6
+	Sfx.play("boom")
 	cover.draw.connect(func():
 		var c := size / 2.0
 		var rng := RandomNumberGenerator.new()
@@ -300,6 +301,7 @@ var _beat_t := 0.0
 func heartbeat(on: bool) -> void:
 	## 마지막 장면: 가장자리가 심장 박동처럼 두 번씩 뛴다 (끌 때까지)
 	_beat = on
+	Sfx.loop("heart", on, 0.7)
 	if not on and _vig.get("beat", false):
 		_vig = {}
 	queue_redraw()
@@ -319,7 +321,8 @@ func victory(m: float) -> void:
 	await get_tree().process_frame
 	st.position = size / 2.0 - st.size / 2.0
 	st.pivot_offset = st.size / 2.0
-	Sfx.play("success")
+	Sfx.play("stamp")
+	Sfx.play("cheer")
 	var tw := create_tween().set_parallel()
 	tw.tween_property(st, "scale", Vector2(1, 1), 0.25 * m).from(Vector2(2.2, 2.2)).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	tw.tween_property(st, "modulate:a", 1.0, 0.1 * m).from(0.0)

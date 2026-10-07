@@ -1578,6 +1578,7 @@ func _play_event(e: Dictionary) -> void:
 			_cine.shake(_frame, 7.0, 0.3 * m)
 			if int(e["player"]) == human:
 				Sfx.play("whistle")
+				Sfx.play("clang")
 				var jp: Dictionary = game.players[human]
 				await _cine.cut({"tex": ArtV2.get_tex("cut", "jail", ArtV2.get_tex("threat", "prison")), "title": "투옥 · " + game.base_name(game.data.bases.find(jp["pos"])) + " 감옥",
 					"sub": "탈옥 판정을 하거나 동료가 구하러 올 때까지 기다린다", "stamp": "투 옥", "hold": 1.4}, m)
@@ -1641,6 +1642,7 @@ func _play_event(e: Dictionary) -> void:
 				var at := g.get_global_rect().get_center() - global_position
 				_fx.paper_burst(at, m)
 				_fx.paper_burst(at + Vector2(0, 6), m)
+				Sfx.play("spark")
 		"exposure":
 			if _last_exposure >= 0 and int(e["value"]) > _last_exposure:
 				_cine.vignette(Style.SEAL, 0.55, 1.1 * m)

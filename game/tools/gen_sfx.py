@@ -153,9 +153,116 @@ def score():
     return buf
 
 
+# ------------------------------------------------------------------ V 연출 (2026-10-08)
+
+def noise(sec):
+    return rng.standard_normal(int(SR * sec))
+
+
+def stamp():
+    # 도장 「쾅」: 낮은 나무 울림 + 종이에 닿는 짧은 철썩
+    x = t(0.45)
+    body = np.sin(2 * np.pi * 70 * x) * env(len(x), 0.002, 0.09) + 0.5 * np.sin(2 * np.pi * 140 * x) * env(len(x), 0.002, 0.05)
+    slap = lowpass(noise(0.45), 0.25) * env(len(x), 0.001, 0.025)
+    return body + 0.8 * slap
+
+
+def whoosh():
+    # 컷인 「휙」: 바람이 스치며 커졌다 사라진다 (높낮이가 올라감)
+    sec = 0.5
+    n = noise(sec)
+    x = t(sec)
+    shape = np.sin(np.pi * np.clip(x / sec, 0, 1)) ** 2
+    lo = lowpass(n, 0.05)
+    hi = lowpass(n, 0.35) - lowpass(n, 0.08)
+    mix = lo * (1 - x / sec) + hi * (x / sec)
+    return mix * shape
+
+
+def boom():
+    # 먹 전환: 깊게 번지는 울림
+    sec = 1.4
+    x = t(sec)
+    f = 55 * np.exp(-x * 0.8)
+    tone = np.sin(2 * np.pi * np.cumsum(f) / SR) * env(len(x), 0.08, 0.6)
+    air = lowpass(noise(sec), 0.03) * env(len(x), 0.2, 0.5)
+    return tone + 0.6 * air
+
+
+def clang():
+    # 감옥 철문: 쇠가 부딪히는 낮은 울림 (어긋난 배음)
+    return bell(110, 1.6, 0.7, ((1, 1.0), (2.76, 0.6), (5.4, 0.35), (8.9, 0.2))) + 0.5 * lowpass(noise(1.6), 0.3) * env(int(SR * 1.6), 0.001, 0.02)
+
+
+def spark():
+    # 결행 준비 불꽃: 타닥타닥 튀는 소리
+    buf = np.zeros(int(SR * 0.6))
+    at = 0.0
+    while at < 0.5:
+        x = t(0.02)
+        place(buf, noise(0.02) * env(len(x), 0.0005, 0.004) * rng.uniform(0.4, 1.0), at)
+        at += rng.uniform(0.015, 0.06)
+    return buf + 0.3 * bell(1568, 0.6, 0.25)
+
+
+def cheer():
+    # 만세 삼창: 군중이 세 번 크게 외친다 (사람 목소리 대역의 소음 + 낮은 웅성거림)
+    sec = 3.6
+    buf = np.zeros(int(SR * sec))
+    for k in range(3):
+        at = 0.15 + k * 1.15
+        x = t(1.0)
+        swell = np.sin(np.pi * np.clip(x / 0.9, 0, 1)) ** 1.5
+        voice = lowpass(noise(1.0), 0.18) - lowpass(noise(1.0), 0.03)
+        for f in (180, 230, 300):   # 여러 사람의 「만」 모음 비슷한 울림
+            voice += 0.15 * np.sin(2 * np.pi * (f + rng.uniform(-15, 15)) * x) * rng.uniform(0.5, 1.0)
+        place(buf, voice * swell, at)
+    return buf + 0.15 * lowpass(noise(sec), 0.05)
+
+
+def heart():
+    # 심장 박동 (1.1초 한 바퀴, 반복 재생): 쿵-쿵
+    buf = np.zeros(int(SR * 1.1))
+    for at, g in ((0.0, 1.0), (0.24, 0.7)):
+        x = t(0.18)
+        place(buf, g * np.sin(2 * np.pi * 52 * x) * env(len(x), 0.004, 0.06), at)
+    return buf
+
+
+def rain():
+    # 빗소리 (3초, 반복 재생): 쏴아 + 빗방울. 끝과 처음이 이어지게 양 끝을 섞는다
+    sec = 3.0
+    base = lowpass(noise(sec), 0.12) - lowpass(noise(sec), 0.02)
+    for _ in range(140):
+        x = t(0.012)
+        place(base, noise(0.012) * env(len(x), 0.0003, 0.003) * rng.uniform(0.5, 1.5), rng.uniform(0, sec - 0.02))
+    fade = int(SR * 0.3)
+    w = np.linspace(0, 1, fade)
+    base[:fade] = base[:fade] * w + base[-fade:] * (1 - w)
+    return base[:-fade]
+
+
+def siren():
+    # 공습 사이렌 (4초, 반복 재생): 천천히 오르내림
+    sec = 4.0
+    x = t(sec)
+    f = 420 + 160 * np.sin(2 * np.pi * x / sec - np.pi / 2)
+    ph = 2 * np.pi * np.cumsum(f) / SR
+    return np.sin(ph) + 0.3 * np.sin(2 * ph) + 0.1 * np.sin(3 * ph)
+
+
+ALL = [("dice", dice, 0.7), ("step", step, 0.5), ("flip", flip, 0.5),
+       ("card", card, 0.5), ("success", success, 0.7), ("fail", fail, 0.6),
+       ("whistle", whistle, 0.45), ("day", day, 0.7), ("alert", alert, 0.7),
+       ("click", click, 0.35), ("score", score, 0.7),
+       # V 연출
+       ("stamp", stamp, 0.8), ("whoosh", whoosh, 0.5), ("boom", boom, 0.75), ("clang", clang, 0.6),
+       ("spark", spark, 0.45), ("cheer", cheer, 0.6), ("heart", heart, 0.8), ("rain", rain, 0.35), ("siren", siren, 0.3)]
+
 if __name__ == "__main__":
-    for name, fn, gain in [("dice", dice, 0.7), ("step", step, 0.5), ("flip", flip, 0.5),
-                           ("card", card, 0.5), ("success", success, 0.7), ("fail", fail, 0.6),
-                           ("whistle", whistle, 0.45), ("day", day, 0.7), ("alert", alert, 0.7),
-                           ("click", click, 0.35), ("score", score, 0.7)]:
-        save(name, fn(), gain)
+    # python tools/gen_sfx.py [이름 ...]  — 이름을 주면 그것만 만든다 (기존 소리를 다시 쓰지 않게)
+    import sys
+    only = set(sys.argv[1:])
+    for name, fn, gain in ALL:
+        if not only or name in only:
+            save(name, fn(), gain)
