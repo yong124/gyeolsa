@@ -53,6 +53,9 @@ func _show_title() -> void:
 	title.tutorial_requested.connect(_start_tutorial)
 	title.intro_requested.connect(_show_intro)
 	title.v2_requested.connect(_show_v2_setup)
+	title.quick_requested.connect(_quick_v2)
+	title.continue_v2_requested.connect(_continue_v2)
+	title.training_requested.connect(_training_v2)
 	_swap(title)
 
 
@@ -129,24 +132,65 @@ func _survey_then(game: GameRules, meta: Dictionary, next: Callable) -> void:
 	_swap(s)
 
 
-# ================================================================ v2 (시험판)
+# ================================================================ v2 (지금 규칙)
+
+const TRAINING_SEED := 19450815
+const TRAINING_CHARS := ["park", "jeong", "gaeddong", "oh"]   # 훈련 작전: 나는 박 하사, 판은 늘 같다
+
 
 func _show_v2_setup() -> void:
 	var setup := SetupScreenV2.new()
 	setup.back_requested.connect(_show_title)
-	setup.start_requested.connect(_start_v2)
+	setup.start_requested.connect(func(defs, seed_value): _start_v2(defs, seed_value))
 	_swap(setup)
 
 
+func _quick_v2() -> void:
+	## 바로 시작: 요원도 결사가 정한다
+	var rng := RandomNumberGenerator.new()
+	rng.randomize()
+	_start_v2(SetupScreenV2.make_defs("", rng), rng.randi())
+
+
+func _training_v2() -> void:
+	var data := GameDataV2.load_default()
+	var defs := []
+	for i in TRAINING_CHARS.size():
+		var id: String = TRAINING_CHARS[i]
+		defs.append({"name": "나" if i == 0 else str(data.character(id).get("name", "")), "character": id})
+	var game := RulesV2.new()
+	game.setup(defs, TRAINING_SEED)
+	_open_v2(game, {"defs": defs, "training": true})
+
+
 func _start_v2(defs: Array, seed_value: int) -> void:
+	SaveGameV2.erase()
 	var game := RulesV2.new()
 	game.setup(defs, seed_value)
-	var screen := GameScreenV2.new(game, 0, {"defs": defs})
+	_open_v2(game, {"defs": defs})
+
+
+func _continue_v2() -> void:
+	var r := SaveGameV2.read()
+	if r.is_empty():
+		_show_title()
+		return
+	_open_v2(r["game"], r["meta"])
+
+
+func _open_v2(game: RulesV2, meta: Dictionary) -> void:
+	var screen := GameScreenV2.new(game, 0, meta)
 	screen.back_to_title.connect(_show_title)
 	screen.finished.connect(func():
-		var e := EndingScreenV2.new(game, 0)
+		var training: bool = meta.get("training", false)
+		if training:
+			Prefs.v2_training_done = true
+			Prefs.save()
+		else:
+			SaveGameV2.erase()
+		var e := EndingScreenV2.new(game, 0, training)
 		e.to_menu.connect(_show_title)
-		e.replay.connect(_show_v2_setup)
+		e.replay.connect(_quick_v2)
 		_swap(e))
 	_swap(screen)
 

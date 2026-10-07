@@ -800,6 +800,8 @@ func _draw_players() -> void:
 					var x := ctr.x - rad * 0.75 + k * rad * 0.5
 					draw_line(Vector2(x, ctr.y - rad - 2), Vector2(x, ctr.y + rad + 2), Color(0.1, 0.08, 0.06), 3.0)
 				draw_line(Vector2(ctr.x - rad, ctr.y - rad * 0.3), Vector2(ctr.x + rad, ctr.y - rad * 0.3), Color(0.1, 0.08, 0.06), 3.0)
+			if group.size() > 1:
+				continue   # 여럿이 한 칸이면 이름표를 아래에서 하나로 합친다
 			var tag: String = "나" if id == human_id else str(game.char_def(p).get("name", p["name"])).replace(" ", "")
 			var fs := maxi(10, int(r.size.x * 0.14))
 			var w := font.get_string_size(tag, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x + 10
@@ -807,6 +809,16 @@ func _draw_players() -> void:
 			draw_rect(tr, Style.seat(id))
 			draw_rect(tr, Color(Style.PAPER_HI, 0.9), false, 1.5)
 			draw_string(font, tr.position + Vector2(5, fs * 1.0), tag, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color.WHITE)
+		if group.size() > 1:
+			var r2 := cell_rect_f(vis_players[group[0]])
+			var mine := group.has(human_id)
+			var tag2 := ("나 외 %d명" % (group.size() - 1)) if mine else "%d명" % group.size()
+			var fs2 := maxi(10, int(r2.size.x * 0.14))
+			var w2 := font.get_string_size(tag2, HORIZONTAL_ALIGNMENT_LEFT, -1, fs2).x + 10
+			var tr2 := Rect2(r2.get_center().x - w2 / 2, r2.position.y - fs2 * 0.9, w2, fs2 * 1.3)
+			draw_rect(tr2, Style.seat(human_id) if mine else Style.INK)
+			draw_rect(tr2, Color(Style.PAPER_HI, 0.9), false, 1.5)
+			draw_string(font, tr2.position + Vector2(5, fs2 * 1.0), tag2, HORIZONTAL_ALIGNMENT_LEFT, -1, fs2, Color.WHITE)
 
 
 func _token(ctr: Vector2, rad: float, t: Texture2D, ring: Color, alpha: float, lift := 0.0) -> void:

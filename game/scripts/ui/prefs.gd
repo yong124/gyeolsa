@@ -17,6 +17,7 @@ var reduce_motion := false     # 연출 줄이기: 내 행동도 빠르게
 var intro_seen := false
 var tutorial_done := false
 var v2_tips := true           # v2 첫 판 안내 말풍선 (첫 판이 끝나면 꺼짐, 일시정지 메뉴에서 켜고 끌 수 있음)
+var v2_training_done := false  # v2 훈련 작전을 끝까지 했는가 (타이틀 「처음이라면 추천」)
 var playtest := true           # 플레이테스트 기록·설문 (user://playtests)
 
 
@@ -29,6 +30,7 @@ func _ready() -> void:
 		reduce_motion = bool(cfg.get_value("game", "reduce_motion", reduce_motion))
 		playtest = bool(cfg.get_value("game", "playtest", playtest))
 		v2_tips = bool(cfg.get_value("game", "v2_tips", v2_tips))
+		v2_training_done = bool(cfg.get_value("game", "v2_training_done", v2_training_done))
 		sfx_volume = float(cfg.get_value("audio", "sfx", sfx_volume))
 		bgm_volume = float(cfg.get_value("audio", "bgm", bgm_volume))
 		fullscreen = bool(cfg.get_value("video", "fullscreen", fullscreen))
@@ -43,6 +45,7 @@ func save() -> void:
 	cfg.set_value("game", "reduce_motion", reduce_motion)
 	cfg.set_value("game", "playtest", playtest)
 	cfg.set_value("game", "v2_tips", v2_tips)
+	cfg.set_value("game", "v2_training_done", v2_training_done)
 	cfg.set_value("audio", "sfx", sfx_volume)
 	cfg.set_value("audio", "bgm", bgm_volume)
 	cfg.set_value("video", "fullscreen", fullscreen)

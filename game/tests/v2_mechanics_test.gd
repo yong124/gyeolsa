@@ -36,8 +36,44 @@ func _init() -> void:
 	_run_c_tests()
 	_run_d_tests()
 	_test_c_coverage()
+	_test_q_save_file()
 	print("v2 규칙 시험: 통과 %d, 실패 %d" % [passed, failed])
 	quit(1 if failed > 0 else 0)
+
+
+func _test_q_save_file() -> void:
+	## Q2 이어하기: 판 중간(아침)에 파일로 저장 → 읽기 → 같은 AI 수를 이어 두면 끝까지 같다. 팀 기록(stats)도 남는다
+	SaveGameV2.path = "user://save_v2_test.dat"
+	var g := RulesV2.new()
+	var defs := []
+	for id in ["park", "jeong", "gaeddong", "oh"]:
+		defs.append({"name": id, "character": id})
+	g.setup(defs, 4321)
+	var guard := 0
+	while not (g.phase == "plan" and g.day >= 4) and g.phase != "over" and guard < 5000:
+		guard += 1
+		g.apply(GameAIV2.decide(g, GameAIV2.next_actor(g)))
+	ok(g.phase == "plan", "Q2 저장: 4일째 아침까지 진행")
+	SaveGameV2.write(g, {"defs": defs})
+	ok(SaveGameV2.exists() and SaveGameV2.summary().contains("4일째"), "Q2 저장: 파일이 생기고 요약에 날짜가 나온다 (%s)" % SaveGameV2.summary())
+	var r := SaveGameV2.read()
+	ok(not r.is_empty() and r["meta"].get("defs", []).size() == 4, "Q2 저장: 읽으면 판과 meta가 돌아온다")
+	var h: RulesV2 = r["game"]
+	ok(str(h.save_state()) == str(g.save_state()), "Q2 저장: 읽은 판의 상태가 저장한 판과 같다")
+	guard = 0
+	while g.phase != "over" and guard < 8000:
+		guard += 1
+		var a := GameAIV2.decide(g, GameAIV2.next_actor(g))
+		g.apply(a)
+		h.apply(GameAIV2.decide(h, GameAIV2.next_actor(h)))
+	ok(g.phase == "over" and str(h.save_state()) == str(g.save_state()), "Q2 저장: 이어 두면 끝까지 같다 (엔딩 %s)" % g.ending.get("id", "-"))
+	ok(int(g.stats["max_exposure"]) >= 0 and int(g.stats["ops_blocked"]) <= int(g.stats["ops_seen"]), "Q5 팀 기록: 막은 일제 작전 ≤ 나온 일제 작전 (%s)" % str(g.stats))
+	SaveGameV2.erase()
+	ok(not SaveGameV2.exists(), "Q2 저장: 지우면 없어진다")
+	var f := FileAccess.open(SaveGameV2.path, FileAccess.WRITE)
+	f.store_string("깨진 파일")
+	f.close()
+	ok(SaveGameV2.read().is_empty() and not SaveGameV2.exists(), "Q2 저장: 깨진 저장은 빈 결과를 주고 지운다")
 
 
 # ------------------------------------------------------------------ 도우미

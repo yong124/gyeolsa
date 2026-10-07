@@ -48,8 +48,8 @@ func _deal() -> void:
 
 func _show() -> void:
 	UiKit.clear(_box)
-	_box.add_child(UiKit.title("새 규칙 v2 (시험판) — 요원 고르기", Style.FS_H2))
-	_box.add_child(UiKit.text("캐릭터 카드 2장 중 1장을 고르세요. 동료 셋은 나머지 캐릭터 중에서 무작위로 정해집니다. 4인 기준 규칙입니다.", Style.FS_BODY, Style.INK_2))
+	_box.add_child(UiKit.title("요원 고르기", Style.FS_H2))
+	_box.add_child(UiKit.text("요원 카드 두 장이 왔습니다. 한 사람을 고르세요. 나머지 동료 셋은 결사가 정해 보냅니다.", Style.FS_BODY, Style.INK_2))
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 18)
 	_box.add_child(row)
@@ -88,15 +88,23 @@ func _card(id: String) -> Control:
 
 
 func _start(id: String) -> void:
-	var ids: Array = _data.characters.get("characters", []).map(func(c): return c["id"])
+	start_requested.emit(make_defs(id, _rng), _rng.randi())
+
+
+static func make_defs(id: String, rng: RandomNumberGenerator) -> Array:
+	## 내 요원 id(빈 문자열이면 무작위) + 나머지에서 무작위 동료 → 엔진 setup용 defs
+	var data := GameDataV2.load_default()
+	var ids: Array = data.characters.get("characters", []).map(func(c): return c["id"])
+	if id == "":
+		id = str(ids[rng.randi_range(0, ids.size() - 1)])
 	ids.erase(id)
 	var picks := [id]
-	while picks.size() < int(_data.rules["players"]):
-		var k := _rng.randi_range(0, ids.size() - 1)
+	while picks.size() < int(data.rules["players"]):
+		var k := rng.randi_range(0, ids.size() - 1)
 		picks.append(ids[k])
 		ids.remove_at(k)
 	var defs := []
 	for i in picks.size():
-		var c: Dictionary = _data.character(str(picks[i]))
+		var c: Dictionary = data.character(str(picks[i]))
 		defs.append({"name": "나" if i == 0 else str(c.get("name", "")), "character": picks[i]})
-	start_requested.emit(defs, _rng.randi())
+	return defs

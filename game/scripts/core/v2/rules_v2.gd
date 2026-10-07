@@ -119,6 +119,7 @@ var actions: Array = []
 var events: Array = []
 var log_lines: Array = []
 var history: Array = []
+var stats := {"ops_seen": 0, "ops_blocked": 0, "max_exposure": 0}   # 팀 기록 (엔딩 요약용, 규칙에는 영향 없음)
 var _dist_cache := {}           # 걸어서 잰 거리 (깔린 칸이 늘면 비움, 저장하지 않음)
 var _dist_cache_size := -1
 
@@ -2215,6 +2216,7 @@ func _morning_ops() -> void:
 	var card: Dictionary = data.op_card(id)
 	_log("[일제 작전] %s — %s (일제 동향 %d)" % [card.get("name", id), card.get("how", ""), trend])
 	_record("일제 작전: %s" % card.get("name", id), "warn")
+	stats["ops_seen"] += 1
 	_banner("일제 작전: %s" % card.get("name", id), "warn")
 	_push({"kind": "op_appear", "id": id})
 	_push({"kind": "trend", "value": trend})
@@ -2529,6 +2531,7 @@ func _complete_missions(p: Dictionary, ids: Array, ctx: Dictionary) -> void:
 		if data.is_op(id):
 			_log("%s: 일제 작전 「%s」을(를) 막았습니다!" % [p["name"], m.get("name", id)])
 			_record("%s — 일제 작전 %s 저지" % [p["name"], m.get("name", id)], "good")
+			stats["ops_blocked"] += 1
 			_banner("%s 저지!" % m.get("name", id), "good", p)
 			_push({"kind": "op_blocked", "id": id, "player": p["id"]})
 			effects.append_array(data.rules["ops"]["block"].duplicate(true))
@@ -2837,6 +2840,7 @@ func _expose(n: int) -> void:
 	var before := alert_level()
 	var was_max := exposure >= int(data.rules["exposure"]["max"])
 	exposure = clampi(exposure + n, 0, int(data.rules["exposure"]["max"]))
+	stats["max_exposure"] = maxi(int(stats.get("max_exposure", 0)), exposure)
 	_push({"kind": "exposure", "value": exposure})
 	if exposure >= int(data.rules["exposure"]["max"]) and not was_max:
 		var cap_loss := int(data.rules["funds"]["exposure_cap_loss"])
@@ -5408,7 +5412,7 @@ const SAVE_FIELDS := ["players", "leader", "day", "rounds_total", "rounds_left",
 	"check", "morning_step", "last_roll", "saga_decks", "saga_discard",
 	"saga_rewards", "launch_step", "launch_i", "human", "vote_state", "counter", "counter_queue",
 	"funds", "markers", "mission_state", "op_row", "op_deck", "op_discard", "trend", "peek_bonus", "bonus_wait", "expire_queue", "marker_seq",
-	"actions", "log_lines", "history"]
+	"actions", "log_lines", "history", "stats"]
 
 
 func save_state() -> Dictionary:

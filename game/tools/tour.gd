@@ -11,6 +11,7 @@ var _n := 0
 func _ready() -> void:
 	main = get_parent()
 	SaveGame.disabled = true
+	SaveGameV2.disabled = true
 	Records.disabled = true
 	PlaytestLog.disabled = true
 	var w := 1600
@@ -37,6 +38,8 @@ func _ready() -> void:
 		_hot()
 	elif "tut2" in OS.get_cmdline_user_args():
 		_tut2()
+	elif "q" in OS.get_cmdline_user_args():
+		_q()
 	elif "v2f" in OS.get_cmdline_user_args():
 		_v2f()
 	elif "v2" in OS.get_cmdline_user_args():
@@ -485,6 +488,57 @@ func _v2() -> void:
 	main._swap(e)
 	await _wait(0.8)
 	await _shot("v2_ending")
+	get_tree().quit()
+
+
+func _q() -> void:
+	## Q 완성도 확인용: 타이틀 · 훈련 작전 안내 · 내 차례 화면(넘침) · 엔딩 요약과 작전 일지
+	await _wait(0.5)
+	main._show_title()
+	await _wait(0.8)
+	await _shot("q_title")
+	main._training_v2()
+	await _wait(1.2)
+	var screen: GameScreenV2 = main._screen
+	var game: RulesV2 = screen.game
+	await _shot("q_training_morning")
+	for step in 40:   # 아침 → 낮 → 내 차례까지: 안내를 닫고 사람 자리의 다음 수를 둔다
+		screen._tip.visible = false
+		if game.phase == "turn" and game.current == 0:
+			break
+		if screen.is_idle() and screen._ai_actor() < 0:
+			var mine := game.legal_actions().filter(func(a): return int(a.get("player", -1)) == 0 and a["type"] in ["start_day", "begin_turn"])
+			if not mine.is_empty():
+				screen.act_now(mine[0])
+		await _wait(0.6)
+	await _wait(0.8)
+	screen._tip_check()
+	await _wait(0.3)
+	await _shot("q_training_turn")
+	print("[tour] 넘침 %.0f · 받은 높이 %.0f · 최소 %s · 크기 %s · 화면 %s" % [screen.right_overflow(), screen._right_h, str(screen._right.get_combined_minimum_size()), str(screen._right.size), str(screen.size)])
+	screen._tip.visible = false
+	screen._tip_check()
+	await _wait(0.3)
+	await _shot("q_training_marker")
+	# 엔딩: AI로 한 판을 끝까지 두고 요약을 본다
+	var g := RulesV2.new()
+	var defs := []
+	for id in ["seo", "han", "lee", "mun"]:
+		defs.append({"name": "나" if defs.is_empty() else id, "character": id})
+	g.setup(defs, 2468)
+	var guard := 0
+	while g.phase != "over" and guard < 20000:
+		guard += 1
+		g.apply(GameAIV2.decide(g, GameAIV2.next_actor(g)))
+	var e := EndingScreenV2.new(g, 0)
+	main._swap(e)
+	await _wait(0.8)
+	await _shot("q_ending")
+	var sc := e.get_child(1) as ScrollContainer
+	if sc:
+		sc.scroll_vertical = 100000
+		await _wait(0.3)
+		await _shot("q_ending_log")
 	get_tree().quit()
 
 

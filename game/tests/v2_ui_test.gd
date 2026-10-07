@@ -9,6 +9,8 @@ var seen := {}        # 거친 화면 종류 {이름: 횟수} (행동 메뉴 · 
 
 
 func _ready() -> void:
+	SaveGameV2.disabled = true   # 시험이 실제 이어하기 저장을 건드리지 않게
+	Prefs.v2_tips = true   # 가장 넘치기 쉬운 경우(첫 판 고정 안내가 보임)로 잰다. 저장하지 않으므로 설정은 그대로
 	var n := 3
 	var args := OS.get_cmdline_user_args()
 	var i := args.find("v2uitest")
@@ -45,6 +47,7 @@ func _run(n: int) -> void:
 		var last_day := 0
 		var last_acts := -1
 		var still_since := Time.get_ticks_msec()
+		var overflowed := false
 		while game.phase != "over" and guard < 200000:
 			guard += 1
 			await get_tree().process_frame
@@ -71,7 +74,13 @@ func _run(n: int) -> void:
 					_fail("판 %d: AI 차례인데 화면이 멈춤 (phase=%s)" % [g_i, game.phase])
 					break
 				continue
-			# 사람이 둘 차례
+			# 사람이 둘 차례: 오른쪽 패널이 작전 기록 띠를 가리지 않는가 (창 비율이 16:9보다 넓어도 높이는 900 그대로)
+			for _f in 4:   # 넘침 맞추기(_fit_right)는 다음 프레임들에 돈다
+				await get_tree().process_frame
+			var over := screen.right_overflow()
+			if over > 1.0 and not overflowed:
+				overflowed = true
+				_fail("판 %d: 오른쪽 패널이 %.0fpx 넘침 (phase=%s, %d일째 %d막, 화면 %s) — %s" % [g_i, over, game.phase, game.day, game.act, str(screen.size), screen.layout_report()])
 			var mine := game.legal_actions().filter(func(a): return int(a.get("player", -1)) == 0)
 			if game.phase == "day" and game.can_begin_turn(game.players[0]) and GameAIV2.next_actor(game) != 0:
 				screen.press_allies_first()

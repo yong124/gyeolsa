@@ -7,7 +7,10 @@ signal start_requested(config: Dictionary)   # {"defs", "difficulty", "scenario"
 signal continue_requested
 signal tutorial_requested(id: String)
 signal intro_requested
-signal v2_requested
+signal v2_requested            # v2 요원 골라 시작
+signal quick_requested         # v2 바로 시작
+signal continue_v2_requested
+signal training_requested      # v2 훈련 작전
 
 const DIFFICULTY := [{"name": "쉬움", "days": 1}, {"name": "보통", "days": 0}, {"name": "어려움", "days": -1}]
 
@@ -133,10 +136,52 @@ func _show_menu() -> void:
 	var sp := Control.new()
 	sp.custom_minimum_size = Vector2(0, 14)
 	_panel.add_child(sp)
+	var saved := SaveGameV2.exists()
+	if saved:
+		_menu_button("이어하기", func(): continue_v2_requested.emit(), SaveGameV2.summary(), true)
+	_menu_button("바로 시작", func(): _confirm_new(func(): quick_requested.emit()), "요원은 결사가 정합니다 · 한 판 60~90분", not saved)
+	_menu_button("요원 골라 시작", func(): _confirm_new(func(): v2_requested.emit()), "요원 카드 두 장 중 한 사람")
+	_menu_button("훈련 작전", func(): training_requested.emit(), "안내를 따라 한 판" + ("" if Prefs.v2_training_done else " · 처음이라면 추천"))
+	_menu_button("규칙 요약", func():
+		var r := GameScreenV2.rules_panel(GameDataV2.load_default(), func(): _overlay.visible = false)
+		_overlay.show_with(r), "")
+	_menu_button("설정", _show_settings, "")
+	_menu_button("도입부 다시 보기", func(): intro_requested.emit(), "")
+	_menu_button("구판 (v1)", _show_v1, "처음 만든 규칙 · 기록용")
+	_menu_button("종료", func(): get_tree().quit(), "")
+
+
+func _confirm_new(go: Callable) -> void:
+	## 저장된 판이 있으면 지워도 되는지 묻는다
+	if not SaveGameV2.exists():
+		go.call()
+		return
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 12)
+	var panel := UiKit.paper_panel(24)
+	panel.custom_minimum_size = Vector2(460, 0)
+	panel.add_child(box)
+	box.add_child(UiKit.title("새 판을 시작할까요?", Style.FS_H3))
+	box.add_child(UiKit.text("이어하던 판(%s)은 지워집니다." % SaveGameV2.summary(), 15, Style.INK_2))
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	box.add_child(row)
+	row.add_child(UiKit.button("새로 시작", func():
+		_overlay.visible = false
+		SaveGameV2.erase()
+		go.call(), 16, "primary"))
+	row.add_child(UiKit.button("취소", func(): _overlay.visible = false, 16, "paper"))
+	_overlay.show_with(panel)
+
+
+func _show_v1() -> void:
+	## 구판(v1) 메뉴: 처음 만든 규칙의 모드를 기록용으로 남겨 둔다
+	UiKit.clear(_panel)
+	_heading("기 록 용", "구판 (v1)")
+	_panel.add_child(UiKit.text("처음 만든 규칙입니다. 지금 규칙(v2)과 다릅니다.", 15, Style.INK_3))
 	if SaveGame.exists():
-		_menu_button("이어하기", func(): continue_requested.emit(), SaveGame.summary(), true)
-	_menu_button("새 작전", _show_setup, "인원 · 세력 · 난이도", not SaveGame.exists())
-	_menu_button("새 규칙 v2 (시험판)", func(): v2_requested.emit(), "4인 · 팀 주사위 · 위협 카드 · 비밀 사연 · 결행 장면")
+		_menu_button("이어하기 (v1)", func(): continue_requested.emit(), SaveGame.summary(), true)
+	_menu_button("새 작전 (v1)", _show_setup, "인원 · 세력 · 난이도")
 	var rec := Records.data()
 	var date := Records.today()
 	var best_today: int = int(rec["daily"].get(date, -1))
@@ -144,10 +189,10 @@ func _show_menu() -> void:
 	_menu_button("특수 작전", _show_special, "성공 %d / %d" % [rec["scenarios_won"].size(), _data.special_ops().size()])
 	_menu_button("튜토리얼", _show_tutorials, "기본 훈련 · 2막 훈련" + ("" if Prefs.tutorial_done else " · 처음이라면 추천"))
 	_menu_button("작전 기록", _show_records, "%d판 · 도전 과제 %d / %d" % [int(rec["games"]), rec["unlocked"].size(), _data.achievements.get("list", []).size()])
-	_menu_button("규칙 도감", _show_rulebook, "")
-	_menu_button("설정", _show_settings, "")
-	_menu_button("도입부 다시 보기", func(): intro_requested.emit(), "")
-	_menu_button("종료", func(): get_tree().quit(), "")
+	_menu_button("규칙 도감 (v1)", _show_rulebook, "")
+	var back := UiKit.button("← 메뉴로", _show_menu, 15, "tab")
+	back.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	_panel.add_child(back)
 
 
 func _menu_button(text: String, cb: Callable, sub: String, main := false) -> void:
