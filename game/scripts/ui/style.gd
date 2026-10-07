@@ -69,6 +69,8 @@ static func _font(path: String, weight: int) -> Font:
 static func tex(name: String) -> Texture2D:
 	if not _tex.has(name):
 		_tex[name] = load("res://assets/ui/%s.png" % name)
+		if name == "desk":   # V 연출: 새 책상 그림이 있으면 그것 (v1 화면도 함께 바뀜)
+			_tex[name] = ArtV2.get_tex("screen", "desk", _tex[name])
 	return _tex[name]
 
 

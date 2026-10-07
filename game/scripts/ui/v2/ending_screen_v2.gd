@@ -63,8 +63,30 @@ func _ready() -> void:
 		var s: Dictionary = game.data.saga(str(ep.get("saga", "")))
 		var head := "%s%s — 사연 「%s」 %s" % ["(나) " if pid == human else "", game.char_def(p).get("name", ""), s.get("name", ""),
 			"이룸" if ep.get("done", false) else "못 이룸"]
-		v.add_child(UiKit.title(head, 17, Style.INK))
-		v.add_child(UiKit.text(str(ep.get("text", "")), 16, Style.INK_2))
+		# 후일담 한 사람: 초상(있으면) + 사연 · 문장. 차례로 떠오른다
+		var row_ep := HBoxContainer.new()
+		row_ep.add_theme_constant_override("separation", 14)
+		var face := ArtV2.get_tex("char", str(p["character"]))
+		if face != null:
+			var fr := TextureRect.new()
+			fr.texture = face
+			fr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			fr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+			fr.custom_minimum_size = Vector2(72, 96)
+			if not ep.get("done", false) and not won:
+				fr.modulate = Color(0.75, 0.72, 0.68)   # 지고 못 이룬 사람은 빛바래게
+			row_ep.add_child(fr)
+		var tv := VBoxContainer.new()
+		tv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		tv.alignment = BoxContainer.ALIGNMENT_CENTER
+		tv.add_child(UiKit.title(head, 17, Style.INK))
+		var body := UiKit.text(str(ep.get("text", "")), 16, Style.INK_2)
+		body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		tv.add_child(body)
+		row_ep.add_child(tv)
+		v.add_child(row_ep)
+		row_ep.modulate.a = 0.0
+		create_tween().tween_property(row_ep, "modulate:a", 1.0, 0.5).set_delay(0.6 + 0.45 * float(pid))
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 12)
 	v.add_child(row)

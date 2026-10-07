@@ -63,6 +63,8 @@ var _tip_key := ""
 var _tips_seen := {}
 var _ticker: LogTickerV2
 var _fx: FxLayer
+var _cine: CinemaV2              # 컷신 · 화면 효과 (V 연출)
+var _last_exposure := -1          # 노출이 오를 때만 붉은 비네트
 var _choice: Overlay
 var _peek: CardPeekV2   # 마우스를 올리면 뜨는 큰 카드
 var _shown_actions: Array = []    # 지금 화면에 단추로 나온 액션 (시험용)
@@ -87,8 +89,28 @@ func _ready() -> void:
 	_board.sync_from_game()
 	_refresh()
 	Music.play("main")
+	if bool(meta.get("opening", false)) and not _auto:
+		meta.erase("opening")   # 이어하기로 다시 열 때는 보이지 않게
+		await _cine.slides(opening_slides(), 1.0)
 	_started = true
 	_pump()
+
+
+static func opening_slides() -> Array:
+	## 오프닝 4컷 (V 연출). 그림이 하나라도 없으면 빈 목록(오프닝 없이 시작)
+	var lines := [
+		["1945년 8월, 경성.", "해방은 바다 건너에서 오고 있었다. 우리 손으로 문을 열고 싶었다."],
+		["광복군, 의용대, 의병, 지하조직.", "서로 다른 넷이 한 방에 모였다."],
+		["형무소, 군영, 경찰서, 총독부.", "일제의 심장부 한 곳을 골라 들이친다."],
+		["남은 날은 열하루.", "결사(結社)."],
+	]
+	var out := []
+	for i in lines.size():
+		var t := ArtV2.get_tex("cut", "opening_%d" % (i + 1))
+		if t == null:
+			return []
+		out.append({"tex": t, "lines": lines[i]})
+	return out
 
 
 func _mult() -> float:
@@ -172,6 +194,8 @@ func _build() -> void:
 
 	_fx = FxLayer.new()
 	add_child(_fx)
+	_cine = CinemaV2.new()
+	add_child(_cine)
 	_choice = Overlay.new(Color(0.03, 0.02, 0.01, 0.62))
 	add_child(_choice)
 	add_child(_peek)
@@ -505,59 +529,6 @@ func _mission_art(type: String) -> Texture2D:
 
 func _saga_art() -> Texture2D:
 	return ArtV2.get_tex("", "saga_back", load("res://assets/cards/event_back.png"))
-
-
-func _art_card(tex: Texture2D, title: String, sub: String, m: float) -> void:
-	## 그림 한 장을 화면 가운데에 크게 (결행 선언 · 뽑은 이벤트). 그림이 없으면 아무것도 안 함. 누르면 넘김
-	if tex == null or m <= 0.0:
-		return
-	var layer := ColorRect.new()
-	layer.color = Color(0.03, 0.02, 0.01, 0.6)
-	layer.z_index = 40
-	layer.mouse_filter = Control.MOUSE_FILTER_STOP
-	add_child(layer)
-	layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	var center := CenterContainer.new()
-	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	layer.add_child(center)
-	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	var panel := UiKit.paper_panel(14)
-	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	center.add_child(panel)
-	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", 8)
-	panel.add_child(v)
-	var img := TextureRect.new()
-	img.texture = tex
-	img.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-	var w := minf(size.x * 0.62, 1000.0)
-	img.custom_minimum_size = Vector2(w, minf(w * tex.get_height() / float(tex.get_width()), size.y * 0.6))
-	v.add_child(img)
-	var t := UiKit.title(title, Style.FS_H2, Style.INK)
-	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	v.add_child(t)
-	if sub != "":
-		var sl := UiKit.text(sub, 16, Style.INK_2)
-		sl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		sl.custom_minimum_size = Vector2(w, 0)
-		sl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		v.add_child(sl)
-	var skip := [false]
-	layer.gui_input.connect(func(ev):
-		if ev is InputEventMouseButton and ev.pressed:
-			skip[0] = true)
-	layer.modulate.a = 0.0
-	var tw := create_tween()
-	tw.tween_property(layer, "modulate:a", 1.0, 0.25 * m)
-	var left := 1.8 * m
-	while left > 0.0 and not skip[0]:
-		await get_tree().process_frame
-		left -= get_process_delta_time()
-	var out := create_tween()
-	out.tween_property(layer, "modulate:a", 0.0, 0.2 * m)
-	await out.finished
-	layer.queue_free()
 
 
 func _scene_card_dict(id: String) -> Dictionary:
@@ -1537,6 +1508,7 @@ func _play_event(e: Dictionary) -> void:
 				await _board.animate_police(e["police_snap"], 0.28 * m)
 		"dice":
 			await _fx.roll_dice(e, m)
+			_cine.ink(_fx.focus_center, bool(e.get("ok", false)), m)
 		"banner":
 			await _fx.banner(str(e["text"]), str(e["tone"]), m)
 		"morning":
@@ -1548,30 +1520,62 @@ func _play_event(e: Dictionary) -> void:
 			await _fx.banner("일제 위협 · " + str(t.get("name", "")), "bad" if t.get("tone", "bad") == "bad" else "info", m, str(t.get("text", "")))
 		"jail":
 			await _board.animate_move(int(e["player"]), e["from"], e["to"], 0.25 * m)
+			_cine.shake(_frame, 7.0, 0.3 * m)
+			if int(e["player"]) == human:
+				Sfx.play("whistle")
+				var jp: Dictionary = game.players[human]
+				await _cine.cut({"tex": ArtV2.get_tex("cut", "jail", ArtV2.get_tex("threat", "prison")), "title": "투옥 · " + game.base_name(game.data.bases.find(jp["pos"])) + " 감옥",
+					"sub": "탈옥 판정을 하거나 동료가 구하러 올 때까지 기다린다", "stamp": "투 옥", "hold": 1.4}, m)
 		"mission_done":
 			Sfx.play("score")
+			if str(game.mission_def(str(e["id"])).get("type", "")) == "bomb":
+				_cine.shake(_frame, 9.0, 0.35 * m)
 			_fx.toast("미션 성공 · %s (%s)" % [game.mission_def(str(e["id"])).get("name", ""), _name(int(e["player"]))], "good")
 		"saga_done":
 			Sfx.play("success")
 			_fx.toast("사연을 이룸 · %s — %s" % [_name(int(e["player"])), game.data.saga(str(e["id"])).get("name", "")], "good")
 		"scene":
 			var card: Dictionary = game.current_scene()
-			await _fx.banner("장면 %d/%d · %s" % [int(e["index"]) + 1, game.scenes.size(), card.get("name", "")], "info", m, _cond_text(card.get("condition", {}), card))
+			var stex := ArtV2.get_tex("scene", str(e.get("id", "")))
+			if stex != null:
+				await _cine.cut({"tex": stex, "title": "장면 %d/%d · %s" % [int(e["index"]) + 1, game.scenes.size(), card.get("name", "")],
+					"sub": _cond_text(card.get("condition", {}), card), "hold": 1.5}, m)
+			else:
+				await _fx.banner("장면 %d/%d · %s" % [int(e["index"]) + 1, game.scenes.size(), card.get("name", "")], "info", m, _cond_text(card.get("condition", {}), card))
 		"scene_break":
 			Sfx.play("success")
+			var bcard := _scene_card_dict(str(e.get("id", "")))
+			await _cine.cut({"tex": ArtV2.get_tex("scene", str(e.get("id", ""))), "title": str(bcard.get("name", "")) + " 돌파",
+				"stamp": "돌 파", "stamp_color": Style.GOOD, "hold": 0.9}, m)
 		"launch":
 			Music.play("tension")
 			var st: Dictionary = game.data.strike(str(e.get("target", "")))
-			await _art_card(ArtV2.get_tex("strike", str(e.get("target", ""))), "결행 · " + str(st.get("name", "")), "오늘 밤, 들이친다", m)
+			var faces := []
+			for q in game.players:
+				var ft := ArtV2.get_tex("char", str(q["character"]))
+				if ft != null:
+					faces.append(ft)
+			await _cine.cut({"tex": ArtV2.get_tex("strike", str(e.get("target", ""))), "title": "결행 · " + str(st.get("name", "")),
+				"sub": "오늘 밤, 들이친다", "portraits": faces, "stamp": "결 행", "hold": 2.2}, m)
 		"op_appear":
 			Sfx.play("alert")
 			var oc: Dictionary = game.data.op_card(str(e["id"]))
-			await _fx.banner("일제 작전 · " + str(oc.get("name", "")), "bad", m, "%s\n막는 법: %s · 기한 %d일 · %s" % [oc.get("where", ""), oc.get("how", ""), int(oc.get("deadline", 0)), oc.get("missed_text", "")])
+			var osub := "%s\n막는 법: %s · 기한 %d일 · %s" % [oc.get("where", ""), oc.get("how", ""), int(oc.get("deadline", 0)), oc.get("missed_text", "")]
+			var otex := ArtV2.get_tex("op", str(e["id"]))
+			if otex != null:
+				_cine.vignette(Style.SEAL, 0.5, 0.9 * m)
+				await _cine.cut({"tex": otex, "title": "일제 작전 · " + str(oc.get("name", "")), "sub": osub, "hold": 1.6}, m)
+			else:
+				await _fx.banner("일제 작전 · " + str(oc.get("name", "")), "bad", m, osub)
 		"op_blocked":
 			Sfx.play("success")
 			_fx.toast("일제 작전 저지 · %s (%s)" % [game.data.op_card(str(e["id"])).get("name", ""), _name(int(e["player"]))], "good")
 		"op_missed", "mission_missed":
 			Sfx.play("fail")
+		"exposure":
+			if _last_exposure >= 0 and int(e["value"]) > _last_exposure:
+				_cine.vignette(Style.SEAL, 0.55, 1.1 * m)
+			_last_exposure = int(e["value"])
 		"marker_moved":
 			_board.note_marker_moved(str(e["id"]), e["from"], e["to"])
 		"informed":
@@ -1639,7 +1643,7 @@ func _play_event(e: Dictionary) -> void:
 				var ev: Dictionary = game.data.event(str(e["id"]))
 				_fx.toast("이벤트 · %s — %s" % [ev.get("name", ""), ev.get("text", "")], "info")
 				if int(e.get("player", -1)) == human:
-					await _art_card(ArtV2.get_tex("event", str(e["id"])), "이벤트 · " + str(ev.get("name", "")), str(ev.get("text", "")), m * 0.7)
+					await _cine.cut({"tex": ArtV2.get_tex("event", str(e["id"])), "title": "이벤트 · " + str(ev.get("name", "")), "sub": str(ev.get("text", "")), "hold": 1.2}, m)
 		"dice_rolled":
 			Sfx.play("dice", 0.1, 0.6)
 		"die_given":

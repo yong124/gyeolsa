@@ -345,6 +345,8 @@ func _draw_tiles() -> void:
 			_draw_plain_tile(c, t)
 			continue
 		var key: String = def.get("used_texture", def["texture"]) if info.get("used", false) else def["texture"]
+		var art := _tile_art(c, t, info.get("used", false))   # V 연출 타일 그림 (없으면 지금 그림)
+		var face: Texture2D = art if art != null else _tex[key]
 		var r := cell_rect(c).grow(-3.0 * s)
 		if _reveal.has(c):
 			var t01: float = _reveal[c]
@@ -352,11 +354,11 @@ func _draw_tiles() -> void:
 			var lift := sin(t01 * PI) * r.size.y * 0.12
 			var rr := Rect2(r.get_center().x - r.size.x * w / 2.0, r.position.y - lift, r.size.x * w, r.size.y)
 			draw_rect(Rect2(rr.position + Vector2(0, 4 + lift), rr.size), Color(0, 0, 0, 0.3))
-			draw_texture_rect(_tex["back"] if t01 < 0.5 else _tex[key], rr, false)
+			draw_texture_rect(_back_tex() if t01 < 0.5 else face, rr, false)
 			continue
 		draw_rect(Rect2(r.position + Vector2(1, 4), r.size), Color(0, 0, 0, 0.35))
 		draw_rect(r, Style.PAPER_HI if t != "base" else Color("#d6c6a2"))
-		draw_texture_rect(_tex[key], r.grow(-3.0), false)
+		draw_texture_rect(face, r.grow(-3.0) if art == null else r, false)
 		if "hideout" in info.get("flags", []):
 			draw_rect(r.grow(-1), Color(Style.GOOD, 0.8), false, 3.0)
 		if _can_hide_at(c):
@@ -385,8 +387,14 @@ func _draw_plain_tile(c: Vector2i, t: String) -> void:
 		var lift := sin(t01 * PI) * r.size.y * 0.12
 		r = Rect2(r.get_center().x - r.size.x * w / 2.0, r.position.y - lift, r.size.x * w, r.size.y)
 		if t01 < 0.5:
-			draw_texture_rect(_tex["back"], r, false)
+			draw_texture_rect(_back_tex(), r, false)
 			return
+	var art := _tile_art(c, t, false)
+	if art != null:
+		draw_rect(Rect2(r.position + Vector2(1, 4), r.size), Color(0, 0, 0, 0.35))
+		draw_texture_rect(art, r, false)
+		_draw_hide_badge(c, r)
+		return
 	if _tex.has("new:" + t):
 		draw_rect(Rect2(r.position + Vector2(1, 4), r.size), Color(0, 0, 0, 0.35))
 		draw_rect(r, Style.PAPER_HI)
@@ -407,6 +415,20 @@ func _draw_plain_tile(c: Vector2i, t: String) -> void:
 	var lw := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, sf).x
 	draw_string(font, Vector2(r.get_center().x - lw / 2.0, r.end.y - 5.0), label, HORIZONTAL_ALIGNMENT_LEFT, -1, sf, col.darkened(0.2))
 	_draw_hide_badge(c, r)
+
+
+func _tile_art(c: Vector2i, t: String, used: bool) -> Texture2D:
+	## V 연출 타일 그림 (art/tile). 길은 칸 위치로 4장 중 하나(늘 같은 그림), 쓴 이벤트·아이템 칸은 길, 거점은 거점마다
+	if t == "base":
+		var bi := game.data.bases.find(c)
+		return ArtV2.get_tex("tile", "base_" + GameDataV2.BASE_IDS[bi]) if bi >= 0 else null
+	if t == "normal" or used:
+		return ArtV2.get_tex("tile", "normal_%d" % (posmod(c.x * 7 + c.y * 13, 4) + 1))
+	return ArtV2.get_tex("tile", t)
+
+
+func _back_tex() -> Texture2D:
+	return ArtV2.get_tex("tile", "back", _tex["back"])
 
 
 func _draw_hide_badge(c: Vector2i, r: Rect2) -> void:

@@ -38,6 +38,20 @@ func _ready() -> void:
 
 
 func _show_intro() -> void:
+	var slides := GameScreenV2.opening_slides()
+	if not slides.is_empty():
+		# V 연출: 오프닝 4컷이 있으면 그것을 도입부로
+		var holder := Control.new()
+		holder.set_anchors_preset(Control.PRESET_FULL_RECT)
+		_swap(holder)
+		var cine := CinemaV2.new()
+		holder.add_child(cine)
+		await get_tree().process_frame
+		await cine.slides(slides, 1.0)
+		Prefs.intro_seen = true
+		Prefs.save()
+		_show_title()
+		return
 	var intro := IntroScreen.new(data)
 	intro.finished.connect(func():
 		Prefs.intro_seen = true
@@ -160,14 +174,14 @@ func _training_v2() -> void:
 		defs.append({"name": "나" if i == 0 else str(data.character(id).get("name", "")), "character": id})
 	var game := RulesV2.new()
 	game.setup(defs, TRAINING_SEED)
-	_open_v2(game, {"defs": defs, "training": true})
+	_open_v2(game, {"defs": defs, "training": true, "opening": true})
 
 
 func _start_v2(defs: Array, seed_value: int) -> void:
 	SaveGameV2.erase()
 	var game := RulesV2.new()
 	game.setup(defs, seed_value)
-	_open_v2(game, {"defs": defs})
+	_open_v2(game, {"defs": defs, "opening": true})
 
 
 func _continue_v2() -> void:

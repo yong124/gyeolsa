@@ -38,6 +38,8 @@ func _ready() -> void:
 		_hot()
 	elif "tut2" in OS.get_cmdline_user_args():
 		_tut2()
+	elif "fx" in OS.get_cmdline_user_args():
+		_fxshots()
 	elif "q" in OS.get_cmdline_user_args():
 		_q()
 	elif "v2f" in OS.get_cmdline_user_args():
@@ -488,6 +490,56 @@ func _v2() -> void:
 	main._swap(e)
 	await _wait(0.8)
 	await _shot("v2_ending")
+	get_tree().quit()
+
+
+func _fxshots() -> void:
+	## V 연출 확인용: 결행 컷(초상 · 도장) · 장면 컷 · 투옥 컷 · 일제 작전 컷 · 비네트 · 먹 번짐 · 금 · 보드 타일
+	await _wait(0.5)
+	var defs := []
+	var data := GameDataV2.load_default()
+	for id in ["yun", "jeong", "gaeddong", "oh"]:
+		defs.append({"name": "나" if defs.is_empty() else str(data.character(id)["name"]), "character": id})
+	var game := RulesV2.new()
+	game.setup(defs, 4242)
+	var guard := 0   # 2막까지 AI로 진행해 보드에 타일이 깔리게
+	while game.act == 1 and game.phase != "over" and guard < 20000:
+		guard += 1
+		game.apply(GameAIV2.decide(game, GameAIV2.next_actor(game)))
+	var screen := GameScreenV2.new(game, 0, {"autoplay": true})
+	main._swap(screen)
+	screen._paused = true   # 캡처하는 동안 AI가 두지 않게
+	await _wait(1.0)
+	await _shot("fx_board")
+	var c: CinemaV2 = screen._cine
+	var faces := []
+	for q in game.players:
+		faces.append(ArtV2.get_tex("char", str(q["character"])))
+	var target := str(game.launch_info.get("target", "gg"))
+	c.cut({"tex": ArtV2.get_tex("strike", target), "title": "결행 · " + str(data.strike(target).get("name", "")), "sub": "오늘 밤, 들이친다",
+		"portraits": faces, "stamp": "결 행", "hold": 4.0}, 1.0)
+	await _wait(2.2)
+	await _shot("fx_launch")
+	c._skip = true
+	await _wait(0.6)
+	var sid := str(game.scenes[game.scene_index])
+	c.cut({"tex": ArtV2.get_tex("scene", sid), "title": "장면 · " + str(screen._scene_card_dict(sid).get("name", "")), "sub": "조건 한 줄", "stamp": "돌 파",
+		"stamp_color": Style.GOOD, "hold": 3.0}, 1.0)
+	await _wait(1.2)
+	await _shot("fx_scene_break")
+	c._skip = true
+	await _wait(0.6)
+	c.cut({"tex": ArtV2.get_tex("cut", "jail", ArtV2.get_tex("threat", "prison")), "title": "투옥 · 서대문형무소 감옥", "sub": "탈옥 판정을 하거나 동료가 구하러 올 때까지 기다린다",
+		"stamp": "투 옥", "hold": 3.0}, 1.0)
+	await _wait(1.2)
+	await _shot("fx_jail")
+	c._skip = true
+	await _wait(0.6)
+	c.vignette(Style.SEAL, 0.55, 3.0)
+	c.ink(screen._fx.focus_center + Vector2(-150, 0), true, 3.0)
+	c.ink(screen._fx.focus_center + Vector2(150, 0), false, 3.0)
+	await _wait(0.8)
+	await _shot("fx_vignette_ink")
 	get_tree().quit()
 
 
