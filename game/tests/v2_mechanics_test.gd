@@ -3433,7 +3433,19 @@ func _test_b_police_summon() -> void:
 	g.players[0]["pos"] = Vector2i(2, 2)
 	var near: Vector2i = g.data.bases[g._nearest_base(Vector2i(2, 2))]
 	g._summon(g.players[0])
-	ok(g.police.has(0) and g.police[0]["pos"] == near, "경찰 등장: 새로 붙으면 요원에게서 가장 가까운 거점에 나타남")
+	if g.walk_dist(Vector2i(2, 2), near) >= 3:
+		ok(g.police.has(0) and g.police[0]["pos"] == near, "경찰 등장: 새로 붙으면 요원에게서 가장 가까운 거점에 나타남")
+	else:
+		ok(g.police.has(0) and g.walk_dist(Vector2i(2, 2), g.police[0]["pos"]) == 3, "경찰 등장: 거점이 가까우면 3칸 떨어져 나타남")
+	# 거점 안에서 붙으면 그 거점이 아니라 3칸 떨어진 칸에 나타난다 (들어가자마자 잡히지 않게)
+	var gb := _new(CH)
+	_flat(gb)
+	var bcell: Vector2i = gb.data.bases[0]
+	gb.players[0]["pos"] = bcell
+	gb._summon(gb.players[0])
+	ok(gb.police.has(0) and gb.police[0]["pos"] != bcell and gb.walk_dist(bcell, gb.police[0]["pos"]) == 3,
+		"경찰 등장: 거점 안의 요원에게 붙은 경찰은 3칸 떨어져 나타남")
+	ok(gb.police_spawn_cell(Vector2i(0, 0)) == gb.data.bases[gb._nearest_base(Vector2i(0, 0))] 		or gb.walk_dist(Vector2i(0, 0), gb.data.bases[gb._nearest_base(Vector2i(0, 0))]) < 3, "경찰 등장: 먼 요원에게는 거점에서 나타남")
 	ok(g.police[0]["summon_turn"] == g.players[0]["turns"], "경찰 등장: 붙은 다음 차례부터 움직임 (summon_turn)")
 	# 「이 자리에 나타남」 (밀고자)
 	var g2 := _new(CH)

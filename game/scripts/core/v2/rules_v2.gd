@@ -2704,6 +2704,7 @@ func _begin_escape(p: Dictionary, die: int) -> void:
 
 func _summon(p: Dictionary, here := false) -> void:
 	## 경찰이 이 요원에게 붙는다 (붙은 다음 차례부터 움직임). 새 경찰은 그 요원에게서 가장 가까운 거점에 나타나고
+	## (거점이 spawn_min_distance칸보다 가까우면 그만큼 떨어진 칸, police_spawn_cell)
 	## (here이면 그 자리), 이미 쫓기는 요원에게 또 붙으면 새 말을 놓지 않고 쫓던 경찰이 2칸 떨어진 곳으로 옮겨 온다.
 	if p["jailed"]:
 		return
@@ -2714,10 +2715,20 @@ func _summon(p: Dictionary, here := false) -> void:
 			"summon_turn": p["turns"]}
 		_log("%s: 쫓던 경찰이 가까이 다시 자리를 잡았습니다." % p["name"])
 	elif police.size() < int(data.rules["police"]["pieces"]):
-		var at: Vector2i = p["pos"] if here else data.bases[_nearest_base(p["pos"])]
+		var at: Vector2i = p["pos"] if here else police_spawn_cell(p["pos"])
 		police[p["id"]] = {"pos": at, "summon_turn": p["turns"]}
 		_log("%s: 경찰이 붙었습니다!" % p["name"])
 	_push({"kind": "police"})
+
+
+func police_spawn_cell(pos: Vector2i) -> Vector2i:
+	## 새 경찰이 나타날 칸: 가장 가까운 거점. 다만 그 거점이 요원과 spawn_min_distance칸보다 가까우면
+	## (거점 안이나 거점 곁) 요원에게서 그만큼 떨어진, 그 거점 쪽 칸에 나타난다 (들어가자마자 잡히지 않게)
+	var base: Vector2i = data.bases[_nearest_base(pos)]
+	var min_d := int(data.rules["police"].get("spawn_min_distance", 0))
+	if min_d <= 0 or walk_dist(pos, base) >= min_d:
+		return base
+	return _near_cell(pos, base, min_d)
 
 
 func _near_cell(center: Vector2i, toward: Vector2i, dist: int) -> Vector2i:
