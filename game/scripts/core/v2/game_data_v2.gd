@@ -45,7 +45,7 @@ const KNOWN_BONUS_CONDS := ["not_chased", "faction", "days_left", "rescued_this_
 const KNOWN_SAGA_CONDITIONS := ["end_turn_near_base", "visit_base_adjacent", "touch_edge", "end_turn_at_start",
 	"visit_tile", "hold_items", "rolled_value", "give_dice", "shake_police", "pass_checkpoint",
 	"never_jailed_until_launch", "chased_turns_row", "rescue_or_escape", "same_cell_turns",
-	"coop_missions", "give_items", "strike_final_by_me", "present_at_final", "strike_entry_by_me", "mission_done_by_me", "funds_earned"]
+	"coop_missions", "give_items", "strike_final_by_me", "present_at_final", "strike_entry_by_me", "mission_done_by_me", "funds_earned", "work_give"]
 ## 3-5. 캐릭터 특성·아이템 지속 효과 stat
 const KNOWN_STATS := ["evade_auto", "escape_bonus", "rescued_move_bonus", "assassin_rerolls", "bomb_slots",
 	"work_reduce", "work_exposure", "market_item_cost", "market_bomb_cost", "move_min3", "hand_limit", "item_draw_choice",

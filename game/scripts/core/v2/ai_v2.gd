@@ -139,6 +139,9 @@ static func _choice(g: RulesV2, p: Dictionary, legal: Array, policy: Dictionary)
 				var cond: Dictionary = g.data.saga(str(v)).get("condition", {})
 				if cond.get("strike", "") == g.launch_info.get("target", ""):
 					score += 0.5
+				# 결행 사연은 진행도가 늘 0이지만 2막에서 이룰 수 있다: 진행이 절반이 안 되는 다른 사연보다는 낫게 본다
+				if str(cond.get("kind", "")) in ["strike_entry_by_me", "strike_final_by_me", "present_at_final"]:
+					score = maxf(score, 0.5)
 			"reroll":
 				score = _check_option_score(g, p, str(v))
 			"react_evade": score = 10.0 if bool(v) else 0.0
@@ -1035,6 +1038,10 @@ static func _saga_targets(g: RulesV2, p: Dictionary) -> Array:
 					var hit: bool = g.tile_has_op(g.tile_type(c), "draw_item") if cond.get("kind", "") == "hold_items" else g.tile_type(c) == tile
 					if hit and not c in seen and c != p["pos"] and not g.board[c].get("used", false):
 						cells.append(c)
+			"work_give":
+				for m in g.markers:
+					if str(m["role"]) == "work" and m["pos"] != p["pos"]:
+						cells.append(m["pos"])
 			"same_cell_turns", "give_items", "give_dice":
 				for q in g.players:
 					if q["id"] != p["id"] and not q["jailed"]:

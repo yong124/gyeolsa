@@ -2455,6 +2455,7 @@ func _work_give(p: Dictionary, die: int) -> void:
 	var status := card_status(id)
 	_log("%s: 「%s」에 주사위 %d을(를) 바쳤습니다.%s" % [p["name"], card_def(id).get("name", id), v, (" (%s)" % status) if status != "" and not done else ""])
 	_push({"kind": "work_give", "id": id, "player": p["id"], "value": v})
+	_saga_note(p, "work_give")
 	if done:
 		_complete_missions(p, [id], {"then": "resume", "source": "mission"})
 
@@ -4384,7 +4385,7 @@ func saga_progress(pid: int) -> Dictionary:
 				need = int(cond.get("count", 1))
 				have = tr.get("bases", []).size()
 			"touch_edge", "end_turn_at_start", "rolled_value", "give_dice", "shake_police", "pass_checkpoint", \
-					"chased_turns_row", "coop_missions", "give_items", "funds_earned":
+					"chased_turns_row", "coop_missions", "give_items", "funds_earned", "work_give":
 				need = int(cond.get("count", 1))
 				have = int(tr.get("n", 0))
 			"visit_tile":
@@ -4523,7 +4524,7 @@ func _saga_count(p: Dictionary, id: String, cond: Dictionary, ctx: Dictionary) -
 			return int(cond.get("value", 6)) in ctx["values"] and _bump(tr) >= count
 		"give_dice":
 			return _bump(tr) >= count
-		"shake_police", "pass_checkpoint", "coop_missions", "give_items":
+		"shake_police", "pass_checkpoint", "coop_missions", "give_items", "work_give":
 			return _bump(tr) >= count
 		"never_jailed_until_launch":
 			return bool(ctx.get("launch", false)) and p["jail_count"] == 0

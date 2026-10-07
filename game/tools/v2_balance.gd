@@ -75,7 +75,7 @@ func _run(opt: Dictionary, sets: Array) -> Dictionary:
 		"ended": 0, "stuck": 0, "rejected": 0, "fallback": 0, "actions": 0, "victory": 0,
 		"endings": {}, "launch_days": [], "launch_percent": [], "launch_reason": {}, "act2_days": [],
 		"strikes": {}, "strike_wins": {}, "scene_shown": {}, "scene_broken": {}, "stopped_scene": {},
-		"saga_dealt": {}, "saga_done": {}, "saga_per_game": 0, "character_games": {}, "character_wins": {},
+		"saga_dealt": {}, "saga_done": {}, "saga_lost": {}, "saga_kept": {}, "saga_kept_done": {}, "saga_per_game": 0, "character_games": {}, "character_wins": {},
 		"jails": 0, "escapes": 0, "rescues": 0, "confiscated": 0, "action_types": {}, "benefits": {}, "funds_gained": 0, "funds_spent": {}, "funds_lost": 0, "funds_end": [], "mission_offered": {}, "mission_missed": {}, "ops_seen": {}, "ops_blocked": {}, "ops_missed": {}, "trend_at_launch": [], "reinforce_at_launch": [],
 		"exposure_sum": 0, "exposure_days": 0, "counter_days": 0, "counter_blocked": 0, "vote_target": {}, "dice_rolled": 0, "dice_left": 0, "turns": 0,
 		"exposure_peak": 0, "alert_days": {}, "missions": {}, "threats": {}}
@@ -101,6 +101,7 @@ func _run(opt: Dictionary, sets: Array) -> Dictionary:
 			_inc(s["character_games"], str(p["character"]))
 			for id in g.saga_cards(p["id"]):
 				_inc(s["saga_dealt"], str(id))
+		var dealt_by: Array = g.players.map(func(p): return g.saga_cards(p["id"]).duplicate())
 		var before_fallback := GameAIV2.fallback_count
 		var steps := 0
 		while g.phase != "over" and steps < ACTION_CAP:
@@ -186,8 +187,15 @@ func _run(opt: Dictionary, sets: Array) -> Dictionary:
 				_inc(s["character_wins"], str(p["character"]))
 			s["jails"] += int(p["stats"]["jailed"])
 			s["escapes"] += int(p["stats"]["escapes"])
+			if str(p["saga_kept"]) != "":
+				_inc(s["saga_kept"], str(p["saga_kept"]))
+				if str(p["saga_done"]) == str(p["saga_kept"]):
+					_inc(s["saga_kept_done"], str(p["saga_kept"]))
 			if str(p["saga_done"]) != "":
 				_inc(s["saga_done"], str(p["saga_done"]))
+				for other in dealt_by[int(p["id"])]:
+					if str(other) != str(p["saga_done"]):
+						_inc(s["saga_lost"], str(other))   # 다른 사연을 먼저 이뤄서 기회가 없어진 장
 				s["saga_per_game"] += 1
 	s["win_rate"] = _rate(s["victory"], n)
 	s["standard_error"] = sqrt(float(s["win_rate"]) * (1.0 - float(s["win_rate"])) / float(maxi(n, 1)))
@@ -201,6 +209,11 @@ func _run(opt: Dictionary, sets: Array) -> Dictionary:
 	s["strike_win_rate"] = _ratios(s["strike_wins"], s["strikes"])
 	s["scene_break_rate"] = _ratios(s["scene_broken"], s["scene_shown"])
 	s["saga_rate"] = _ratios(s["saga_done"], s["saga_dealt"])
+	# 기회가 남았던 장 기준 이룸률: 받은 장 − 같은 요원이 다른 사연을 먼저 이뤄 못 쓰게 된 장
+	var chance := {}
+	for id in s["saga_dealt"]:
+		chance[id] = int(s["saga_dealt"][id]) - int(s["saga_lost"].get(id, 0))
+	s["saga_rate_open"] = _ratios(s["saga_done"], chance)
 	s["character_win_rate"] = _ratios(s["character_wins"], s["character_games"])
 	s["character_diff_pp"] = {}
 	for id in s["character_win_rate"]:
@@ -256,6 +269,14 @@ func _print_rows(rows: Array) -> void:
 		print("엔딩: ", r["endings"], " · 거점: ", r["strikes"])
 		print("거점별 승률: ", r["strike_win_rate"], " · 장면 돌파율: ", r["scene_break_rate"])
 		print("사연 이룸률: ", r["saga_rate"], " · 캐릭터 승률 차이(%p): ", r["character_diff_pp"])
+		var sr := []
+		for id in r["saga_rate"]:
+			sr.append("%s %d%%/%d%%" % [id, roundi(100.0 * float(r["saga_rate"][id])), roundi(100.0 * float(r["saga_rate_open"].get(id, 0.0)))])
+		print("사연 이룸률(받은 장 / 기회가 남았던 장): ", ", ".join(sr))
+		var kr := []
+		for id in r["saga_kept"]:
+			kr.append("%s %d/%d" % [id, int(r["saga_kept_done"].get(id, 0)), int(r["saga_kept"][id])])
+		print("결행에 품고 간 사연(이룸/품음): ", ", ".join(kr))
 		print("투옥 %d · 탈옥 %d · 구출 %d · 압수 %d장 · 판당 사연 %.2f" % [r["jails"], r["escapes"], r["rescues"], r["confiscated"], r["saga_per_game"]])
 		var per_game := {}
 		for k in r["action_types"]:

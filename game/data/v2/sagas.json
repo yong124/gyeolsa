@@ -148,10 +148,10 @@
 			"branch": "own",
 			"story": "독립자금을 모아 상해로 보내는 것이 그의 일이었다.",
 			"condition": {
-				"kind": "funds_earned",
-				"count": 5
+				"kind": "work_give",
+				"count": 2
 			},
-			"condition_text": "내가 번 군자금이 모두 5 (미션·이벤트로 들어온 몫 중 내가 받은 것)",
+			"condition_text": "공작 미션(전단 살포·독립 공채·쌀 창고 등)에 주사위를 두 번 바침",
 			"reward": [
 				{
 					"op": "funds",
@@ -364,9 +364,9 @@
 			"condition": {
 				"kind": "rescue_or_escape",
 				"rescue_within_days": 1,
-				"escapes": 2
+				"escapes": 1
 			},
-			"condition_text": "갇힌 동료를 그 동료가 갇힌 날이나 다음 날 안에 구출하거나, 탈옥에 두 번 성공",
+			"condition_text": "갇힌 동료를 그 동료가 갇힌 날이나 다음 날 안에 구출하거나, 탈옥에 한 번 성공",
 			"reward": [
 				{
 					"op": "grant_once",
@@ -450,9 +450,9 @@
 			"story": "옛 스승이 남긴 물건들을 필요한 동지들에게 나눠 주라는 부탁을 받았다.",
 			"condition": {
 				"kind": "give_items",
-				"count": 2
+				"count": 1
 			},
-			"condition_text": "동료에게 아이템을 두 번 건넴",
+			"condition_text": "동료에게 아이템을 한 번 건넴",
 			"reward": [
 				{
 					"op": "move_mod_next",
