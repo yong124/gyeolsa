@@ -38,6 +38,8 @@ func _ready() -> void:
 		_hot()
 	elif "tut2" in OS.get_cmdline_user_args():
 		_tut2()
+	elif "online" in OS.get_cmdline_user_args():
+		_online()
 	elif "fx" in OS.get_cmdline_user_args():
 		_fxshots()
 	elif "q" in OS.get_cmdline_user_args():
@@ -491,6 +493,105 @@ func _v2() -> void:
 	await _wait(0.8)
 	await _shot("v2_ending")
 	get_tree().quit()
+
+
+func _online() -> void:
+	## 온라인 확인: 같은 프로세스에 서버를 띄우고, 실제 로비 화면으로 방을 만들고, 두 번째 사람(가짜 클라이언트)이 들어와
+	## 판을 끝까지 둔다. 화면 쪽 사람 차례는 AI 판단으로 화면 단추를 누르듯 둔다 (화면이 멈추지 않는지 확인)
+	var port := 8951
+	var srv := NetServerV2.new()
+	srv.port = port
+	srv.quiet = true
+	srv.ai_step = 0.05
+	main.add_child(srv)
+	Prefs.online_url = "ws://127.0.0.1:%d" % port
+	Prefs.online_name = "나"
+	await _wait(0.3)
+	main._show_online()
+	await _wait(0.6)
+	await _shot("online_connect")
+	var net: NetClientV2 = main._net
+	net.open(Prefs.online_url, "나")
+	await _until(func(): return net.token != "")
+	await _wait(0.3)
+	await _shot("online_choose")
+	net.send({"t": "create"})
+	await _until(func(): return net.room.has("code"))
+	var friend := NetClientV2.new()
+	main.add_child(friend)
+	friend.open(Prefs.online_url, "친구")
+	await _until(func(): return friend.token != "")
+	friend.send({"t": "join", "code": net.room["code"]})
+	await _until(func(): return friend.seat >= 0)
+	friend.send({"t": "pick", "character": friend.room["seats"][friend.seat]["offer"][0]})
+	await _wait(0.4)
+	net.send({"t": "pick", "character": net.room["seats"][net.seat]["offer"][1]})
+	await _wait(0.6)
+	await _shot("online_room")
+	var fview := [null]
+	friend.game_started.connect(func(_s, v, _n): fview[0] = v)
+	friend.game_updated.connect(func(v, _e, _i): fview[0] = v)
+	net.send({"t": "start"})
+	await _until(func(): return main._screen is GameScreenV2)
+	await _wait(1.5)
+	await _shot("online_game")
+	var screen: GameScreenV2 = main._screen
+	var fsent := [false]
+	friend.game_updated.connect(func(_v, _e, _i): fsent[0] = false)
+	var guard := 0
+	var shot_turn := false
+	var day_sent := {}   # 아침 「하루 시작」은 하루에 한 번만 보낸다
+	while guard < 40000 and main._screen is GameScreenV2 and screen.game.phase != "over":
+		guard += 1
+		await get_tree().process_frame
+		# 두 번째 사람: 자기 보기만 보고 둔다
+		if fview[0] != null and not fsent[0]:
+			var fg := RulesV2.new()
+			fg.load_state(fview[0])
+			var fa := _seat_move(fg, friend.seat)
+			if fa.get("type", "") == "start_day":
+				if day_sent.get("f", -1) == fg.day:
+					fa = {}
+				else:
+					day_sent["f"] = fg.day
+			if not fa.is_empty():
+				fsent[0] = true
+				friend.act(fa)
+		# 화면 쪽 사람: 화면이 입력을 기다릴 때만
+		if screen.is_idle():
+			var a := _seat_move(screen.game, screen.human)
+			if a.get("type", "") == "start_day":
+				if day_sent.get("me", -1) == screen.game.day:
+					a = {}
+				else:
+					day_sent["me"] = screen.game.day
+			if not a.is_empty():
+				if not shot_turn and screen.game.phase == "turn":
+					shot_turn = true
+					await _shot("online_my_turn")
+				if a["type"] == "choose":
+					screen.choose_now(a["value"])
+				else:
+					screen.act_now(a)
+				await _wait(0.05)
+	print("[tour] 온라인 판 끝: phase=%s ending=%s day=%d" % [screen.game.phase, screen.game.ending.get("id", "-"), screen.game.day])
+	await _wait(3.0)
+	await _shot("online_end")
+	get_tree().quit()
+
+
+func _seat_move(g: RulesV2, seat: int) -> Dictionary:
+	## 한 자리가 지금 둘 수(없으면 빈 사전): 아침 「하루 시작」, 낮 내 차례 시작, 내 차례 · 내 선택 창은 AI 판단
+	match g.phase:
+		"plan":
+			return {"type": "start_day", "player": seat}
+		"day":
+			return {"type": "begin_turn", "player": seat} if g.can_begin_turn(g.players[seat]) else {}
+		"turn":
+			return GameAIV2.decide(g, seat) if g.current == seat else {}
+		"choice":
+			return GameAIV2.decide(g, seat) if int(g.pending.get("player", -1)) == seat else {}
+	return {}
 
 
 func _fxshots() -> void:

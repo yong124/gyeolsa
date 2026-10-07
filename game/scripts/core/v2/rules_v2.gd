@@ -5428,8 +5428,10 @@ func load_state(st: Dictionary, game_data: GameDataV2 = null) -> void:
 	for f in SAVE_FIELDS:
 		if st.has(f):
 			set(f, st[f].duplicate(true) if st[f] is Array or st[f] is Dictionary else st[f])
-	rng.seed = st["rng_seed"]
-	rng.state = st["rng_state"]
+	if st.has("rng_seed"):   # 온라인 보기(NetViewV2)에는 난수 상태가 없다
+		rng.seed = st["rng_seed"]
+	if st.has("rng_state"):
+		rng.state = st["rng_state"]
 	events.clear()
 	_dist_cache = {}
 	for q in players:   # B단계 이전에 저장한 판에는 차례 상태가 없다

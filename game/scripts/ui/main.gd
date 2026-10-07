@@ -20,6 +20,14 @@ func _ready() -> void:
 	for err in data.validate():
 		push_error("데이터 오류: " + err)
 	var args := OS.get_cmdline_user_args()
+	if "server" in args:
+		# 온라인 서버 (헤드리스): Godot --headless --path game -- server [port=8910]
+		var srv := NetServerV2.new()
+		for a in args:
+			if a.begins_with("port="):
+				srv.port = int(a.substr(5))
+		add_child(srv)
+		return
 	if "v2uitest" in args:
 		add_child(load("res://tests/v2_ui_test.gd").new())   # v2 화면 시험 (개발용)
 	elif "tour" in args:
@@ -70,6 +78,7 @@ func _show_title() -> void:
 	title.quick_requested.connect(_quick_v2)
 	title.continue_v2_requested.connect(_continue_v2)
 	title.training_requested.connect(_training_v2)
+	title.online_requested.connect(_show_online)
 	_swap(title)
 
 
@@ -192,19 +201,45 @@ func _continue_v2() -> void:
 	_open_v2(r["game"], r["meta"])
 
 
+var _net: NetClientV2 = null   # 온라인 연결 (화면이 바뀌어도 유지)
+
+
+func _show_online() -> void:
+	if _net == null:
+		_net = NetClientV2.new()
+		add_child(_net)
+	var o := OnlineScreenV2.new(_net)
+	o.back_requested.connect(_show_title)
+	o.game_ready.connect(func(seat, view):
+		var g := RulesV2.new()
+		g.load_state(view)
+		_open_v2(g, {"remote": _net, "seat": seat}))
+	_swap(o)
+
+
 func _open_v2(game: RulesV2, meta: Dictionary) -> void:
-	var screen := GameScreenV2.new(game, 0, meta)
+	var screen := GameScreenV2.new(game, int(meta.get("seat", 0)), meta)
 	screen.back_to_title.connect(_show_title)
 	screen.finished.connect(func():
 		var training: bool = meta.get("training", false)
+		var online: bool = meta.has("remote")
 		if training:
 			Prefs.v2_training_done = true
 			Prefs.save()
-		else:
+		elif not online:
 			SaveGameV2.erase()
-		var e := EndingScreenV2.new(game, 0, training)
-		e.to_menu.connect(_show_title)
-		e.replay.connect(_quick_v2)
+		var e := EndingScreenV2.new(game, int(meta.get("seat", 0)), training)
+		e.to_menu.connect(func():
+			if online:
+				_net.close()
+			_show_title())
+		e.replay.connect(func():
+			if online:
+				_net.close()   # 온라인: 다시 하기는 새 방에서
+				_net.room = {}
+				_show_online()
+			else:
+				_quick_v2())
 		_swap(e))
 	_swap(screen)
 

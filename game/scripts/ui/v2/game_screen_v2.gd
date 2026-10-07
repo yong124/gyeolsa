@@ -34,6 +34,9 @@ var _let_allies := false          # 낮: 사람이 "동료 먼저"를 눌러 둔
 var _ai_first := true             # 낮의 순서: AI 동료가 먼저 하고 내가 마지막에 한다 (토글)
 var _auto := false                # 자동 진행 (내 자리도 AI가 둠, 화면 확인·캡처용)
 var _training := false            # 훈련 작전 (안내 단계, 저장하지 않음)
+var _remote: NetClientV2 = null   # 온라인: 판정은 서버가, 이 화면은 서버가 보낸 보기만 그린다
+var _remote_queue: Array = []     # 연출 중에 온 서버 보기 (차례로 반영)
+var _remote_info := {}            # 서버가 덧붙인 정보 (아침에 기다리는 자리, AI가 맡은 자리)
 var _saved_day := -1              # 이 날 아침에 자동 저장했는가
 var _right_h := 0.0               # 오른쪽 패널이 받은 높이 (작전 기록 띠 위까지)
 
@@ -81,6 +84,11 @@ func _init(g: RulesV2, human_id := 0, meta_info := {}) -> void:
 	meta = meta_info
 	_auto = bool(meta.get("autoplay", false))
 	_training = bool(meta.get("training", false))
+	_remote = meta.get("remote", null)
+	if _remote != null:
+		_remote.game_updated.connect(_on_remote_update)
+		_remote.server_error.connect(func(msg): _fx.toast(msg, "bad"))
+		_remote.closed.connect(func(): _fx.toast("서버와 연결이 끊겼습니다. 메뉴로 나가 다시 들어오면 자리를 돌려받습니다.", "bad"))
 	_fast = _auto
 
 
@@ -297,7 +305,10 @@ func _make_row(p: Dictionary) -> Dictionary:
 	var name := UiKit.title("나" if p["id"] == human else str(ch.get("name", "")), 15, Style.INK)
 	nh.add_child(name)
 	var fac: String = str(game.data.characters.get("factions", {}).get(ch.get("faction", ""), {}).get("name", ""))
-	var sub := UiKit.text(fac + (" · " + str(ch.get("name", "")) if p["id"] == human else ""), 12, Style.INK_3, false)
+	var sub_text := fac + (" · " + str(ch.get("name", "")) if p["id"] == human else "")
+	if _remote != null and p["id"] != human and str(p["name"]) != str(ch.get("name", "")):
+		sub_text += " · %s (사람)" % p["name"]   # 온라인: 다른 사람이 맡은 자리
+	var sub := UiKit.text(sub_text, 12, Style.INK_3, false)
 	sub.size_flags_vertical = Control.SIZE_SHRINK_END
 	nh.add_child(sub)
 	v.add_child(nh)
@@ -657,14 +668,24 @@ func _refresh_actions() -> void:
 			title = "아 침 계 획"
 			hint = "오늘의 작전 주사위 · 주사위 1개 = 행동 1개 · 큰 눈을 이동에 쓸지, 판정에 남길지 정하세요"
 			primary = _take_type(others, "start_day")
-			extra_btns.append(_order_toggle())
+			if _remote != null:
+				# 온라인: 「하루 시작」은 사람마다 누르고, 모두 누르면 서버가 시작한다
+				var wait: Array = _remote_info.get("waiting_day", [])
+				primary = {"type": "start_day", "player": human} if human in wait or wait.is_empty() else {}
+				if not human in wait and not wait.is_empty():
+					hint = "준비 완료 · %d명을 기다리는 중" % wait.size()
+			else:
+				extra_btns.append(_order_toggle())
 		"day":
 			title = "누 가 먼 저 ?"
 			if game.can_begin_turn(me):
 				hint = "자유 순서 · 다음 차례를 고르세요 (내 차례 또는 동료 한 명)"
 				primary = _take_type(others, "begin_turn")
-				extra_btns.append(_order_toggle())
+				if _remote == null:
+					extra_btns.append(_order_toggle())
 				for x in legal:
+					if _remote != null:
+						break   # 온라인: 동료 차례는 그 사람(또는 서버 AI)이 시작한다
 					if x["type"] == "begin_turn" and int(x["player"]) != human:
 						var xa: Dictionary = x
 						extra_btns.append({"text": "%s 차례" % _name(int(x["player"])), "icon": "swap", "action": xa,
@@ -1390,6 +1411,11 @@ func _act(a: Dictionary) -> void:
 	a = a.duplicate()
 	a["player"] = int(a.get("player", human))
 	Sfx.play("click")
+	if _remote != null:
+		_remote.act(a)
+		if a["type"] == "start_day":
+			_fx.toast("준비 완료 · 다른 사람이 「하루 시작」을 누르기를 기다립니다", "info")
+		return
 	if a["type"] == "ability":
 		_cutin(int(a["player"]), _mult())
 	if game.apply(a):
@@ -1423,14 +1449,34 @@ func _play_queue() -> void:
 	_after_queue()
 
 
+func _on_remote_update(view: Dictionary, events: Array, info: Dictionary) -> void:
+	## 서버가 보낸 보기: 연출 중이면 줄에 세웠다가 차례로 반영한다
+	_remote_info = info
+	if _playing or not _started:
+		_remote_queue.append([view, events])
+		return
+	_apply_remote(view, events)
+
+
+func _apply_remote(view: Dictionary, events: Array) -> void:
+	game.load_state(view, game.data)
+	game.human = human
+	game.events = events.duplicate(true)
+	_pump()
+
+
 func _save_now() -> void:
 	## 이어하기 저장: 훈련·자동 진행 판과 끝난 판은 저장하지 않는다. 연출 중에는 엔진이 입력을 기다리는 상태가 아닐 수 있어 건너뛴다
-	if _training or _auto or game.phase == "over" or _playing:
+	if _training or _auto or _remote != null or game.phase == "over" or _playing:
 		return
 	SaveGameV2.write(game, meta)
 
 
 func _after_queue() -> void:
+	if not _remote_queue.is_empty():
+		var nx: Array = _remote_queue.pop_front()
+		_apply_remote(nx[0], nx[1])
+		return
 	if game.phase == "over":
 		if Prefs.v2_tips and not _tips_seen.is_empty():
 			Prefs.v2_tips = false   # 안내는 첫 판에 한해
@@ -1475,8 +1521,8 @@ func _process(delta: float) -> void:
 
 func _ai_actor() -> int:
 	## 지금 AI가 둘 차례면 그 요원 id, 사람이 둘 차례면 -1
-	if game.phase == "over":
-		return -1
+	if game.phase == "over" or _remote != null:
+		return -1   # 온라인: 다른 자리는 서버(사람 · AI)가 둔다
 	if _auto:
 		return GameAIV2.next_actor(game)
 	match game.phase:
@@ -1960,8 +2006,10 @@ func _pause() -> void:
 	box.add_child(UiKit.button("규칙 요약", func():
 		_paused = false
 		_show_rules(), 17, "paper"))
-	box.add_child(UiKit.button("훈련 그만두고 메인 메뉴로" if _training else "저장하고 메인 메뉴로", func():
+	box.add_child(UiKit.button("방 나가기 (자리는 AI가 맡음)" if _remote != null else ("훈련 그만두고 메인 메뉴로" if _training else "저장하고 메인 메뉴로"), func():
 		_choice.visible = false
+		if _remote != null:
+			_remote.close()
 		_save_now()
 		back_to_title.emit(), 17, "paper"))
 	_choice.show_with(panel)
