@@ -1,0 +1,165 @@
+"""그림 원본 만들기: v2_구현/그림_프롬프트_GPT.md의 92장을 OpenAI 이미지 API로 만든다.
+
+- 매 장 기준 그림(그림_원본/char/yun.png)을 함께 보내 그림체를 맞춘다.
+- 결과는 그림_원본/{폴더}/{id}.png (git 밖). 이미 있는 파일은 건너뛴다(다시 만들려면 --redo).
+- 기록: 그림_원본/_log.jsonl (번호, 파일, 성공/실패, 이유)
+
+필요: 환경 변수 OPENAI_API_KEY, `pip install openai pillow`
+
+예:
+  python game/tools/gen_art.py --list                 # 목록만 (API 호출 없음)
+  python game/tools/gen_art.py --only 1-33            # 1순위 33장
+  python game/tools/gen_art.py --only 13,20 --redo    # 이 번호만 다시
+  python game/tools/gen_art.py --sheet                # 만든 그림을 한 장에 모아 보기 (그림_원본/_sheet.png)
+"""
+import argparse
+import base64
+import io
+import json
+import os
+import re
+import sys
+import time
+
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+PROMPTS = os.path.join(ROOT, "v2_구현", "그림_프롬프트_GPT.md")
+OUT = os.path.join(ROOT, "그림_원본")
+REF = os.path.join(OUT, "char", "yun.png")
+LOG = os.path.join(OUT, "_log.jsonl")
+
+REF_LINE = ("Match the exact art style, line weight, cross-hatching, paper texture and color palette "
+            "of the attached reference image. Use the reference only for style; do not copy its person, pose or uniform "
+            "unless the subject below asks for it.")
+
+
+def parse():
+    """프롬프트 파일 → [{"no", "path", "name", "size", "prompt", "transparent", "out"}]"""
+    text = io.open(PROMPTS, encoding="utf-8").read()
+    items = []
+    for m in re.finditer(r"^### (\d{3}) · `([^`]+)` · (.+?)\n크기 \*\*(\d+)×(\d+)[^\n]*\n+```\n(.*?)\n```", text, re.S | re.M):
+        no, path, name, w, h, prompt = m.groups()
+        transparent = "transparent" in prompt.lower()
+        # 저장 위치: art/saga_back → saga_back.png, assets/ui/x → ui/x.png, 그 밖 folder/id → folder/id.png
+        rel = path
+        for pre in ("art/", "assets/"):
+            if rel.startswith(pre):
+                rel = rel[len(pre):]
+        items.append({"no": int(no), "path": path, "name": name.strip(), "size": "%sx%s" % (w, h),
+                      "prompt": prompt.strip(), "transparent": transparent,
+                      "out": os.path.join(OUT, *rel.split("/")) + ".png"})
+    return items
+
+
+def pick(items, only):
+    if not only:
+        return items
+    want = set()
+    for part in only.split(","):
+        if "-" in part:
+            a, b = part.split("-")
+            want.update(range(int(a), int(b) + 1))
+        else:
+            want.add(int(part))
+    return [it for it in items if it["no"] in want]
+
+
+def log(rec):
+    os.makedirs(OUT, exist_ok=True)
+    with io.open(LOG, "a", encoding="utf-8") as f:
+        f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+
+
+def generate(client, it, model, quality, retries=3):
+    prompt = REF_LINE + "\n\n" + it["prompt"]
+    kw = {"model": model, "prompt": prompt, "size": it["size"], "quality": quality, "n": 1}
+    if it["transparent"]:
+        kw["background"] = "transparent"
+    for attempt in range(1, retries + 1):
+        try:
+            with open(REF, "rb") as ref:
+                r = client.images.edit(image=[ref], **kw)
+            data = base64.b64decode(r.data[0].b64_json)
+            os.makedirs(os.path.dirname(it["out"]), exist_ok=True)
+            with open(it["out"], "wb") as f:
+                f.write(data)
+            return True, ""
+        except Exception as e:  # 거절(안전 정책)은 다시 해도 같으므로 바로 넘긴다
+            msg = str(e)
+            if "safety" in msg.lower() or "moderation" in msg.lower() or attempt == retries:
+                return False, msg[:300]
+            time.sleep(5 * attempt)
+    return False, "unknown"
+
+
+def sheet(items):
+    from PIL import Image, ImageDraw
+    have = [it for it in items if os.path.exists(it["out"])]
+    if not have:
+        print("만든 그림이 없습니다.")
+        return
+    W, cols = 220, 8
+    rows = (len(have) + cols - 1) // cols
+    img = Image.new("RGB", (cols * W, rows * (W + 24)), (239, 228, 204))
+    d = ImageDraw.Draw(img)
+    for i, it in enumerate(have):
+        im = Image.open(it["out"]).convert("RGBA")
+        im.thumbnail((W - 10, W - 10))
+        x, y = (i % cols) * W, (i // cols) * (W + 24)
+        bg = Image.new("RGBA", im.size, (239, 228, 204, 255))
+        bg.alpha_composite(im)
+        img.paste(bg.convert("RGB"), (x + 5, y + 5))
+        d.text((x + 5, y + W), "%03d %s" % (it["no"], it["path"]), fill=(35, 29, 23))
+    p = os.path.join(OUT, "_sheet.png")
+    img.save(p)
+    print("모아 보기:", p, "(%d장)" % len(have))
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--only", default="", help="번호 범위 예: 1-33 또는 13,20,41")
+    ap.add_argument("--redo", action="store_true", help="이미 있는 파일도 다시 만든다")
+    ap.add_argument("--list", action="store_true", help="목록만 보여 준다 (API 호출 없음)")
+    ap.add_argument("--sheet", action="store_true", help="만든 그림을 한 장에 모은다")
+    ap.add_argument("--model", default=os.environ.get("ART_MODEL", "gpt-image-1"))
+    ap.add_argument("--quality", default="high", choices=["low", "medium", "high"])
+    a = ap.parse_args()
+
+    items = parse()
+    if len(items) != 92:
+        print("경고: 프롬프트가 %d장입니다 (92장이어야 함)" % len(items))
+    todo = pick(items, a.only)
+
+    if a.sheet:
+        sheet(todo)
+        return
+    if a.list:
+        for it in todo:
+            mark = "있음" if os.path.exists(it["out"]) else "  - "
+            print("%03d %s %-10s %-34s %s" % (it["no"], mark, it["size"], it["path"], it["name"]))
+        return
+    if not os.path.exists(REF):
+        sys.exit("기준 그림이 없습니다: " + REF)
+    if not os.environ.get("OPENAI_API_KEY"):
+        sys.exit("OPENAI_API_KEY 환경 변수가 없습니다.")
+
+    from openai import OpenAI
+    client = OpenAI()
+    made = fail = skip = 0
+    for it in todo:
+        if os.path.exists(it["out"]) and not a.redo:
+            skip += 1
+            continue
+        print("%03d %s (%s) ..." % (it["no"], it["path"], it["name"]), flush=True)
+        ok, why = generate(client, it, a.model, a.quality)
+        log({"no": it["no"], "path": it["path"], "ok": ok, "why": why, "model": a.model, "quality": a.quality,
+             "time": time.strftime("%Y-%m-%d %H:%M:%S")})
+        if ok:
+            made += 1
+        else:
+            fail += 1
+            print("   실패:", why)
+    print("만듦 %d · 건너뜀 %d · 실패 %d" % (made, skip, fail))
+
+
+if __name__ == "__main__":
+    main()
