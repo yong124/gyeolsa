@@ -1,15 +1,17 @@
-"""그림 원본 만들기: v2_구현/그림_프롬프트_GPT.md의 92장을 OpenAI 이미지 API로 만든다.
+"""그림 원본 만들기 도우미: v2_구현/그림_프롬프트_GPT.md의 92장 (Codex 이미지 생성용 --next · --check, 또는 API로 직접 --api).
 
 - 매 장 기준 그림(그림_원본/char/yun.png)을 함께 보내 그림체를 맞춘다.
 - 결과는 그림_원본/{폴더}/{id}.png (git 밖). 이미 있는 파일은 건너뛴다(다시 만들려면 --redo).
 - 기록: 그림_원본/_log.jsonl (번호, 파일, 성공/실패, 이유)
 
-필요: 환경 변수 OPENAI_API_KEY, `pip install openai pillow`
+필요: `pip install pillow` (--api를 쓸 때만 OPENAI_API_KEY와 openai 패키지)
 
 예:
   python game/tools/gen_art.py --list                 # 목록만 (API 호출 없음)
-  python game/tools/gen_art.py --only 1-33            # 1순위 33장
-  python game/tools/gen_art.py --only 13,20 --redo    # 이 번호만 다시
+  python game/tools/gen_art.py --next 1               # 다음에 만들 그림의 완성 프롬프트·저장 경로 (Codex 이미지 생성용)
+  python game/tools/gen_art.py --check               # 만든 그림의 비율·투명 배경 확인
+  python game/tools/gen_art.py --api --only 1-33      # (API 키가 있을 때만) 1순위 33장을 API로
+  python game/tools/gen_art.py --api --only 13,20 --redo  # (API) 이 번호만 다시
   python game/tools/gen_art.py --sheet                # 만든 그림을 한 장에 모아 보기 (그림_원본/_sheet.png)
 """
 import argparse
@@ -114,12 +116,54 @@ def sheet(items):
     print("모아 보기:", p, "(%d장)" % len(have))
 
 
+def next_items(items, n):
+    """아직 없는 그림 n개: Codex가 자기 이미지 생성 기능으로 만들 때 쓰는 완성 프롬프트와 저장 경로"""
+    out = []
+    for it in items:
+        if os.path.exists(it["out"]):
+            continue
+        out.append({"no": it["no"], "name": it["name"], "save_to": it["out"], "size": it["size"],
+                    "transparent": it["transparent"], "reference": REF,
+                    "prompt": REF_LINE + "\n\n" + it["prompt"]})
+        if len(out) >= n:
+            break
+    return out
+
+
+def check(items):
+    """있는 그림이 맞는 비율인지, 열리는지, 문양은 투명인지 확인한다"""
+    from PIL import Image
+    bad = 0
+    have = 0
+    for it in items:
+        if not os.path.exists(it["out"]):
+            continue
+        have += 1
+        w, h = (int(x) for x in it["size"].split("x"))
+        try:
+            im = Image.open(it["out"])
+            iw, ih = im.size
+            if abs(iw / ih - w / h) > 0.03:
+                bad += 1
+                print("%03d 비율이 다름: %dx%d (원래 %s) %s" % (it["no"], iw, ih, it["size"], it["out"]))
+            elif it["transparent"] and im.mode != "RGBA":
+                bad += 1
+                print("%03d 투명 배경이 아님 (%s) %s" % (it["no"], im.mode, it["out"]))
+        except Exception as e:
+            bad += 1
+            print("%03d 열리지 않음: %s" % (it["no"], e))
+    print("있음 %d / %d · 문제 %d" % (have, len(items), bad))
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--only", default="", help="번호 범위 예: 1-33 또는 13,20,41")
     ap.add_argument("--redo", action="store_true", help="이미 있는 파일도 다시 만든다")
     ap.add_argument("--list", action="store_true", help="목록만 보여 준다 (API 호출 없음)")
     ap.add_argument("--sheet", action="store_true", help="만든 그림을 한 장에 모은다")
+    ap.add_argument("--next", type=int, default=0, metavar="N", help="아직 없는 그림 N개의 완성 프롬프트·저장 경로를 JSON으로 (API 호출 없음)")
+    ap.add_argument("--check", action="store_true", help="있는 그림의 비율·투명 배경을 확인한다")
+    ap.add_argument("--api", action="store_true", help="OpenAI API로 직접 만든다 (OPENAI_API_KEY 필요)")
     ap.add_argument("--model", default=os.environ.get("ART_MODEL", "gpt-image-1"))
     ap.add_argument("--quality", default="high", choices=["low", "medium", "high"])
     a = ap.parse_args()
@@ -137,6 +181,14 @@ def main():
             mark = "있음" if os.path.exists(it["out"]) else "  - "
             print("%03d %s %-10s %-34s %s" % (it["no"], mark, it["size"], it["path"], it["name"]))
         return
+    if a.next:
+        print(json.dumps(next_items(todo, a.next), ensure_ascii=False, indent=1))
+        return
+    if a.check:
+        check(todo)
+        return
+    if not a.api:
+        sys.exit("만들기는 --api(API 키) 또는 --next(Codex 이미지 생성 기능)로 한다. 지시서 R0를 보라.")
     if not os.path.exists(REF):
         sys.exit("기준 그림이 없습니다: " + REF)
     if not os.environ.get("OPENAI_API_KEY"):
