@@ -61,8 +61,8 @@ photorealistic, 3d render, anime, chibi, gore, blood, modern clothing, smartphon
 | 사연 카드 뒷면 | 2:3 | 1024×1536 세로 | 400×600 WebP | `art/saga_back.webp` |
 | 세력 문양 | 1:1 | 1024×1024 투명 배경 | 256×256 PNG(투명) | `assets/ui/faction_*.png`(덮어씀) |
 
-- **만드는 도구: GPT 이미지 생성.** 92장 전부의 완성 프롬프트(그림체 · 구도 · 자를 부분 안내 포함)는 `v2_구현/그림_프롬프트_GPT.md`에 있다. 받은 그림은 **PNG 그대로** `그림_원본/{폴더}/{id}.png`(프로젝트 맨 위, git에 올리지 않는 폴더)에 둔다. 자르기·크기·WebP 변환은 넣는 작업자가 한 번에 한다(2부).
-- 파일 이름은 아래 표의 **id**를 그대로 쓴다. 예: `그림_원본/char/yun.png`
+- **만드는 도구: GPT 이미지 생성.** 92장 전부의 완성 프롬프트(그림체 · 구도 · 자를 부분 안내 포함)는 `v2_구현/그림_프롬프트_GPT.md`에 있다. 받은 그림은 **PNG 그대로** `그림_원본/{폴더}/{번호}_{이미지이름}.png`(프로젝트 맨 위, git에 올리지 않는 폴더)에 둔다. 자르기·크기·WebP 변환은 넣는 작업자가 한 번에 한다(2부).
+- 원본 파일 이름은 **3자리 번호 + 이미지 이름**을 쓴다. 공백은 `_`로 바꾸고 `(덮어씀)` 표시는 뺀다. 예: `그림_원본/char/001_윤_소위.png`. 게임에 넣는 파일의 **id**는 아래 표대로 유지한다.
 - **웹 용량:** 목표가 30MB 안이다. PNG 그대로 92장이면 넘친다. WebP 품질 80이면 한 장 60~150KB라 전부 10MB 안팎이다.
 
 ### 1.3 우선순위
@@ -85,7 +85,7 @@ photorealistic, 3d render, anime, chibi, gore, blood, modern clothing, smartphon
 | id | 요원 | 세력 | 프롬프트 (공통 문장 뒤에) |
 |---|---|---|---|
 | `yun` | 윤 소위 | 한국광복군 | young Korean man around 22, former student soldier who deserted the Japanese army, now a Korean Liberation Army second lieutenant, khaki Chinese-style officer uniform with peaked cap, lean face, steady resolute eyes |
-| `park` | 박 하사 | 한국광복군 | Korean sergeant in his early 30s, radio operator from Chongqing, khaki uniform, headphones hanging around his neck, canvas radio strap over shoulder, square jaw, calm and practical |
+| `park` | 박 하사 | 한국광복군 | stocky Korean sergeant in his early 30s with a broad round face, heavy brows, a short trimmed mustache and close-cropped hair, wearing a soft khaki field cap (not a peaked officer cap), radio operator from Chongqing, headphones hanging around his neck, canvas radio strap over shoulder, calm and practical |
 | `han` | 한 간호장교 | 한국광복군 | Korean woman in her late 20s, army nurse officer back from the front, khaki uniform with a red cross armband, hair pinned back under a cap, medical satchel, gentle but unshaken expression |
 | `oh` | 저격수 오 | 조선의용대 | Korean man in his 30s, sniper from the North China front, padded cotton winter uniform, rifle with telescopic sight slung across his back, narrowed watchful eye, weathered skin |
 | `seok` | 석 기술자 | 조선의용대 | Korean man in his 40s, bomb-making engineer, round wire-rimmed glasses, rolled-up sleeves, leather apron, coil of fuse wire and small tools, focused careful look |
@@ -95,7 +95,7 @@ photorealistic, 3d render, anime, chibi, gore, blood, modern clothing, smartphon
 | `choi` | 최 훈장 | 의병 | elderly Korean village schoolmaster in his 60s, white hanbok and black horsehair gat hat, long thin white beard, holding a bound book and a brush, dignified quiet gaze |
 | `jeong` | 정 인쇄공 | 경성 지하조직 | Korean man in his 30s, underground print shop typesetter, flat cap, ink-stained fingers and apron, holding a small tray of metal type, tired but sharp eyes |
 | `seo` | 서 마담 | 경성 지하조직 | elegant Korean woman in her 30s, owner of a 1930s Gyeongseong coffee house that police frequent, permed short hair, Western-style dress with a brooch, coffee cup in hand, composed knowing smile |
-| `lee` | 이 차장 | 경성 지하조직 | young Korean man in his 20s, streetcar conductor, conductor uniform and cap, ticket punch and leather ticket bag, friendly face with alert eyes |
+| `lee` | 이 차장 | 경성 지하조직 | young Korean civilian man in his 20s with a slim oval face, soft features and a slight friendly smile, Gyeongseong streetcar conductor in a dark navy civilian transit uniform with a round flat-topped conductor cap (not military, no peaked army cap, no shoulder straps), ticket punch in hand and a leather ticket bag across his chest |
 
 ### 1.5 [1순위] 미션 종류 7장 — `art/mission/{type}`
 
@@ -162,7 +162,7 @@ lying on aged paper, intimate and personal mood, vertical card back composition
 | `train_ticket` | 승차권 | a 1940s paper train ticket with a punched hole |
 | `pocket_watch` | 회중시계 | an open brass pocket watch on its chain |
 | `smoke_bomb` | 연막탄 | a small canister releasing thick billowing smoke |
-| `safety_pin` | 옷핀 | a bent safety pin next to an old padlock |
+| `safety_pin` | 옷핀 | a single small brass safety pin lying on a folded white handkerchief, close-up |
 | `forged_pass` | 위조 통행증 | an official travel pass with a photograph, a forger's pen and a carved stamp beside it |
 | `cipher_book` | 암호 수첩 | a small worn notebook open to columns of number codes, a pencil |
 | `telegram` | 전보 | a folded telegram slip and a telegraph key |
@@ -272,7 +272,7 @@ ug (경성 지하조직): emblem design, a printing press letter block and a key
 그림이 일부만 들어와도 돌아가게 한다. **없으면 지금 그림으로 대신한다.**
 
 ### 2.0 원본을 게임용으로 (`game/tools/prep_art.py`)
-- 원본은 `그림_원본/{폴더}/{id}.png`(git 밖)에 있다. 스크립트가 1.2절 표대로 **가운데를 기준으로 비율에 맞게 자르고**, 크기를 줄여 `game/assets/art/{폴더}/{id}.webp`(품질 80)로 쓴다. 세력 문양만 투명 PNG 256×256으로 `game/assets/ui/`에 덮어쓴다.
+- 원본은 `그림_원본/{폴더}/{번호}_{이미지이름}.png`(git 밖)에 있다. `game/tools/gen_art.py`의 `parse()`가 원본 경로와 게임용 id를 연결한다. 스크립트가 1.2절 표대로 **가운데를 기준으로 비율에 맞게 자르고**, 크기를 줄여 `game/assets/art/{폴더}/{id}.webp`(품질 80)로 쓴다. 세력 문양만 투명 PNG 256×256으로 `game/assets/ui/`에 덮어쓴다.
 - 초상은 3:4로 자를 때 위쪽을 더 남긴다(얼굴이 위에 있으므로 위 30% · 아래 70% 비율로 자름).
 - 다시 돌려도 같은 결과가 나오게 한다. 원본이 없는 id는 건너뛰고 목록만 출력한다(몇 장 들어왔는지 보고용).
 

@@ -10,14 +10,14 @@
    `Match the exact art style, line weight, paper texture and color palette of the attached reference image.`
 3. 한 요청에 **한 장씩.** 여러 장을 한 번에 시키면 결이 흔들린다.
 4. 크기는 각 항목에 적힌 것으로 고른다(ChatGPT에서는 "세로로/가로로/정사각으로"라고 적어도 된다).
-5. 받은 그림은 PNG 그대로 `그림_원본/{폴더}/{id}.png`로 저장한다(프로젝트 맨 위 폴더, git에 올리지 않음. 예: `그림_원본/char/yun.png`, `그림_원본/saga_back.png`, `그림_원본/ui/faction_uy.png`). 자르기·WebP 변환은 넣는 작업자가 한 번에 한다(R_그림.md 2부). 직접 자르지 않아도 된다.
+5. 받은 그림은 `game/assets/art/{폴더}/{id}.png`로 저장한다(사연 뒷면은 `game/assets/art/saga_back.png`, 세력 문양은 `game/assets/ui/faction_uy.png`·`faction_ug.png`). 자르기·WebP 변환은 넣는 작업자가 한 번에 한다(R_그림.md 2부). 직접 자르지 않아도 된다.
 6. 글자가 섞여 나오면 "Remove all text from the image"로 고친다. 욱일기가 나오면 버리고 다시 뽑는다.
 7. 세력 문양 2장(마지막 2개)은 **투명 배경**으로 받는다.
 
 **공통 그림체 문장** (모든 프롬프트 안에 이미 들어 있다)
 
 ```
-Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 ```
 
 ## 1순위 · 요원 초상 12
@@ -26,7 +26,7 @@ Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and
 크기 **1024×1536 (세로)** · 넣을 때 3:4로 위아래를 조금 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: head-and-shoulders portrait, three-quarter view, face in the upper-middle of the frame, plain paper background. This will be cropped to 3:4 and to a circle around the face, so keep the whole head well inside the frame. Setting: 1940s Korea.
 Subject: young Korean man around 22, former student soldier who deserted the Japanese army, now a Korean Liberation Army second lieutenant, khaki Chinese-style officer uniform with peaked cap, lean face, steady resolute eyes.
 ```
@@ -35,16 +35,16 @@ Subject: young Korean man around 22, former student soldier who deserted the Jap
 크기 **1024×1536 (세로)** · 넣을 때 3:4로 위아래를 조금 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: head-and-shoulders portrait, three-quarter view, face in the upper-middle of the frame, plain paper background. This will be cropped to 3:4 and to a circle around the face, so keep the whole head well inside the frame. Setting: 1940s Korea.
-Subject: Korean sergeant in his early 30s, radio operator from Chongqing, khaki uniform, headphones hanging around his neck, canvas radio strap over shoulder, square jaw, calm and practical.
+Subject: stocky Korean sergeant in his early 30s with a broad round face, heavy brows, a short trimmed mustache and close-cropped hair, wearing a soft khaki field cap (not a peaked officer cap), radio operator from Chongqing, headphones hanging around his neck, canvas radio strap over shoulder, calm and practical.
 ```
 
 ### 003 · `char/han` · 한 간호장교
 크기 **1024×1536 (세로)** · 넣을 때 3:4로 위아래를 조금 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: head-and-shoulders portrait, three-quarter view, face in the upper-middle of the frame, plain paper background. This will be cropped to 3:4 and to a circle around the face, so keep the whole head well inside the frame. Setting: 1940s Korea.
 Subject: Korean woman in her late 20s, army nurse officer back from the front, khaki uniform with a red cross armband, hair pinned back under a cap, medical satchel, gentle but unshaken expression.
 ```
@@ -53,7 +53,7 @@ Subject: Korean woman in her late 20s, army nurse officer back from the front, k
 크기 **1024×1536 (세로)** · 넣을 때 3:4로 위아래를 조금 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: head-and-shoulders portrait, three-quarter view, face in the upper-middle of the frame, plain paper background. This will be cropped to 3:4 and to a circle around the face, so keep the whole head well inside the frame. Setting: 1940s Korea.
 Subject: Korean man in his 30s, sniper from the North China front, padded cotton winter uniform, rifle with telescopic sight slung across his back, narrowed watchful eye, weathered skin.
 ```
@@ -62,7 +62,7 @@ Subject: Korean man in his 30s, sniper from the North China front, padded cotton
 크기 **1024×1536 (세로)** · 넣을 때 3:4로 위아래를 조금 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: head-and-shoulders portrait, three-quarter view, face in the upper-middle of the frame, plain paper background. This will be cropped to 3:4 and to a circle around the face, so keep the whole head well inside the frame. Setting: 1940s Korea.
 Subject: Korean man in his 40s, bomb-making engineer, round wire-rimmed glasses, rolled-up sleeves, leather apron, coil of fuse wire and small tools, focused careful look.
 ```
@@ -71,7 +71,7 @@ Subject: Korean man in his 40s, bomb-making engineer, round wire-rimmed glasses,
 크기 **1024×1536 (세로)** · 넣을 때 3:4로 위아래를 조금 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: head-and-shoulders portrait, three-quarter view, face in the upper-middle of the frame, plain paper background. This will be cropped to 3:4 and to a circle around the face, so keep the whole head well inside the frame. Setting: 1940s Korea.
 Subject: young Korean woman around 20, former schoolgirl turned propaganda corps member, short bobbed hair, plain jacket over a school-style blouse, holding a bundle of leaflets to her chest, bright defiant eyes.
 ```
@@ -80,7 +80,7 @@ Subject: young Korean woman around 20, former schoolgirl turned propaganda corps
 크기 **1024×1536 (세로)** · 넣을 때 3:4로 위아래를 조금 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: head-and-shoulders portrait, three-quarter view, face in the upper-middle of the frame, plain paper background. This will be cropped to 3:4 and to a circle around the face, so keep the whole head well inside the frame. Setting: 1940s Korea.
 Subject: rugged Korean mountain hunter in his 40s, weathered face, cloth headband, hanbok jacket with a fur vest, old matchlock hunting rifle on his shoulder, wry half smile.
 ```
@@ -89,7 +89,7 @@ Subject: rugged Korean mountain hunter in his 40s, weathered face, cloth headban
 크기 **1024×1536 (세로)** · 넣을 때 3:4로 위아래를 조금 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: head-and-shoulders portrait, three-quarter view, face in the upper-middle of the frame, plain paper background. This will be cropped to 3:4 and to a circle around the face, so keep the whole head well inside the frame. Setting: 1940s Korea.
 Subject: Korean tavern-keeper woman in her 50s, plain hanbok with an apron, hair in a low bun with a wooden binyeo pin, sleeves tied up, holding a ladle, warm but tough expression.
 ```
@@ -98,7 +98,7 @@ Subject: Korean tavern-keeper woman in her 50s, plain hanbok with an apron, hair
 크기 **1024×1536 (세로)** · 넣을 때 3:4로 위아래를 조금 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: head-and-shoulders portrait, three-quarter view, face in the upper-middle of the frame, plain paper background. This will be cropped to 3:4 and to a circle around the face, so keep the whole head well inside the frame. Setting: 1940s Korea.
 Subject: elderly Korean village schoolmaster in his 60s, white hanbok and black horsehair gat hat, long thin white beard, holding a bound book and a brush, dignified quiet gaze.
 ```
@@ -107,7 +107,7 @@ Subject: elderly Korean village schoolmaster in his 60s, white hanbok and black 
 크기 **1024×1536 (세로)** · 넣을 때 3:4로 위아래를 조금 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: head-and-shoulders portrait, three-quarter view, face in the upper-middle of the frame, plain paper background. This will be cropped to 3:4 and to a circle around the face, so keep the whole head well inside the frame. Setting: 1940s Korea.
 Subject: Korean man in his 30s, underground print shop typesetter, flat cap, ink-stained fingers and apron, holding a small tray of metal type, tired but sharp eyes.
 ```
@@ -116,7 +116,7 @@ Subject: Korean man in his 30s, underground print shop typesetter, flat cap, ink
 크기 **1024×1536 (세로)** · 넣을 때 3:4로 위아래를 조금 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: head-and-shoulders portrait, three-quarter view, face in the upper-middle of the frame, plain paper background. This will be cropped to 3:4 and to a circle around the face, so keep the whole head well inside the frame. Setting: 1940s Korea.
 Subject: elegant Korean woman in her 30s, owner of a 1930s Gyeongseong coffee house that police frequent, permed short hair, Western-style dress with a brooch, coffee cup in hand, composed knowing smile.
 ```
@@ -125,9 +125,9 @@ Subject: elegant Korean woman in her 30s, owner of a 1930s Gyeongseong coffee ho
 크기 **1024×1536 (세로)** · 넣을 때 3:4로 위아래를 조금 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: head-and-shoulders portrait, three-quarter view, face in the upper-middle of the frame, plain paper background. This will be cropped to 3:4 and to a circle around the face, so keep the whole head well inside the frame. Setting: 1940s Korea.
-Subject: young Korean man in his 20s, streetcar conductor, conductor uniform and cap, ticket punch and leather ticket bag, friendly face with alert eyes.
+Subject: young Korean civilian man in his 20s with a slim oval face, soft features and a slight friendly smile, Gyeongseong streetcar conductor in a dark navy civilian transit uniform with a round flat-topped conductor cap (not military, no peaked army cap, no shoulder straps), ticket punch in hand and a leather ticket bag across his chest.
 ```
 
 ## 1순위 · 미션 종류 7
@@ -136,7 +136,7 @@ Subject: young Korean man in his 20s, streetcar conductor, conductor uniform and
 크기 **1024×1024 (정사각)** · 넣을 때 그대로
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: one central emblem-like subject with generous empty margin around it; it must still read at 40 pixels wide.
 Subject: a pistol lying on a folded newspaper under a single hanging street lamp.
 ```
@@ -145,7 +145,7 @@ Subject: a pistol lying on a folded newspaper under a single hanging street lamp
 크기 **1024×1024 (정사각)** · 넣을 때 그대로
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: one central emblem-like subject with generous empty margin around it; it must still read at 40 pixels wide.
 Subject: a shadowed figure slipping through the iron gate of a colonial stone building at night.
 ```
@@ -154,7 +154,7 @@ Subject: a shadowed figure slipping through the iron gate of a colonial stone bu
 크기 **1024×1024 (정사각)** · 넣을 때 그대로
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: one central emblem-like subject with generous empty margin around it; it must still read at 40 pixels wide.
 Subject: a tin canister bomb with a lit fuse, sparks.
 ```
@@ -163,7 +163,7 @@ Subject: a tin canister bomb with a lit fuse, sparks.
 크기 **1024×1024 (정사각)** · 넣을 때 그대로
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: one central emblem-like subject with generous empty margin around it; it must still read at 40 pixels wide.
 Subject: two hands working by lamplight over leaflets and a small ink roller.
 ```
@@ -172,7 +172,7 @@ Subject: two hands working by lamplight over leaflets and a small ink roller.
 크기 **1024×1024 (정사각)** · 넣을 때 그대로
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: one central emblem-like subject with generous empty margin around it; it must still read at 40 pixels wide.
 Subject: a sealed envelope tied with string, passing from one hand to another.
 ```
@@ -181,7 +181,7 @@ Subject: a sealed envelope tied with string, passing from one hand to another.
 크기 **1024×1024 (정사각)** · 넣을 때 그대로
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: one central emblem-like subject with generous empty margin around it; it must still read at 40 pixels wide.
 Subject: a pair of eyes watching through a torn gap in a paper window at night.
 ```
@@ -190,7 +190,7 @@ Subject: a pair of eyes watching through a torn gap in a paper window at night.
 크기 **1024×1024 (정사각)** · 넣을 때 그대로
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: one central emblem-like subject with generous empty margin around it; it must still read at 40 pixels wide.
 Subject: two hands clasping firmly, wrists in different sleeves (hanbok and uniform).
 ```
@@ -201,7 +201,7 @@ Subject: two hands clasping firmly, wrists in different sleeves (hanbok and unif
 크기 **1024×1024 (정사각)** · 넣을 때 그대로
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: one central subject with empty margin, ominous mood with seal red accents; it must read at small size.
 Subject: a police whistle and handcuffs on a list of names, one name circled in red.
 ```
@@ -210,7 +210,7 @@ Subject: a police whistle and handcuffs on a list of names, one name circled in 
 크기 **1024×1024 (정사각)** · 넣을 때 그대로
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: one central subject with empty margin, ominous mood with seal red accents; it must read at small size.
 Subject: stacked rice sacks stamped with a red seal, a soldier's bayonet shadow across them.
 ```
@@ -219,7 +219,7 @@ Subject: stacked rice sacks stamped with a red seal, a soldier's bayonet shadow 
 크기 **1024×1024 (정사각)** · 넣을 때 그대로
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: one central subject with empty margin, ominous mood with seal red accents; it must read at small size.
 Subject: a man in a trench coat and fedora with his face hidden in shadow, standing in a crowd.
 ```
@@ -228,7 +228,7 @@ Subject: a man in a trench coat and fedora with his face hidden in shadow, stand
 크기 **1024×1024 (정사각)** · 넣을 때 그대로
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: one central subject with empty margin, ominous mood with seal red accents; it must read at small size.
 Subject: a newspaper page with many lines blacked out and a large red censor stamp.
 ```
@@ -239,7 +239,7 @@ Subject: a newspaper page with many lines blacked out and a large red censor sta
 크기 **1024×1536 (세로)** · 넣을 때 2:3 그대로
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: vertical card-back design, intimate and personal mood, objects centered with paper margin all around.
 Subject: a single faded photograph and a folded letter tied with red thread, lying on aged paper.
 ```
@@ -250,7 +250,7 @@ Subject: a single faded photograph and a folded letter tied with red thread, lyi
 크기 **1536×1024 (가로)** · 넣을 때 16:9로 위아래를 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: wide establishing shot of 1940s Gyeongseong on the night before a raid, tense. Keep all important content inside the central horizontal band, because the top and bottom will be cropped to 16:9.
 Subject: the high brick walls and watchtower of Seodaemun Prison at night, searchlight beam, silhouettes of agents crouching at the foot of the wall.
 ```
@@ -259,7 +259,7 @@ Subject: the high brick walls and watchtower of Seodaemun Prison at night, searc
 크기 **1536×1024 (가로)** · 넣을 때 16:9로 위아래를 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: wide establishing shot of 1940s Gyeongseong on the night before a raid, tense. Keep all important content inside the central horizontal band, because the top and bottom will be cropped to 16:9.
 Subject: a Japanese army barracks compound behind barbed wire at night, a lit window in the commander's quarters, sentry silhouettes.
 ```
@@ -268,7 +268,7 @@ Subject: a Japanese army barracks compound behind barbed wire at night, a lit wi
 크기 **1536×1024 (가로)** · 넣을 때 16:9로 위아래를 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: wide establishing shot of 1940s Gyeongseong on the night before a raid, tense. Keep all important content inside the central horizontal band, because the top and bottom will be cropped to 16:9.
 Subject: a colonial-era police headquarters building on a city street at night, a lone figure approaching the back door with a bundle.
 ```
@@ -277,7 +277,7 @@ Subject: a colonial-era police headquarters building on a city street at night, 
 크기 **1536×1024 (가로)** · 넣을 때 16:9로 위아래를 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: wide establishing shot of 1940s Gyeongseong on the night before a raid, tense. Keep all important content inside the central horizontal band, because the top and bottom will be cropped to 16:9.
 Subject: the massive domed Government-General building seen from below at dusk, tiny figures at the main gate, empty flagpole on the dome.
 ```
@@ -288,7 +288,7 @@ Subject: the massive domed Government-General building seen from below at dusk, 
 크기 **1536×1024 (가로)** · 넣을 때 16:9로 위아래를 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: wide shot in dawn light, emotional. Keep all important content inside the central horizontal band, because the top and bottom will be cropped to 16:9.
 Subject: prison cell doors standing open, prisoners walking out into the dawn, a crowd waiting outside the gate.
 ```
@@ -297,7 +297,7 @@ Subject: prison cell doors standing open, prisoners walking out into the dawn, a
 크기 **1536×1024 (가로)** · 넣을 때 16:9로 위아래를 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: wide shot in dawn light, emotional. Keep all important content inside the central horizontal band, because the top and bottom will be cropped to 16:9.
 Subject: an empty commander's office at dawn, a fallen officer's cap on the floor, scattered maps, window open.
 ```
@@ -306,7 +306,7 @@ Subject: an empty commander's office at dawn, a fallen officer's cap on the floo
 크기 **1536×1024 (가로)** · 넣을 때 16:9로 위아래를 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: wide shot in dawn light, emotional. Keep all important content inside the central horizontal band, because the top and bottom will be cropped to 16:9.
 Subject: smoke rising from a police headquarters at dawn, people in the street looking up, papers drifting in the air.
 ```
@@ -315,7 +315,7 @@ Subject: smoke rising from a police headquarters at dawn, people in the street l
 크기 **1536×1024 (가로)** · 넣을 때 16:9로 위아래를 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: wide shot in dawn light, emotional. Keep all important content inside the central horizontal band, because the top and bottom will be cropped to 16:9.
 Subject: the Korean taegukgi flag being raised on the flagpole of the domed Government-General building at sunrise, crowd below.
 ```
@@ -324,7 +324,7 @@ Subject: the Korean taegukgi flag being raised on the flagpole of the domed Gove
 크기 **1536×1024 (가로)** · 넣을 때 16:9로 위아래를 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: wide shot in dawn light, emotional. Keep all important content inside the central horizontal band, because the top and bottom will be cropped to 16:9.
 Subject: an empty Gyeongseong street at dawn on August 15 1945, a distant crowd cheering liberation, a lone figure standing still with an unopened letter.
 ```
@@ -335,7 +335,7 @@ Subject: an empty Gyeongseong street at dawn on August 15 1945, a distant crowd 
 크기 **1536×1024 (가로)** · 넣을 때 4:3으로 양옆을 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: still life of a single object on paper, close-up, centered. Will be cropped to 4:3, keep the object away from the left and right edges.
 Subject: a 1940s paper train ticket with a punched hole.
 ```
@@ -344,7 +344,7 @@ Subject: a 1940s paper train ticket with a punched hole.
 크기 **1536×1024 (가로)** · 넣을 때 4:3으로 양옆을 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: still life of a single object on paper, close-up, centered. Will be cropped to 4:3, keep the object away from the left and right edges.
 Subject: an open brass pocket watch on its chain.
 ```
@@ -353,7 +353,7 @@ Subject: an open brass pocket watch on its chain.
 크기 **1536×1024 (가로)** · 넣을 때 4:3으로 양옆을 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: still life of a single object on paper, close-up, centered. Will be cropped to 4:3, keep the object away from the left and right edges.
 Subject: a small canister releasing thick billowing smoke.
 ```
@@ -362,16 +362,16 @@ Subject: a small canister releasing thick billowing smoke.
 크기 **1536×1024 (가로)** · 넣을 때 4:3으로 양옆을 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: still life of a single object on paper, close-up, centered. Will be cropped to 4:3, keep the object away from the left and right edges.
-Subject: a bent safety pin next to an old padlock.
+Subject: a single small brass safety pin lying on a folded white handkerchief, close-up.
 ```
 
 ### 038 · `item/forged_pass` · 위조 통행증
 크기 **1536×1024 (가로)** · 넣을 때 4:3으로 양옆을 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: still life of a single object on paper, close-up, centered. Will be cropped to 4:3, keep the object away from the left and right edges.
 Subject: an official travel pass with a photograph, a forger's pen and a carved stamp beside it.
 ```
@@ -380,7 +380,7 @@ Subject: an official travel pass with a photograph, a forger's pen and a carved 
 크기 **1536×1024 (가로)** · 넣을 때 4:3으로 양옆을 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: still life of a single object on paper, close-up, centered. Will be cropped to 4:3, keep the object away from the left and right edges.
 Subject: a small worn notebook open to columns of number codes, a pencil.
 ```
@@ -389,7 +389,7 @@ Subject: a small worn notebook open to columns of number codes, a pencil.
 크기 **1536×1024 (가로)** · 넣을 때 4:3으로 양옆을 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: still life of a single object on paper, close-up, centered. Will be cropped to 4:3, keep the object away from the left and right edges.
 Subject: a folded telegram slip and a telegraph key.
 ```
@@ -398,7 +398,7 @@ Subject: a folded telegram slip and a telegraph key.
 크기 **1536×1024 (가로)** · 넣을 때 4:3으로 양옆을 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: still life of a single object on paper, close-up, centered. Will be cropped to 4:3, keep the object away from the left and right edges.
 Subject: silhouettes of comrades on a rooftop covering an alley below.
 ```
@@ -407,7 +407,7 @@ Subject: silhouettes of comrades on a rooftop covering an alley below.
 크기 **1536×1024 (가로)** · 넣을 때 4:3으로 양옆을 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: still life of a single object on paper, close-up, centered. Will be cropped to 4:3, keep the object away from the left and right edges.
 Subject: a brass spyglass on a windowsill overlooking rooftops.
 ```
@@ -416,7 +416,7 @@ Subject: a brass spyglass on a windowsill overlooking rooftops.
 크기 **1536×1024 (가로)** · 넣을 때 4:3으로 양옆을 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: still life of a single object on paper, close-up, centered. Will be cropped to 4:3, keep the object away from the left and right edges.
 Subject: a 1930s Western suit jacket and fedora hanging on a coat stand.
 ```
@@ -427,7 +427,7 @@ Subject: a 1930s Western suit jacket and fedora hanging on a coat stand.
 크기 **1536×1024 (가로)** · 넣을 때 4:3으로 양옆을 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: a narrative street moment in 1940s Gyeongseong. Will be cropped to 4:3, keep the action away from the left and right edges.
 Subject: a hidden basement print shop, hand press, fresh leaflets hanging to dry.
 ```
@@ -436,7 +436,7 @@ Subject: a hidden basement print shop, hand press, fresh leaflets hanging to dry
 크기 **1536×1024 (가로)** · 넣을 때 4:3으로 양옆을 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: a narrative street moment in 1940s Gyeongseong. Will be cropped to 4:3, keep the action away from the left and right edges.
 Subject: a narrow hidden alley between tiled roofs opening onto another street.
 ```
@@ -445,7 +445,7 @@ Subject: a narrow hidden alley between tiled roofs opening onto another street.
 크기 **1536×1024 (가로)** · 넣을 때 4:3으로 양옆을 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: a narrative street moment in 1940s Gyeongseong. Will be cropped to 4:3, keep the action away from the left and right edges.
 Subject: a small room behind a sliding wall panel, a lamp and a bedroll, someone beckoning.
 ```
@@ -454,7 +454,7 @@ Subject: a small room behind a sliding wall panel, a lamp and a bedroll, someone
 크기 **1536×1024 (가로)** · 넣을 때 4:3으로 양옆을 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: a narrative street moment in 1940s Gyeongseong. Will be cropped to 4:3, keep the action away from the left and right edges.
 Subject: a figure disappearing into a bustling market crowd, a policeman looking the wrong way.
 ```
@@ -463,7 +463,7 @@ Subject: a figure disappearing into a bustling market crowd, a policeman looking
 크기 **1536×1024 (가로)** · 넣을 때 4:3으로 양옆을 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: a narrative street moment in 1940s Gyeongseong. Will be cropped to 4:3, keep the action away from the left and right edges.
 Subject: a secret letter hidden inside a hollowed book, coins wrapped in cloth.
 ```
@@ -472,7 +472,7 @@ Subject: a secret letter hidden inside a hollowed book, coins wrapped in cloth.
 크기 **1536×1024 (가로)** · 넣을 때 4:3으로 양옆을 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: a narrative street moment in 1940s Gyeongseong. Will be cropped to 4:3, keep the action away from the left and right edges.
 Subject: a man whispering into a policeman's ear in a doorway, pointing down the street.
 ```
@@ -481,7 +481,7 @@ Subject: a man whispering into a policeman's ear in a doorway, pointing down the
 크기 **1536×1024 (가로)** · 넣을 때 4:3으로 양옆을 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: a narrative street moment in 1940s Gyeongseong. Will be cropped to 4:3, keep the action away from the left and right edges.
 Subject: a colonial policeman's cap and watchful eyes under the brim, a new barricade behind him.
 ```
@@ -490,7 +490,7 @@ Subject: a colonial policeman's cap and watchful eyes under the brim, a new barr
 크기 **1536×1024 (가로)** · 넣을 때 4:3으로 양옆을 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: a narrative street moment in 1940s Gyeongseong. Will be cropped to 4:3, keep the action away from the left and right edges.
 Subject: a frightened student in a school uniform running into an alley, footsteps behind.
 ```
@@ -499,7 +499,7 @@ Subject: a frightened student in a school uniform running into an alley, footste
 크기 **1536×1024 (가로)** · 넣을 때 4:3으로 양옆을 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: a narrative street moment in 1940s Gyeongseong. Will be cropped to 4:3, keep the action away from the left and right edges.
 Subject: a poor rickshaw puller in the rain offering a ride, worn straw sandals.
 ```
@@ -508,7 +508,7 @@ Subject: a poor rickshaw puller in the rain offering a ride, worn straw sandals.
 크기 **1536×1024 (가로)** · 넣을 때 4:3으로 양옆을 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: a narrative street moment in 1940s Gyeongseong. Will be cropped to 4:3, keep the action away from the left and right edges.
 Subject: two old comrades recognizing each other across a crowded tram platform.
 ```
@@ -519,7 +519,7 @@ Subject: two old comrades recognizing each other across a crowded tram platform.
 크기 **1536×1024 (가로)** · 넣을 때 4:3으로 양옆을 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: oppressive colonial atmosphere seen from the resistance agents' point of view. Will be cropped to 4:3, keep the subject away from the left and right edges.
 Subject: military police in a column marching out of a gate at dawn.
 ```
@@ -528,7 +528,7 @@ Subject: military police in a column marching out of a gate at dawn.
 크기 **1536×1024 (가로)** · 넣을 때 4:3으로 양옆을 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: oppressive colonial atmosphere seen from the resistance agents' point of view. Will be cropped to 4:3, keep the subject away from the left and right edges.
 Subject: a wanted poster with a blank face, a shadowy tail following at a distance.
 ```
@@ -537,7 +537,7 @@ Subject: a wanted poster with a blank face, a shadowy tail following at a distan
 크기 **1536×1024 (가로)** · 넣을 때 4:3으로 양옆을 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: oppressive colonial atmosphere seen from the resistance agents' point of view. Will be cropped to 4:3, keep the subject away from the left and right edges.
 Subject: policemen with lanterns and swords patrolling a night street, whistles blowing.
 ```
@@ -546,7 +546,7 @@ Subject: policemen with lanterns and swords patrolling a night street, whistles 
 크기 **1536×1024 (가로)** · 넣을 때 4:3으로 양옆을 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: oppressive colonial atmosphere seen from the resistance agents' point of view. Will be cropped to 4:3, keep the subject away from the left and right edges.
 Subject: a checkpoint barricade with barbed wire across a street, a guard checking papers.
 ```
@@ -555,7 +555,7 @@ Subject: a checkpoint barricade with barbed wire across a street, a guard checki
 크기 **1536×1024 (가로)** · 넣을 때 4:3으로 양옆을 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: oppressive colonial atmosphere seen from the resistance agents' point of view. Will be cropped to 4:3, keep the subject away from the left and right edges.
 Subject: an empty street in heavy rain at night, curfew bell, searchlights in the sky.
 ```
@@ -564,7 +564,7 @@ Subject: an empty street in heavy rain at night, curfew bell, searchlights in th
 크기 **1536×1024 (가로)** · 넣을 때 4:3으로 양옆을 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: oppressive colonial atmosphere seen from the resistance agents' point of view. Will be cropped to 4:3, keep the subject away from the left and right edges.
 Subject: an overturned room after a house search, a broken cash box, scattered coins.
 ```
@@ -573,7 +573,7 @@ Subject: an overturned room after a house search, a broken cash box, scattered c
 크기 **1536×1024 (가로)** · 넣을 때 4:3으로 양옆을 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: oppressive colonial atmosphere seen from the resistance agents' point of view. Will be cropped to 4:3, keep the subject away from the left and right edges.
 Subject: an empty interrogation room, a single bare bulb over a chair, a barred window (no people, no violence).
 ```
@@ -582,7 +582,7 @@ Subject: an empty interrogation room, a single bare bulb over a chair, a barred 
 크기 **1536×1024 (가로)** · 넣을 때 4:3으로 양옆을 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: oppressive colonial atmosphere seen from the resistance agents' point of view. Will be cropped to 4:3, keep the subject away from the left and right edges.
 Subject: a quiet morning alley, laundry drying, a cat on a wall.
 ```
@@ -591,7 +591,7 @@ Subject: a quiet morning alley, laundry drying, a cat on a wall.
 크기 **1536×1024 (가로)** · 넣을 때 4:3으로 양옆을 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: oppressive colonial atmosphere seen from the resistance agents' point of view. Will be cropped to 4:3, keep the subject away from the left and right edges.
 Subject: a confused crowd and overturned carts, police running in different directions.
 ```
@@ -602,7 +602,7 @@ Subject: a confused crowd and overturned carts, police running in different dire
 크기 **1536×1024 (가로)** · 넣을 때 4:3으로 양옆을 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: a tense, cinematic interior or close action moment during a night raid. Will be cropped to 4:3, keep the action away from the left and right edges.
 Subject: agents climbing a high brick prison wall with a rope at night.
 ```
@@ -611,7 +611,7 @@ Subject: agents climbing a high brick prison wall with a rope at night.
 크기 **1536×1024 (가로)** · 넣을 때 4:3으로 양옆을 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: a tense, cinematic interior or close action moment during a night raid. Will be cropped to 4:3, keep the action away from the left and right edges.
 Subject: two agents pinning a guard against a corridor wall, keys falling.
 ```
@@ -620,7 +620,7 @@ Subject: two agents pinning a guard against a corridor wall, keys falling.
 크기 **1536×1024 (가로)** · 넣을 때 4:3으로 양옆을 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: a tense, cinematic interior or close action moment during a night raid. Will be cropped to 4:3, keep the action away from the left and right edges.
 Subject: a heavy ring of iron keys hanging from a jailer's belt, a hand reaching for it.
 ```
@@ -629,7 +629,7 @@ Subject: a heavy ring of iron keys hanging from a jailer's belt, a hand reaching
 크기 **1536×1024 (가로)** · 넣을 때 4:3으로 양옆을 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: a tense, cinematic interior or close action moment during a night raid. Will be cropped to 4:3, keep the action away from the left and right edges.
 Subject: a long corridor of cell doors, a lantern searching faces behind bars.
 ```
@@ -638,7 +638,7 @@ Subject: a long corridor of cell doors, a lantern searching faces behind bars.
 크기 **1536×1024 (가로)** · 넣을 때 4:3으로 양옆을 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: a tense, cinematic interior or close action moment during a night raid. Will be cropped to 4:3, keep the action away from the left and right edges.
 Subject: a hand stopping the clapper of a large alarm bell.
 ```
@@ -647,7 +647,7 @@ Subject: a hand stopping the clapper of a large alarm bell.
 크기 **1536×1024 (가로)** · 넣을 때 4:3으로 양옆을 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: a tense, cinematic interior or close action moment during a night raid. Will be cropped to 4:3, keep the action away from the left and right edges.
 Subject: a massive iron prison gate with a huge lock, a lockpick in trembling hands.
 ```
@@ -656,7 +656,7 @@ Subject: a massive iron prison gate with a huge lock, a lockpick in trembling ha
 크기 **1536×1024 (가로)** · 넣을 때 4:3으로 양옆을 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: a tense, cinematic interior or close action moment during a night raid. Will be cropped to 4:3, keep the action away from the left and right edges.
 Subject: wire cutters cutting through barbed wire at night.
 ```
@@ -665,7 +665,7 @@ Subject: wire cutters cutting through barbed wire at night.
 크기 **1536×1024 (가로)** · 넣을 때 4:3으로 양옆을 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: a tense, cinematic interior or close action moment during a night raid. Will be cropped to 4:3, keep the action away from the left and right edges.
 Subject: two sentries changing guard, an agent hiding in the shadow of a truck.
 ```
@@ -674,7 +674,7 @@ Subject: two sentries changing guard, an agent hiding in the shadow of a truck.
 크기 **1536×1024 (가로)** · 넣을 때 4:3으로 양옆을 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: a tense, cinematic interior or close action moment during a night raid. Will be cropped to 4:3, keep the action away from the left and right edges.
 Subject: stacked ammunition crates in a dark depot, a bomb being placed.
 ```
@@ -683,7 +683,7 @@ Subject: stacked ammunition crates in a dark depot, a bomb being placed.
 크기 **1536×1024 (가로)** · 넣을 때 4:3으로 양옆을 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: a tense, cinematic interior or close action moment during a night raid. Will be cropped to 4:3, keep the action away from the left and right edges.
 Subject: a corridor of officers' quarters, light under one door, boots outside.
 ```
@@ -692,7 +692,7 @@ Subject: a corridor of officers' quarters, light under one door, boots outside.
 크기 **1536×1024 (가로)** · 넣을 때 4:3으로 양옆을 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: a tense, cinematic interior or close action moment during a night raid. Will be cropped to 4:3, keep the action away from the left and right edges.
 Subject: a guard dog straining on its leash, agents frozen behind a wall.
 ```
@@ -701,7 +701,7 @@ Subject: a guard dog straining on its leash, agents frozen behind a wall.
 크기 **1536×1024 (가로)** · 넣을 때 4:3으로 양옆을 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: a tense, cinematic interior or close action moment during a night raid. Will be cropped to 4:3, keep the action away from the left and right edges.
 Subject: a pistol aimed at a desk lamp in a commander's office, a map on the wall.
 ```
@@ -710,7 +710,7 @@ Subject: a pistol aimed at a desk lamp in a commander's office, a map on the wal
 크기 **1536×1024 (가로)** · 넣을 때 4:3으로 양옆을 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: a tense, cinematic interior or close action moment during a night raid. Will be cropped to 4:3, keep the action away from the left and right edges.
 Subject: two agents slipping through the back door of a police station.
 ```
@@ -719,7 +719,7 @@ Subject: two agents slipping through the back door of a police station.
 크기 **1536×1024 (가로)** · 넣을 때 4:3으로 양옆을 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: a tense, cinematic interior or close action moment during a night raid. Will be cropped to 4:3, keep the action away from the left and right edges.
 Subject: a dozing duty policeman at a front desk, a figure creeping past.
 ```
@@ -728,7 +728,7 @@ Subject: a dozing duty policeman at a front desk, a figure creeping past.
 크기 **1536×1024 (가로)** · 넣을 때 4:3으로 양옆을 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: a tense, cinematic interior or close action moment during a night raid. Will be cropped to 4:3, keep the action away from the left and right edges.
 Subject: a hand cutting the wires of an alarm box on a wall.
 ```
@@ -737,7 +737,7 @@ Subject: a hand cutting the wires of an alarm box on a wall.
 크기 **1536×1024 (가로)** · 넣을 때 4:3으로 양옆을 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: a tense, cinematic interior or close action moment during a night raid. Will be cropped to 4:3, keep the action away from the left and right edges.
 Subject: shelves of police files, an agent pulling out a dossier.
 ```
@@ -746,7 +746,7 @@ Subject: shelves of police files, an agent pulling out a dossier.
 크기 **1536×1024 (가로)** · 넣을 때 4:3으로 양옆을 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: a tense, cinematic interior or close action moment during a night raid. Will be cropped to 4:3, keep the action away from the left and right edges.
 Subject: a basement lockup, prisoners' hands reaching through bars.
 ```
@@ -755,7 +755,7 @@ Subject: a basement lockup, prisoners' hands reaching through bars.
 크기 **1536×1024 (가로)** · 넣을 때 4:3으로 양옆을 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: a tense, cinematic interior or close action moment during a night raid. Will be cropped to 4:3, keep the action away from the left and right edges.
 Subject: a bomb with a fuse placed under a staircase in a police station.
 ```
@@ -764,7 +764,7 @@ Subject: a bomb with a fuse placed under a staircase in a police station.
 크기 **1536×1024 (가로)** · 넣을 때 4:3으로 양옆을 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: a tense, cinematic interior or close action moment during a night raid. Will be cropped to 4:3, keep the action away from the left and right edges.
 Subject: agents rushing the main gate of a huge domed stone building.
 ```
@@ -773,7 +773,7 @@ Subject: agents rushing the main gate of a huge domed stone building.
 크기 **1536×1024 (가로)** · 넣을 때 4:3으로 양옆을 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: a tense, cinematic interior or close action moment during a night raid. Will be cropped to 4:3, keep the action away from the left and right edges.
 Subject: a vast marble corridor, agents moving between columns.
 ```
@@ -782,7 +782,7 @@ Subject: a vast marble corridor, agents moving between columns.
 크기 **1536×1024 (가로)** · 넣을 때 4:3으로 양옆을 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: a tense, cinematic interior or close action moment during a night raid. Will be cropped to 4:3, keep the action away from the left and right edges.
 Subject: a room of telephone switchboards and telegraph machines, cables being pulled.
 ```
@@ -791,7 +791,7 @@ Subject: a room of telephone switchboards and telegraph machines, cables being p
 크기 **1536×1024 (가로)** · 넣을 때 4:3으로 양옆을 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: a tense, cinematic interior or close action moment during a night raid. Will be cropped to 4:3, keep the action away from the left and right edges.
 Subject: a dark archive of endless file cabinets, agents barricading the door.
 ```
@@ -800,7 +800,7 @@ Subject: a dark archive of endless file cabinets, agents barricading the door.
 크기 **1536×1024 (가로)** · 넣을 때 4:3으로 양옆을 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: a tense, cinematic interior or close action moment during a night raid. Will be cropped to 4:3, keep the action away from the left and right edges.
 Subject: a line of guards with rifles at the top of a grand staircase.
 ```
@@ -809,7 +809,7 @@ Subject: a line of guards with rifles at the top of a grand staircase.
 크기 **1536×1024 (가로)** · 넣을 때 4:3으로 양옆을 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: a tense, cinematic interior or close action moment during a night raid. Will be cropped to 4:3, keep the action away from the left and right edges.
 Subject: a folded taegukgi being carried up a spiral stair toward the dome.
 ```
@@ -818,7 +818,7 @@ Subject: a folded taegukgi being carried up a spiral stair toward the dome.
 크기 **1536×1024 (가로)** · 넣을 때 4:3으로 양옆을 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: a tense, cinematic interior or close action moment during a night raid. Will be cropped to 4:3, keep the action away from the left and right edges.
 Subject: a sandbagged guard post with a sentry at night.
 ```
@@ -827,7 +827,7 @@ Subject: a sandbagged guard post with a sentry at night.
 크기 **1536×1024 (가로)** · 넣을 때 4:3으로 양옆을 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: a tense, cinematic interior or close action moment during a night raid. Will be cropped to 4:3, keep the action away from the left and right edges.
 Subject: a sweeping searchlight beam crossing a courtyard.
 ```
@@ -836,7 +836,7 @@ Subject: a sweeping searchlight beam crossing a courtyard.
 크기 **1536×1024 (가로)** · 넣을 때 4:3으로 양옆을 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: a tense, cinematic interior or close action moment during a night raid. Will be cropped to 4:3, keep the action away from the left and right edges.
 Subject: a handler with several guard dogs at a gate.
 ```
@@ -845,7 +845,7 @@ Subject: a handler with several guard dogs at a gate.
 크기 **1536×1024 (가로)** · 넣을 때 4:3으로 양옆을 자름
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: a tense, cinematic interior or close action moment during a night raid. Will be cropped to 4:3, keep the action away from the left and right edges.
 Subject: a heavy steel gate slamming shut.
 ```
@@ -856,7 +856,7 @@ Subject: a heavy steel gate slamming shut.
 크기 **1024×1024 (정사각)** · 넣을 때 256×256 PNG
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: a flat emblem design, symmetrical, bold.
 Subject: a rifle crossed with a writing brush inside a circle, black and seal red.
 Background: fully transparent (PNG with alpha). The emblem only, centered.
@@ -866,7 +866,7 @@ Background: fully transparent (PNG with alpha). The emblem only, centered.
 크기 **1024×1024 (정사각)** · 넣을 때 256×256 PNG
 
 ```
-Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. No gore or blood. Not photorealistic, not 3D, not anime.
+Create an illustration. Style: a 1940s Korean woodblock print (linocut). Bold carved black ink lines and cross-hatching on textured, aged cream rice paper. Limited palette: sumi ink black, aged cream paper, seal red (#b3261e) and muted ochre, with olive drab only where needed. Strong, readable silhouette; dramatic but restrained mood. Absolutely no text, letters, numbers, captions, signatures, watermarks or logos anywhere in the image. Do not show the Japanese rising sun flag. Never draw the sun or moon as a solid red disc or any red circle in the sky or behind a figure (it reads as the Japanese flag); show sunrise or sunset only as warm light in the clouds. No gore or blood. Not photorealistic, not 3D, not anime.
 Composition: a flat emblem design, symmetrical, bold.
 Subject: a printing-press type block and an old key inside a square seal, black and seal red.
 Background: fully transparent (PNG with alpha). The emblem only, centered.

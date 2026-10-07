@@ -1,7 +1,7 @@
 """그림 원본 만들기 도우미: v2_구현/그림_프롬프트_GPT.md의 92장 (Codex 이미지 생성용 --next · --check, 또는 API로 직접 --api).
 
-- 매 장 기준 그림(그림_원본/char/yun.png)을 함께 보내 그림체를 맞춘다.
-- 결과는 그림_원본/{폴더}/{id}.png (git 밖). 이미 있는 파일은 건너뛴다(다시 만들려면 --redo).
+- 매 장 기준 그림(그림_원본/char/001_윤_소위.png)을 함께 보내 그림체를 맞춘다.
+- 결과는 그림_원본/{폴더}/{번호}_{이미지이름}.png (git 밖). 이미 있는 파일은 건너뛴다(다시 만들려면 --redo).
 - 기록: 그림_원본/_log.jsonl (번호, 파일, 성공/실패, 이유)
 
 필요: `pip install pillow` (--api를 쓸 때만 OPENAI_API_KEY와 openai 패키지)
@@ -26,8 +26,13 @@ import time
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 PROMPTS = os.path.join(ROOT, "v2_구현", "그림_프롬프트_GPT.md")
 OUT = os.path.join(ROOT, "그림_원본")
-REF = os.path.join(OUT, "char", "yun.png")
+REF = os.path.join(OUT, "char", "001_윤_소위.png")
 LOG = os.path.join(OUT, "_log.jsonl")
+# 초상(002~012)은 얼굴이 기준 인물(윤 소위)을 닮지 않게, 사람 얼굴이 없는 그림을 그림체 기준으로 쓴다
+REF_PORTRAIT = os.path.join(OUT, "mission", "016_공작.png")
+PORTRAIT_LINE = ("Match the exact art style, line weight, cross-hatching, paper texture and color palette "
+                 "of the attached reference image, which shows no face on purpose. Draw a completely new, distinct person "
+                 "exactly as described below; do not reuse any face, hairstyle or uniform from other images.")
 
 REF_LINE = ("Match the exact art style, line weight, cross-hatching, paper texture and color palette "
             "of the attached reference image. Use the reference only for style; do not copy its person, pose or uniform "
@@ -41,14 +46,16 @@ def parse():
     for m in re.finditer(r"^### (\d{3}) · `([^`]+)` · (.+?)\n크기 \*\*(\d+)×(\d+)[^\n]*\n+```\n(.*?)\n```", text, re.S | re.M):
         no, path, name, w, h, prompt = m.groups()
         transparent = "transparent" in prompt.lower()
-        # 저장 위치: art/saga_back → saga_back.png, assets/ui/x → ui/x.png, 그 밖 folder/id → folder/id.png
+        # 분류 폴더는 유지하고, 파일 이름은 3자리 번호와 이미지 이름으로 만든다.
         rel = path
         for pre in ("art/", "assets/"):
             if rel.startswith(pre):
                 rel = rel[len(pre):]
+        filename = re.sub(r'[<>:"/\\|?*\s·]+', '_', name.strip().removesuffix(" (덮어씀)")).strip('_')
+        filename = "%03d_%s.png" % (int(no), filename)
         items.append({"no": int(no), "path": path, "name": name.strip(), "size": "%sx%s" % (w, h),
                       "prompt": prompt.strip(), "transparent": transparent,
-                      "out": os.path.join(OUT, *rel.split("/")) + ".png"})
+                      "out": os.path.join(OUT, *rel.split("/")[:-1], filename)})
     return items
 
 
@@ -94,7 +101,7 @@ def generate(client, it, model, quality, retries=3):
 
 
 def sheet(items):
-    from PIL import Image, ImageDraw
+    from PIL import Image, ImageDraw, ImageFont
     have = [it for it in items if os.path.exists(it["out"])]
     if not have:
         print("만든 그림이 없습니다.")
@@ -103,6 +110,8 @@ def sheet(items):
     rows = (len(have) + cols - 1) // cols
     img = Image.new("RGB", (cols * W, rows * (W + 24)), (239, 228, 204))
     d = ImageDraw.Draw(img)
+    font_path = os.path.join(os.environ.get("WINDIR", ""), "Fonts", "malgun.ttf")
+    font = ImageFont.truetype(font_path, 12) if os.path.exists(font_path) else ImageFont.load_default()
     for i, it in enumerate(have):
         im = Image.open(it["out"]).convert("RGBA")
         im.thumbnail((W - 10, W - 10))
@@ -110,7 +119,10 @@ def sheet(items):
         bg = Image.new("RGBA", im.size, (239, 228, 204, 255))
         bg.alpha_composite(im)
         img.paste(bg.convert("RGB"), (x + 5, y + 5))
-        d.text((x + 5, y + W), "%03d %s" % (it["no"], it["path"]), fill=(35, 29, 23))
+        label = os.path.basename(it["out"])
+        while font.getlength(label) > W - 10:
+            label = label[:-4] + "..."
+        d.text((x + 5, y + W), label, font=font, fill=(35, 29, 23))
     p = os.path.join(OUT, "_sheet.png")
     img.save(p)
     print("모아 보기:", p, "(%d장)" % len(have))
@@ -122,9 +134,10 @@ def next_items(items, n):
     for it in items:
         if os.path.exists(it["out"]):
             continue
+        portrait = it["path"].startswith("char/") and it["no"] != 1
         out.append({"no": it["no"], "name": it["name"], "save_to": it["out"], "size": it["size"],
-                    "transparent": it["transparent"], "reference": REF,
-                    "prompt": REF_LINE + "\n\n" + it["prompt"]})
+                    "transparent": it["transparent"], "reference": REF_PORTRAIT if portrait else REF,
+                    "prompt": (PORTRAIT_LINE if portrait else REF_LINE) + "\n\n" + it["prompt"]})
         if len(out) >= n:
             break
     return out
