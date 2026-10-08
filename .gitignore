@@ -18,3 +18,6 @@ Desktop.ini
 
 # 그림 원본 (GPT로 만든 PNG). 게임에는 tools로 줄인 WebP만 넣는다 (v2_구현/지시서/R_그림.md)
 그림_원본/
+
+# Claude Code 로컬 설정 (워크트리 · 미리보기 설정)
+/.claude/
