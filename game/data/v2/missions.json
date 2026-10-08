@@ -63,41 +63,40 @@
 		},
 		{
 			"id": "m_bribe_guard", "name": "형무소 간수 매수", "type": "infiltrate", "intel": "prison",
-			"condition": {"kind": "infiltrate", "base": "prison",
-				"gear": {"cost": {"funds": 2}, "effects": [{"op": "entry_no_police"}], "text": "간수 매수: 군자금 2를 내면 경찰이 붙지 않음"}},
-			"markers": [{"role": "base", "at": "prison"}],
+			"condition": {"kind": "work", "mode": "sum", "target": 6},
+			"markers": [{"role": "work", "around": "prison", "min": 1, "max": 1}],
 			"bonus": {"if": {"kind": "rescued_this_turn"}, "reward": [{"op": "ready", "value": 1}], "text": "같은 차례에 동료를 구출하면 결행 준비 +1"},
 			"ready": 2,
 			"rewards": [{"op": "intel", "base": "prison", "value": 1}],
-			"where": "형무소",
-			"how": "형무소에 들어감 (경찰이 붙음). 들어갈 때 군자금 2를 내면 경찰이 붙지 않음",
+			"where": "형무소 옆 칸",
+			"how": "형무소 옆 칸의 마커에서 주사위 합 6을 바침 (간수에게 줄 뇌물. 여러 날, 여러 요원이 나눠도 됨)",
 			"text": "형무소 첩보 +1, 결행 준비 +2"
 		},
 		{
 			"id": "m_police_docs", "name": "경찰서 문서 탈취", "type": "infiltrate", "intel": "police_hq",
 			"condition": {"kind": "contact", "heavy": false},
 			"markers": [
-				{"role": "pickup", "at": "police_hq"},
+				{"role": "pickup", "around": "police_hq", "min": 1, "max": 1},
 				{"role": "dropoff", "at": "start"}
 			],
 			"bonus": {"if": {"kind": "not_chased"}, "reward": [{"op": "ready", "value": 1}], "text": "쫓기지 않고 나오면 결행 준비 +1"},
 			"ready": 2,
 			"rewards": [{"op": "intel", "base": "police_hq", "value": 2}],
-			"where": "경찰서 → 출발점",
-			"how": "경찰서에 들어가 문서를 들고 출발점까지 나옴. 든 요원이 잡히면 문서는 경찰서로 돌아감",
+			"where": "경찰서 옆 칸 → 출발점",
+			"how": "경찰서 옆 칸에서 안쪽 사람이 빼돌린 문서를 받아 출발점까지 가져감. 든 요원이 잡히면 문서는 받기 마커로 돌아감",
 			"text": "경찰서 첩보 +2, 결행 준비 +2"
 		},
 		{
 			"id": "m_gg_blueprint", "name": "총독부 설계도 입수", "type": "infiltrate", "intel": "gg",
-			"condition": {"kind": "infiltrate", "base": "gg"},
-			"markers": [{"role": "base", "at": "gg"}],
+			"condition": {"kind": "lurk", "days": 1},
+			"markers": [{"role": "spot", "around": "gg", "min": 1, "max": 1}],
 			"bonus": {"if": {"kind": "launch_target", "base": "gg"},
 				"reward": [{"op": "grant_once", "kind": "check_bonus", "value": 2, "scope": "strike"}],
 				"text": "결행 대상이 총독부면 결행 장면 판정 +2 권리를 한 장 더 (결행 때 받음)"},
 			"ready": 1,
 			"rewards": [{"op": "intel", "base": "gg", "value": 1}, {"op": "grant_once", "kind": "check_bonus", "value": 2, "scope": "strike"}],
-			"where": "총독부",
-			"how": "총독부에 들어감 (경찰이 붙음)",
+			"where": "총독부 옆 칸",
+			"how": "총독부 옆 칸의 마커에서 쫓기지 않고 차례를 마침 (드나드는 사람에게서 설계도를 넘겨받음)",
 			"text": "총독부 첩보 +1, 결행 준비 +1, 결행 장면 판정 +2 권리 한 장"
 		},
 		{
@@ -201,7 +200,7 @@
 			"id": "m_supply_ledger", "name": "군영 보급 장부", "type": "contact", "intel": null,
 			"condition": {"kind": "contact", "heavy": false},
 			"markers": [
-				{"role": "pickup", "at": "barracks"},
+				{"role": "pickup", "around": "barracks", "min": 1, "max": 1},
 				{"role": "dropoff", "around": "start", "min": 0, "max": 2}
 			],
 			"deadline": 5,
@@ -209,8 +208,8 @@
 			"bonus": {"if": {"kind": "same_day"}, "reward": [{"op": "ready", "value": 1}], "text": "같은 날 받고 주면 결행 준비 +1"},
 			"ready": 2,
 			"rewards": [{"op": "intel", "base": "barracks", "value": 2}],
-			"where": "받기 군영 안 → 주기 시내 0~2칸",
-			"how": "군영에 들어가 장부를 들고 (경찰이 붙음) 주기 마커에 들어감. 든 요원이 잡히면 장부는 군영으로 돌아감",
+			"where": "받기 군영 옆 칸 → 주기 시내 0~2칸",
+			"how": "군영 옆 칸에서 보급병이 빼돌린 장부를 받아 주기 마커에 들어감. 든 요원이 잡히면 장부는 받기 마커로 돌아감",
 			"text": "군영 첩보 +2, 결행 준비 +2",
 			"missed_text": "놓치면 노출 +1"
 		},
@@ -255,14 +254,14 @@
 			"text": "군자금 +4, 결행 준비 +1"
 		},
 		{
-			"id": "m_cover_entry", "name": "엄호 잠입", "type": "coop", "intel": "entered",
-			"condition": {"kind": "cover_entry"},
+			"id": "m_cover_entry", "name": "경찰서 앞 양동", "type": "coop", "intel": "police_hq",
+			"condition": {"kind": "people", "count": 2, "where": "adjacent", "base": "police_hq", "same_day": true},
 			"markers": [],
 			"ready": 1, "loud": false,
-			"rewards": [{"op": "intel", "base": "entered", "value": 2}, {"op": "entry_no_police"}],
-			"where": "아무 거점",
-			"how": "한 명이 거점에 들어가는 차례에 다른 한 명이 그 옆 칸에 있음",
-			"text": "그 거점 첩보 +2, 경찰이 붙지 않음, 결행 준비 +1"
+			"rewards": [{"op": "intel", "base": "police_hq", "value": 2}],
+			"where": "경찰서 옆 칸",
+			"how": "두 명이 같은 날 경찰서 옆 칸에서 차례를 마침 (한 명이 눈길을 끄는 사이 다른 한 명이 살핌)",
+			"text": "경찰서 첩보 +2, 결행 준비 +1"
 		},
 		{
 			"id": "m_prison_visit", "name": "형무소 면회", "type": "coop", "intel": "prison",

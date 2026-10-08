@@ -206,7 +206,7 @@ func mission_info(id: String) -> Dictionary:
 	if bool(m.get("loud", td.get("loud", false))):
 		secs.append(["시끄러움", "이루면 노출 +1, 경찰이 붙습니다.", Style.SEAL])
 	return {"band": "미 션 · " + str(td.get("name", "")), "color": Color("#2f7f7a") if coop else Style.MISSION,
-		"art": scr._mission_art(type), "illus": ArtV2.get_tex("mission", type), "name": str(m.get("name", "")), "sections": secs}
+		"art": scr._mission_art(type, id), "illus": ArtV2.get_tex("mission", id, ArtV2.get_tex("mission", type)), "name": str(m.get("name", "")), "sections": secs}
 
 
 func fx_text(effects: Array) -> String:

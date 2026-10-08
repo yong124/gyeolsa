@@ -5,6 +5,7 @@ extends RefCounted
 
 var scr: GameScreenV2   # 이 모듈이 맡은 화면
 var _menu: Control = null         # 주사위 행동 메뉴 (바깥을 누르면 닫힘)
+var focus := {}                   # 훈련: 추천 수를 하려면 누를 단추 {"primary", "verb", "end_turn", "menu", "dice": {주사위 번호: 단추}}
 const SECONDARY_MAX := 2          # 행동 패널의 보조 버튼 수 (나머지는 「더 보기」). 셋이면 글자가 잘림 (U1)
 
 
@@ -15,6 +16,7 @@ func _init(screen: GameScreenV2) -> void:
 # ================================================================ 행동 패널
 
 func refresh_actions() -> void:
+	focus = {"dice": {}}
 	UiKit.clear(scr._dice_row)
 	UiKit.clear(scr._act_row)
 	scr._shown_actions = []
@@ -125,6 +127,7 @@ func refresh_actions() -> void:
 		pb.icon = UiKit.ui_icon(_icon(primary) + "_light")
 		var pa: Dictionary = primary
 		scr._primary_action = pa
+		focus["primary"] = pb
 		pb.pressed.connect(func(): scr._press(pa))
 		scr._shown_actions.append(primary)
 		var key := UiKit.label("Space", 11, Color("#fff5e6"))
@@ -218,6 +221,7 @@ func _build_verbs(mine: Array, primary: Dictionary, others: Array) -> void:
 			var first: Dictionary = acts[0]
 			if rec:
 				first = primary
+				focus["verb"] = b
 				b.text = str(vb["label"]) + " ★"
 				b.tooltip_text = "추천 · " + scr._text.label(primary) + "\n" + b.tooltip_text
 			b.mouse_entered.connect(func(): hover_action(first))
@@ -243,6 +247,7 @@ func _build_verbs(mine: Array, primary: Dictionary, others: Array) -> void:
 			var aa: Dictionary = a
 			var eb := UiKit.button("차례 마치기", func(): scr._press(aa), 15, "dark")
 			eb.custom_minimum_size = Vector2(0, 40)
+			focus["end_turn"] = eb
 			col.add_child(eb)
 			scr._shown_actions.append(a)
 		else:
@@ -253,6 +258,8 @@ func _build_verbs(mine: Array, primary: Dictionary, others: Array) -> void:
 		var pa: Dictionary = primary
 		var eb2 := UiKit.button("차례 마치기", func(): scr._press(pa), 15, "dark")
 		eb2.custom_minimum_size = Vector2(0, 40)
+		focus["end_turn"] = eb2
+		focus["end_is_primary"] = true
 		col.add_child(eb2)
 		scr._shown_actions.append(primary)
 	if not rest.is_empty():
@@ -400,6 +407,7 @@ func _refresh_dice(mine: Array) -> void:
 		var v := VBoxContainer.new()
 		v.add_theme_constant_override("separation", 2)
 		var die := GameScreenV2.DieFace.new()
+		focus["dice"][i] = die
 		die.value = int(d["value"])
 		die.mine = not acts.is_empty() and not scr._playing
 		var vacts: Array = scr._verb_acts.filter(func(x): return _die_of(x) == i)
@@ -483,6 +491,8 @@ func die_menu(acts: Array, die := -1) -> void:
 			close_menu()
 			scr._press(aa), 14, "paper")
 		btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		if aa == scr._primary_action:
+			focus["menu"] = btn
 		btn.mouse_entered.connect(func(): hover_action(aa))
 		btn.mouse_exited.connect(func(): scr._board.reach = {})
 		row.add_child(btn)

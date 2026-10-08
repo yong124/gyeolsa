@@ -23,6 +23,8 @@ const TRAINING_STEPS := [
 var _tip_step: Label              # 훈련 작전 안내의 단계 번호
 var _tip_title: Label             # 훈련 작전 안내의 제목
 var _tasks := {}                  # U4: 훈련 할 일 키 -> 했는가
+var _mark: FocusMark              # 훈련: 지금 누를 곳을 금색 테두리로
+var _blocked_once := false        # 훈련: 다른 곳을 한 번 눌러 막았는가 (두 번째는 통과)
 
 
 func _init(screen: GameScreenV2) -> void:
@@ -30,6 +32,125 @@ func _init(screen: GameScreenV2) -> void:
 
 
 # ---- 첫 판 안내 말풍선
+
+# ---- 훈련: 지금 누를 곳
+
+class FocusMark extends Control:
+	## 누를 곳 둘레에 반짝이는 금색 테두리와 「여기를 누르세요」 꼬리표. 입력은 받지 않는다
+	var coach
+	var _t := 0.0
+	var _rect := Rect2()
+	var _text := ""
+
+	func _ready() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		z_index = 30
+		set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+	func _process(delta: float) -> void:
+		var f: Array = coach.focus_now()
+		var r: Rect2 = f[0]
+		var visible_now := r.size != Vector2.ZERO
+		if visible_now:
+			_t += delta
+		if r != _rect or f[1] != _text or visible_now:
+			_rect = r
+			_text = f[1]
+			queue_redraw()
+
+	func _draw() -> void:
+		if _rect.size == Vector2.ZERO:
+			return
+		var r := Rect2(_rect.position - get_global_rect().position, _rect.size).grow(6.0 + 3.0 * sin(_t * 5.0))
+		var a := 0.65 + 0.35 * sin(_t * 5.0)
+		draw_rect(r, Color(Style.GOLD_HI, 0.22 * a))
+		draw_rect(r.grow(2.0), Color(Style.SEAL, a), false, 4.0)   # 종이 바탕에서도 보이게 붉은 테두리
+		draw_rect(r.grow(-2.0), Color(Style.GOLD_HI, 0.9), false, 2.0)
+		var font := Style.sans(800)
+		var fs := 16
+		var tw := font.get_string_size(_text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x + 24
+		var above := r.position.y > 60
+		var tag := Rect2(Vector2(clampf(r.get_center().x - tw / 2.0, 8, size.x - tw - 8), (r.position.y - 40 - 6.0 * absf(sin(_t * 3.0))) if above else (r.end.y + 10)), Vector2(tw, 32))
+		draw_rect(tag, Style.SEAL)
+		draw_rect(tag, Color(Style.GOLD_HI, 0.9), false, 2.0)
+		var tip := Vector2(r.get_center().x, tag.end.y if above else tag.position.y)
+		var off := 9.0 if above else -9.0
+		draw_colored_polygon(PackedVector2Array([tip + Vector2(-9, 0), tip + Vector2(9, 0), tip + Vector2(0, off)]), Style.SEAL)
+		draw_string(font, tag.position + Vector2(12, 22), _text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color("#fff5e6"))
+
+
+func build_focus() -> void:
+	## 훈련 작전에서만: 지금 누를 곳 표시
+	_mark = FocusMark.new()
+	_mark.coach = self
+	scr.add_child(_mark)
+
+
+func _valid(c) -> bool:
+	return c is Control and is_instance_valid(c) and c.is_visible_in_tree()
+
+
+func focus_now() -> Array:
+	## [지금 누를 곳(화면 좌표, 없으면 빈 Rect2), 꼬리표 글]. 추천 수(★)를 하려면 누를 단추
+	var none := [Rect2(), ""]
+	if not scr._training or scr._auto or scr._playing or scr._paused or not scr._started:
+		return none
+	if scr._choice != null and scr._choice.visible:
+		return none
+	var f: Dictionary = scr._actions.focus
+	var g := scr.game
+	if scr._actions._menu != null:
+		return [f["menu"].get_global_rect(), "이것을 누르세요"] if _valid(f.get("menu")) else none
+	if g.phase in ["plan", "day"]:
+		if _valid(f.get("primary")):
+			return [f["primary"].get_global_rect(), "여기를 누르세요"]
+		return none
+	if g.phase != "turn" or g.current != scr.human:
+		return none
+	if g.steps_left > 0:
+		return [scr._board_rect(), "보드의 밝은 칸을 누르면 걸어갑니다"]
+	if bool(f.get("end_is_primary", false)) and _valid(f.get("end_turn")):
+		return [f["end_turn"].get_global_rect(), "주사위를 다 썼으면 차례 마치기"]
+	var pa: Dictionary = scr._primary_action
+	if scr._verb == "":
+		if _valid(f.get("verb")):
+			return [f["verb"].get_global_rect(), "★ 추천 행동을 고르세요"]
+		if _valid(f.get("primary")):
+			return [f["primary"].get_global_rect(), "여기를 누르세요"]
+		return none
+	var die := scr._actions._die_of(pa) if not pa.is_empty() else -1
+	if die < 0 and not scr._verb_acts.is_empty():
+		die = scr._actions._die_of(scr._verb_acts[0])
+	var dc = f.get("dice", {}).get(die)
+	if _valid(dc):
+		return [dc.get_global_rect(), "이 주사위를 누르세요"]
+	return none
+
+
+func guard_click(event: InputEvent) -> bool:
+	## 훈련: 누를 곳이 아닌 데를 누르면 한 번 막고 알려 준다 (두 번째는 그대로 통과 — 자유롭게 둬도 됨). 막았으면 true
+	if not (event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT):
+		return false
+	var f := focus_now()
+	var r: Rect2 = f[0]
+	if r.size == Vector2.ZERO:
+		return false
+	var p := scr.get_global_mouse_position()
+	var ok := r.grow(8.0).has_point(p)
+	if scr._tip != null and scr._tip.visible and scr._tip.get_global_rect().has_point(p):
+		ok = true   # 안내 말풍선 「알겠습니다」
+	if p.x > scr.size.x - 90 and p.y < 80:
+		ok = true   # 오른쪽 위 메뉴(≡)
+	if ok:
+		_blocked_once = false
+		return false
+	if _blocked_once:
+		_blocked_once = false
+		return false   # 두 번째: 원하는 대로 두게 둔다
+	_blocked_once = true
+	scr._fx.toast("훈련 · 반짝이는 곳을 눌러 보세요 (다른 수를 두고 싶으면 한 번 더 누르세요)", "info")
+	return true
+
 
 func build_tasks() -> void:
 	## U4: 훈련 「할 일」 — 직접 한 번씩 해 보면 ✓ (왼쪽 레일, 동료 아래)

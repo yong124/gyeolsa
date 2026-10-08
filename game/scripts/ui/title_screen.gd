@@ -38,7 +38,7 @@ func _ready() -> void:
 	Music.play("main")
 
 	var art := TextureRect.new()
-	art.texture = load("res://assets/ui/title.png")
+	art.texture = cover_texture()
 	art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	art.custom_minimum_size = Vector2(820, 0)
@@ -59,6 +59,7 @@ func _ready() -> void:
 	art.add_child(shade)
 	shade.set_anchors_and_offsets_preset(Control.PRESET_RIGHT_WIDE)
 	shade.offset_left = -80
+	art.add_child(_cover_title())
 
 	var desk := TextureRect.new()
 	desk.texture = Style.tex("desk")
@@ -76,7 +77,7 @@ func _ready() -> void:
 	center.add_child(folder)
 	_panel = VBoxContainer.new()
 	_panel.add_theme_constant_override("separation", 10)
-	_panel.custom_minimum_size = Vector2(600, 0)
+	_panel.custom_minimum_size = Vector2(640, 0)
 	folder.add_child(_panel)
 	var clip := _clip()
 	folder.add_child(clip)
@@ -85,6 +86,35 @@ func _ready() -> void:
 	# HBoxContainer 안에 두면 배치가 틀어지므로 부모(메인)에 붙일 수 있게 나중에 추가
 	call_deferred("_attach_overlay")
 	_show_menu()
+
+
+static func cover_texture() -> AtlasTexture:
+	## 표지 그림의 태극기 쪽 (왼쪽에 박힌 「光復 IF」 글씨는 쓰지 않는다. 이름은 「결사」)
+	var cover := AtlasTexture.new()
+	cover.atlas = load("res://assets/ui/title.png")
+	cover.region = Rect2(620, 0, 780, 1318)
+	return cover
+
+
+func _cover_title() -> Control:
+	## 표지 위 제목: 세로로 큰 「結社」와 한 줄 (먹 글씨 · 종이 그림자)
+	var box := VBoxContainer.new()
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.add_theme_constant_override("separation", -18)
+	box.position = Vector2(64, 70)
+	for ch in ["結", "社"]:
+		var l := UiKit.title(ch, 168, Style.INK, 900)
+		l.add_theme_font_override("font", Style.serif(900))
+		l.add_theme_color_override("font_shadow_color", Color(0.94, 0.89, 0.78, 0.85))
+		l.add_theme_constant_override("shadow_offset_x", 3)
+		l.add_theme_constant_override("shadow_offset_y", 3)
+		l.add_theme_constant_override("shadow_outline_size", 10)
+		box.add_child(l)
+	var sub := UiKit.title("1945 · 경성", 26, Style.SEAL_DARK, 800)
+	sub.add_theme_color_override("font_shadow_color", Color(0.94, 0.89, 0.78, 0.9))
+	sub.add_theme_constant_override("shadow_outline_size", 8)
+	box.add_child(sub)
+	return box
 
 
 func _clip() -> Control:
@@ -122,37 +152,156 @@ func _exit_tree() -> void:
 # ------------------------------------------------------------------ 메뉴
 
 func _show_menu() -> void:
+	## 큰 선택 하나(이어하기, 없으면 바로 시작) + 그림 카드 셋(새 작전 · 훈련 · 온라인) + 작은 글자 줄
 	UiKit.clear(_panel)
 	var head := HBoxContainer.new()
 	var tv := VBoxContainer.new()
-	tv.add_theme_constant_override("separation", 0)
+	tv.add_theme_constant_override("separation", 2)
 	tv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	tv.add_child(UiKit.title(_data.text["title"], 54, Style.INK, 900))
-	tv.add_child(UiKit.text("1945, 우리 손으로 되찾는 광복", 16, Style.INK_3, false, 600))
+	var name_l := UiKit.title(_data.text["title"], 50, Style.INK, 900)
+	name_l.add_theme_font_override("font", Style.serif(900))
+	tv.add_child(name_l)
+	tv.add_child(UiKit.text("1945년 8월, 경성 · 네 요원의 협력 보드게임", 16, Style.INK_3, false, 600))
 	head.add_child(tv)
 	var st := UiKit.stamp("極 秘", 24, Style.SEAL, -9)
 	st.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	head.add_child(st)
 	_panel.add_child(head)
-	var sp := Control.new()
-	sp.custom_minimum_size = Vector2(0, 14)
-	_panel.add_child(sp)
+	_panel.add_child(UiKit.hsep())
 	var saved := SaveGameV2.exists()
+	var quick := func(): _confirm_new(func(): quick_requested.emit())
 	if saved:
-		_menu_button("이어하기", func(): continue_v2_requested.emit(), SaveGameV2.summary(), true)
-	_menu_button("바로 시작", func(): _confirm_new(func(): quick_requested.emit()), "요원은 결사가 정합니다 · 한 판 60~90분", not saved)
-	_menu_button("요원 골라 시작", func(): _confirm_new(func(): v2_requested.emit()), "요원 카드 두 장 중 한 사람")
-	_menu_button("훈련 작전", func(): training_requested.emit(), "안내를 따라 한 판" + ("" if Prefs.v2_training_done else " · 처음이라면 추천"))
+		_panel.add_child(_hero("이어하기", SaveGameV2.summary(), ArtV2.get_tex("cut", "opening_2"), func(): continue_v2_requested.emit()))
+	else:
+		_panel.add_child(_hero("바로 시작", "요원은 결사가 정합니다 · 한 판 40~70분", ArtV2.get_tex("cut", "opening_2"), quick))
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	_panel.add_child(row)
+	if saved:
+		row.add_child(_card("새 작전", "바로 시작", ArtV2.get_tex("cut", "opening_3"), quick))
+	else:
+		row.add_child(_card("요원 골라 시작", "두 장 중 한 사람", ArtV2.get_tex("cut", "opening_3"), func(): _confirm_new(func(): v2_requested.emit())))
+	row.add_child(_card("훈련 작전", "처음이라면 추천" if not Prefs.v2_training_done else "안내를 따라 한 판", ArtV2.get_tex("mission", "work"), func(): training_requested.emit(), not Prefs.v2_training_done))
 	if not OS.has_feature("web") or NetClientV2.web_online_ready():   # 웹판은 wss:// 서버 주소(online.json)가 있을 때만
-		_menu_button("온라인", func(): online_requested.emit(), "사람끼리 · 방을 만들거나 코드로 참가 · 빈자리는 AI")
-	_menu_button("규칙 요약", func():
+		row.add_child(_card("온라인", "친구와 2~4명", ArtV2.get_tex("cut", "opening_4"), func(): online_requested.emit()))
+	var links := HFlowContainer.new()
+	links.add_theme_constant_override("h_separation", 4)
+	links.alignment = FlowContainer.ALIGNMENT_CENTER
+	_panel.add_child(links)
+	var items := []
+	if saved:
+		items.append(["요원 골라 시작", func(): _confirm_new(func(): v2_requested.emit())])
+	items.append(["규칙 요약", func():
 		var r := GameScreenV2.rules_panel(GameDataV2.load_default(), func(): _overlay.visible = false)
-		_overlay.show_with(r), "")
-	_menu_button("설정", _show_settings, "")
-	_menu_button("도입부 다시 보기", func(): intro_requested.emit(), "")
+		_overlay.show_with(r)])
+	items.append(["설정", _show_settings])
+	items.append(["도입부", func(): intro_requested.emit()])
 	if not OS.has_feature("web"):   # 웹판에서는 구판과 종료를 숨긴다 (창을 닫으면 끝)
-		_menu_button("구판 (v1)", _show_v1, "처음 만든 규칙 · 기록용")
-		_menu_button("종료", func(): get_tree().quit(), "")
+		items.append(["구판 (v1)", _show_v1])
+		items.append(["종료", func(): get_tree().quit()])
+	for i in items.size():
+		if i > 0:
+			links.add_child(UiKit.text("·", 15, Style.INK_3, false))
+		var it: Array = items[i]
+		var b := UiKit.button(str(it[0]), func():
+			Sfx.play("click")
+			it[1].call(), 16, "tab")
+		b.custom_minimum_size = Vector2(0, 34)
+		links.add_child(b)
+
+
+func _choice_style(b: Button, accent: bool) -> void:
+	## 그림 카드 단추: 종이 바탕 · 먹 테두리, 올리면 인주 테두리
+	var normal := Style.flat(Color("#f6eedb"), Style.SEAL if accent else Style.INK_3, 2 if accent else 1, 4, 0)
+	var hover := Style.flat(Color("#fff7e4"), Style.SEAL, 3, 4, 0)
+	var pressed := Style.flat(Color("#efe2c4"), Style.SEAL_DARK, 3, 4, 0)
+	for k in [["normal", normal], ["hover", hover], ["pressed", pressed], ["focus", hover]]:
+		b.add_theme_stylebox_override(k[0], k[1])
+	b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	b.mouse_entered.connect(func():
+		b.pivot_offset = b.size / 2.0
+		b.create_tween().tween_property(b, "scale", Vector2(1.02, 1.02), 0.08))
+	b.mouse_exited.connect(func(): b.create_tween().tween_property(b, "scale", Vector2.ONE, 0.1))
+
+
+func _art_rect(tex: Texture2D, sz: Vector2) -> TextureRect:
+	var t := TextureRect.new()
+	t.texture = tex
+	t.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	t.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	t.custom_minimum_size = sz
+	t.clip_contents = true
+	t.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return t
+
+
+func _hero(title: String, sub: String, tex: Texture2D, cb: Callable) -> Button:
+	## 큰 선택: 왼쪽 그림 · 오른쪽 제목과 한 줄
+	var b := Button.new()
+	_choice_style(b, true)
+	b.custom_minimum_size = Vector2(0, 150)
+	b.pressed.connect(func():
+		Sfx.play("click")
+		cb.call())
+	var h := HBoxContainer.new()
+	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	h.add_theme_constant_override("separation", 18)
+	b.add_child(h)
+	h.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	h.offset_left = 6
+	h.offset_top = 6
+	h.offset_bottom = -6
+	h.offset_right = -14
+	if tex != null:
+		h.add_child(_art_rect(tex, Vector2(230, 0)))
+	var v := VBoxContainer.new()
+	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.alignment = BoxContainer.ALIGNMENT_CENTER
+	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	h.add_child(v)
+	var t := UiKit.title(title, 34, Style.SEAL_DARK, 900)
+	t.add_theme_font_override("font", Style.serif(900))
+	t.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_child(t)
+	var s := UiKit.text(sub, 15, Style.INK_2, true, 600)
+	s.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_child(s)
+	var go := UiKit.text("▶  눌러서 시작", 14, Style.SEAL, false, 800)
+	go.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_child(go)
+	return b
+
+
+func _card(title: String, sub: String, tex: Texture2D, cb: Callable, accent := false) -> Button:
+	## 작은 선택: 위에 그림 · 아래 제목과 한 줄
+	var b := Button.new()
+	_choice_style(b, accent)
+	b.custom_minimum_size = Vector2(0, 196)
+	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	b.pressed.connect(func():
+		Sfx.play("click")
+		cb.call())
+	var v := VBoxContainer.new()
+	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_theme_constant_override("separation", 4)
+	b.add_child(v)
+	v.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	v.offset_left = 5
+	v.offset_top = 5
+	v.offset_right = -5
+	v.offset_bottom = -8
+	if tex != null:
+		var a := _art_rect(tex, Vector2(0, 112))
+		v.add_child(a)
+	var t := UiKit.title(title, 20, Style.INK, 900)
+	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	t.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_child(t)
+	var s := UiKit.text(sub, 13, Style.SEAL if accent else Style.INK_3, false, 700)
+	s.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	s.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_child(s)
+	return b
 
 
 func _confirm_new(go: Callable) -> void:

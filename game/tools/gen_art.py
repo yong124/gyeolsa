@@ -25,7 +25,8 @@ import time
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 PROMPTS = [os.path.join(ROOT, "v2_구현", "그림_프롬프트_GPT.md"),   # R: 001~092
-           os.path.join(ROOT, "v2_구현", "그림_프롬프트_V.md")]     # V 연출: 093~116 (타일 · 책상 · 컷신)
+           os.path.join(ROOT, "v2_구현", "그림_프롬프트_V.md"),     # V 연출: 093~116 (타일 · 책상 · 컷신)
+           os.path.join(ROOT, "v2_구현", "그림_프롬프트_미션.md")]  # 미션 카드별: 117~138
 OUT = os.path.join(ROOT, "그림_원본")
 REF = os.path.join(OUT, "char", "001_윤_소위.png")
 LOG = os.path.join(OUT, "_log.jsonl")

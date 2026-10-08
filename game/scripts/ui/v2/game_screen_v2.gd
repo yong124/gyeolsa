@@ -295,6 +295,8 @@ func _build() -> void:
 	_peek.attach(_top._threat, _text.threat_info)
 	_coach.build_tip()
 	if _training:
+		_coach.build_focus()
+	if _training:
 		_coach.build_tasks()
 
 
@@ -640,7 +642,7 @@ func _refresh_mid() -> void:
 				band += " · %d일" % days
 			var status := game.card_status(str(id))
 			desc = status if status != "" else str(m.get("text", ""))   # U1: 진행이 없으면 보상을 한 줄로
-			var card := _rail_card(band, Color("#2f7f7a") if coop else Style.MISSION, ArtV2.get_tex("mission", type, _mission_art(type)),
+			var card := _rail_card(band, Color("#2f7f7a") if coop else Style.MISSION, _mission_art(type, str(id)),
 				str(m.get("name", "")), desc)
 			_peek.attach(card, _text.mission_info(str(id)))
 			_mid_box.add_child(card)
@@ -765,9 +767,10 @@ func _hover_lift(b: Control) -> void:
 	b.mouse_exited.connect(func(): b.create_tween().tween_property(b, "scale", Vector2.ONE, 0.1))
 
 
-func _mission_art(type: String) -> Texture2D:
-	## 미션 종류 그림 (없으면 예전 타일 그림)
-	return ArtV2.get_tex("mission", type, load(str(_ui()["mission_art"].get(type, _ui()["mission_art"]["coop"]))))
+func _mission_art(type: String, id := "") -> Texture2D:
+	## 미션 그림: 카드마다 그림(art/mission/{카드 id})이 있으면 그것, 없으면 종류 그림, 그것도 없으면 예전 타일 그림
+	var fallback := ArtV2.get_tex("mission", type, load(str(_ui()["mission_art"].get(type, _ui()["mission_art"]["coop"]))))
+	return ArtV2.get_tex("mission", id, fallback) if id != "" else fallback
 
 
 func _saga_art() -> Texture2D:
@@ -1190,6 +1193,12 @@ func _on_cell(c: Vector2i) -> void:
 		_walk = path.duplicate()
 		var first: Vector2i = _walk.pop_front()
 		_act({"type": "step", "to": first})
+
+
+func _input(event: InputEvent) -> void:
+	## 훈련: 누를 곳이 아닌 클릭을 한 번 막는다 (GUI보다 먼저 받음)
+	if _training and _coach.guard_click(event):
+		get_viewport().set_input_as_handled()
 
 
 func _unhandled_input(event: InputEvent) -> void:

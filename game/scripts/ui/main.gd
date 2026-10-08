@@ -65,30 +65,49 @@ func _web_gate() -> void:
 	var holder := Control.new()
 	holder.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_swap(holder)
-	var desk := TextureRect.new()
-	desk.texture = Style.tex("desk")
-	desk.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	desk.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-	holder.add_child(desk)
-	desk.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	# 오프닝 그림을 화면 가득 어둡게 깔고, 그 위에 제목과 「눌러서 시작」
+	var art := TextureRect.new()
+	art.texture = ArtV2.get_tex("cut", "opening_2", TitleScreen.cover_texture())   # 네 요원이 지도를 펴 놓은 오프닝 그림
+	art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	holder.add_child(art)
+	art.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var dim := ColorRect.new()
+	dim.color = Color(0.08, 0.06, 0.04, 0.55)
+	holder.add_child(dim)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	var center := CenterContainer.new()
 	holder.add_child(center)
 	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	var panel := UiKit.paper_panel(36)
-	panel.custom_minimum_size = Vector2(640, 0)
+	var panel := UiKit.paper_panel(40)
+	panel.custom_minimum_size = Vector2(620, 0)
 	center.add_child(panel)
 	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", 16)
+	v.add_theme_constant_override("separation", 14)
 	panel.add_child(v)
-	v.add_child(UiKit.title("결 사", 56, Style.SEAL, 900))
-	v.add_child(UiKit.text("1945년 8월, 경성. 네 요원이 일제의 심장부 한 곳을 골라 들이친다.
-협력 보드게임 · 1인 + AI 동료 3명", Style.FS_LEAD, Style.INK_2))
+	var head := HBoxContainer.new()
+	head.add_theme_constant_override("separation", 18)
+	v.add_child(head)
+	var mark := UiKit.title("結社", 72, Style.SEAL, 900)
+	mark.add_theme_font_override("font", Style.serif(900))
+	head.add_child(mark)
+	var hv := VBoxContainer.new()
+	hv.alignment = BoxContainer.ALIGNMENT_CENTER
+	head.add_child(hv)
+	var nm := UiKit.title("결 사", 40, Style.INK, 900)
+	nm.add_theme_font_override("font", Style.serif(900))
+	hv.add_child(nm)
+	hv.add_child(UiKit.text("1945년 8월, 경성", 17, Style.INK_3, false, 700))
+	v.add_child(UiKit.hsep())
+	v.add_child(UiKit.text("네 요원이 일제의 심장부 한 곳을 골라 들이친다.
+혼자 또는 온라인 2~4명이 함께하는 협력 보드게임.", Style.FS_LEAD, Style.INK_2))
 	var mobile := OS.has_feature("web_android") or OS.has_feature("web_ios")
 	if mobile:
 		var warn := UiKit.text("이 게임은 PC 브라우저(마우스 · 가로 화면)에 맞춰 만들었습니다. 휴대폰에서는 글자가 작고 누르기 어렵습니다. PC에서 열어 주세요.", 16, Style.SEAL, false, 700)
 		warn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		v.add_child(warn)
-	var go := UiKit.button("눌러서 시작" if not mobile else "그래도 해 보기", func(): _after_gate(), 22, "primary")
+	var go := UiKit.button("눌러서 시작" if not mobile else "그래도 해 보기", func(): _after_gate(), 24, "primary")
+	go.custom_minimum_size = Vector2(0, 60)
 	v.add_child(go)
 	v.add_child(UiKit.text("소리가 납니다 · 저장은 이 브라우저에 남습니다", 13, Style.INK_3))
 
