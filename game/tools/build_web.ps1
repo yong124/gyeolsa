@@ -9,7 +9,8 @@ param(
     [string]$Version = "2.0.0",
     [switch]$SkipTests
 )
-$ErrorActionPreference = "Stop"
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8   # Godot 출력(한글)을 UTF-8로 읽는다
+$ErrorActionPreference = "Continue"   # Godot가 stderr로 내는 정상 경고(시험이 일부러 내는 오류 포함)에 멈추지 않게. 실패는 아래에서 직접 throw
 $root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)   # G:\Git\결사
 $game = Join-Path $root "game"
 $out = Join-Path $root "build\web"

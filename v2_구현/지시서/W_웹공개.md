@@ -83,3 +83,17 @@
   - 업로드 메모(뷰포트 1600×900, 전체 화면 켬, SharedArrayBuffer 끔, 처음에는 Restricted)
   - 스크린숏 5장(1920×1080)
 - 아직 안 한 것: GIF, 브라우저 실측(크기 · 로딩 · 저장 · 소리).
+
+## 진행 2 (2026-10-08, 웹 빌드 완료)
+- 템플릿 4.7.1을 설치했다(사용자 허락, GitHub 공식 릴리스 1.2GB). `fonttools`도 설치했다.
+- **글꼴 서브셋** `tools/subset_fonts.py`: 게임에 나오는 글자 + KS X 1001 한글 2,350자 + 기호, 모두 2,557자다. 굵기 축은 남겼다. Sans는 10.4→0.8MB, Serif는 23.8→2.5MB가 됐다. 게임 · 빌드 모두 `*-Sub.ttf`를 쓰고, 원본 `*-VF.ttf`는 내보내기에서 뺀다.
+- **크기:** `index.pck` 22.6MB(게임 내용, 목표 30MB 안), `index.wasm` 37.7MB(Godot 엔진, 템플릿 고정). gzip으로 보내면 wasm은 약 10MB다. 내려받는 양은 압축 기준 약 34MB, 압축하지 않으면 62MB다. itch.io가 압축해서 보내는지는 올린 뒤 개발자 도구로 확인한다.
+- **로컬 브라우저 확인**(Claude 내장 브라우저 = Chromium, `python -m http.server`):
+  - 「눌러서 시작」 → 처음 방문이면 오프닝 → 타이틀(온라인 · 구판 · 종료 숨김) → 바로 시작 → 기운 보드(셰이더) · 연출 · 선택 창이 모두 돈다.
+  - **새로고침 뒤 「이어하기」가 남는다**(IndexedDB).
+  - 고친 것 세 가지:
+    - 첫 판 안내 말풍선이 오른쪽 레일에서 세로로 길게 늘어나던 것 → 위아래 배치
+    - 처음 방문 때 오프닝이 두 번 나오던 것 → 한 번 실행에 한 번
+    - 빌드 스크립트가 Godot의 정상 stderr에 멈추던 것과 한글 출력 인코딩
+  - Firefox · Edge · 실제 itch.io 페이지는 아직 못 봤다(올린 뒤 비공개 링크로 확인).
+- **빌드:** `powershell -ExecutionPolicy Bypass -File game\tools\build_web.ps1` → v2 시험 5종 통과 → `build\web\` · `build\GwangbokIF_web_v2.0.0.zip`(35MB)

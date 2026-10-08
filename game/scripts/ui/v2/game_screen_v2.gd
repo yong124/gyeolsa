@@ -1840,19 +1840,29 @@ func _build_tip() -> void:
 		v.add_child(ok)
 		add_child(_tip)
 		return
+	# 오른쪽 레일 폭(좁음)에 맞춰 위: 「안내」 · 단추, 아래: 글 (옆으로 늘어놓으면 글이 세로로 길어짐)
+	st.content_margin_left = 12
+	st.content_margin_right = 12
+	st.content_margin_top = 8
+	st.content_margin_bottom = 10
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 6)
+	_tip.add_child(v)
 	var h := HBoxContainer.new()
-	h.add_theme_constant_override("separation", 10)
-	_tip.add_child(h)
-	h.add_child(UiKit.title("안내", 14, Style.SEAL))
-	_tip_lbl = UiKit.text("", 14, Style.INK, false, 700)
-	_tip_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_tip_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	h.add_child(_tip_lbl)
+	h.add_theme_constant_override("separation", 8)
+	v.add_child(h)
+	var ht := UiKit.title("안내", 15, Style.SEAL)
+	ht.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	h.add_child(ht)
 	h.add_child(UiKit.button("확인", func(): _tip.visible = false, 12, "paper"))
 	h.add_child(UiKit.button("안내 끄기", func():
 		Prefs.v2_tips = false
 		Prefs.save()
 		_tip.visible = false, 12, "paper"))
+	_tip_lbl = UiKit.text("", 14, Style.INK, false, 700)
+	_tip_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_tip_lbl.custom_minimum_size = Vector2(RAIL_W - 24, 0)
+	v.add_child(_tip_lbl)
 	add_child(_tip)
 
 

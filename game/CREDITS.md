@@ -24,6 +24,7 @@
 |---|---|---|
 | `assets/fonts/NotoSansKR-VF.ttf` | Google Noto Sans KR (가변 굵기, 본문) | SIL Open Font License 1.1 |
 | `assets/fonts/NotoSerifKR-VF.ttf` | Google Noto Serif KR (가변 굵기, 제목) | SIL Open Font License 1.1 |
+| `assets/fonts/*-Sub.ttf` | 위 두 글꼴의 서브셋(게임에 나오는 글자 + KS X 1001 한글 2,350자, `tools/subset_fonts.py`). 게임과 배포 빌드는 이것을 쓴다 | SIL Open Font License 1.1 (서브셋도 같은 라이선스) |
 
 라이선스 전문: `assets/fonts/OFL.txt` (배포 zip에는 `글꼴_라이선스_OFL.txt`)
 

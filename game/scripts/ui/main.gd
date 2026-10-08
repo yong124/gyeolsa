@@ -7,6 +7,7 @@ extends Control
 
 var data: GameData
 var _screen: Control
+var _opening_seen := false   # 이번 실행에서 오프닝 4컷을 이미 봤는가 (도입부로 봤으면 판 시작 때 또 틀지 않음)
 
 
 func _ready() -> void:
@@ -98,6 +99,7 @@ func _show_intro() -> void:
 		holder.add_child(cine)
 		await get_tree().process_frame
 		await cine.slides(slides, 1.0)
+		_opening_seen = true
 		Prefs.intro_seen = true
 		Prefs.save()
 		_show_title()
@@ -225,14 +227,16 @@ func _training_v2() -> void:
 		defs.append({"name": "나" if i == 0 else str(data.character(id).get("name", "")), "character": id})
 	var game := RulesV2.new()
 	game.setup(defs, TRAINING_SEED)
-	_open_v2(game, {"defs": defs, "training": true, "opening": true})
+	_open_v2(game, {"defs": defs, "training": true, "opening": not _opening_seen})
+	_opening_seen = true
 
 
 func _start_v2(defs: Array, seed_value: int) -> void:
 	SaveGameV2.erase()
 	var game := RulesV2.new()
 	game.setup(defs, seed_value)
-	_open_v2(game, {"defs": defs, "opening": true})
+	_open_v2(game, {"defs": defs, "opening": not _opening_seen})
+	_opening_seen = true
 
 
 func _continue_v2() -> void:

@@ -48,11 +48,11 @@ static func seat(id: int) -> Color:
 # ---------------------------------------------------------------- 글꼴
 
 static func sans(weight := 500) -> Font:
-	return _font("res://assets/fonts/NotoSansKR-VF.ttf", weight)
+	return _font("res://assets/fonts/NotoSansKR-Sub.ttf", weight)
 
 
 static func serif(weight := 700) -> Font:
-	return _font("res://assets/fonts/NotoSerifKR-VF.ttf", weight)
+	return _font("res://assets/fonts/NotoSerifKR-Sub.ttf", weight)
 
 
 static func _font(path: String, weight: int) -> Font:
