@@ -228,7 +228,8 @@ func _draw_pieces() -> void:
 		var group: Array = stacks[key]
 		for i in group.size():
 			order.append(["a", group[i], board.vis_players[group[i]], i, group.size()])
-	order.sort_custom(func(x, y): return float(x[2].y) < float(y[2].y))
+	# 먼 줄부터, 한 칸 안에서는 뒤 줄(앞 번호)부터 그린다
+	order.sort_custom(func(x, y): return float(x[2].y) + (0.001 * float(x[3]) if x[0] == "a" else 0.0) < float(y[2].y) + (0.001 * float(y[3]) if y[0] == "a" else 0.0))
 	for it in order:
 		var r: Rect2 = board.cell_rect_f(it[2])
 		var cw: float = board_to_local(Vector2(r.end.x, r.get_center().y)).x - board_to_local(Vector2(r.position.x, r.get_center().y)).x
@@ -251,10 +252,16 @@ func _draw_pieces() -> void:
 		var id: int = it[1]
 		var p: Dictionary = g.players[id]
 		var n: int = it[4]
-		var rad := cw * (0.36 if n == 1 else 0.26)
+		var slot: int = it[3]
+		var rad := cw * (0.36 if n == 1 else 0.25 if n == 2 else 0.22)
 		if n > 1:
-			var ang: float = TAU * float(it[3]) / n - PI / 2
-			foot += Vector2(cos(ang), sin(ang) * 0.5) * cw * 0.24
+			# 한 칸에 여럿: 둘이면 나란히, 셋 이상이면 뒤 줄 · 앞 줄 (뒤 줄을 먼저 그림)
+			var per := n if n <= 2 else int(ceil(n / 2.0))
+			var row := slot / per
+			var col := slot % per
+			var in_row := mini(per, n - row * per)
+			var rows := int(ceil(float(n) / per))
+			foot += Vector2((col - (in_row - 1) / 2.0) * cw * 0.46, (row - (rows - 1)) * cw * 0.26)
 		var jailed: bool = board.vis_jailed.get(id, false)
 		var is_cur: bool = id == g.current and g.phase in ["turn", "choice"]
 		var lift := float(board._move_lift.get(id, 0.0))
@@ -279,6 +286,10 @@ func _draw_pieces() -> void:
 			for k in 4:
 				var x := ctr.x - rad * 0.75 + k * rad * 0.5
 				_pieces.draw_line(Vector2(x, ctr.y - rad - 2), Vector2(x, ctr.y + rad + 2), Color(0.1, 0.08, 0.06), 3.0)
+		if n > 1:
+			if slot == n - 1:
+				_group_tag(it[2], cw, foot, rad, g)   # 여럿이 한 칸이면 이름표는 하나로 (맨 앞 말 위)
+			continue
 		if id == board.human_id or is_cur:
 			var tag: String = "나" if id == board.human_id else str(g.char_def(p).get("name", p["name"])).replace(" ", "")
 			var fs := maxi(10, int(cw * 0.15))
@@ -287,6 +298,24 @@ func _draw_pieces() -> void:
 			_pieces.draw_rect(tr, ring)
 			_pieces.draw_rect(tr, Color(Style.PAPER_HI, 0.9), false, 1.5)
 			_pieces.draw_string(font, tr.position + Vector2(5, fs * 1.0), tag, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color.WHITE)
+
+
+func _group_tag(cell: Vector2, cw: float, foot: Vector2, rad: float, g: RulesV2) -> void:
+	## 한 칸에 모인 말들의 이름표 하나: 「나 외 N명」 또는 「N명」 (누가 있는지는 풍선 · 동료 레일에서)
+	var ids := []
+	for id in board.vis_players:
+		if board.vis_players[id].round() == cell.round():
+			ids.append(id)
+	var mine: bool = board.human_id in ids
+	var tag := ("나 외 %d명" % (ids.size() - 1)) if mine else "%d명" % ids.size()
+	var font := Style.sans(800)
+	var fs := maxi(10, int(cw * 0.15))
+	var w := font.get_string_size(tag, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x + 10
+	var top := foot.y - rad * 2.3 - cw * 0.3 - fs * 1.4
+	var tr := Rect2(foot.x - w / 2, top, w, fs * 1.3)
+	_pieces.draw_rect(tr, Style.seat(board.human_id) if mine else Style.INK)
+	_pieces.draw_rect(tr, Color(Style.PAPER_HI, 0.9), false, 1.5)
+	_pieces.draw_string(font, tr.position + Vector2(5, fs * 1.0), tag, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color.WHITE)
 
 
 func _shadow(foot: Vector2, rad: float, alpha: float) -> void:
@@ -307,6 +336,7 @@ func _gui_input(event: InputEvent) -> void:
 	e2.position = (uv * float(VP_SIDE) - board.position) if inside else Vector2(-50, -50)
 	e2.global_position = e2.position
 	board._gui_input(e2)
+	tooltip_text = board.tooltip_text if inside else ""   # 칸 풍선 도움말 (보드가 정한 글을 그대로)
 	accept_event()
 
 

@@ -464,9 +464,10 @@ func _v2() -> void:
 		elif game.act == 1 and game.day >= 3 and game.phase == "turn" and game.current == 0 and not shots["turn"]:
 			shots["turn"] = true
 			await _shot("v2_turn")
-			screen._peek.show_for(screen._mid_box.get_child(0), screen._mission_info(str(game.mission_row[0])), true)
-			await _wait(0.2)
-			await _shot("v2_peek_mission")
+			if not game.mission_row.is_empty() and screen._mid_box.get_child_count() > 0:
+				screen._peek.show_for(screen._mid_box.get_child(0), screen._mission_info(str(game.mission_row[0])), true)
+				await _wait(0.2)
+				await _shot("v2_peek_mission")
 			var sg: Array = game.saga_cards(0)
 			screen._peek.show_for(screen._hand_row.get_child(0), screen._saga_info(str(sg[0]), game.saga_progress(0).get(sg[0], {"have": 0, "need": 1}), false), true)
 			await _wait(0.2)

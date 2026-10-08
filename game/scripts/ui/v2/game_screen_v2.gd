@@ -293,6 +293,7 @@ func _build() -> void:
 	_act_row = HBoxContainer.new()
 	_act_row.add_theme_constant_override("separation", 7)
 	_act_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_act_row.custom_minimum_size = Vector2(0, 85)   # 행동 단추판(두 줄) 높이로 고정: 동료 차례에도 독이 비어 보이지 않게
 	arow.add_child(_act_row)
 	_status_lbl = UiKit.text("", 11, Style.INK_2, false, 700)
 	act[1].add_child(_status_lbl)
@@ -1475,7 +1476,7 @@ func _preview_idle() -> void:
 	## 아무것도 가리키지 않을 때: 지금 내 상황
 	if _pv_box == null:
 		return
-	_pv_box.visible = _my_turn() or game.phase == "plan"
+	_pv_box.visible = game.phase != "over"
 	if not _pv_box.visible:
 		return
 	var me: Dictionary = game.players[human]
@@ -1486,6 +1487,18 @@ func _preview_idle() -> void:
 		risk = "감옥 — 탈옥 판정 또는 동료의 구출"
 	if game.phase == "plan":
 		_set_preview("주사위를 이동 · 판정 중 어디에 쓸지", "큰 눈은 멀리 · 판정은 큰 눈이 유리", risk)
+	elif not _my_turn():
+		# 동료 차례 · 낮 순서 · 선택: 누가 무엇을 하는지와 내 다음 차례
+		var who := ""
+		if game.phase == "turn" and game.current >= 0:
+			who = "%s의 차례" % _name(game.current)
+		elif game.phase == "choice":
+			who = "%s가 고르는 중" % _name(int(game.pending.get("player", -1)))
+		else:
+			who = "낮 · 차례 순서 정하기"
+		var mine := game.my_dice(human).map(func(i): return str(game.die_value(i)))
+		var next := "내 주사위 %s — 내 차례에 씀" % " · ".join(mine) if not mine.is_empty() and not me["done_today"] else ("오늘 내 차례는 끝" if me["done_today"] else "칸을 가리키면 그 칸의 정보")
+		_set_preview(who, next, risk)
 	elif game.steps_left > 0:
 		_set_preview("걷는 중: %d칸 남음" % game.steps_left, "칸을 가리키면 그 칸의 보상", risk)
 	else:
@@ -1538,8 +1551,12 @@ func _cell_gain_risk(c: Vector2i) -> Array:
 
 
 func _preview_cell(c: Vector2i) -> void:
-	if not _my_turn() or c.x < 0 or game.players[human]["jailed"]:
+	if c.x < 0 or game.phase == "over":
 		_preview_idle()
+		return
+	if not _my_turn():
+		var inf := _cell_gain_risk(c)
+		_set_preview(inf[0], inf[1], inf[2])
 		return
 	var info := _cell_gain_risk(c)
 	var where: String = info[0]
