@@ -39,10 +39,52 @@ func _ready() -> void:
 		var cfg := {"defs": title.make_players(4, 0), "difficulty": 0}
 		title.free()
 		_start(cfg, "autoplay" in args)
+	elif OS.has_feature("web"):
+		_web_gate()   # 웹: 첫 클릭 전에는 소리를 내지 않는다 (브라우저 자동재생 제한) · 휴대폰이면 안내
 	elif not Prefs.intro_seen:
 		_show_intro()
 	else:
 		_show_title()
+
+
+func _after_gate() -> void:
+	if not Prefs.intro_seen:
+		_show_intro()
+	else:
+		_show_title()
+
+
+func _web_gate() -> void:
+	## 웹 첫 화면: 「눌러서 시작」 한 번 (이 클릭으로 브라우저가 소리를 허락함). 휴대폰 · 태블릿이면 PC 안내를 먼저
+	var holder := Control.new()
+	holder.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_swap(holder)
+	var desk := TextureRect.new()
+	desk.texture = Style.tex("desk")
+	desk.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	desk.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	holder.add_child(desk)
+	desk.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var center := CenterContainer.new()
+	holder.add_child(center)
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var panel := UiKit.paper_panel(36)
+	panel.custom_minimum_size = Vector2(640, 0)
+	center.add_child(panel)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 16)
+	panel.add_child(v)
+	v.add_child(UiKit.title("결 사", 56, Style.SEAL, 900))
+	v.add_child(UiKit.text("1945년 8월, 경성. 네 요원이 일제의 심장부 한 곳을 골라 들이친다.
+협력 보드게임 · 1인 + AI 동료 3명", Style.FS_LEAD, Style.INK_2))
+	var mobile := OS.has_feature("web_android") or OS.has_feature("web_ios")
+	if mobile:
+		var warn := UiKit.text("이 게임은 PC 브라우저(마우스 · 가로 화면)에 맞춰 만들었습니다. 휴대폰에서는 글자가 작고 누르기 어렵습니다. PC에서 열어 주세요.", 16, Style.SEAL, false, 700)
+		warn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		v.add_child(warn)
+	var go := UiKit.button("눌러서 시작" if not mobile else "그래도 해 보기", func(): _after_gate(), 22, "primary")
+	v.add_child(go)
+	v.add_child(UiKit.text("소리가 납니다 · 저장은 이 브라우저에 남습니다", 13, Style.INK_3))
 
 
 func _show_intro() -> void:

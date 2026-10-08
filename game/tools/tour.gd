@@ -40,6 +40,12 @@ func _ready() -> void:
 		_tut2()
 	elif "online" in OS.get_cmdline_user_args():
 		_online()
+	elif "gate" in OS.get_cmdline_user_args():
+		await _wait(0.5)
+		main._web_gate()   # 웹 첫 화면 (데스크톱에서 미리 보기)
+		await _wait(0.8)
+		await _shot("web_gate")
+		get_tree().quit()
 	elif "measure" in OS.get_cmdline_user_args():
 		_measure()
 	elif "endings" in OS.get_cmdline_user_args():

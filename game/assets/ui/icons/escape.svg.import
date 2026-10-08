@@ -15,9 +15,9 @@ dest_files=["res://.godot/imported/escape.svg-6e5e98632f4d6085fd2d1560e1eb47a5.c
 
 [params]
 
-compress/mode=0
+compress/mode=1
 compress/high_quality=false
-compress/lossy_quality=0.7
+compress/lossy_quality=0.82
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0
 compress/hdr_compression=1

@@ -388,9 +388,9 @@ func _layout() -> void:
 	var br := _board_rect()
 	side = br.size.x
 	# 줄바꿈하는 글은 폭이 정해져야 높이가 정해진다 (안 정하면 한 글자 폭으로 재서 화면만큼 길어짐)
-	_tip.custom_minimum_size = Vector2(side - 28, 0)
+	_tip.custom_minimum_size = Vector2(RAIL_W, 0)   # 안내는 오른쪽 레일 아래 빈자리에 (보드를 가리지 않게)
 	if _training:
-		_tip_lbl.custom_minimum_size = Vector2(side - 28 - 32, 0)
+		_tip_lbl.custom_minimum_size = Vector2(RAIL_W - 32, 0)
 	_tip.reset_size()
 	_place_tip()
 	if _task_box != null:
@@ -1753,13 +1753,12 @@ func _press(a: Dictionary) -> void:
 # ---- 첫 판 안내 말풍선
 
 func _build_tasks() -> void:
-	## U4: 훈련 「할 일」 — 직접 한 번씩 해 보면 ✓ (보드 위쪽 가운데)
+	## U4: 훈련 「할 일」 — 직접 한 번씩 해 보면 ✓ (왼쪽 레일, 동료 아래)
 	var panel := PanelContainer.new()
 	var st := Style.flat(Color("#fff8e6", 0.95), Style.GOLD, 2, 4, 8)
 	panel.add_theme_stylebox_override("panel", st)
-	panel.z_index = 15
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(panel)
+	_left.add_child(panel)   # 왼쪽 레일 동료 아래 (보드를 가리지 않게)
 	_task_box = VBoxContainer.new()
 	_task_box.add_theme_constant_override("separation", 2)
 	panel.add_child(_task_box)
@@ -1780,14 +1779,8 @@ func _refresh_tasks() -> void:
 
 
 func _place_tasks() -> void:
-	## 글이 바뀐 다음 프레임에 크기를 내용에 맞추고 보드 위쪽에 붙인다
-	if _task_box == null or _frame == null:
-		return
-	var panel := _task_box.get_parent() as Control
-	panel.size = Vector2.ZERO
-	panel.reset_size()
-	var br := _board_rect()
-	panel.position = Vector2(br.position.x + (br.size.x - panel.size.x) / 2.0 + 60.0, br.position.y + 4)   # 네 귀퉁이는 거점이라 위쪽 가운데
+	## 할 일 상자는 왼쪽 레일 안에 있어 자리를 따로 정하지 않는다
+	pass
 
 
 func _task_done(key: String) -> void:
@@ -1933,11 +1926,10 @@ func _training_check() -> void:
 
 
 func _place_tip() -> void:
-	## 안내는 보드 아래쪽에 붙인다 (글이 길어져 높이가 바뀌어도 보드 안에)
+	## 안내는 오른쪽 레일 아래(독 바로 위)에 붙인다 (글이 길어져도 아래를 맞춤, 보드를 가리지 않음)
 	if _frame == null:
 		return
-	var br := _board_rect()
-	_tip.position = Vector2(br.position.x + 14, br.end.y - _tip.size.y - 14)
+	_tip.position = Vector2(size.x - 20 - RAIL_W, size.y - 12 - DOCK_H - 8 - _tip.size.y)
 
 
 func _tip_check() -> void:

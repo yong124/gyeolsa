@@ -143,14 +143,16 @@ func _show_menu() -> void:
 	_menu_button("바로 시작", func(): _confirm_new(func(): quick_requested.emit()), "요원은 결사가 정합니다 · 한 판 60~90분", not saved)
 	_menu_button("요원 골라 시작", func(): _confirm_new(func(): v2_requested.emit()), "요원 카드 두 장 중 한 사람")
 	_menu_button("훈련 작전", func(): training_requested.emit(), "안내를 따라 한 판" + ("" if Prefs.v2_training_done else " · 처음이라면 추천"))
-	_menu_button("온라인", func(): online_requested.emit(), "사람끼리 · 방을 만들거나 코드로 참가 · 빈자리는 AI")
+	if not OS.has_feature("web"):   # 웹판은 1인 + AI만 (온라인은 wss 서버가 있어야 함)
+		_menu_button("온라인", func(): online_requested.emit(), "사람끼리 · 방을 만들거나 코드로 참가 · 빈자리는 AI")
 	_menu_button("규칙 요약", func():
 		var r := GameScreenV2.rules_panel(GameDataV2.load_default(), func(): _overlay.visible = false)
 		_overlay.show_with(r), "")
 	_menu_button("설정", _show_settings, "")
 	_menu_button("도입부 다시 보기", func(): intro_requested.emit(), "")
-	_menu_button("구판 (v1)", _show_v1, "처음 만든 규칙 · 기록용")
-	_menu_button("종료", func(): get_tree().quit(), "")
+	if not OS.has_feature("web"):   # 웹판에서는 구판과 종료를 숨긴다 (창을 닫으면 끝)
+		_menu_button("구판 (v1)", _show_v1, "처음 만든 규칙 · 기록용")
+		_menu_button("종료", func(): get_tree().quit(), "")
 
 
 func _confirm_new(go: Callable) -> void:
