@@ -54,6 +54,8 @@ func _ready() -> void:
 		_perf()
 	elif "trainclick" in OS.get_cmdline_user_args():
 		_trainclick()
+	elif "tutorial" in OS.get_cmdline_user_args():
+		_tutorial()
 	elif "endings" in OS.get_cmdline_user_args():
 		_endings()
 	elif "fx" in OS.get_cmdline_user_args():
@@ -1002,6 +1004,62 @@ func _find_button(root: Node, text: String) -> Control:
 		if b.text == text or b.find_children("*", "Label", true, false).any(func(l): return (l as Label).text == text):
 			return b
 	return null
+
+
+func _tutorial() -> void:
+	## 튜토리얼을 사람처럼 끝까지: 밝힌 곳만 누르고, 「다음」을 누른다. 레슨마다 한 장씩 찍는다
+	await _wait(0.5)
+	Prefs.speed = 3   # 동료 차례는 즉시 (투어를 빨리)
+	main._tutorial_v2()
+	await _wait(1.5)
+	var screen = main._screen
+	var tut: TutorialV2 = screen._tutor
+	var last := -1
+	var same := 0
+	var shots := {}
+	for n in 900:
+		await _wait(0.25)
+		if not tut.active:
+			print("[tutorial] 끝 (단계 %d/%d)" % [tut.i, tut.steps.size()])
+			break
+		if tut.i != last:
+			last = tut.i
+			same = 0
+			var s := tut.step()
+			print("[tutorial] %d %s · %s · %s" % [tut.i, s.get("lesson", ""), s.get("do", ""), s.get("target", "")])
+		same += 1
+		if same > 120:
+			print("[tutorial] 멈춤: 단계 %d · phase %s · current %d · 짚는 곳 %s · 연출 %s · 선택 %s" % [tut.i, screen.game.phase, screen.game.current, str(tut.focus()), screen._playing, str(screen.game.pending.get("kind", ""))])
+			await _shot("tutorial_stuck")
+			break
+		var f: Array = tut.focus()
+		if f[1] == "":
+			continue
+		var li := int(tut.step().get("li", 0))
+		if not shots.has(li) and _started_ok(f):
+			shots[li] = true
+			await _wait(0.3)
+			await _shot("tutorial_%d" % (li + 1))
+		if f[3]:
+			var np: Vector2 = tut.spot._next.get_global_rect().get_center()
+			await _click(np)
+			if same == 30:
+				var hov = get_tree().root.gui_get_hovered_control()
+				print("[tutorial] 다음 단추 %s · 마우스 아래 %s (%s) · 말풍선 %s" % [str(np), str(hov), hov.get_path() if hov != null else "-", str(tut.spot._bubble.get_global_rect())])
+			continue
+		if screen._choice.visible and not str(tut.step().get("target", "")).begins_with("choice:"):
+			var bs: Array = screen._choice.find_children("*", "Button", true, false)
+			if not bs.is_empty():
+				await _click((bs[0] as Control).get_global_rect().get_center())
+				continue
+		var r: Rect2 = f[0]
+		if r.size != Vector2.ZERO:
+			await _click(r.get_center())
+	get_tree().quit()
+
+
+func _started_ok(f: Array) -> bool:
+	return f[1] != ""
 
 
 func _trainclick() -> void:

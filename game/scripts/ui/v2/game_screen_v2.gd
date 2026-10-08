@@ -94,6 +94,8 @@ var _actions: ScreenActionsV2     # 행동 단추판 · 주사위 · 메뉴
 var _preview: ScreenPreviewV2     # 선택 미리보기 띠
 var _coach: ScreenCoachV2         # 훈련 · 첫 판 안내
 var _playback: ScreenPlaybackV2   # 이벤트 연출 재생
+var _tutor: TutorialV2 = null     # 튜토리얼 레슨 (meta.tutorial)
+var _choice_btns := {}            # 선택 창 단추: 값(문자열) -> 단추 (튜토리얼이 밝힘)
 
 
 func _init(g: RulesV2, human_id := 0, meta_info := {}) -> void:
@@ -114,6 +116,10 @@ func _init(g: RulesV2, human_id := 0, meta_info := {}) -> void:
 	_preview = ScreenPreviewV2.new(self)
 	_coach = ScreenCoachV2.new(self)
 	_playback = ScreenPlaybackV2.new(self)
+	if bool(meta.get("tutorial", false)):
+		_tutor = TutorialV2.new(self)
+		_ai_first = false   # 튜토리얼: 내가 먼저 (동료가 차례를 마치면 주사위를 건넬 수 없음)
+		_tutor.finished.connect(func(_skipped): back_to_title.emit())
 
 
 func _ready() -> void:
@@ -294,6 +300,8 @@ func _build() -> void:
 	add_child(_peek)
 	_peek.attach(_top._threat, _text.threat_info)
 	_coach.build_tip()
+	if _tutor != null:
+		_tutor.build()
 	if _training:
 		_coach.build_focus()
 	if _training:
@@ -931,6 +939,8 @@ class DieFace extends Control:
 # ================================================================ 화면 갱신
 
 func _refresh() -> void:
+	if _tutor != null:
+		_tutor.update()   # 레슨: 단계 시작 조건이 맞으면 판을 정하고, 한 일이면 다음 단계로
 	_refresh_me()
 	if _training:
 		var chased := game.police.has(human)
@@ -975,6 +985,8 @@ func _act(a: Dictionary) -> void:
 	if a["type"] == "ability":
 		_playback.cutin(int(a["player"]), _playback.mult())
 	if game.apply(a):
+		if _tutor != null:
+			_tutor.on_action(a)
 		if int(a["player"]) == human:
 			match str(a["type"]):
 				"move_die": _coach.task_done("move")
@@ -1114,6 +1126,8 @@ func _ai_actor() -> int:
 		"turn":
 			return -1 if game.current == human else game.current
 		"plan":
+			if _tutor != null and _tutor.active:
+				return -1   # 튜토리얼: 아침에 동료는 능력 · 아이템을 쓰지 않는다
 			for p in game.players:
 				if p["id"] == human:
 					continue
@@ -1160,6 +1174,10 @@ func _ai_step() -> void:
 		_let_allies = false
 	else:
 		a = GameAIV2.decide(game, pid)
+	if _tutor != null and _tutor.active:
+		var ta := _tutor.ally_action(pid)
+		if not ta.is_empty():
+			a = ta
 	if a.is_empty():
 		return
 	if a["type"] == "ability" and not _auto:
@@ -1199,6 +1217,8 @@ func _input(event: InputEvent) -> void:
 	## 훈련: 누를 곳이 아닌 클릭을 한 번 막는다 (GUI보다 먼저 받음)
 	if _training and _coach.guard_click(event):
 		get_viewport().set_input_as_handled()
+	elif _tutor != null and _tutor.block(event):
+		get_viewport().set_input_as_handled()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -1212,6 +1232,7 @@ func _unhandled_input(event: InputEvent) -> void:
 # ================================================================ 선택 창 · 메뉴
 
 func _show_choice() -> void:
+	_choice_btns = {}
 	var pd: Dictionary = game.pending
 	var kind: String = pd["kind"]
 	if kind in ["pick_cell", "hop"]:
@@ -1245,6 +1266,7 @@ func _show_choice() -> void:
 			_board.pick_cells = []
 			_act({"type": "choose", "value": val}), 16, "paper")
 		box.add_child(b)
+		_choice_btns[str(val)] = b
 	_choice.show_with(panel)
 
 

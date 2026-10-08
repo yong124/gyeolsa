@@ -8,6 +8,7 @@ extends Control
 var data: GameData
 var _screen: Control
 var _opening_seen := false   # 이번 실행에서 오프닝 4컷을 이미 봤는가 (도입부로 봤으면 판 시작 때 또 틀지 않음)
+var _tutorial_forced := false   # 처음 켰을 때 튜토리얼로 한 번 보냈는가
 
 
 func _ready() -> void:
@@ -139,6 +140,11 @@ func _show_intro() -> void:
 
 
 func _show_title() -> void:
+	# 완전 처음이면 메뉴 대신 튜토리얼부터 (튜토리얼 구석의 「건너뛰기」로 나올 수 있음). 시험 · 투어 실행에서는 건너뜀
+	if not Prefs.v2_training_done and not _tutorial_forced and OS.get_cmdline_user_args().is_empty():
+		_tutorial_forced = true
+		_tutorial_v2()
+		return
 	var title := TitleScreen.new(data)
 	title.start_requested.connect(func(cfg): _start(cfg))
 	title.continue_requested.connect(_continue)
@@ -147,7 +153,7 @@ func _show_title() -> void:
 	title.v2_requested.connect(_show_v2_setup)
 	title.quick_requested.connect(_quick_v2)
 	title.continue_v2_requested.connect(_continue_v2)
-	title.training_requested.connect(_training_v2)
+	title.training_requested.connect(_tutorial_v2)
 	title.online_requested.connect(_show_online)
 	_swap(title)
 
@@ -243,6 +249,12 @@ func _quick_v2() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.randomize()
 	_start_v2(SetupScreenV2.make_defs("", rng), rng.randi())
+
+
+func _tutorial_v2() -> void:
+	## 튜토리얼 레슨 (data/v2/tutorial.json): 정해진 판에서 하나씩 해 본다
+	var game := TutorialV2.new_game(GameDataV2.load_default())
+	_open_v2(game, {"tutorial": true})
 
 
 func _training_v2() -> void:

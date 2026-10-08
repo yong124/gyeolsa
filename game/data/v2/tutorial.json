@@ -1,0 +1,137 @@
+{
+	"_comment": "튜토리얼 레슨 (지시서 T). 한 판을 이어 가며 레슨마다 판을 정해 둔다(setup). 단계(step): say = 설명, target = 밝힐 곳, do = 해야 할 일, when = 이 상태가 되면 시작, setup = 시작할 때 판 바꾸기. do: next(「다음」 단추) · 엔진 행동 종류(start_day, begin_turn, move_die, end_move, work_give, mission_check, hide, give_die, scene_pay, end_turn, choose) · reach(칸에 닿음). target: primary(주 단추) · end_turn · act:행동:눈(행동 단추 → 그 눈의 주사위) · verb:행동 · cell:x,y · me · police · dice · threat · missions · mission:카드 id · ops · hand · allies · ready · choice · choice:값 · 빈 문자열(밝힐 곳 없음). setup op: threats(위협 덱 순서, 앞이 먼저) · calm(경찰 · 위협 지움) · dice(내 주사위 눈) · pos(말 위치, me 또는 번호) · tiles(칸을 그 종류로 깖) · missions(공개 미션 줄 바꾸기) · marker(마커 칸) · tile_type(칸 종류) · ready · intel.",
+	"version": 1,
+	"seed": 20450815,
+	"characters": ["park", "jeong", "gaeddong", "oh"],
+	"lessons": [
+		{
+			"title": "아침 · 작전 주사위",
+			"steps": [
+				{
+					"setup": [
+						{"op": "calm"},
+						{"op": "threats", "ids": ["calm_day", "air_raid", "calm_day", "air_raid", "calm_day", "calm_day"]},
+						{"op": "missions", "ids": ["m_decode", "m_informant", "m_rich_donation", "m_bond"]},
+						{"op": "marker", "id": "m_decode", "role": "work", "cell": [5, 2]},
+						{"op": "marker", "id": "m_informant", "role": "target", "cell": [7, 7]},
+						{"op": "marker", "id": "m_informant", "role": "informer", "cell": [3, 7]},
+						{"op": "tiles", "cells": [[5, 4], [5, 3], [5, 2], [6, 5], [7, 5], [7, 6], [7, 7]], "type": "normal"},
+						{"op": "dice", "values": [5, 2]}
+					],
+					"say": "1945년 8월, 경성. 남은 날은 열하루입니다.\n매일 아침 요원마다 작전 주사위 2개가 나옵니다. 주사위 1개로 행동 1개를 합니다. 큰 눈은 멀리 걷거나 판정에 유리합니다.",
+					"target": "dice", "do": "next"
+				},
+				{"say": "위쪽 붉은 칸은 오늘의 일제 위협입니다. 아침마다 한 장씩 뒤집혀 그날 하루 효과를 줍니다. 오늘은 「평온한 하루」입니다.", "target": "threat", "do": "next"},
+				{"say": "오른쪽은 공개 미션 줄입니다. 누구든 이루면 결행 준비가 오릅니다. 결행 준비가 차면 일제의 거점 한 곳을 치러 갑니다 (2막).", "target": "missions", "do": "next"},
+				{"say": "준비가 되면 「하루 시작」을 누르세요.", "target": "primary", "do": "start_day"},
+				{"say": "낮에는 요원마다 한 차례씩 합니다. 순서는 자유입니다. 「내 차례 시작」을 누르세요.", "target": "primary", "do": "begin_turn", "when": {"phase": "day"}}
+			]
+		},
+		{
+			"title": "이동",
+			"steps": [
+				{"say": "아래 행동 단추에서 「이동」을 누르세요. 행동을 먼저 고르고, 쓸 주사위를 고릅니다.", "target": "act:move:5", "do": "move_die", "when": {"phase": "turn", "me": true}},
+				{"say": "보드의 밝은 칸이 갈 수 있는 곳입니다. 위쪽 미션 마커 칸(공)을 누르면 그 길로 걸어갑니다.", "target": "cell:5,2", "do": "reach", "cell": [5, 2]},
+				{"say": "걸음이 남았지만 여기서 멈춥니다. 「이동 마치기」를 누르세요. 이동을 마친 칸의 효과를 받습니다.", "target": "primary", "do": "end_move"}
+			]
+		},
+		{
+			"title": "미션 · 공작",
+			"steps": [
+				{"say": "「암호 해독」은 공작 미션입니다. 마커 칸에서 눈 2 · 4 · 6을 하나씩 바칩니다. 여러 날, 여러 요원이 나눠 바쳐도 됩니다.", "target": "mission:m_decode", "do": "next"},
+				{"say": "지금 마커 칸에 서 있고, 남은 주사위가 2입니다. 「바치기」를 누르세요.", "target": "act:give:2", "do": "work_give"},
+				{"say": "2를 바쳤습니다. 남은 눈은 4 · 6입니다. 다른 날, 다른 요원이 채워도 됩니다.", "target": "mission:m_decode", "do": "next"},
+				{"say": "주사위를 다 썼습니다. 「차례 마치기」를 누르세요. 밤이 지나면 다음 날 아침이 됩니다.", "target": "end_turn", "do": "end_turn"}
+			]
+		},
+		{
+			"title": "미션 · 암살 판정",
+			"steps": [
+				{
+					"when": {"phase": "plan", "day": 2},
+					"setup": [
+						{"op": "calm"},
+						{"op": "pos", "who": "me", "cell": [7, 7]},
+						{"op": "marker", "id": "m_informant", "role": "target", "cell": [7, 7]},
+						{"op": "dice", "values": [6, 3]}
+					],
+					"say": "둘째 날 아침입니다. 밤사이 「밀정 처단」 표적 칸까지 와 있습니다. 「하루 시작」을 누르세요.",
+					"target": "primary", "do": "start_day"
+				},
+				{"say": "「내 차례 시작」을 누르세요.", "target": "primary", "do": "begin_turn", "when": {"phase": "day"}},
+				{"say": "작전 판정은 「낸 주사위 눈 + 새로 굴린 주사위 1개」가 목표 이상이면 성공입니다. 이 표적의 목표는 8입니다.", "target": "me", "do": "next", "when": {"phase": "turn", "me": true}},
+				{"say": "「작전 판정」을 누르고, 큰 눈 6을 내세요. 성공 확률이 행동 설명에 나옵니다.", "target": "act:check:6", "do": "mission_check"},
+				{"say": "암살 · 폭파는 시끄러운 일입니다. 이루면 노출이 오르고, 경찰이 붙습니다.", "target": "", "do": "next"}
+			]
+		},
+		{
+			"title": "경찰 · 숨기",
+			"steps": [
+				{
+					"setup": [{"op": "tile_type", "cell": "me", "type": "alley"}, {"op": "police_on_me"}],
+					"say": "붉은 모자가 나를 쫓는 경찰입니다. 차례를 마칠 때마다 경계 단계만큼 다가오고, 따라잡히면 투옥되어 아이템을 빼앗깁니다.",
+					"target": "police", "do": "next"
+				},
+				{"say": "골목 · 주막 · 은신처에서는 주사위 하나로 「숨기」를 할 수 있습니다. 숨으면 이번 차례 끝에 경찰이 다가오지 않습니다. 「숨기」를 누르세요.", "target": "act:hide:3", "do": "hide"},
+				{"say": "숨는 대신 깔린 길을 따라 5칸 넘게 멀리 달아나면 경찰을 따돌립니다. 동료가 「미끼」로 경찰을 끌어가 줄 수도 있습니다.", "target": "", "do": "next"},
+				{"say": "「차례 마치기」를 누르세요.", "target": "end_turn", "do": "end_turn"}
+			]
+		},
+		{
+			"title": "동료 돕기",
+			"steps": [
+				{
+					"when": {"phase": "plan", "day": 3},
+					"setup": [{"op": "calm"}, {"op": "pos", "who": 1, "cell": "me"}, {"op": "dice", "values": [6, 1]}],
+					"say": "셋째 날입니다. 정 인쇄공이 같은 칸에 와 있습니다. 「하루 시작」을 누르세요.",
+					"target": "primary", "do": "start_day"
+				},
+				{"say": "「내 차례 시작」을 누르세요.", "target": "primary", "do": "begin_turn", "when": {"phase": "day"}},
+				{"say": "같은 칸의 동료에게 주사위를 건넬 수 있습니다(하루 한 번). 큰 눈이 필요한 동료에게 6을 건네 보세요. 「건네기」를 누르고 6을 고르세요.", "target": "act:pass:6", "do": "give_die", "when": {"phase": "turn", "me": true}},
+				{"say": "건넨 주사위는 그 동료가 오늘 씁니다. 혼자 다 하려 하지 말고 나눠 맡는 것이 이 게임의 협력입니다.", "target": "allies", "do": "next"},
+				{"say": "「차례 마치기」를 누르세요.", "target": "end_turn", "do": "end_turn"}
+			]
+		},
+		{
+			"title": "일제 작전 · 결행 준비",
+			"steps": [
+				{
+					"when": {"phase": "plan", "day": 4},
+					"setup": [{"op": "calm"}, {"op": "ready", "value": 2}, {"op": "intel", "base": "prison", "value": 3}, {"op": "dice", "values": [4, 4]}],
+					"say": "짝수 날 아침에는 일제 작전이 나옵니다(오른쪽 붉은 줄). 기한 안에 마커 칸에서 막지 못하면 벌칙을 받고, 위쪽 「일제 동향」이 오릅니다.",
+					"target": "ops", "do": "next"
+				},
+				{"say": "위쪽 「결행 준비」가 3이 되면 아침마다 결행 투표가 열립니다. 지금 2입니다. 미션을 이뤄 준비를 채웁니다.", "target": "ready", "do": "next"},
+				{"say": "이번에는 준비가 찼다고 치고 넘어갑니다. 「하루 시작」 → 「내 차례 시작」 → 「차례 마치기」로 하루를 넘기세요.", "target": "primary", "do": "start_day", "setup": [{"op": "ready", "value": 3}]},
+				{"say": "「내 차례 시작」을 누르세요.", "target": "primary", "do": "begin_turn", "when": {"phase": "day"}},
+				{"say": "「차례 마치기」를 누르세요.", "target": "end_turn", "do": "end_turn", "when": {"phase": "turn", "me": true}}
+			]
+		},
+		{
+			"title": "결행 투표",
+			"steps": [
+				{"say": "결행 준비가 찼습니다. 지금 결행하면 2막에 쓸 날이 많고, 하루 더 준비하면 첩보가 쌓이지만 날이 줄어듭니다. 「결행한다」를 고르세요.", "target": "choice:true", "do": "choose", "when": {"choice": "launch_vote"}},
+				{"say": "칠 거점을 고릅니다. 첩보가 쌓인 거점만 후보입니다. 「서대문형무소」를 고르세요.", "target": "choice:prison", "do": "choose", "when": {"choice": "launch_target"}},
+				{"say": "결행의 날, 손패의 사연 가운데 하나만 품고 갑니다. 이룰 수 있는 사연을 고르세요. 품고 간 사연을 이루면 후일담이 달라집니다.", "target": "choice", "do": "choose", "when": {"choice": "saga_keep"}}
+			]
+		},
+		{
+			"title": "2막 · 장면 돌파",
+			"steps": [
+				{
+					"when": {"act": 2, "phase": "plan"},
+					"setup": [{"op": "calm"}, {"op": "pos", "who": "me", "cell": [2, 9]}, {"op": "dice", "values": [5, 4, 2]}],
+					"say": "2막 · 결행입니다. 형무소의 장면을 정문부터 마지막까지 하나씩 돌파합니다. 오른쪽에 지금 장면과 조건이 나옵니다. 날마다 주사위가 3개입니다.",
+					"target": "missions", "do": "next"
+				},
+				{"say": "「하루 시작」을 누르세요.", "target": "primary", "do": "start_day"},
+				{"say": "「내 차례 시작」을 누르세요.", "target": "primary", "do": "begin_turn", "when": {"phase": "day"}},
+				{"say": "첫 장면 「담 넘기」: 형무소 옆 칸에서 주사위 합 7을 바칩니다. 「바치기」를 누르고 5를 내세요.", "target": "act:give:5", "do": "scene_pay", "when": {"phase": "turn", "me": true}},
+				{"say": "합 5. 2가 더 필요합니다. 「바치기」로 4를 더 내세요.", "target": "act:give:4", "do": "scene_pay"},
+				{"say": "장면 돌파! 마지막 장면까지 돌파하면 광복입니다. 버티기 장면에서는 그날 밤 반격이 오고, 자리에 선 요원이 판정으로 막습니다.", "target": "missions", "do": "next"},
+				{"say": "손패의 「사연」은 나만 아는 개인 목표입니다. 이루면 보상을 받고, 결행이 끝나면 요원마다 후일담이 갈립니다.", "target": "hand", "do": "next"},
+				{"say": "튜토리얼은 여기까지입니다. 이제 실제 판에서 동료들과 경성을 되찾아 보세요.", "target": "", "do": "next"}
+			]
+		}
+	]
+}

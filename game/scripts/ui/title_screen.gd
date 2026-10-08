@@ -193,7 +193,7 @@ func _show_menu() -> void:
 		row.add_child(_card("새 작전", "", ArtV2.get_tex("cut", "opening_3"), quick))
 	else:
 		row.add_child(_card("요원 골라 시작", "", ArtV2.get_tex("cut", "opening_3"), func(): _confirm_new(func(): v2_requested.emit())))
-	row.add_child(_card("훈련 작전", "", ArtV2.get_tex("mission", "work"), func(): training_requested.emit(), not Prefs.v2_training_done))
+	row.add_child(_card("튜토리얼", "", ArtV2.get_tex("mission", "work"), func(): training_requested.emit(), not Prefs.v2_training_done))
 	if not OS.has_feature("web") or NetClientV2.web_online_ready():   # 웹판은 wss:// 서버 주소(online.json)가 있을 때만
 		row.add_child(_card("온라인", "", ArtV2.get_tex("cut", "opening_4"), func(): online_requested.emit()))
 	var links := HFlowContainer.new()

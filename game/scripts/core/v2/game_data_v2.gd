@@ -65,6 +65,7 @@ var endings: Dictionary
 var sagas: Dictionary
 var characters: Dictionary
 var ui: Dictionary                # 화면 구성 (ui.json: 행동 단추 · 미션 그림 · 마커 글자 · 날씨 · 훈련 할 일)
+var tutorial: Dictionary          # 튜토리얼 레슨 (tutorial.json)
 var online: Dictionary            # 온라인 방 설정 (online.json, 없으면 빈 사전 → 코드의 기본값)
 
 ## 보드 (board.json). base_ids[i] · bases[i] · base_names[i]는 같은 거점이다
@@ -112,6 +113,7 @@ func load_dir(dir: String) -> void:
 	characters = _read("characters.json")
 	online = _read_optional("online.json")
 	ui = _read("ui.json")
+	tutorial = _read_optional("tutorial.json")
 	_load_board()
 	_missions = _index(missions.get("missions", []))
 	_ops = _index(missions.get("ops", []))
@@ -231,6 +233,7 @@ func validate() -> Array[String]:
 	_validate_rules(errs)
 	_validate_vote_ai(errs)
 	_validate_ui(errs)
+	_validate_tutorial(errs)
 	_validate_threats(errs)
 	_validate_missions(errs)
 	_validate_events(errs)
@@ -280,6 +283,50 @@ func _validate_board(errs: Array[String]) -> void:
 		for k in ["texture", "used_texture"]:
 			if a.has(k) and not ResourceLoader.exists("res://assets/tiles/%s.png" % a[k]):
 				errs.append("board.tile_art.%s: 그림 assets/tiles/%s.png이 없습니다." % [t, a[k]])
+
+
+const TUTORIAL_DO := ["next", "reach", "start_day", "begin_turn", "move_die", "end_move", "work_give", "mission_check",
+	"hide", "give_die", "decoy", "scene_pay", "scene_check", "end_turn", "choose"]
+const TUTORIAL_TARGETS := ["", "primary", "end_turn", "me", "police", "dice", "threat", "missions", "ops", "hand", "allies", "ready", "choice"]
+const TUTORIAL_OPS := ["calm", "threats", "dice", "pos", "tiles", "tile_type", "missions", "marker", "police_on_me", "ready", "intel"]
+
+
+func _validate_tutorial(errs: Array[String]) -> void:
+	## 튜토리얼 대본: 요원 · 단계의 do · target · setup op · 미션 id
+	if tutorial.is_empty():
+		return
+	for c in tutorial.get("characters", []):
+		if character(str(c)).is_empty():
+			errs.append("tutorial.characters: 요원 %s가 없습니다." % c)
+	var verbs := {}
+	for v in ui.get("verbs", []):
+		verbs[str(v.get("id", ""))] = true
+	for l in tutorial.get("lessons", []):
+		for s in l.get("steps", []):
+			var who := "튜토리얼 「%s」" % l.get("title", "?")
+			if str(s.get("say", "")).strip_edges() == "":
+				errs.append(who + ": say가 비었습니다.")
+			if not str(s.get("do", "next")) in TUTORIAL_DO:
+				errs.append(who + ": 모르는 do %s" % s.get("do"))
+			var t := str(s.get("target", ""))
+			var head := t.split(":")[0]
+			if not t in TUTORIAL_TARGETS and not head in ["act", "verb", "cell", "choice", "mission"]:
+				errs.append(who + ": 모르는 target %s" % t)
+			if head in ["act", "verb"] and not verbs.has(t.split(":")[1] if t.split(":").size() > 1 else ""):
+				errs.append(who + ": 행동 단추 %s가 ui.json verbs에 없습니다." % t)
+			if head == "mission" and mission(t.substr(8)).is_empty():
+				errs.append(who + ": 미션 %s가 없습니다." % t.substr(8))
+			for o in s.get("setup", []):
+				if not str(o.get("op", "")) in TUTORIAL_OPS:
+					errs.append(who + ": 모르는 setup op %s" % o.get("op"))
+				if str(o.get("op", "")) == "missions":
+					for id in o.get("ids", []):
+						if mission(str(id)).is_empty():
+							errs.append(who + ": 미션 %s가 없습니다." % id)
+				if str(o.get("op", "")) == "threats":
+					for id in o.get("ids", []):
+						if threat(str(id)).is_empty():
+							errs.append(who + ": 위협 %s가 없습니다." % id)
 
 
 func _validate_ui(errs: Array[String]) -> void:

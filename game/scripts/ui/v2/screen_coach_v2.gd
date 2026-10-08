@@ -135,7 +135,7 @@ func guard_click(event: InputEvent) -> bool:
 	var r: Rect2 = f[0]
 	if r.size == Vector2.ZERO:
 		return false
-	var p := scr.get_global_mouse_position()
+	var p: Vector2 = (event as InputEventMouseButton).position
 	var ok := r.grow(8.0).has_point(p)
 	if scr._tip != null and scr._tip.visible and scr._tip.get_global_rect().has_point(p):
 		ok = true   # 안내 말풍선 「알겠습니다」
@@ -331,7 +331,7 @@ func tip_check() -> void:
 	if scr._training:
 		_training_check()
 		return
-	if not Prefs.v2_tips:
+	if not Prefs.v2_tips or scr._tutor != null:
 		return
 	var key := ""
 	var text := ""

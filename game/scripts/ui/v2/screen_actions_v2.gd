@@ -16,7 +16,7 @@ func _init(screen: GameScreenV2) -> void:
 # ================================================================ 행동 패널
 
 func refresh_actions() -> void:
-	focus = {"dice": {}}
+	focus = {"dice": {}, "verbs": {}}
 	UiKit.clear(scr._dice_row)
 	UiKit.clear(scr._act_row)
 	scr._shown_actions = []
@@ -208,6 +208,7 @@ func _build_verbs(mine: Array, primary: Dictionary, others: Array) -> void:
 		var on := scr._verb == key
 		var rec := not primary.is_empty() and primary in acts
 		var b := UiKit.button(str(vb["label"]), func(): pick_verb(key, acts), 14, "primary" if on else "paper")
+		focus["verbs"][key] = b
 		b.custom_minimum_size = Vector2(0, 40)
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		if acts.is_empty():
@@ -493,6 +494,8 @@ func die_menu(acts: Array, die := -1) -> void:
 		btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		if aa == scr._primary_action:
 			focus["menu"] = btn
+		if not focus.has("menu_any"):
+			focus["menu_any"] = btn
 		btn.mouse_entered.connect(func(): hover_action(aa))
 		btn.mouse_exited.connect(func(): scr._board.reach = {})
 		row.add_child(btn)
