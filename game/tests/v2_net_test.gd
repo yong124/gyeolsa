@@ -101,8 +101,61 @@ func _run() -> void:
 	ok(g2.phase == "over", "판이 끝까지 감 (엔딩 %s · %d일째 · 행동 %d)" % [g2.ending.get("id", "-"), g2.day, g2.actions.size()])
 	ok(leaks == 0, "받은 보기 %d번에 남의 비밀 없음 (누출 %d)" % [updates, leaks])
 	ok(rejected >= 1, "남의 자리 행동은 거절됨")
+	await _security(port, code)
 	print("v2 온라인 시험: 통과 %d, 실패 %d" % [passed, failed])
 	quit(1 if failed > 0 else 0)
+
+
+func _security(port: int, code: String) -> void:
+	## 보안 (지시서 Z1): 지어낸 토큰 · 인사 없는 요청 · 메시지 폭탄 · 방 코드 맞히기 · 이름 서식
+	# 1. 지어낸 토큰은 받아 주지 않고 서버가 새 토큰을 준다
+	var fake := NetClientV2.new()
+	root.add_child(fake)
+	var welcomed := [false]
+	fake.connected.connect(func(): welcomed[0] = true)
+	fake.open("ws://127.0.0.1:%d" % port, "가짜", "deadbeefdeadbeef")
+	await _until(func(): return welcomed[0])   # 서버의 welcome(토큰)을 받은 뒤에 본다
+	ok(fake.token != "deadbeefdeadbeef" and fake.token.length() == 32, "지어낸 토큰은 거절, 서버가 128비트 토큰을 새로 줌")
+	ok(fake.seat < 0, "지어낸 토큰으로는 자리를 얻지 못함")
+	# 2. 인사 없이 방 만들기는 안 됨
+	var rooms_before: int = server._rooms.size()
+	var raw := WebSocketPeer.new()
+	raw.connect_to_url("ws://127.0.0.1:%d" % port)
+	await _until(func():
+		raw.poll()
+		return raw.get_ready_state() == WebSocketPeer.STATE_OPEN)
+	raw.send(var_to_bytes({"t": "create"}))
+	for k in 20:
+		raw.poll()
+		await process_frame
+	ok(server._rooms.size() == rooms_before, "인사(hello) 없이는 방을 만들 수 없음")
+	# 3. 메시지 폭탄을 보내면 끊긴다
+	for k in NetServerV2.MSG_PER_SEC + 20:
+		raw.send(var_to_bytes({"t": "ready", "on": true}))
+	var closed := false
+	for k in 300:
+		raw.poll()
+		if raw.get_ready_state() == WebSocketPeer.STATE_CLOSED:
+			closed = true
+			break
+		await process_frame
+	ok(closed, "메시지 폭탄을 보낸 연결은 끊김")
+	# 4. 방 코드를 계속 틀리면 끊긴다
+	var guess := NetClientV2.new()
+	root.add_child(guess)
+	var guess_closed := [false]
+	guess.closed.connect(func(): guess_closed[0] = true)
+	guess.open("ws://127.0.0.1:%d" % port, "찍기")
+	await _until(func(): return guess.token != "")
+	for k in NetServerV2.BAD_CODE_LIMIT:
+		guess.send({"t": "join", "code": "ZZZZ%d" % k})
+	await _until(func(): return guess_closed[0], 600)
+	ok(guess_closed[0], "없는 방 코드를 %d번 틀리면 끊김" % NetServerV2.BAD_CODE_LIMIT)
+	# 5. 이름의 서식 문자 · 제어 문자는 걸러진다
+	var cleaned := NetServerV2.clean_name("[color=red]악당[/color]
+<b>")
+	ok(not cleaned.contains("[") and not cleaned.contains("]") and not cleaned.contains("<") and not cleaned.contains("
+") and cleaned.length() <= 12, "이름의 서식 · 제어 문자 걸러짐 (%s)" % cleaned)
 
 
 func _until(cond: Callable, limit := 3000) -> void:

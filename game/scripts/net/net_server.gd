@@ -11,6 +11,14 @@ const AI_STEP := 0.45          # AI 한 수 사이 간격(초): 사람이 따라
 const HUMAN_IDLE := 150.0      # 사람 자리가 이만큼 아무것도 안 하면 AI가 한 수 대신 둔다
 const DAY_WAIT := 60.0         # 아침: 다들 「하루 시작」을 누를 때까지 기다리는 최대 시간
 const DROP_GRACE := 20.0       # 끊긴 자리를 AI가 맡기까지
+# 보안 (지시서 Z1): 상한 · 빈도 제한
+const MAX_PEERS := 256         # 동시 접속 상한
+const MAX_ROOMS := 128         # 방 상한
+const MSG_PER_SEC := 30        # 연결당 초당 메시지 상한 (넘으면 끊음)
+const INBOUND_BYTES := 1 << 16 # 받는 버퍼 64KB (메시지 하나가 이보다 크면 받지 않음)
+const HELLO_TIMEOUT := 10.0    # 인사(hello) 없이 이만큼 지나면 끊음
+const BAD_CODE_LIMIT := 10     # 없는 방 코드를 이만큼 틀리면 끊음 (방 코드 맞히기 막기)
+const NAME_MAX := 12
 
 var port := 8910
 var _tcp := TCPServer.new()
@@ -20,10 +28,13 @@ var _next_peer := 1
 var _rng := RandomNumberGenerator.new()
 var quiet := false   # 시험: 서버 로그 끄기
 var ai_step := AI_STEP   # 시험에서는 0으로
+var _crypto := Crypto.new()
+var _data: GameDataV2         # 판 데이터 (한 번만 읽음)
 
 
 func _ready() -> void:
 	_rng.randomize()
+	_data = GameDataV2.load_default()
 	var err := _tcp.listen(port)
 	_log("서버 시작 · 포트 %d · %s" % [port, "ok" if err == OK else "실패 %d" % err])
 
@@ -40,12 +51,18 @@ func _log(s: String) -> void:
 # ------------------------------------------------------------------ 연결
 
 func _process(delta: float) -> void:
+	var now := _now()
 	while _tcp.is_connection_available():
+		var conn := _tcp.take_connection()
+		if _peers.size() >= MAX_PEERS:
+			conn.disconnect_from_host()   # 가득 참: 받지 않는다
+			continue
 		var ws := WebSocketPeer.new()
-		ws.inbound_buffer_size = 1 << 20
+		ws.inbound_buffer_size = INBOUND_BYTES
 		ws.outbound_buffer_size = 1 << 22
-		ws.accept_stream(_tcp.take_connection())
-		_peers[_next_peer] = {"ws": ws, "name": "", "token": "", "room": "", "seat": -1}
+		ws.accept_stream(conn)
+		_peers[_next_peer] = {"ws": ws, "name": "", "token": "", "room": "", "seat": -1,
+			"hello": false, "born": now, "win": now, "msgs": 0, "bad_codes": 0}
 		_next_peer += 1
 	for id in _peers.keys():
 		var p: Dictionary = _peers[id]
@@ -53,15 +70,56 @@ func _process(delta: float) -> void:
 		ws.poll()
 		match ws.get_ready_state():
 			WebSocketPeer.STATE_OPEN:
+				if not p["hello"] and now - float(p["born"]) > HELLO_TIMEOUT:
+					_kick(id, "인사 없이 오래 머묾")
+					continue
 				while ws.get_available_packet_count() > 0:
-					var msg = bytes_to_var(ws.get_packet())
+					if now - float(p["win"]) >= 1.0:
+						p["win"] = now
+						p["msgs"] = 0
+					p["msgs"] = int(p["msgs"]) + 1
+					if int(p["msgs"]) > MSG_PER_SEC:
+						_kick(id, "메시지가 너무 잦음")
+						break
+					var msg = bytes_to_var(ws.get_packet())   # 객체는 풀지 않는다 (기본값)
 					if msg is Dictionary:
 						_on_msg(id, msg)
+					if not _peers.has(id):
+						break
 			WebSocketPeer.STATE_CLOSED:
 				_on_drop(id)
 				_peers.erase(id)
 	for code in _rooms.keys():
 		_tick_room(_rooms[code], delta)
+
+
+func _now() -> float:
+	return Time.get_ticks_msec() / 1000.0
+
+
+func _kick(id: int, why: String) -> void:
+	## 규칙을 어긴 연결을 끊는다 (판 중이면 그 자리는 끊긴 자리처럼 AI가 맡음)
+	if not _peers.has(id):
+		return
+	_log("연결 %d 끊음: %s" % [id, why])
+	var ws: WebSocketPeer = _peers[id]["ws"]
+	ws.close(1008, why)
+
+
+static func clean_name(raw: String) -> String:
+	## 이름: 제어 문자 · 서식 문자([ ] 같은 BBCode)를 빼고 12자까지
+	var out := ""
+	for ch in raw.strip_edges():
+		var c := ch.unicode_at(0)
+		if c < 32 or c == 127 or ch in ["[", "]", "{", "}", "<", ">", "\\"]:
+			continue
+		out += ch
+	out = out.strip_edges().left(NAME_MAX)
+	return out if out != "" else "요원"
+
+
+func _new_token() -> String:
+	return _crypto.generate_random_bytes(16).hex_encode()   # 암호용 난수 128비트
 
 
 func _send(id: int, msg: Dictionary) -> void:
@@ -80,34 +138,48 @@ func _err(id: int, text: String) -> void:
 
 func _on_msg(id: int, m: Dictionary) -> void:
 	var p: Dictionary = _peers[id]
-	match str(m.get("t", "")):
+	var t := str(m.get("t", ""))
+	if t != "hello" and not p["hello"]:
+		_err(id, "먼저 인사(hello)를 보내야 합니다.")
+		return
+	match t:
 		"hello":
+			if p["hello"]:
+				return   # 한 연결에 인사는 한 번 (토큰 바꿔치기 막기)
 			if int(m.get("ver", 0)) != VERSION:
 				_err(id, "게임 버전이 서버와 다릅니다. 새로 받아 주세요.")
 				return
-			p["name"] = str(m.get("name", "요원")).strip_edges().left(12)
-			if p["name"] == "":
-				p["name"] = "요원"
-			p["token"] = str(m.get("token", ""))
-			if p["token"] == "":
-				p["token"] = "%08x%08x" % [_rng.randi(), _rng.randi()]
+			p["hello"] = true
+			p["name"] = clean_name(str(m.get("name", "요원")))
+			# 토큰은 서버만 만든다. 클라이언트가 보낸 토큰은 끊긴 자리와 맞을 때만 「돌아오기」에 쓴다
+			var given := str(m.get("token", "")).left(64)
+			p["token"] = given if given != "" and _dropped_seat_with(given) else _new_token()
 			_send(id, {"t": "welcome", "token": p["token"], "ver": VERSION})
 			_try_resume(id)
 		"create":
 			if p["room"] != "":
+				return
+			if _rooms.size() >= MAX_ROOMS:
+				_err(id, "서버에 방이 가득 찼습니다. 잠시 뒤에 다시 해 주세요.")
 				return
 			var code := _new_code()
 			_rooms[code] = _new_room(code)
 			_log("방 %s 만듦 (%s)" % [code, p["name"]])
 			_join(id, code)
 		"join":
-			var code := str(m.get("code", "")).to_upper().strip_edges()
+			if p["room"] != "":
+				return
+			var code := str(m.get("code", "")).to_upper().strip_edges().left(8)
 			if not _rooms.has(code):
-				_err(id, "그런 방이 없습니다: " + code)
+				p["bad_codes"] = int(p["bad_codes"]) + 1
+				if int(p["bad_codes"]) >= BAD_CODE_LIMIT:
+					_kick(id, "방 코드를 너무 많이 틀림")
+					return
+				_err(id, "그런 방이 없습니다.")
 				return
 			_join(id, code)
 		"pick":
-			_pick(id, str(m.get("character", "")))
+			_pick(id, str(m.get("character", "")).left(32))
 		"ready":
 			var r := _room_of(id)
 			if r.is_empty() or r["game"] != null:
@@ -180,7 +252,7 @@ func _deal_offer(r: Dictionary) -> Array:
 	var used := []
 	for s in r["seats"]:
 		used.append_array(s["offer"])
-	var ids: Array = GameDataV2.load_default().characters.get("characters", []).map(func(c): return str(c["id"]))
+	var ids: Array = _data.characters.get("characters", []).map(func(c): return str(c["id"]))
 	ids = ids.filter(func(x): return not x in used)
 	var out := []
 	while out.size() < 2 and not ids.is_empty():
@@ -262,6 +334,18 @@ func _on_drop(id: int) -> void:
 	_log("방 %s 자리 %d 끊김" % [r["code"], seat])
 
 
+func _dropped_seat_with(token: String) -> bool:
+	## 이 토큰을 가진 끊긴 자리가 있는가 (판 중인 방)
+	for code in _rooms:
+		var r: Dictionary = _rooms[code]
+		if r["game"] == null:
+			continue
+		for s in r["seats"]:
+			if s["token"] == token and s["peer"] < 0:
+				return true
+	return false
+
+
 func _try_resume(id: int) -> void:
 	## 끊겼던 사람이 같은 토큰으로 돌아오면 자리를 돌려준다
 	var p: Dictionary = _peers[id]
@@ -297,7 +381,7 @@ func _start(id: int) -> void:
 		if s["human"] and s["character"] == "":
 			_err(id, "아직 요원을 고르지 않은 사람이 있습니다.")
 			return
-	var data := GameDataV2.load_default()
+	var data := _data
 	var taken := []
 	for s in r["seats"]:
 		if s["character"] != "":
@@ -313,7 +397,7 @@ func _start(id: int) -> void:
 			s["name"] = str(data.character(s["character"]).get("name", "AI"))
 		defs.append({"name": s["name"], "character": s["character"]})
 	var g := RulesV2.new()
-	g.setup(defs, _rng.randi())
+	g.setup(defs, _rng.randi(), data)
 	g.human = r["host"]   # 결행 혜택은 방장이 고른다 (엔진 규칙: 사람 한 명)
 	r["game"] = g
 	g.events.clear()

@@ -79,7 +79,7 @@ func toggle() -> void:
 func refresh() -> void:
 	_date.text = game.date_label()
 	while _count < game.log_lines.size():
-		var line: String = game.log_lines[_count]
+		var line: String = str(game.log_lines[_count]).replace("[", "[lb]")   # 이름 등 글 속 [ ]를 서식으로 읽지 않게 (Z1)
 		var col := LogTicker.tone_of(line)
 		if line.begins_with("──"):
 			_log.append_text("\n[color=#%s][b]%s[/b][/color]\n" % [col.to_html(false), line.strip_edges().trim_prefix("──").trim_suffix("──").strip_edges()])
