@@ -713,9 +713,37 @@ func _q() -> void:
 	screen._tip.visible = false
 	var mv := game.legal_actions().filter(func(a): return int(a.get("player", -1)) == 0 and a["type"] == "move_die")
 	if not mv.is_empty():
+		screen._pick_verb("move", mv)   # M3: 「이동」을 누르면 쓸 주사위가 반짝
+		await _wait(0.4)
+		await _shot("q_verb_move")
 		screen._hover_action(mv[mv.size() - 1])
 		await _wait(0.4)
 		await _shot("q_preview_move")
+		# M2: 기운 보드에서 칸 누르기가 맞는 칸으로 가는가
+		if screen._tilt != null and not screen._board.reach.is_empty():
+			var target: Vector2i = screen._board.reach.keys()[0]
+			var before: Vector2i = game.players[0]["pos"]
+			screen.act_now(mv[mv.size() - 1])   # 이동 주사위를 먼저 고른다 (걷는 중이어야 칸을 눌러 감)
+			await _wait(1.0)
+			for c in game.reach_cells(game.players[0], game.steps_left):
+				target = c
+				break
+			var lp: Vector2 = screen._tilt.board_to_local(screen._board.cell_rect(target).get_center())
+			var mm := InputEventMouseMotion.new()
+			mm.position = lp
+			screen._tilt._gui_input(mm)
+			await _wait(0.2)
+			var hov: Vector2i = screen._board.hover
+			var mb := InputEventMouseButton.new()
+			mb.position = lp
+			mb.button_index = MOUSE_BUTTON_LEFT
+			mb.pressed = true
+			screen._tilt._gui_input(mb)
+			var mb2: InputEventMouseButton = mb.duplicate()
+			mb2.pressed = false
+			screen._tilt._gui_input(mb2)
+			await _wait(2.5)
+			print("[tour] 기운 보드 누르기: 목표 %s · 가리킨 칸 %s · 전 %s → 후 %s" % [str(target), str(hov), str(before), str(game.players[0]["pos"])])
 	# 엔딩: AI로 한 판을 끝까지 두고 요약을 본다
 	var g := RulesV2.new()
 	var defs := []

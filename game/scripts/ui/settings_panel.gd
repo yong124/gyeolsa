@@ -40,6 +40,14 @@ func _ready() -> void:
 		Prefs.sfx_volume = x
 		Sfx.play("click")))
 
+	grid.add_child(_key("보드 입체"))
+	var tl := CheckBox.new()
+	tl.text = "보드를 눕히고 말을 세움 (다음 판부터)"
+	tl.button_pressed = Prefs.v2_tilt
+	tl.toggled.connect(func(on):
+		Prefs.v2_tilt = on
+		Prefs.save())
+	grid.add_child(tl)
 	grid.add_child(_key("연출"))
 	var cm := OptionButton.new()
 	for nm in ["컷신 전부", "같은 컷신은 처음만", "컷신 줄임 (배너만)"]:

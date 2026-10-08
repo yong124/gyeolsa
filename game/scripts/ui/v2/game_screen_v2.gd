@@ -1,6 +1,7 @@
 class_name GameScreenV2
 extends Control
-## v2 게임 화면 (v1 화면 모양): 상단 바 + 보드 + 오른쪽 열(요원 명부 · 공개 미션 줄/결행 장면 · 내 손패 · 행동) + 작전 기록.
+## v2 게임 화면 (M 재배치): 위쪽 띠 + 왼쪽 레일(동료 · 작전 기록) + 가운데 보드 + 오른쪽 레일(미션 줄/결행 장면 · 일제 작전)
+## + 아래 독(나 · 행동 · 손패).
 ##
 ## 흐름: 엔진에 액션 → 엔진이 쌓은 events를 연출 큐에 넣음 → 하나씩 재생(await)
 ##      → 큐가 비면 화면을 실제 상태와 맞추고 → 사람 입력을 기다리거나 AI가 한 수를 둔다.
@@ -46,18 +47,39 @@ var _remote: NetClientV2 = null   # 온라인: 판정은 서버가, 이 화면�
 var _remote_queue: Array = []     # 연출 중에 온 서버 보기 (차례로 반영)
 var _remote_info := {}            # 서버가 덧붙인 정보 (아침에 기다리는 자리, AI가 맡은 자리)
 var _saved_day := -1              # 이 날 아침에 자동 저장했는가
-var _right_h := 0.0               # 오른쪽 패널이 받은 높이 (작전 기록 띠 위까지)
+var _right_h := 0.0               # 아래 독이 받은 높이
+var _left_h := 0.0                # 왼쪽 레일이 받은 높이 (작전 기록 띠 위까지)
+var _rail_h := 0.0                # 오른쪽 레일이 받은 높이
 
 var _board: BoardViewV2
 var _frame: PanelContainer
+var _tilt: TiltBoardV2 = null     # M2: 기운 보드 (설정 「보드 입체」를 끄면 없음)
 var _top: TopBarV2
-var _right: VBoxContainer
+var _right: HBoxContainer         # 아래 독 (나 · 행동 · 손패)
+var _left: VBoxContainer          # 왼쪽 레일 (동료)
+var _rail: VBoxContainer          # 오른쪽 레일 (미션 줄 · 일제 작전 / 결행 장면)
+var _me_box: VBoxContainer        # 독의 「나」
+const DOCK_H := 198.0
+## M3 행동 먼저: [키, 단추 글, 엔진 액션 종류들, _why_not_rows의 이름]
+const VERBS := [
+	["move", "이동", ["move_die"], ""],
+	["check", "작전 판정", ["mission_check", "scene_check", "counter_check"], "표적 판정"],
+	["give", "바치기", ["work_give", "scene_pay"], "공작 바치기"],
+	["pass", "건네기", ["give_die", "give_item"], "건네기"],
+	["decoy", "미끼", ["decoy"], "미끼"],
+	["hide", "숨기", ["hide"], "숨기"],
+	["scout", "정찰", ["scout"], "정찰"],
+	["market", "장터", ["market"], "장터"],
+	["escape", "탈옥", ["escape"], "탈옥"],
+]
+const LEFT_W := 330.0
+const RAIL_W := 384.0
 var _roster_box: VBoxContainer
 var _rows: Array = []
 var _mid_title: Label
 var _mid_hint: Label
 var _mid_box: Container
-var _ops_row: HBoxContainer
+var _ops_row: VBoxContainer
 var _hand_hint: Label
 var _hand_row: HBoxContainer
 var _act_title: Label
@@ -87,6 +109,8 @@ var _choice: Overlay
 var _peek: CardPeekV2   # 마우스를 올리면 뜨는 큰 카드
 var _shown_actions: Array = []    # 지금 화면에 단추로 나온 액션 (시험용)
 var _primary_action: Dictionary = {}  # 주 버튼 액션 (스페이스)
+var _verb := ""                   # M3: 고른 행동 (주사위를 고르기를 기다림)
+var _verb_acts: Array = []
 
 
 func _init(g: RulesV2, human_id := 0, meta_info := {}) -> void:
@@ -185,53 +209,55 @@ func _build() -> void:
 	_board.cell_hovered.connect(_preview_cell)
 	_frame.add_child(_board)
 	_board.setup(game, human)
+	if Prefs.v2_tilt:
+		_tilt = TiltBoardV2.new()
+		add_child(_tilt)
+		_tilt.setup(_frame, _board)
 
-	_right = VBoxContainer.new()
-	_right.add_theme_constant_override("separation", 5)   # 패널 사이 (높이 900에 네 패널이 들어가게)
+	_left = VBoxContainer.new()
+	_left.add_theme_constant_override("separation", 6)
+	add_child(_left)
+	_rail = VBoxContainer.new()
+	_rail.add_theme_constant_override("separation", 6)
+	add_child(_rail)
+	_right = HBoxContainer.new()
+	_right.add_theme_constant_override("separation", 6)
 	add_child(_right)
 
-	# 요원 명부
-	var roster := _panel("요 원 명 부", "마우스를 올리면 특성 · 능력")
-	_roster_open = Prefs.v2_roster_open
-	_roster_btn = UiKit.button("", func():
-		_roster_open = not _roster_open
-		Prefs.v2_roster_open = _roster_open
-		Prefs.save()
-		_roster_btn.text = "동료 상세 ▴" if _roster_open else "동료 상세 ▾"
-		for r in _rows:
-			r["cur"] = null   # 다시 그리게
-		_refresh_roster()
-		call_deferred("_fit_right"), 11, "tab")
-	_roster_btn.text = "동료 상세 ▴" if _roster_open else "동료 상세 ▾"
-	_roster_btn.tooltip_text = "접으면 지금 차례인 요원만 자세히, 나머지는 한 줄로 보입니다."
+	# 왼쪽 레일: 동료 (나는 아래 독에)
+	var roster := _panel("동 료", "누르면 특성 · 능력", _left)
+	_roster_open = true
+	_roster_btn = UiKit.button("", func(): pass, 11, "tab")
+	_roster_btn.visible = false
 	roster[2].get_parent().add_child(_roster_btn)
 	_roster_box = VBoxContainer.new()
-	_roster_box.add_theme_constant_override("separation", 2)
+	_roster_box.add_theme_constant_override("separation", 4)
 	roster[1].add_child(_roster_box)
 	for p in game.players:
 		_rows.append(_make_row(p))
 
-	# 공개 미션 줄 / 결행 장면
-	var mid := _panel("", "")
+	# 오른쪽 레일: 공개 미션 줄 / 결행 장면 + 일제 작전
+	var mid := _panel("", "", _rail)
 	_mid_title = mid[2]
 	_mid_hint = mid[3]
-	_mid_box = HBoxContainer.new()
-	_mid_box.add_theme_constant_override("separation", 8)
+	_mid_box = VBoxContainer.new()
+	_mid_box.add_theme_constant_override("separation", 6)
 	mid[1].add_child(_mid_box)
-	_ops_row = HBoxContainer.new()
-	_ops_row.add_theme_constant_override("separation", 8)
+	_ops_row = VBoxContainer.new()
+	_ops_row.add_theme_constant_override("separation", 5)
 	mid[1].add_child(_ops_row)
 
-	# 내 손패
-	var hand := _panel("내 손 패", "")
-	_hand_hint = hand[3]
-	_hand_row = HBoxContainer.new()
-	_hand_row.add_theme_constant_override("separation", 8)
-	hand[1].add_child(_hand_row)
+	# 아래 독: 나
+	var mep := _panel("", "", _right)
+	mep[0].custom_minimum_size = Vector2(300, 0)
+	mep[2].get_parent().visible = false
+	_me_box = VBoxContainer.new()
+	_me_box.add_theme_constant_override("separation", 4)
+	mep[1].add_child(_me_box)
 
-	# 행동
-	var act := _panel("", "")
-	act[0].size_flags_vertical = Control.SIZE_EXPAND_FILL
+	# 아래 독: 행동 (미리보기 띠 · 주사위 · 단추)
+	var act := _panel("", "", _right)
+	act[0].size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_act_title = act[2]
 	_act_hint = act[3]
 	_pv_box = HBoxContainer.new()
@@ -258,21 +284,35 @@ func _build() -> void:
 		cv.add_child(body)
 		_pv_labels.append(body)
 		_pv_box.add_child(cell)
-	_status_lbl = UiKit.text("", 12, Style.INK_2, false, 700)
-	act[1].add_child(_status_lbl)
+	var arow := HBoxContainer.new()
+	arow.add_theme_constant_override("separation", 12)
+	act[1].add_child(arow)
 	_dice_row = HBoxContainer.new()
-	_dice_row.add_theme_constant_override("separation", 10)
-	act[1].add_child(_dice_row)
+	_dice_row.add_theme_constant_override("separation", 8)
+	arow.add_child(_dice_row)
 	_act_row = HBoxContainer.new()
-	_act_row.add_theme_constant_override("separation", 9)
-	act[1].add_child(_act_row)
+	_act_row.add_theme_constant_override("separation", 7)
+	_act_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	arow.add_child(_act_row)
+	_status_lbl = UiKit.text("", 11, Style.INK_2, false, 700)
+	act[1].add_child(_status_lbl)
+
+	# 아래 독: 손패 (사연 · 아이템 · 폭탄)
+	var hand := _panel("내 손 패", "", _right)
+	_hand_hint = hand[3]
+	_hand_row = HBoxContainer.new()
+	_hand_row.add_theme_constant_override("separation", 6)
+	hand[1].add_child(_hand_row)
 
 	_ticker = LogTickerV2.new(game)
 	add_child(_ticker)
 	add_child(_ticker.drawer)
 
 	_atmos = AtmosV2.new()
-	add_child(_atmos)
+	if _tilt != null:
+		_tilt.vp.add_child(_atmos)   # 기운 보드: 분위기(빛 · 비 · 탐조등)도 보드 그림 안에 그려 함께 눕힌다
+	else:
+		add_child(_atmos)
 	_fx = FxLayer.new()
 	add_child(_fx)
 	_cine = CinemaV2.new()
@@ -286,14 +326,14 @@ func _build() -> void:
 		_build_tasks()
 
 
-func _panel(title: String, hint: String) -> Array:
+func _panel(title: String, hint: String, parent: Container) -> Array:
 	## 종이 패널: [패널, 본문 VBox, 제목 Label, 안내 Label]
 	var panel := PanelContainer.new()
 	var ps := Style.paper(12)
 	ps.content_margin_top = 5
 	ps.content_margin_bottom = 3
 	panel.add_theme_stylebox_override("panel", ps)
-	_right.add_child(panel)
+	parent.add_child(panel)
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 4)
 	panel.add_child(v)
@@ -317,19 +357,35 @@ func _layout() -> void:
 	_top.position = Vector2(20, 10)
 	_top.size = Vector2(w - 40, 56)
 	var top_y := 78.0
-	var side := floorf(minf(h - top_y - 12, w * 0.52))
-	_frame.position = Vector2(20, top_y)
-	_frame.size = Vector2(side, side)
-	var rx := 20 + side + 18
+	var dock_y := h - 12 - DOCK_H
 	var tick_h := 40.0
-	_right.position = Vector2(rx, top_y)
-	_right_h = h - top_y - 12 - tick_h - GAP
-	_right.size = Vector2(w - rx - 20, _right_h)
-	_ticker.position = Vector2(rx, h - 12 - tick_h)
-	_ticker.size = Vector2(w - rx - 20, tick_h)
-	var dy := top_y + h * 0.18
-	_ticker.drawer.position = Vector2(rx, dy)
-	_ticker.drawer.size = Vector2(w - rx - 20, h - 12 - tick_h - 8 - dy)
+	# 왼쪽 레일 + 작전 기록 띠
+	_left.position = Vector2(20, top_y)
+	_left_h = dock_y - 8 - tick_h - 6 - top_y
+	_left.size = Vector2(LEFT_W, _left_h)
+	_ticker.position = Vector2(20, dock_y - 8 - tick_h)
+	_ticker.size = Vector2(LEFT_W, tick_h)
+	_ticker.drawer.position = Vector2(20, top_y)
+	_ticker.drawer.size = Vector2(LEFT_W + 120, dock_y - 8 - tick_h - 8 - top_y)
+	# 오른쪽 레일
+	_rail.position = Vector2(w - 20 - RAIL_W, top_y)
+	_rail_h = dock_y - 8 - top_y
+	_rail.size = Vector2(RAIL_W, _rail_h)
+	# 아래 독
+	_right.position = Vector2(20, dock_y)
+	_right_h = DOCK_H
+	_right.size = Vector2(w - 40, DOCK_H)
+	# 가운데 보드
+	var x0 := 20 + LEFT_W + 28
+	var x1 := w - 20 - RAIL_W - 20
+	var side := floorf(minf(dock_y - 8 - top_y, x1 - x0))
+	if _tilt != null:
+		_tilt.place(Rect2(x0, top_y - 4, x1 - x0, dock_y - 4 - top_y))
+	else:
+		_frame.position = Vector2(x0 + (x1 - x0 - side) / 2.0, top_y)
+		_frame.size = Vector2(side, side)
+	var br := _board_rect()
+	side = br.size.x
 	# 줄바꿈하는 글은 폭이 정해져야 높이가 정해진다 (안 정하면 한 글자 폭으로 재서 화면만큼 길어짐)
 	_tip.custom_minimum_size = Vector2(side - 28, 0)
 	if _training:
@@ -338,11 +394,33 @@ func _layout() -> void:
 	_place_tip()
 	if _task_box != null:
 		call_deferred("_place_tasks")
-	_fx.focus_center = _frame.position + _frame.size / 2.0
-	_fx.board_rect = Rect2(_frame.position, _frame.size)
-	_atmos.position = _frame.position + Vector2(8, 8)
-	_atmos.size = _frame.size - Vector2(16, 16)
+	_fx.focus_center = br.get_center()
+	_fx.board_rect = br
+	if _tilt != null:
+		_atmos.position = Vector2(8, 8)
+		_atmos.size = Vector2(TiltBoardV2.VP_SIDE - 16, TiltBoardV2.VP_SIDE - 16)
+	else:
+		_atmos.position = br.position + Vector2(8, 8)
+		_atmos.size = br.size - Vector2(16, 16)
 	call_deferred("_fit_right")
+
+
+func _board_rect() -> Rect2:
+	## 보드가 화면에서 차지하는 사각형 (기운 보드면 그 그림의 바깥 사각형)
+	if _tilt != null:
+		return _tilt.screen_rect()
+	return Rect2(_frame.position, _frame.size)
+
+
+func _cell_screen(c: Vector2i) -> Vector2:
+	## 칸 가운데의 화면 좌표 (연출을 칸 위에 띄울 때)
+	if _tilt != null:
+		return _tilt.cell_to_screen(Vector2(c))
+	return _frame.position + _board.position + _board.cell_center(c)
+
+
+func _board_node() -> Control:
+	return _tilt if _tilt != null else _frame
 
 
 # ================================================================ 요원 명부
@@ -384,9 +462,9 @@ func _make_row(p: Dictionary) -> Dictionary:
 	sub.size_flags_vertical = Control.SIZE_SHRINK_END
 	nh.add_child(sub)
 	v.add_child(nh)
-	var chips := HBoxContainer.new()
-	chips.add_theme_constant_override("separation", 5)
-	chips.clip_contents = true
+	var chips := HFlowContainer.new()   # 레일이 좁아 칩은 줄을 바꿔 가며 놓는다
+	chips.add_theme_constant_override("h_separation", 4)
+	chips.add_theme_constant_override("v_separation", 3)
 	v.add_child(chips)
 	var mini := HBoxContainer.new()   # 접힌 줄: 이름 옆에 아이콘만
 	mini.add_theme_constant_override("separation", 3)
@@ -400,8 +478,51 @@ func _make_row(p: Dictionary) -> Dictionary:
 	pad.custom_minimum_size = Vector2(4, 0)
 	h.add_child(pad)
 	_roster_box.add_child(panel)
+	panel.visible = pid != human   # 나는 아래 독에서 본다
 	return {"panel": panel, "face": face, "name": name, "sub": sub, "bar": bar, "chips": chips, "mini": mini, "stamp": stamp, "sig": "", "cur": null}
 
+
+
+func _refresh_me() -> void:
+	## 아래 독의 나: 초상 · 이름 · 칩 (지금 상태)
+	if _me_box == null:
+		return
+	UiKit.clear(_me_box)
+	var p: Dictionary = game.players[human]
+	var ch: Dictionary = game.char_def(p)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	_me_box.add_child(row)
+	var face := TextureRect.new()
+	face.texture = ArtV2.get_tex("char", str(p["character"]), ArtV2.get_tex("token", str(p["character"])))
+	face.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	face.custom_minimum_size = Vector2(78, 104)
+	if p["jailed"]:
+		face.modulate = Color(0.6, 0.58, 0.55)
+	row.add_child(face)
+	_peek.attach(face, func(): return _char_info(game.players[human]))
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 3)
+	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(v)
+	var is_cur: bool = game.current == human and game.phase in ["turn", "choice"]
+	var nh := HBoxContainer.new()
+	nh.add_theme_constant_override("separation", 6)
+	nh.add_child(UiKit.title(str(ch.get("name", "")), 19, Style.INK))
+	if is_cur:
+		nh.add_child(UiKit.stamp("내 차례", 11))
+	v.add_child(nh)
+	var fac: String = str(game.data.characters.get("factions", {}).get(ch.get("faction", ""), {}).get("name", ""))
+	v.add_child(UiKit.text(fac + " · " + str(ch.get("trait_text", "")), 11, Style.INK_3, false))
+	var flow := HFlowContainer.new()
+	flow.add_theme_constant_override("h_separation", 4)
+	flow.add_theme_constant_override("v_separation", 3)
+	v.add_child(flow)
+	for c in _chips(p):
+		if str(c[0]).begins_with("사연"):
+			continue   # 사연은 손패에
+		flow.add_child(_chip(c))
 
 
 func _refresh_roster() -> void:
@@ -410,7 +531,7 @@ func _refresh_roster() -> void:
 		var is_cur: bool = p["id"] == game.current and game.phase in ["turn", "choice"]
 		# 접힘(U1): 펼치지 않았으면 지금 차례인 요원(없으면 나)만 칩을 다 보이고, 나머지는 한 줄에 아이콘만
 		var focus: bool = is_cur or (p["id"] == human and not (game.current >= 0 and game.phase in ["turn", "choice"]))
-		var full: bool = _roster_open or focus
+		var full: bool = true   # 레일에는 자리가 넉넉해 늘 펼친다 (focus는 지금 차례 강조에만)
 		if row["cur"] != is_cur or row.get("full") != full:
 			row["cur"] = is_cur
 			row["full"] = full
@@ -558,8 +679,8 @@ func _refresh_mid() -> void:
 				band += " · %d일" % days
 			var status := game.card_status(str(id))
 			desc = status if status != "" else str(m.get("text", ""))   # U1: 진행이 없으면 보상을 한 줄로
-			var card := CardView.face(band, Color("#2f7f7a") if coop else Style.MISSION, _mission_art(type),
-				str(m.get("name", "")), desc, 176, 124, false, 0.46, true)
+			var card := _rail_card(band, Color("#2f7f7a") if coop else Style.MISSION, ArtV2.get_tex("mission", type, _mission_art(type)),
+				str(m.get("name", "")), desc)
 			_peek.attach(card, _mission_info(str(id)))
 			_mid_box.add_child(card)
 			_mission_cards[str(id)] = card
@@ -572,8 +693,6 @@ func _refresh_mid() -> void:
 	_mid_title.text = "결 행 · %s" % _spaced(str(strike.get("name", "")))
 	_mid_hint.text = "장면을 하나씩 돌파 · 마지막을 뚫으면 대성공"
 	for i in game.scenes.size():
-		if i > 0:
-			_mid_box.add_child(UiKit.text("▸", 14, Style.INK_3, false))
 		var last := i == game.scenes.size() - 1
 		var card := _scene_card_dict(str(game.scenes[i]))
 		var box := PanelContainer.new()
@@ -584,10 +703,9 @@ func _refresh_mid() -> void:
 			box.add_theme_stylebox_override("panel", Style.flat(Style.MISSION, Style.MISSION.darkened(0.3), 1, 2, 6))
 			v.add_child(_center_lbl(UiKit.title(str(card.get("name", "")), 14, Color.WHITE)))
 			v.add_child(_center_lbl(UiKit.text("돌파", 11, Color.WHITE, false)))
-			box.custom_minimum_size = Vector2(76, 58)
+			box.custom_minimum_size = Vector2(0, 30)
 		elif i == game.scene_index:
 			box.add_theme_stylebox_override("panel", Style.flat(Color("#fff8e6"), Style.GOLD, 3, 2, 8))
-			box.custom_minimum_size = Vector2(270, 0)
 			v.add_child(UiKit.text("지금 장면 %d / %d · %s" % [i + 1, game.scenes.size(), _scene_kind(i)], 11, Style.INK_3, false))
 			v.add_child(UiKit.title(str(card.get("name", "")), 17, Style.INK))
 			v.add_child(UiKit.text(_cond_text(card.get("condition", {}), card), 12, Style.INK_2))
@@ -604,13 +722,53 @@ func _refresh_mid() -> void:
 		else:
 			var known := last   # 마지막 장면은 공개된 카드 (결행마다 고정)
 			box.add_theme_stylebox_override("panel", Style.flat(Color("#e4d6b4"), Style.SEAL if last else Color("#bba57c"), 2 if last else 1, 2, 6))
-			box.custom_minimum_size = Vector2(76, 58)
+			box.custom_minimum_size = Vector2(0, 30)
 			v.add_child(_center_lbl(UiKit.title(str(card.get("name", "")) if known else "?", 14, Style.SEAL if last else Style.INK_3)))
 			v.add_child(_center_lbl(UiKit.text(_scene_kind(i), 11, Style.SEAL if last else Style.INK_3, false)))
 		box.mouse_filter = Control.MOUSE_FILTER_PASS
 		_peek.attach(box, _scene_info(card, i))
 		box.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		_mid_box.add_child(box)
+
+
+func _rail_card(band: String, col: Color, art: Texture2D, name: String, desc: String) -> PanelContainer:
+	## 오른쪽 레일의 카드 한 줄: 그림 · 띠(종류) · 이름 · 진행이나 보상
+	var card := PanelContainer.new()
+	card.add_theme_stylebox_override("panel", Style.card_paper(0))
+	card.mouse_filter = Control.MOUSE_FILTER_PASS
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 10)
+	card.add_child(h)
+	var img := TextureRect.new()
+	img.texture = art
+	img.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	img.custom_minimum_size = Vector2(76, 76)
+	img.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	h.add_child(img)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 1)
+	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	h.add_child(v)
+	var b := UiKit.label(band, 11, Color.WHITE)
+	b.add_theme_font_override("font", Style.sans(800))
+	var bs := Style.flat(col, Color.TRANSPARENT, 0, 3, 0)
+	bs.content_margin_left = 6
+	bs.content_margin_right = 6
+	b.add_theme_stylebox_override("normal", bs)
+	b.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	v.add_child(b)
+	var t := UiKit.title(name, 17, Style.INK)
+	t.clip_text = true
+	t.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	v.add_child(t)
+	if desc != "":
+		var d := UiKit.text(desc, 12, Style.GOOD, false, 700)
+		d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		d.max_lines_visible = 2
+		v.add_child(d)
+	return card
 
 
 func _refresh_ops() -> void:
@@ -623,14 +781,16 @@ func _refresh_ops() -> void:
 	for id in game.op_row:
 		var oc: Dictionary = game.data.op_card(str(id))
 		var chip := PanelContainer.new()
-		chip.add_theme_stylebox_override("panel", Style.flat(Color("#fbe9e4"), Style.SEAL, 2, 2, 5))
+		chip.add_theme_stylebox_override("panel", Style.flat(Color("#fbe9e4"), Style.SEAL, 2, 3, 7))
 		var v := VBoxContainer.new()
 		v.add_theme_constant_override("separation", 0)
 		chip.add_child(v)
 		v.add_child(UiKit.title("%s · %d일" % [oc.get("name", ""), game.card_days_left(str(id))], 13, Style.SEAL))
 		var how := str(oc.get("how", ""))
 		var status := game.card_status(str(id))
-		v.add_child(UiKit.text(how + ((" · " + status) if status != "" else ""), 11, Style.INK_2, false))
+		var hl := UiKit.text(how + ((" · " + status) if status != "" else ""), 12, Style.INK_2, false)
+		hl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		v.add_child(hl)
 		chip.mouse_filter = Control.MOUSE_FILTER_PASS
 		_peek.attach(chip, _op_info(str(id)))
 		_ops_row.add_child(chip)
@@ -699,8 +859,8 @@ func _spaced(s: String) -> String:
 func _refresh_hand() -> void:
 	UiKit.clear(_hand_row)
 	var me: Dictionary = game.players[human]
-	var W := 112.0
-	var H := 92.0    # 손패는 이름만 보이면 된다 (설명은 마우스를 올리면 큰 카드)
+	var W := 98.0
+	var H := 112.0   # 손패는 이름만 보이면 된다 (설명은 마우스를 올리면 큰 카드)
 	var prog := game.saga_progress(human)
 	for id in game.saga_cards(human):
 		var s: Dictionary = game.data.saga(str(id))
@@ -846,6 +1006,11 @@ func _refresh_actions() -> void:
 	_status_lbl.text = _status_line()
 	_preview_idle()
 	_tip_check()
+	if game.phase == "turn" and game.current == human and game.steps_left == 0 and not _playing and not _auto:
+		_build_verbs(mine, primary, others)
+		call_deferred("_fit_right")
+		return
+	_verb = ""
 	# 주 버튼
 	var pb := UiKit.button("", func(): pass, 21, "primary")
 	pb.custom_minimum_size = Vector2(290, 54)
@@ -911,17 +1076,130 @@ func _refresh_actions() -> void:
 	call_deferred("_fit_right")
 
 
+func _build_verbs(mine: Array, primary: Dictionary, others: Array) -> void:
+	## M3 행동 먼저: 행동 단추판(두 줄) + 오른쪽에 차례 마치기 · 더 보기(아이템 · 능력 등)
+	var grid := GridContainer.new()
+	grid.columns = 4
+	grid.add_theme_constant_override("h_separation", 5)
+	grid.add_theme_constant_override("v_separation", 5)
+	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_act_row.add_child(grid)
+	var why := {}
+	for r in _why_not_rows(mine):
+		why[str(r[0])] = str(r[1])
+	var me: Dictionary = game.players[human]
+	for vb in VERBS:
+		var key: String = vb[0]
+		var types: Array = vb[2]
+		var acts: Array = mine.filter(func(a): return a["type"] in types)
+		if key == "escape" and not me["jailed"]:
+			continue
+		if me["jailed"] and not key in ["escape", "pass"]:
+			continue
+		if key == "market" and game.act == 2:
+			continue
+		var on := _verb == key
+		var rec := not primary.is_empty() and primary in acts
+		var b := UiKit.button(str(vb[1]), func(): _pick_verb(key, acts), 14, "primary" if on else "paper")
+		b.custom_minimum_size = Vector2(0, 40)
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		if acts.is_empty():
+			b.disabled = true
+			var reason := str(why.get(str(vb[3]), ""))
+			if key == "check" and game.act == 2:
+				reason = str(why.get("장면 판정·바치기", reason))
+			b.tooltip_text = "지금은 못 함" + (": " + reason if reason != "" else "")
+		else:
+			b.tooltip_text = _hint(acts[0])
+			var first: Dictionary = acts[0]
+			if rec:
+				first = primary
+				b.text = str(vb[1]) + " ★"
+				b.tooltip_text = "추천 · " + _label(primary) + "\n" + b.tooltip_text
+			b.mouse_entered.connect(func(): _hover_action(first))
+			b.mouse_exited.connect(func():
+				if _verb == "":
+					_board.reach = {}
+					_board.queue_redraw())
+			for a in acts:
+				_shown_actions.append(a)
+		_hover_lift(b)
+		grid.add_child(b)
+	if not primary.is_empty():
+		_primary_action = primary   # 스페이스 = 추천 수
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 5)
+	col.custom_minimum_size = Vector2(150, 0)
+	_act_row.add_child(col)
+	var rest := []
+	for a in others:
+		if _die_of(a) >= 0 or a == primary:
+			continue
+		if a["type"] == "end_turn":
+			var aa: Dictionary = a
+			var eb := UiKit.button("차례 마치기", func(): _press(aa), 15, "dark")
+			eb.custom_minimum_size = Vector2(0, 40)
+			col.add_child(eb)
+			_shown_actions.append(a)
+		else:
+			rest.append(a)
+	if not primary.is_empty() and _die_of(primary) < 0 and primary["type"] != "end_turn":
+		rest.push_front(primary)
+	elif not primary.is_empty() and primary["type"] == "end_turn":
+		var pa: Dictionary = primary
+		var eb2 := UiKit.button("차례 마치기", func(): _press(pa), 15, "dark")
+		eb2.custom_minimum_size = Vector2(0, 40)
+		col.add_child(eb2)
+		_shown_actions.append(primary)
+	if not rest.is_empty():
+		var more := MenuButton.new()
+		more.text = "아이템 · 능력 (%d)" % rest.size()
+		more.flat = false
+		Style.style_button(more, "paper")
+		more.custom_minimum_size = Vector2(0, 40)
+		var pm := more.get_popup()
+		for i in rest.size():
+			pm.add_item(_label(rest[i]), i)
+			_shown_actions.append(rest[i])
+		pm.id_pressed.connect(func(id): _press(rest[id]))
+		col.add_child(more)
+	if _verb != "":
+		_act_hint.text = "「%s」 — 쓸 주사위를 누르세요 (반짝이는 주사위)" % str(VERBS.filter(func(v): return v[0] == _verb)[0][1])
+
+
+func _pick_verb(key: String, acts: Array) -> void:
+	## 행동을 골랐다: 쓸 수 있는 수가 하나면 바로, 주사위가 여럿이면 주사위를 고르게, 한 주사위에 여럿이면 메뉴
+	if acts.is_empty() or _playing:
+		return
+	Sfx.play("click")
+	var dice := {}
+	for a in acts:
+		dice[_die_of(a)] = true
+	if acts.size() == 1:
+		_press(acts[0])
+		return
+	if dice.size() == 1:
+		_die_menu(acts, int(dice.keys()[0]))
+		return
+	_verb = "" if _verb == key else key
+	_verb_acts = acts if _verb != "" else []
+	_refresh_actions()
+	if _verb != "":
+		_hover_action(acts[acts.size() - 1])
+
+
 func right_overflow() -> float:
 	## 오른쪽 패널이 받은 높이보다 얼마나 넘치는가 (양수면 작전 기록 띠를 가림, tests/v2_ui_test.gd)
-	return _right.get_combined_minimum_size().y - _right_h   # size는 최소 크기까지 늘어나므로 받은 높이와 견준다
+	# size는 최소 크기까지 늘어나므로 받은 높이와 견준다. 레일 둘과 독 중 가장 많이 넘친 것
+	return maxf(_right.get_combined_minimum_size().y - _right_h,
+		maxf(_left.get_combined_minimum_size().y - _left_h, _rail.get_combined_minimum_size().y - _rail_h))
 
 
 func layout_report() -> String:
 	## 오른쪽 패널별 최소 높이 (넘침을 찾을 때, tests/v2_ui_test.gd)
 	var parts := []
-	for c in _right.get_children():
-		if c is Control and c.visible:
-			parts.append("%.0f" % c.get_combined_minimum_size().y)
+	for box in [_left, _rail, _right]:
+		parts.append("%.0f/%.0f" % [box.get_combined_minimum_size().y, {_left: _left_h, _rail: _rail_h, _right: _right_h}[box]])
 	var tip := _dice_row.get_node_or_null("DiceTip")
 	return "패널 %s · 주사위 줄 %.0f · 행동 줄 %.0f · 안내 %s · 상태 %s" % [" / ".join(parts), _dice_row.get_combined_minimum_size().y,
 		_act_row.get_combined_minimum_size().y, tip != null and tip.visible, _status_lbl.visible]
@@ -946,6 +1224,8 @@ func _fit_right() -> void:
 		_status_lbl.visible = false
 	await get_tree().process_frame
 	_right.size = Vector2(_right.size.x, _right_h)   # 숨긴 만큼 다시 줄인다
+	_left.size = Vector2(_left.size.x, _left_h)
+	_rail.size = Vector2(_rail.size.x, _rail_h)
 
 
 func _sec_btn(s: Dictionary) -> Button:
@@ -1058,6 +1338,8 @@ func _refresh_dice(mine: Array) -> void:
 		var die := DieFace.new()
 		die.value = int(d["value"])
 		die.mine = not acts.is_empty() and not _playing
+		var vacts: Array = _verb_acts.filter(func(x): return _die_of(x) == i)
+		die.pick = _verb != "" and not vacts.is_empty()
 		die.used = d["used"]
 		die.custom_minimum_size = Vector2(44, 44)
 		if die.mine:
@@ -1066,6 +1348,7 @@ func _refresh_dice(mine: Array) -> void:
 			var first: Dictionary = mv[0] if not mv.is_empty() else acts[0]
 			die.mouse_entered.connect(func():
 				_preview_action(first)
+				_hover_action(first)
 				die.hover = true
 				Sfx.play("click", 0.3, 0.25)
 				die.queue_redraw())
@@ -1074,9 +1357,18 @@ func _refresh_dice(mine: Array) -> void:
 				die.queue_redraw())
 			die.tooltip_text = "눌러서: " + " / ".join(acts.map(func(a): return _label(a)))
 			var at := acts.duplicate()
+			if die.pick:
+				first = vacts[0]
+				die.tooltip_text = "이 주사위로: " + _label(vacts[0])
 			die.gui_input.connect(func(ev):
 				if ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT:
-					_die_menu(at, i))
+					if not vacts.is_empty() and _verb != "":
+						if vacts.size() == 1:
+							_press(vacts[0])
+						else:
+							_die_menu(vacts, i)
+					else:
+						_die_menu(at, i))
 			for a in acts:
 				_shown_actions.append(a)
 		v.add_child(die)
@@ -1084,7 +1376,7 @@ func _refresh_dice(mine: Array) -> void:
 		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		v.add_child(l)
 		_dice_row.add_child(v)
-	if Prefs.v2_tips or _training:   # 고정 안내는 첫 판과 훈련에서만
+	if false:   # M: 독에는 자리가 없어 고정 안내를 두지 않는다 (훈련 안내 · 미리보기 띠가 대신)
 		var tip := UiKit.text("주사위 1개 = 행동 1개: 이동(눈만큼) · 작전 판정(눈 + 주사위 1개) · 바치기\n건네기 · 미끼 · 숨기 · 정찰 · 장터 — 주사위를 눌러 고르세요\n남은 주사위는 밤에 사라집니다", 11, Style.INK_3, false)
 		tip.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		tip.name = "DiceTip"
@@ -1477,7 +1769,8 @@ func _place_tasks() -> void:
 	var panel := _task_box.get_parent() as Control
 	panel.size = Vector2.ZERO
 	panel.reset_size()
-	panel.position = Vector2(_frame.position.x + (_frame.size.x - panel.size.x) / 2.0 + 60.0, _frame.position.y + 14)   # 네 귀퉁이는 거점이라 위쪽 가운데
+	var br := _board_rect()
+	panel.position = Vector2(br.position.x + (br.size.x - panel.size.x) / 2.0 + 60.0, br.position.y + 4)   # 네 귀퉁이는 거점이라 위쪽 가운데
 
 
 func _task_done(key: String) -> void:
@@ -1557,7 +1850,7 @@ const TRAINING_STEPS := [
 	# [키, 제목, 글] — 조건은 _training_due()에서 본다. 앞 단계를 넘긴 뒤에 다음 단계가 뜬다(조건이 맞을 때)
 	["morning", "아침 · 작전 주사위", "아침마다 요원마다 작전 주사위를 2개 굴립니다(2막은 3개). 주사위 1개 = 행동 1개입니다. 위쪽 붉은 칸은 오늘 뒤집힌 일제 위협, 오른쪽 「공개 미션 줄」은 누구든 이룰 수 있는 미션입니다. 준비가 되면 「하루 시작」을 누르세요."],
 	["day", "낮 · 순서는 자유", "요원마다 하루에 한 차례씩 합니다. 순서는 자유입니다. 「내 차례 시작」으로 먼저 하거나, 동료를 먼저 보낼 수 있습니다."],
-	["turn", "내 차례 · 주사위를 누르세요", "아래 주사위를 누르면 그 주사위로 할 수 있는 일이 뜹니다. 이동은 눈만큼 걷고, 작전 판정은 「낸 눈 + 새 주사위 1개」가 목표 이상이면 성공입니다. 큰 눈을 어디에 쓸지가 이 게임의 고민입니다."],
+	["turn", "내 차례 · 행동을 고르세요", "아래 행동 단추(이동 · 작전 판정 · 바치기 …)를 누르고, 반짝이는 주사위 중 쓸 눈을 누르세요. ★은 추천 수입니다(스페이스). 이동은 눈만큼 걷고, 작전 판정은 「낸 눈 + 새 주사위 1개」가 목표 이상이면 성공입니다. 큰 눈을 어디에 쓸지가 이 게임의 고민입니다."],
 	["marker", "미션 마커", "보드의 동그란 표지가 미션 마커입니다. 마우스를 올리면 카드가 크게 뜹니다. 암살은 표적 칸에서 판정, 공작은 마커 칸에 주사위 바치기, 잠복은 곁에서 쫓기지 않고 차례 마치기처럼 종류마다 하는 일이 다릅니다. 이루면 결행 준비가 오릅니다."],
 	["move", "이동", "보드에서 칸을 누르면 그 길로 걷습니다. 덮인 칸에 들어가면 타일이 뒤집히고, 이동을 마친 칸의 효과(아이템 · 이벤트 · 장터 · 감시탑 …)를 받습니다. 걸음을 다 쓰지 않고 「이동 마치기」를 해도 됩니다."],
 	["check", "작전 판정", "지금 작전 판정을 할 수 있습니다. 행동 메뉴에 성공 확률이 나옵니다. 실패하면 남은 주사위로 다시 할 수 있지만, 그것도 행동 하나입니다."],
@@ -1626,7 +1919,8 @@ func _place_tip() -> void:
 	## 안내는 보드 아래쪽에 붙인다 (글이 길어져 높이가 바뀌어도 보드 안에)
 	if _frame == null:
 		return
-	_tip.position = Vector2(_frame.position.x + 14, _frame.position.y + _frame.size.y - _tip.size.y - 14)
+	var br := _board_rect()
+	_tip.position = Vector2(br.position.x + 14, br.end.y - _tip.size.y - 14)
 
 
 func _tip_check() -> void:
@@ -1668,9 +1962,12 @@ class DieFace extends Control:
 	var used := false
 	var carry := false
 	var hover := false
+	var pick := false   # M3: 고른 행동에 쓸 수 있는 주사위 (반짝)
 
 	func _draw() -> void:
 		var r := Rect2(Vector2(2, 2), size - Vector2(4, 6))
+		if pick:
+			draw_rect(r.grow(6), Color(Style.GOLD_HI, 0.55))
 		if mine:
 			r.position.y -= 9 if hover else 4   # 손맛: 마우스를 올리면 더 들림
 		var a := 0.45 if taken or used else 1.0
@@ -1690,6 +1987,7 @@ class DieFace extends Control:
 # ================================================================ 화면 갱신
 
 func _refresh() -> void:
+	_refresh_me()
 	if _training:
 		var chased := game.police.has(human)
 		if _was_chased and not chased and not game.players[human]["jailed"]:
@@ -1720,6 +2018,8 @@ func _refresh_panels() -> void:
 func _act(a: Dictionary) -> void:
 	if not _started or _playing or _paused or game.phase == "over":
 		return
+	_verb = ""
+	_verb_acts = []
 	a = a.duplicate()
 	a["player"] = int(a.get("player", human))
 	Sfx.play("click")
@@ -1956,7 +2256,7 @@ func _play_event(e: Dictionary) -> void:
 			if bool(e.get("scouted", false)):
 				_board.note_scouted(e["pos"])
 			Sfx.play("flip", 0.1, 0.6)
-			_fx.paper_burst(_board.position + _board.cell_center(e["pos"]) + _frame.position, m * 0.6)
+			_fx.paper_burst(_cell_screen(e["pos"]), m * 0.6)
 			await _board.reveal(e["pos"], 0.22 * m)
 		"police":
 			if _board.police_changed(e["police_snap"]):
@@ -1980,7 +2280,7 @@ func _play_event(e: Dictionary) -> void:
 			await _fx.banner("일제 위협 · " + str(t.get("name", "")), "bad" if t.get("tone", "bad") == "bad" else "info", m, str(t.get("text", "")))
 		"jail":
 			await _board.animate_move(int(e["player"]), e["from"], e["to"], 0.25 * m)
-			_cine.shake(_frame, 7.0, 0.3 * m)
+			_cine.shake(_board_node(), 7.0, 0.3 * m)
 			if int(e["player"]) == human:
 				Sfx.play("whistle")
 				Sfx.play("clang")
@@ -2000,7 +2300,7 @@ func _play_event(e: Dictionary) -> void:
 				_fx.paper_burst(at, m)
 				_fx.stamp_at(at, "성 공", Style.GOOD, m)
 			if str(game.mission_def(str(e["id"])).get("type", "")) == "bomb":
-				_cine.shake(_frame, 9.0, 0.35 * m)
+				_cine.shake(_board_node(), 9.0, 0.35 * m)
 			_fx.toast("미션 성공 · %s (%s)" % [game.mission_def(str(e["id"])).get("name", ""), _name(int(e["player"]))], "good")
 		"saga_done":
 			Sfx.play("success")

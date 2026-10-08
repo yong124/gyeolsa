@@ -15,6 +15,7 @@ var game: RulesV2
 var human_id := 0
 var hover := Vector2i(-1, -1)
 var interactive := true          # 연출 중에는 강조를 끈다
+var draw_pieces := true          # 말(요원 · 경찰)을 여기서 그릴지 (기운 보드는 말을 세워 따로 그림, TiltBoardV2)
 var pick_cells: Array = []       # 선택(pick_cell·hop) 중 고를 수 있는 칸
 
 var vis_players := {}            # id -> Vector2
@@ -336,9 +337,11 @@ func _draw() -> void:
 	_draw_reach()
 	_draw_preview()
 	_draw_prints()
-	_draw_players()
+	if draw_pieces:
+		_draw_players()
 	_draw_chase()
-	_draw_police()
+	if draw_pieces:
+		_draw_police()
 	_draw_markers()
 	_draw_targets()
 	_draw_preview_label()
