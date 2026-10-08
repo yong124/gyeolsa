@@ -78,7 +78,7 @@ godot --headless --path game --script res://tools/v2_balance.gd -- games=1000   
 
 ### 빌드
 - 웹(itch.io): `powershell -ExecutionPolicy Bypass -File game\tools\build_web.ps1` → `build/web/`
-- 온라인 서버(리눅스 헤드리스): `game\tools\build_server.ps1`, 배포는 [서버_배포.md](v2_구현/서버_배포.md)
+- 온라인 서버: Render 무료 웹 서비스에 블루프린트(`render.yaml`)로 올린다. 소스를 Godot 헤드리스로 바로 돌린다. 순서는 [서버_배포.md](v2_구현/서버_배포.md)
 
 ## 폴더
 ```
