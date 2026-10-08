@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>결사 설계 사례</title>
+<meta name="description" content="협력 보드게임 「결사」의 설계 사례 여섯: 문제, 근거, 레퍼런스, 대안, 결정, 결과">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800&family=Noto+Serif+KR:wght@600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav class="nav">
+  <a class="brand" href="index.html">結社</a>
+  <a class="tab" href="index.html">소개</a>
+  <a class="tab on" href="cases.html">설계 사례</a>
+  <a class="tab" href="balance.html">밸런스</a>
+  <a class="tab" href="rules.html">규칙서</a>
+  <button id="themeBtn" type="button" aria-label="밝기 바꾸기">◐</button>
+</nav>
+
+<section class="page">
+  <div class="kicker">설계 사례</div>
+  <h2>여섯 번의 결정</h2>
+  <p>사례마다 같은 틀로 적었다. <b>문제 → 근거 → 레퍼런스 → 대안 → 결정 → 결과</b>. 순서는 핵심 재미(1 · 2) → 덜어 내기(3) → 남의 눈(4) → 콘텐츠 폭(5) → 검증(6)이다.</p>
+  <div class="toc">
+    <a href="#c1"><b>사례 1</b><span>팀 주사위 → 개인 작전 주사위</span></a>
+    <a href="#c2"><b>사례 2</b><span>주사위 1개 = 행동 1개</span></a>
+    <a href="#c3"><b>사례 3</b><span>변절을 넣었다가 뺀 결정</span></a>
+    <a href="#c4"><b>사례 4</b><span>비평을 받고 거른 과정</span></a>
+    <a href="#c5"><b>사례 5</b><span>미션을 타일에서 떼어 마커로</span></a>
+    <a href="#c6"><b>사례 6</b><span>밸런스: 수치보다 원인</span></a>
+  </div>
+</section>
+
+<!-- 사례 1 -->
+<section class="page case" id="c1">
+  <div class="kicker">사례 1 · 핵심 재미</div>
+  <h2>팀 주사위 → 개인 작전 주사위</h2>
+  <span class="tag">레퍼런스 9개 비교</span><span class="tag">후보 4개</span>
+  <div class="steps">
+    <div class="k">문제</div>
+    <div><ul>
+      <li>아침에 팀 주사위(인원 + 2개)를 굴려 나눠 가졌다. 1인 + AI에서는 내가 먼저 고르고 AI가 남은 걸 가져갈 뿐이라 <b>나누는 맛이 없었다.</b></li>
+      <li>남는 예비 주사위(1막 2개, 2막 5개)는 아낄 이유가 없어 <b>공짜 보너스</b>가 됐다.</li>
+      <li>예비 하나 × 쓰는 법 하나 = 단추 하나. <b>낮마다 단추가 쏟아졌다.</b></li>
+    </ul></div>
+    <div class="k">조건</div>
+    <div>하루에 진짜 고민 한두 번. AI 동료와 해도 성립할 것. 화면은 주 단추 하나 + 보조 몇 개.</div>
+    <div class="k">레퍼런스</div>
+    <div>
+      <div class="tw"><table>
+        <tr><th>게임</th><th>본 것 · 판단</th></tr>
+        <tr class="pick"><td>Dead of Winter</td><td>각자 행동 주사위. 「큰 눈을 어디에」가 매 라운드 고민 → <b>채택</b></td></tr>
+        <tr><td>Burgle Bros</td><td>차례마다 행동 4개, 이동에 운 없음. 주제는 가장 가깝지만 숫자를 처음부터 다시 맞춰야 함</td></tr>
+        <tr><td>Robinson Crusoe</td><td>둘이 몰아 붙이면 확정 성공 → 2막 장면 부품으로 보류</td></tr>
+        <tr><td>Battlestar Galactica</td><td>비공개로 보태기 → 변절용 부품, 변절을 빼며 버림</td></tr>
+        <tr><td>Pandemic · Sky Team · Gloomhaven · Clank! · Marvel United</td><td>비교만</td></tr>
+      </table></div>
+    </div>
+    <div class="k">대안</div>
+    <div>① 개인 주사위 (변화 작음) ② 행동 점수 (대담함) ③ 함께 붙기 (부품) ④ 비밀 보태기 (부품)</div>
+    <div class="k dec">결정</div>
+    <div><b>① 개인 작전 주사위.</b> 작전 판정은 <b>고른 눈 + 새 주사위 1개 ≥ 목표</b>. ②는 이동의 운이 사라져 「또 판데믹」이 될 수 있어 버렸다.</div>
+    <div class="k">결과</div>
+    <div><ul>
+      <li>목표 9 판정: 예전 2d6은 늘 28%. 이제 눈 6을 내면 67%, 눈 3이면 17%. <b>평균은 같고, 고르는 맛이 생겼다.</b></li>
+      <li>바꾼 직후 AI 4명 300판: 승률 46%(전 47~48%). <b>난이도는 그대로 두고 매일의 고민만 바꿨다.</b></li>
+      <li>예비 주사위 단추가 사라졌다. 대신 결행 대상별 승률이 32~63%로 벌어져 밸런스 단계로 넘겼다(사례 6).</li>
+    </ul></div>
+  </div>
+  <figure><img src="img/dice_bar.jpg" alt="내 주사위 3과 1, 행동 단추들" loading="lazy" width="820" height="190"><figcaption>지금 화면: 내 주사위 두 개(3 · 1)를 골라 행동 단추에 쓴다.</figcaption></figure>
+</section>
+
+<!-- 사례 2 -->
+<section class="page case" id="c2">
+  <div class="kicker">사례 2 · 반복</div>
+  <h2>주사위 1개 = 행동 1개</h2>
+  <div class="steps">
+    <div class="k">문제</div>
+    <div>개인 주사위를 넣은 뒤에도 한 차례에 이동하고 아이템 · 능력 · 건네기 · 미끼 · 바치기까지 거의 다 할 수 있었다. <b>포기할 것이 없으니 고민도 없었다.</b></div>
+    <div class="k">근거</div>
+    <div>직접 해 보니 차례마다 「다 하고 넘기기」가 됐다. 보통 보드게임처럼 여러 개 중 몇 개만 골라야 포기가 고민이 된다.</div>
+    <div class="k">레퍼런스</div>
+    <div>Dead of Winter의 원래 방식(주사위 하나로 행동 하나)에 더 가깝게.</div>
+    <div class="k dec">결정</div>
+    <div><ul>
+      <li>차례에는 주사위를 하나씩 내어 행동한다. 1막은 하루 2개, 2막은 3개.</li>
+      <li>공짜는 아이템 1장 · 능력 하루 1번 · 차례 마치기뿐.</li>
+      <li>「숨기」(경찰이 따라오지 않음)를 새 행동으로. 주사위를 아끼는 날의 선택지.</li>
+    </ul></div>
+    <div class="k">결과</div>
+    <div><ul>
+      <li>하루 행동이 2~3개로 줄었다. 「이동 두 번이냐, 이동 한 번 + 판정이냐」가 매 차례의 질문이 됐다.</li>
+      <li>AI 4명 300판 승률 50.3% → <b>61.7%</b>. 어려워질 줄 알았는데 <b>오히려 쉬워졌다.</b> 같은 묶음에서 같은 칸 허용(주사위 건네기)과 경찰 따돌림 거리도 바뀌어, 원인을 하나로 가르지 않고 기록만 해 두었다가 밸런스 단계에서 한꺼번에 맞췄다.</li>
+      <li>새 지표: AI가 굴린 주사위의 44.5%를 쓰지 않고 차례를 마침 → AI 개선 과제로 넘김.</li>
+    </ul></div>
+  </div>
+  <p class="lesson"><b>배운 것</b> · 바꿀 때마다 재는 습관 덕분에, 예상과 반대인 결과를 바로 알아챘다.</p>
+</section>
+
+<!-- 사례 3 -->
+<section class="page case" id="c3">
+  <div class="kicker">사례 3 · 덜어 내기</div>
+  <h2>변절을 넣었다가 뺀 결정</h2>
+  <div class="steps">
+    <div class="k">배경</div>
+    <div>숨은 배신자를 넣었었다. 투옥되면 심문 카드를 받고, 「흔들렸다」 2장이 모이면 돌아선다. Battlestar Galactica처럼 배신자가 있는 협력 게임을 참고했다.</div>
+    <div class="k">문제</div>
+    <div><ul>
+      <li><b>고르는 사람이 없다.</b> 카드 2장이면 묻지 않고 돌아선다. 막을 틈도 안 보인다.</li>
+      <li>돌아선 변절자는 이동 · 기습 · 밀고뿐인 <b>「걸어 다니는 경찰」</b>. 자기 목표가 없다.</li>
+      <li>이를 위해 심문 카드 12장 · 설득 · 회유 위협 · 4인 전용 규칙 · 변절자 AI와 화면이 따로 있었다. <b>맛에 비해 무겁다.</b></li>
+    </ul></div>
+    <div class="k">근거</div>
+    <div>시뮬에서 변절은 판의 40~45%에서 나왔고, 변절 판은 승률이 10~12%p 낮았다. <b>숫자는 목표대로였지만 재미는 없었다.</b></div>
+    <div class="k">대안</div>
+    <div>좋은 배신(숨는 단계 · 행동 메뉴 · 자기 목표)을 제대로 갖추기 → 미션 개편만큼 커진다.</div>
+    <div class="k dec">결정</div>
+    <div><b>통째로 뺀다.</b> 그 자리는 팀의 긴장(미션 · 일제 작전 · 노출 · 군자금)으로 채운다. 투옥의 아픔은 「아이템 1장 압수」로, 설득에 묶였던 능력 2개 · 회유 위협 5장 · 이벤트 · 사연은 하나씩 다른 것으로 바꿨다.</div>
+    <div class="k">결과</div>
+    <div>4인 전용 규칙이 사라져 인원과 상관없이 같은 규칙이 됐다. 승률 46.3% → 50.3%. 대신 「긴장이 약하다」는 비평을 받았다 → 사례 4.</div>
+  </div>
+  <p class="lesson"><b>배운 것</b> · 수치가 목표 안이어도, 플레이어가 고르는 순간이 없으면 뺀다.</p>
+</section>
+
+<!-- 사례 4 -->
+<section class="page case" id="c4">
+  <div class="kicker">사례 4 · 남의 눈</div>
+  <h2>비평을 받고 거른 과정</h2>
+  <p>사람 플레이테스트 대신, 규칙서 전체를 다른 AI(GPT)에게 보여 주고 비평을 받았다. 지적은 다섯 가지였다.</p>
+  <div class="tw"><table>
+    <tr><th>지적</th><th>판단</th><th>결정</th></tr>
+    <tr><td>변절을 뺀 뒤 <b>긴장이 약하다</b>. 일제 작전이 판당 0.8번, 경찰은 주사위 하나로 떼어 냄, 날이 갈수록 세지는 장치 없음</td><td class="ok">받음</td><td><b>일제 동향 트랙(0~6):</b> 일제 작전을 짝수 날마다 따로 뒤집는다. 못 막으면 동향이 오르고 벌칙이 커진다. 막아도 내려가지 않는다</td></tr>
+    <tr><td>결행 준비 3을 넘기면 더 모을 이유가 없다</td><td class="ok">받음</td><td><b>결행 혜택:</b> 3을 넘는 1점마다 혜택 하나. 「지금 칠까, 더 쌓을까」</td></tr>
+    <tr><td><b>같은 칸 금지</b>가 협력(건네기 · 면회)을 막는다</td><td class="ok">받음</td><td><b>요원끼리 같은 칸 허용.</b> 막는 역할은 경찰만</td></tr>
+    <tr><td>2막 「버티기」 장면은 <b>서서 기다리는 시간</b>이다</td><td class="ok">받음</td><td><b>반격:</b> 버티는 날 아침 판정 7을 막아야 하루를 센다 → 「큰 눈 하나 남겨 막아 내기」</td></tr>
+    <tr><td>온라인 4인이면 대기 시간과 한 사람의 지휘가 커진다</td><td class="bad">미룸</td><td>낮 동시 진행을 설계만 해 두었다. 목표가 「1인 + AI 웹판」이라 미뤘고, 온라인 방은 나중에 추가 모드로 따로 만들었다</td></tr>
+    <tr><td>규칙서 오류 · 모호 20건</td><td class="ok">받음</td><td>20건 모두 고침</td></tr>
+  </table></div>
+  <div class="pull">거르는 기준: 맞는 말이어도 내 목표(1인 + AI 웹판, 30분 한 판) 밖이면 미룬다.</div>
+  <p><b>결과</b> · 일제 작전을 막은 비율 28% → <b>60%</b>(목표 50~70%, AI를 고친 뒤 · 사례 6).</p>
+</section>
+
+<!-- 사례 5 -->
+<section class="page case" id="c5">
+  <div class="kicker">사례 5 · 콘텐츠 폭</div>
+  <h2>미션을 타일에서 떼어 마커로</h2>
+  <span class="tag">레퍼런스 6개</span><span class="tag">출시 뒤 한 번 더</span>
+  <div class="steps">
+    <div class="k">문제</div>
+    <div><ul>
+      <li>「순사 부장 암살」이 경찰서와 상관없는, 맵 아무 데나 나온 암살 타일에서 이뤄졌다.</li>
+      <li>미션 타일은 116장 중 12장. <b>갈 곳이 운</b>이었고, 빈 타일이 39%였다.</li>
+      <li>하는 일은 판정 아니면 들어가기, 보상은 거의 「첩보 +1」. 결국 <b>「가까운 검은 칸에 가서 굴리기」</b>.</li>
+    </ul></div>
+    <div class="k">레퍼런스</div>
+    <div>
+      <div class="tw"><table>
+        <tr><th>게임</th><th>가져온 것</th></tr>
+        <tr><td>Black Orchestra</td><td>준비를 쌓아 <b>움직이는 표적</b>을 잡기 → 암살 표적이 매일 움직이고, 정보원에 들르면 멈춤</td></tr>
+        <tr><td>Horrified</td><td>미션 하나 안에 <b>준비 → 실행</b> 두 단계</td></tr>
+        <tr><td>Shadows over Camelot</td><td>종류마다 작은 규칙이 다름 · 위협이 미션을 깎음</td></tr>
+        <tr><td>Thunderbirds</td><td>카드마다 <b>보너스 조건</b> · 눈에 보이는 기한</td></tr>
+        <tr><td>Burgle Bros</td><td>「합 N」 대신 <b>눈 조합</b>(1 · 3 · 5) → 작은 눈도 쓸모</td></tr>
+        <tr><td>Flash Point</td><td><b>무거운 물건은 느리게</b></td></tr>
+      </table></div>
+    </div>
+    <div class="k dec">결정</div>
+    <div>미션이 공개되면 <b>카드에 적힌 지역에 마커</b>를 놓는다. 종류는 여섯 + 협동: 암살 · 잠입 · 폭파 · 공작(눈 바치기) · 연락(들고 나르기) · 잠복(쫓기지 않고 버티기).</div>
+    <div class="k">출시 뒤</div>
+    <div>거점 <b>안</b>에 들어가는 미션 5장은 들어가자마자 경찰이 붙어 투옥되기 쉬웠고, 2막의 무대(거점 안)와 1막이 섞였다. → 「거점 <b>옆 칸</b>」 미션으로 바꿨다. 카드 id · 보상은 그대로 두어 저장 · 사연 · 특성이 이어지게 했다.</div>
+    <div class="k">결과</div>
+    <div>미션 종류별 성공률(AI): 암살 67% · 연락 55% · 폭파 44% · 잠복 40% · 잠입 34% · 공작 25% · 협동 21%. 종류마다 난이도가 갈려 「오늘 무엇을 잡을까」가 생겼다.</div>
+  </div>
+  <div class="grid2">
+    <figure><img src="img/missions.jpg" alt="공개 미션 줄: 철로 폭파, 암호 해독, 형무소 간수 매수, 총독부 설계도 입수" loading="lazy" width="385" height="360"><figcaption>공개 미션 줄. 카드마다 할 일과 남은 조건(눈 2 · 4 · 6, 합 0/6)이 보인다.</figcaption></figure>
+    <figure><img src="img/marker.jpg" alt="보드 위 미션 마커" loading="lazy" width="1600" height="900"><figcaption>보드 위 마커(공 · 잠 · 표). 미션마다 갈 곳이 정해진다.</figcaption></figure>
+  </div>
+</section>
+
+<!-- 사례 6 -->
+<section class="page case" id="c6">
+  <div class="kicker">사례 6 · 검증</div>
+  <h2>밸런스: 수치보다 원인</h2>
+  <p><b>목표</b> · AI 4명 승률 45~55%, 결행 대상별 차이 15%p 안, 요원별 차이 ±10%p 안. AI는 사람보다 약하므로 AI 승률은 <b>아래쪽 기준</b>으로 본다.</p>
+  <ol class="pipe">
+    <li>기준선 승률 <b>74.2%</b>. 지는 판은 거의 2막에서만 났다.</li>
+    <li>반격 목표 · 군자금은 승률을 거의 못 움직였다. <b>장면 눈금</b>이 가장 크게 움직였다.</li>
+    <li>모든 장면을 똑같이 +2 하면 거점 격차가 벌어졌다(형무소 10% · 총독부 64%) → <b>거점마다 폭을 따로</b> 잡았다.</li>
+    <li>일제 작전 막은 비율 28%. 기한을 늘려도 그대로 → <b>시간이 아니라 AI가 마커를 안 쫓는 문제</b>. 수치로 메우지 않고 AI를 고쳤다.</li>
+    <li>거의 못 이루던 사연(「자금책」 0%)은 조건을 공작 미션과 묶어 32%로.</li>
+    <li><b>출시 뒤 다시 벌어진 격차:</b> 콘텐츠를 손본 뒤 격차가 18.2%p로. 마지막 장면은 눈금 1에 20%p 넘게 흔들려서, <b>마지막 장면은 한 칸만, 나머지는 같은 거점의 다른 장면으로</b> 되돌리며 9가지 조합을 비교했다.</li>
+  </ol>
+  <div class="tw"><table>
+    <tr><th>지표</th><th>목표</th><th class="n">처음</th><th class="n">밸런스 직후</th><th class="n">출시 뒤</th><th class="n">지금</th></tr>
+    <tr><td>승률</td><td>45~55%</td><td class="n">74.2%</td><td class="n">49.3%</td><td class="n">54.4%</td><td class="n"><b>53.3%</b></td></tr>
+    <tr><td>결행 대상별 차이</td><td>15%p 안</td><td class="n">18.8%p</td><td class="n">14.8%p</td><td class="n bad">18.2%p</td><td class="n"><b>6.0%p</b></td></tr>
+    <tr><td>일제 작전 막음</td><td>50~70%</td><td class="n">27.9%</td><td class="n">60.0%</td><td class="n">60.1%</td><td class="n">60.1%</td></tr>
+    <tr><td>요원별 차이</td><td>±10%p</td><td class="n">–</td><td class="n">−3.5 ~ +7.2</td><td class="n">−5.3 ~ +5.9</td><td class="n">−6.0 ~ +4.4</td></tr>
+  </table></div>
+  <p class="small muted">「지금」은 다른 시드(910000)로도 확인: 승률 53.2%, 격차 14.9%p. 그래프는 <a href="balance.html">밸런스 보고</a>.</p>
+  <p class="lesson"><b>배운 것</b> · 콘텐츠를 고치면 밸런스는 다시 깨진다. 고칠 때마다 같은 시드로 다시 재고, 다른 시드로 한 번 더 확인한다.</p>
+</section>
+
+<section class="page case">
+  <div class="kicker">덤 · 출시 뒤</div>
+  <h2>튜토리얼을 다시 만든 이유</h2>
+  <ul>
+    <li>처음 공개 뒤 직접 해 보니 「뭘 눌러야 할지 모르겠다」. 안내 글만 띄우던 훈련 작전을 <b>정해진 상황을 하나씩 해 보는 레슨형</b>(10레슨 · 53단계)으로 바꿨다. 화면을 어둡게 하고 누를 곳만 밝힌다.</li>
+    <li>「이걸 누르세요」만 이어지면 무엇을 왜 하는지 모른다 → 레슨마다 <b>개념 설명을 먼저</b>(이 게임은 무엇인가, 미션 종류, 노출, 투옥).</li>
+    <li>처음 켜면 첫 화면이 뜬 뒤 「처음이신가요?」를 묻는다. 대본은 데이터라 문장만 고치면 된다.</li>
+  </ul>
+</section>
+
+<footer class="foot">
+  <p><a href="index.html">← 소개</a> · <a href="balance.html">밸런스 보고 →</a></p>
+</footer>
+<script src="theme.js"></script>
+</body>
+</html>

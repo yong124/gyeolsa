@@ -1,0 +1,161 @@
+/* 결사 포트폴리오 · 규칙서와 같은 종이 색 */
+:root{
+  --desk:#2b2119; --paper:#f4ecd8; --paper-2:#eadfc3; --card:#fbf7ec; --ink:#231c15; --ink-2:#4b4034; --ink-3:#7e6e59;
+  --line:#d4c29e; --seal:#b3261e; --seal-soft:#f5ddd7; --gold:#a97d24; --gold-soft:#f3e5c2;
+  --green:#4f7a2d; --green-soft:#e3ecd4; --blue:#36588f; --blue-soft:#e0e7f2;
+  --shadow:0 10px 30px rgba(0,0,0,.35);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --desk:#110d0a; --paper:#201a14; --paper-2:#29221b; --card:#2c251e; --ink:#eee5d2; --ink-2:#d0c3aa; --ink-3:#a29278;
+    --line:#4b3e2f; --seal:#e45b4f; --seal-soft:#3e2420; --gold:#dcb15a; --gold-soft:#3a3020;
+    --green:#97c26d; --green-soft:#253019; --blue:#8aabe2; --blue-soft:#1f2838;
+    --shadow:0 10px 30px rgba(0,0,0,.6);
+  }
+}
+:root[data-theme="dark"]{
+  --desk:#110d0a; --paper:#201a14; --paper-2:#29221b; --card:#2c251e; --ink:#eee5d2; --ink-2:#d0c3aa; --ink-3:#a29278;
+  --line:#4b3e2f; --seal:#e45b4f; --seal-soft:#3e2420; --gold:#dcb15a; --gold-soft:#3a3020;
+  --green:#97c26d; --green-soft:#253019; --blue:#8aabe2; --blue-soft:#1f2838;
+  --shadow:0 10px 30px rgba(0,0,0,.6);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--desk);color:var(--ink);font:16px/1.75 "Noto Sans KR","Malgun Gothic",sans-serif;-webkit-font-smoothing:antialiased;padding:0 16px 80px}
+a{color:var(--seal)}
+img{max-width:100%;height:auto;display:block}
+
+/* 위 메뉴 */
+.nav{max-width:960px;margin:0 auto;display:flex;align-items:center;gap:4px;flex-wrap:wrap;padding:14px 0}
+.nav .brand{font:900 20px "Noto Serif KR",serif;color:#f4ecd8;text-decoration:none;letter-spacing:.2em;margin-right:auto}
+.nav a.tab{color:#eadfc3;text-decoration:none;font-weight:700;font-size:14px;padding:6px 12px;border-radius:20px;opacity:.75}
+.nav a.tab:hover{opacity:1}
+.nav a.tab.on{background:#f4ecd8;color:#231c15;opacity:1}
+.nav button{font:700 13px "Noto Sans KR";background:transparent;color:#eadfc3;border:1px solid #eadfc3;border-radius:20px;padding:5px 12px;cursor:pointer;margin-left:6px;opacity:.75}
+
+.page{max-width:960px;margin:0 auto 30px;background:var(--paper);box-shadow:var(--shadow);border-radius:3px;padding:52px 64px 48px}
+h1,h2,h3,h4{font-family:"Noto Serif KR",serif;line-height:1.3}
+h1{font-size:40px;font-weight:900;margin:0 0 6px}
+h2{font-size:28px;font-weight:900;margin:0 0 16px;padding-bottom:10px;border-bottom:3px double var(--line)}
+h3{font-size:20px;font-weight:700;margin:28px 0 8px}
+h3::before{content:"◆ ";color:var(--seal);font-size:13px;vertical-align:2px}
+h4{font-size:16px;margin:16px 0 4px}
+p{margin:8px 0}
+ul,ol{margin:8px 0;padding-left:1.4em}
+li{margin:3px 0}
+b,strong{font-weight:800}
+.muted{color:var(--ink-3)}
+.small{font-size:14px}
+.kicker{font:800 13px "Noto Sans KR";letter-spacing:.3em;color:var(--seal);margin-bottom:6px}
+
+/* 표지 */
+.hero{display:grid;grid-template-columns:1fr 1.35fr;gap:32px;align-items:center}
+.hero .seal{display:inline-grid;place-items:center;width:84px;height:84px;border:4px solid var(--seal);border-radius:8px;transform:rotate(-4deg);color:var(--seal);font:900 30px/1.05 "Noto Serif KR",serif;text-align:center;margin-bottom:14px}
+.hero .one{font-size:18px;color:var(--ink-2);margin:10px 0 18px}
+.hero .shot{border-radius:4px;box-shadow:0 6px 18px rgba(0,0,0,.3)}
+.cta{display:inline-flex;align-items:center;gap:10px;background:var(--seal);color:#fff;text-decoration:none;font-weight:800;padding:12px 22px;border-radius:6px;font-size:16px}
+.cta.ghost{background:transparent;color:var(--seal);border:2px solid var(--seal)}
+.ctas{display:flex;gap:10px;flex-wrap:wrap}
+.facts{display:flex;flex-wrap:wrap;gap:8px;margin:18px 0 0}
+.fact{border:1px solid var(--line);background:var(--card);border-radius:20px;padding:3px 12px;font-size:13.5px;font-weight:700;color:var(--ink-2)}
+
+/* 상자 */
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:14px 0}
+.grid2{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin:14px 0}
+.card{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:16px 18px}
+.card .no{font:900 28px/1 "Noto Serif KR",serif;color:var(--seal);margin-bottom:6px}
+.card h4{margin:0 0 6px;font-size:17px}
+.card p{font-size:14.5px;color:var(--ink-2);margin:0}
+.note{background:var(--gold-soft);border-left:6px solid var(--gold);border-radius:4px;padding:12px 18px;margin:16px 0}
+.note .t{font:800 12px "Noto Sans KR";letter-spacing:.25em;color:var(--gold);margin-bottom:2px}
+.pull{border-left:6px solid var(--seal);background:var(--seal-soft);border-radius:4px;padding:12px 18px;margin:16px 0;font-weight:700}
+figure{margin:16px 0}
+figure img{border-radius:4px;box-shadow:0 4px 14px rgba(0,0,0,.25)}
+figcaption{font-size:13px;color:var(--ink-3);margin-top:6px}
+.shots{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+
+/* 흐름 그림 */
+.flow{display:flex;align-items:stretch;gap:0;margin:14px 0;flex-wrap:wrap}
+.flow .step{flex:1;min-width:150px;background:var(--card);border:1px solid var(--line);padding:12px 14px;position:relative}
+.flow .step:first-child{border-radius:6px 0 0 6px}
+.flow .step:last-child{border-radius:0 6px 6px 0}
+.flow .step + .step{border-left:0}
+.flow .step b{display:block;font:900 16px "Noto Serif KR",serif;color:var(--seal)}
+.flow .step span{font-size:13.5px;color:var(--ink-2)}
+.flow .step.hot{background:var(--seal-soft)}
+
+/* 표 */
+.tw{overflow-x:auto;margin:12px 0;border-radius:6px;border:1px solid var(--line);background:var(--card)}
+table{border-collapse:collapse;width:100%;font-size:14.5px;line-height:1.6}
+th,td{padding:8px 12px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}
+th{background:var(--paper-2);font-weight:800;white-space:nowrap}
+tr:last-child td{border-bottom:0}
+td.n,th.n{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+tr.pick td{background:var(--green-soft)}
+.ok{color:var(--green);font-weight:800}
+.bad{color:var(--seal);font-weight:800}
+
+/* 설계 사례 */
+.toc{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:16px 0 0}
+.toc a{display:block;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:10px 14px;text-decoration:none;color:var(--ink)}
+.toc a b{display:block;font:900 13px "Noto Sans KR";letter-spacing:.2em;color:var(--seal)}
+.toc a span{font:700 15px "Noto Serif KR",serif}
+.case .tag{display:inline-block;font:800 12px "Noto Sans KR";letter-spacing:.15em;color:var(--ink-3);border:1px solid var(--line);border-radius:12px;padding:1px 10px;margin:0 6px 8px 0}
+.steps{display:grid;grid-template-columns:110px 1fr;gap:0;margin:16px 0;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:var(--card)}
+.steps > div{padding:10px 14px;border-bottom:1px solid var(--line)}
+.steps > div:nth-last-child(-n+2){border-bottom:0}
+.steps .k{font:900 14px "Noto Serif KR",serif;background:var(--paper-2);color:var(--ink-2)}
+.steps .k.dec{color:var(--seal)}
+.steps ul{margin:0}
+.lesson{border-top:2px dashed var(--line);margin-top:18px;padding-top:10px;font-size:15px}
+.lesson b{color:var(--seal)}
+
+/* 그래프 */
+.chart{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:14px 16px;margin:14px 0}
+.chart svg{width:100%;height:auto;display:block;font-family:"Noto Sans KR",sans-serif}
+.chart .cap{font:800 15px "Noto Serif KR",serif;margin-bottom:6px}
+.chart .read{font-size:13.5px;color:var(--ink-2);margin-top:6px}
+svg .ax{stroke:var(--line)}
+svg .tx{fill:var(--ink-3);font-size:11px}
+svg .tx2{fill:var(--ink);font-size:12px;font-weight:700}
+svg .band{fill:var(--green-soft)}
+svg .line{stroke:var(--seal);fill:none;stroke-width:2.5}
+svg .dot{fill:var(--seal)}
+svg .bar{fill:var(--ink-3)}
+svg .bar.now{fill:var(--seal)}
+svg .bar.win{fill:var(--green)}
+svg .bar.force{fill:var(--gold)}
+svg .zero{stroke:var(--ink-2)}
+
+/* 역할 */
+.split{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.split .card.me{border:2px solid var(--seal)}
+.pipe{counter-reset:p;list-style:none;padding:0;margin:12px 0}
+.pipe li{counter-increment:p;position:relative;padding:8px 12px 8px 46px;background:var(--card);border:1px solid var(--line);border-radius:6px;margin:6px 0}
+.pipe li::before{content:counter(p);position:absolute;left:12px;top:8px;width:24px;height:24px;border-radius:50%;background:var(--seal);color:#fff;font:800 13px/24px "Noto Sans KR";text-align:center}
+
+.foot{max-width:960px;margin:0 auto;color:#eadfc3;opacity:.7;font-size:13px;text-align:center}
+.foot a{color:#eadfc3}
+
+@media (max-width:760px){
+  .page{padding:32px 20px 30px}
+  h1{font-size:32px}
+  .hero,.grid3,.grid2,.split,.shots,.toc{grid-template-columns:1fr}
+  .steps{grid-template-columns:1fr}
+  .steps .k{border-bottom:0}
+  .chart{overflow-x:auto}
+  .chart svg{min-width:640px}
+  .flow{flex-direction:column}
+  .flow .step + .step{border-left:1px solid var(--line);border-top:0}
+  .flow .step:first-child{border-radius:6px 6px 0 0}
+  .flow .step:last-child{border-radius:0 0 6px 6px}
+}
+@media print{
+  @page{size:A4;margin:14mm}
+  :root{--desk:#fff;--paper:#fff;--card:#fff;--shadow:none}
+  body{padding:0;background:#fff;font-size:11pt}
+  .nav,.foot,.noprint{display:none}
+  .page{box-shadow:none;padding:0;margin:0 0 10mm;max-width:none;break-after:page}
+  .case,.chart,figure,.card,.steps{break-inside:avoid}
+  a{color:inherit;text-decoration:none}
+}

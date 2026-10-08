@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>결사 기획 포트폴리오</title>
+<meta name="description" content="협력 보드게임 「결사」의 기획 포트폴리오: 컨셉, 설계 사례, 밸런스 보고">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800&family=Noto+Serif+KR:wght@600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav class="nav">
+  <a class="brand" href="index.html">結社</a>
+  <a class="tab on" href="index.html">소개</a>
+  <a class="tab" href="cases.html">설계 사례</a>
+  <a class="tab" href="balance.html">밸런스</a>
+  <a class="tab" href="rules.html">규칙서</a>
+  <button id="themeBtn" type="button" aria-label="밝기 바꾸기">◐</button>
+</nav>
+
+<section class="page">
+  <div class="hero">
+    <div>
+      <div class="seal">結<br>社</div>
+      <div class="kicker">게임 기획 포트폴리오</div>
+      <h1>결사</h1>
+      <p class="one">1945년, 일본이 항복하기 전에 경성의 일제 거점을 치는 <b>4인 협력 보드게임</b>. 웹에서 AI 동료 셋과, 또는 온라인으로 함께 한다.</p>
+      <div class="ctas">
+        <a class="cta" href="https://yong124.itch.io/gyeolsa">▶ 브라우저에서 하기</a>
+        <a class="cta ghost" href="cases.html">설계 사례 보기</a>
+      </div>
+      <div class="facts">
+        <span class="fact">협력 · 2~4인</span><span class="fact">한 판 약 30분</span><span class="fact">Godot 4 웹</span><span class="fact">기획 1인 + AI 도구</span>
+      </div>
+    </div>
+    <img class="shot" src="img/title.jpg" alt="결사 첫 화면: 1945년 경성 거리 그림과 메뉴" width="1600" height="900">
+  </div>
+</section>
+
+<section class="page">
+  <div class="kicker">컨셉</div>
+  <h2>그 작전이 실행되었다면</h2>
+  <p>광복군은 국내 진공 작전을 준비했지만, 8월 15일 일본이 먼저 항복해 실행하지 못했다. 「결사」는 <b>그 작전이 실행된 평행세계</b>다. 플레이어는 광복군 · 조선의용대 · 의병의 첩보 요원이 되어, 열하루 안에 경성의 일제 거점 하나를 무너뜨린다.</p>
+
+  <h3>핵심 재미 셋</h3>
+  <div class="grid3">
+    <div class="card"><div class="no">1</div><h4>큰 눈을 어디에 쓸까</h4><p>아침에 내 작전 주사위 2개를 굴린다. 주사위 1개가 행동 1개. 6을 멀리 가는 데 쓸지, 판정(낸 눈 + 새 주사위)에 남길지 매일 고른다.</p></div>
+    <div class="card"><div class="no">2</div><h4>1막에서 모으고, 2막에서 친다</h4><p>1막에는 미션으로 첩보와 결행 준비를 모은다. 투표로 칠 거점을 정하면, 2막에서 그 거점의 장면을 하나씩 뚫는다.</p></div>
+    <div class="card"><div class="no">3</div><h4>조여 오는 일제</h4><p>짝수 날마다 일제 작전이 나온다. 못 막을 때마다 동향이 오르고 벌칙이 커진다. 노출 · 경찰 추격 · 투옥이 계속 압박한다.</p></div>
+  </div>
+
+  <h3>하루의 흐름</h3>
+  <div class="flow">
+    <div class="step"><b>아침</b><span>각자 작전 주사위를 굴림 · 오늘의 위협 · 공개 미션 줄</span></div>
+    <div class="step hot"><b>낮</b><span>각자 차례: 주사위를 하나씩 내어 이동 · 판정 · 바치기 · 건네기 · 숨기</span></div>
+    <div class="step"><b>밤</b><span>쫓는 경찰이 다가옴 · 미션 기한 · 남은 주사위는 사라짐</span></div>
+  </div>
+
+  <h3>두 막 구조</h3>
+  <div class="flow">
+    <div class="step"><b>1막 · 정찰</b><span>미션으로 첩보 · 결행 준비 · 군자금을 모음. 일제 작전을 막음</span></div>
+    <div class="step hot"><b>결행 투표</b><span>준비 3 이상이면 투표. 칠 거점을 고르고, 남은 준비로 혜택을 고름</span></div>
+    <div class="step"><b>2막 · 결행</b><span>거점의 장면을 하나씩 돌파. 버티는 날엔 반격을 막아야 함</span></div>
+    <div class="step"><b>엔딩</b><span>성공 · 실패 · 역사대로. 숨긴 사연의 후일담</span></div>
+  </div>
+  <p class="small muted">열하루 안에 끝내야 한다. 노출이 끝까지 차거나, 모두 갇히거나, 날이 다하면 진다.</p>
+
+  <div class="shots">
+    <figure><img src="img/act1.jpg" alt="1막 보드: 내 주사위 3과 1, 행동 단추, 공개 미션 줄" loading="lazy" width="1600" height="900"><figcaption>1막: 아래 내 주사위(3 · 1)와 행동 단추, 오른쪽 공개 미션 줄. 미션은 보드에 마커로 놓인다.</figcaption></figure>
+    <figure><img src="img/act2.jpg" alt="2막 보드: 사령관 암살 결행과 장면 목록" loading="lazy" width="1600" height="900"><figcaption>2막: 군영 결행. 오른쪽에 돌파할 장면, 가운데 오늘의 일제 위협.</figcaption></figure>
+    <figure><img src="img/benefit.jpg" alt="결행 혜택 고르기 창" loading="lazy" width="1600" height="900"><figcaption>결행 혜택: 준비 3을 넘긴 몫만큼 고른다. 「지금 칠까, 더 쌓을까」.</figcaption></figure>
+    <figure><img src="img/tutorial.jpg" alt="튜토리얼: 화면을 어둡게 하고 한 곳만 밝힌 모습" loading="lazy" width="1600" height="900"><figcaption>튜토리얼 10레슨: 개념을 먼저 설명하고, 누를 곳만 밝힌다.</figcaption></figure>
+  </div>
+
+  <h3>숫자로 보는 결사</h3>
+  <div class="tw"><table>
+    <tr><th>콘텐츠</th><td>요원 12 · 미션 22 · 일제 작전 4 · 위협 22 · 사연 20 · 2막 장면 24 · 거점 4 · 엔딩 4갈래</td></tr>
+    <tr><th>밸런스</th><td>AI 4명 1,000판 승률 <b>53.3%</b>(목표 45~55%) · 결행 대상별 격차 6.0%p · 멈춘 판 0</td></tr>
+    <tr><th>제품</th><td>itch.io 웹 공개 · 저장/이어하기 · 튜토리얼 10레슨 · 온라인 방(공개 목록)</td></tr>
+  </table></div>
+</section>
+
+<section class="page">
+  <div class="kicker">내 역할과 제작 방식</div>
+  <h2>설계는 내가, 손은 AI 도구가</h2>
+  <div class="split">
+    <div class="card me">
+      <h4>내가 한 일</h4>
+      <ul class="small">
+        <li><b>원작:</b> 게임 기획 학원 팀 과제 「결사」의 <b>팀장</b>, 메인 아이디어(평행세계 조국 탈환작전 · 첩보 협력)</li>
+        <li><b>디지털판 v2:</b> 혼자 다시 설계. 규칙과 모든 결정, 레퍼런스 조사 방향, 비평에서 받을 것과 거를 것, 우선순위, 출시 뒤 수정</li>
+        <li>직접 플레이하며 문제 찾기</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h4>AI 도구가 한 일</h4>
+      <ul class="small">
+        <li>내가 쓴 규칙 문서 · 지시서대로 Godot 구현</li>
+        <li>AI 동료로 1,000판 시뮬레이션</li>
+        <li>그림 생성(프롬프트는 함께 작성)</li>
+        <li>조사 자료 · 문서 정리</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>기획자가 혼자 검증까지 가는 길</h3>
+  <ol class="pipe">
+    <li><b>문제를 적는다.</b> 해 보고 재미없던 순간을 한 문장으로.</li>
+    <li><b>레퍼런스를 조사하고</b> 후보를 2~4개 낸다.</li>
+    <li><b>고르고</b>, 규칙 문서와 구현 지시서로 쓴다.</li>
+    <li><b>구현시키고 잰다.</b> AI 4명 1,000판, 같은 시드로 전후 비교.</li>
+    <li><b>원인을 가른다.</b> 규칙이 문제인가, AI가 못 하는 것인가.</li>
+    <li><b>비평을 받고 거른다.</b> 다른 AI(GPT)의 비평 중 내 목표에 맞는 것만.</li>
+  </ol>
+  <p class="small muted">2026년 10월 1일 ~ 8일 · 설계 문서 20여 개 · 커밋 100여 개 · itch.io 공개. 사람 플레이테스트는 아직 없어서, AI 승률을 「사람보다 약한 플레이어의 아래쪽 기준」으로 본다.</p>
+</section>
+
+<footer class="foot">
+  <p><a href="cases.html">설계 사례 →</a> · <a href="balance.html">밸런스 보고 →</a> · <a href="https://yong124.itch.io/gyeolsa">itch.io</a></p>
+</footer>
+<script src="theme.js"></script>
+</body>
+</html>
