@@ -3,7 +3,7 @@
 	"version": 1,
 	"port": 8910,
 	"server_url_desktop": "ws://127.0.0.1:8910",
-	"server_url_web": "",
+	"server_url_web": "wss://gyeolsa-server.onrender.com",
 	"wake_wait": 90,
 	"ai_step": 0.45,
 	"human_idle": 150,
