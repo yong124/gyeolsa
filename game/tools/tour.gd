@@ -40,6 +40,8 @@ func _ready() -> void:
 		_tut2()
 	elif "online" in OS.get_cmdline_user_args():
 		_online()
+	elif "gif" in OS.get_cmdline_user_args():
+		_gif()
 	elif "gate" in OS.get_cmdline_user_args():
 		await _wait(0.5)
 		main._web_gate()   # 웹 첫 화면 (데스크톱에서 미리 보기)
@@ -960,4 +962,36 @@ func _measure() -> void:
 			parts.append("%s %.0f초" % [k, float(screen.wait_stats[k])])
 		print("[measure] %s · %d일 · 합계 %.1f분 · %s" % [setting[2], game.day, total / 60.0, " · ".join(parts)])
 	Engine.time_scale = 1.0
+	get_tree().quit()
+
+
+func _gif() -> void:
+	## itch.io용 짧은 GIF의 낱장: AI 자동 진행(보통 빠르기)으로 둘째 날 아침부터 프레임을 찍는다 (tools/make_gif.py가 묶음)
+	await _wait(0.5)
+	var data := GameDataV2.load_default()
+	var defs := []
+	for id in ["yun", "jeong", "gaeddong", "oh"]:
+		defs.append({"name": str(data.character(id)["name"]), "character": id})
+	var game := RulesV2.new()
+	game.setup(defs, 4242)
+	Prefs.speed = 1
+	Prefs.v2_cine = 1
+	var screen := GameScreenV2.new(game, 0, {"autoplay": true})
+	main._swap(screen)
+	await _wait(0.2)
+	screen._fast = false
+	var guard := 0
+	while not (game.day >= 2 and game.phase == "plan") and guard < 20000:
+		guard += 1
+		await _wait(0.05)
+	var n := 0
+	var t0 := Time.get_ticks_msec()
+	while Time.get_ticks_msec() - t0 < 14000 and game.phase != "over":
+		await RenderingServer.frame_post_draw
+		var img := get_viewport().get_texture().get_image()
+		img.resize(800, 450, Image.INTERPOLATE_LANCZOS)
+		img.save_png("%s/f_%04d.png" % [out, n])
+		n += 1
+		await _wait(0.1)
+	print("[tour] GIF 낱장 %d장" % n)
 	get_tree().quit()
