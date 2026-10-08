@@ -32,6 +32,16 @@ func _init() -> void:
 	_check(good.strike("prison").get("name") == "형무소 해방", "strike() 조회")
 	_check(good.board["bases"].size() == 4 and good.base_index("gg") == 3, "보드 정보와 거점 번호")
 
+	# Z3: 보드 · 화면 구성 · 투표 · AI 값의 오류를 잡는다 (정상 예시를 하나씩 망가뜨려 본다)
+	_check(_breaks(func(d): d.base_ids[1] = d.base_ids[0], "거점 id barracks가 겹칩니다"), "board.json 거점 id 중복을 잡는다")
+	_check(_breaks(func(d): d.bases[2] = d.start, "시작 칸입니다"), "board.json 거점이 시작 칸이면 잡는다")
+	_check(_breaks(func(d): d.tile_art["normal"] = {"texture": "없는그림"}, "board.tile_art.normal"), "board.json 없는 타일 그림을 잡는다")
+	_check(_breaks(func(d): d.rules["launch"]["vote"]["tie"] = "coin", "tie는"), "투표 동률 규칙 오타를 잡는다")
+	_check(_breaks(func(d): d.rules["ai"]["persona"].erase("support"), "persona에 support"), "AI 기본 성향이 없으면 잡는다")
+	_check(_breaks(func(d): d.ui["verbs"][0]["jailed"] = "maybe", "jailed는"), "ui.json 단추 jailed 오타를 잡는다")
+	_check(_breaks(func(d): d.ui["marker_glyph"].erase("target"), "marker_glyph.target"), "ui.json 마커 글자 빠짐을 잡는다")
+	_check(_breaks(func(d): d.ui["weather"] = {"no_such": "rain"}, "위협 카드 no_such"), "ui.json 날씨가 없는 위협을 가리키면 잡는다")
+
 	# 틀린 예시: 파일은 위협만 있다. 오타 op·어휘 밖 who·중복 id·중첩 오타·파일 없음을 잡아야 한다.
 	var bad := GameDataV2.new()
 	bad.load_dir("res://tests/fixtures/v2_bad/")
@@ -187,3 +197,14 @@ func _check(ok: bool, what: String) -> void:
 	if not ok:
 		_fail += 1
 	print("%s %s" % ["  ok  " if ok else " FAIL ", what])
+
+
+func _breaks(mutate: Callable, expect: String) -> bool:
+	## 정상 예시를 새로 읽어 mutate로 망가뜨리고, expect가 든 오류가 나오는가
+	var d := GameDataV2.new()
+	d.load_dir("res://tests/fixtures/v2/")
+	mutate.call(d)
+	for e in d.validate():
+		if expect in e:
+			return true
+	return false

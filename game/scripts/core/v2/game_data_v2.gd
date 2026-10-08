@@ -1,12 +1,9 @@
 class_name GameDataV2
 extends RefCounted
-## data/v2/*.json을 읽어 v2 규칙 엔진·UI에 제공한다. v1 GameData는 건드리지 않고 보드 정보만 읽어 온다.
+## data/v2/*.json을 읽어 v2 규칙 엔진·UI에 제공한다. 보드(크기 · 거점 · 지도 · 타일 그림)는 board.json.
 ## 효과·조건 어휘는 v2_구현/1단계_데이터.md 3절과 같다. validate()가 오타·장수 누락을 잡는다.
 
 const DIR := "res://data/v2/"
-
-## 거점 문자열 id. 위치(index)는 v1 balance.json의 bases 순서와 같다.
-const BASE_IDS := ["barracks", "police_hq", "prison", "gg"]
 
 ## 3-1. 대상 (who, target)
 const KNOWN_TARGETS := ["self", "ally", "ally_same_cell", "ally_adjacent", "ally_in_range", "all", "allies",
@@ -67,10 +64,13 @@ var scenes: Dictionary
 var endings: Dictionary
 var sagas: Dictionary
 var characters: Dictionary
+var ui: Dictionary                # 화면 구성 (ui.json: 행동 단추 · 미션 그림 · 마커 글자 · 날씨 · 훈련 할 일)
 var online: Dictionary            # 온라인 방 설정 (online.json, 없으면 빈 사전 → 코드의 기본값)
 
-## v1 GameData에서 읽기만 한 보드 정보
+## 보드 (board.json). base_ids[i] · bases[i] · base_names[i]는 같은 거점이다
 var board := {}
+var base_ids: Array[String] = []
+var tile_art := {}                # 타일 종류 -> {"texture", "used_texture"}
 var size := 11
 var start := Vector2i(5, 5)
 var bases: Array[Vector2i] = []
@@ -111,6 +111,7 @@ func load_dir(dir: String) -> void:
 	sagas = _read("sagas.json")
 	characters = _read("characters.json")
 	online = _read_optional("online.json")
+	ui = _read("ui.json")
 	_load_board()
 	_missions = _index(missions.get("missions", []))
 	_ops = _index(missions.get("ops", []))
@@ -121,12 +122,23 @@ func load_dir(dir: String) -> void:
 
 
 func _load_board() -> void:
-	var v1 := GameData.load_default()
-	size = v1.size
-	start = v1.start
-	bases = v1.bases.duplicate()
-	base_names = v1.base_names.duplicate()
-	board = {"size": size, "start": start, "bases": bases, "base_names": base_names}
+	board = _read("board.json")
+	size = int(board.get("size", size))
+	var st: Array = board.get("start", [start.x, start.y])
+	start = Vector2i(int(st[0]), int(st[1]))
+	bases.clear()
+	base_names.clear()
+	base_ids.clear()
+	for b in board.get("bases", []):
+		base_ids.append(str(b.get("id", "")))
+		bases.append(Vector2i(int(b["pos"][0]), int(b["pos"][1])))
+		base_names.append(str(b.get("name", "")))
+	tile_art = board.get("tile_art", {})
+
+
+func map_info() -> Dictionary:
+	## 지도 그림과 칸 맞춤 {"image", "px", "origin", "cell"}
+	return board.get("map", {})
 
 
 # ------------------------------------------------------------------ 조회
@@ -196,7 +208,7 @@ func strike(base_id: String) -> Dictionary:
 
 func base_index(base_id: String) -> int:
 	## 거점 문자열 id -> 보드의 거점 번호. 모르는 id면 -1
-	return BASE_IDS.find(base_id)
+	return base_ids.find(base_id)
 
 
 func todos() -> Array[String]:
@@ -215,7 +227,10 @@ func validate() -> Array[String]:
 		errs.append("파일 없음: " + p)
 	for p in _unreadable:
 		errs.append("파일을 읽을 수 없음: " + p)
+	_validate_board(errs)
 	_validate_rules(errs)
+	_validate_vote_ai(errs)
+	_validate_ui(errs)
 	_validate_threats(errs)
 	_validate_missions(errs)
 	_validate_events(errs)
@@ -224,9 +239,117 @@ func validate() -> Array[String]:
 	_validate_endings(errs)
 	_validate_sagas(errs)
 	_validate_characters(errs)
-	for name in ["rules", "threats", "missions", "events", "items", "scenes", "endings", "sagas", "characters"]:
+	for name in ["board", "ui", "rules", "threats", "missions", "events", "items", "scenes", "endings", "sagas", "characters"]:
 		_collect_todos(get(name), name)
 	return errs
+
+
+func _validate_board(errs: Array[String]) -> void:
+	if size < 5:
+		errs.append("board.size가 너무 작습니다 (%d)." % size)
+	var inside := func(c: Vector2i) -> bool: return c.x >= 0 and c.y >= 0 and c.x < size and c.y < size
+	if not inside.call(start):
+		errs.append("board.start %s가 보드 밖입니다." % start)
+	if base_ids.size() != 4:
+		errs.append("[장수] 거점: %d곳 (기준 4곳, 결행 장면 · 엔딩이 넷을 기대함)" % base_ids.size())
+	var seen := {}
+	for i in base_ids.size():
+		var id := base_ids[i]
+		if id == "" or base_names[i] == "":
+			errs.append("board.bases[%d]: id와 name이 있어야 합니다." % i)
+		if seen.has(id):
+			errs.append("board.bases: 거점 id %s가 겹칩니다." % id)
+		seen[id] = true
+		if not inside.call(bases[i]) or bases[i] == start:
+			errs.append("거점 %s: 칸 %s가 보드 밖이거나 시작 칸입니다." % [id, bases[i]])
+		if bases.count(bases[i]) > 1:
+			errs.append("거점 %s: 다른 거점과 칸이 겹칩니다." % id)
+	var m: Dictionary = map_info()
+	for k in ["image", "px", "origin", "cell"]:
+		if not m.has(k):
+			errs.append("board.map.%s가 없습니다." % k)
+	if m.has("image") and not ResourceLoader.exists(str(m["image"])):
+		errs.append("board.map.image 그림이 없습니다: %s" % m["image"])
+	for t in tile_art:
+		if t.begins_with("_"):
+			continue
+		var a = tile_art[t]
+		if typeof(a) != TYPE_DICTIONARY or str(a.get("texture", "")) == "":
+			errs.append("board.tile_art.%s: texture가 있어야 합니다." % t)
+			continue
+		for k in ["texture", "used_texture"]:
+			if a.has(k) and not ResourceLoader.exists("res://assets/tiles/%s.png" % a[k]):
+				errs.append("board.tile_art.%s: 그림 assets/tiles/%s.png이 없습니다." % [t, a[k]])
+
+
+func _validate_ui(errs: Array[String]) -> void:
+	var verbs: Array = ui.get("verbs", [])
+	if verbs.is_empty():
+		errs.append("ui.verbs가 비었습니다.")
+	var ids := {}
+	for v in verbs:
+		var id := str(v.get("id", ""))
+		if id == "" or str(v.get("label", "")) == "" or (v.get("actions", []) as Array).is_empty():
+			errs.append("ui.verbs: 단추마다 id · label · actions가 있어야 합니다 (%s)." % id)
+		if ids.has(id):
+			errs.append("ui.verbs: id %s가 겹칩니다." % id)
+		ids[id] = true
+		if not str(v.get("jailed", "")) in ["", "only", "allowed"]:
+			errs.append("ui.verbs.%s: jailed는 only · allowed 중 하나여야 합니다." % id)
+		for a in v.get("acts", []):
+			if not int(a) in [1, 2]:
+				errs.append("ui.verbs.%s: acts는 1 · 2만 됩니다." % id)
+	var art: Dictionary = ui.get("mission_art", {})
+	for k in ["coop", "op"]:
+		if not art.has(k):
+			errs.append("ui.mission_art.%s(기본 그림)가 없습니다." % k)
+	for k in art:
+		if not k.begins_with("_") and not ResourceLoader.exists(str(art[k])):
+			errs.append("ui.mission_art.%s: 그림이 없습니다 (%s)." % [k, art[k]])
+	var glyph: Dictionary = ui.get("marker_glyph", {})
+	for r in KNOWN_MARKER_ROLES:
+		if str(glyph.get(r, "")) == "":
+			errs.append("ui.marker_glyph.%s(마커 글자)가 없습니다." % r)
+	var weather: Dictionary = ui.get("weather", {})
+	for t in weather:
+		if t.begins_with("_"):
+			continue
+		if threat(t).is_empty():
+			errs.append("ui.weather: 위협 카드 %s가 없습니다." % t)
+		if not str(weather[t]) in ["rain", "light", "siren"]:
+			errs.append("ui.weather.%s: 날씨는 rain · light · siren 중 하나입니다." % t)
+	for t in ui.get("training_tasks", []):
+		if str(t.get("id", "")) == "" or str(t.get("label", "")) == "":
+			errs.append("ui.training_tasks: 할 일마다 id와 label이 있어야 합니다.")
+
+
+func _validate_vote_ai(errs: Array[String]) -> void:
+	var v = rules.get("launch", {}).get("vote", null)
+	if typeof(v) != TYPE_DICTIONARY or not v.has("pass_ratio") or not v.has("tie"):
+		errs.append("rules.launch.vote에 pass_ratio와 tie가 있어야 합니다.")
+	else:
+		if float(v["pass_ratio"]) <= 0.0 or float(v["pass_ratio"]) >= 1.0:
+			errs.append("rules.launch.vote.pass_ratio는 0과 1 사이여야 합니다.")
+		if not str(v["tie"]) in ["leader", "fail", "pass"]:
+			errs.append("rules.launch.vote.tie는 leader · fail · pass 중 하나여야 합니다.")
+	var ai: Dictionary = rules.get("ai", {})
+	for k in ["act2_days_per_scene", "saga_value"]:
+		if float(ai.get(k, 0.0)) <= 0.0:
+			errs.append("rules.ai.%s가 없거나 0 이하입니다." % k)
+	var r = ai.get("rescue", null)
+	if typeof(r) != TYPE_DICTIONARY or float(r.get("value", 0.0)) <= 0.0 or int(r.get("range", 0)) <= 0:
+		errs.append("rules.ai.rescue에 value와 range(양수)가 있어야 합니다.")
+	var per = ai.get("persona", null)
+	if typeof(per) != TYPE_DICTIONARY or not per.has("support"):
+		errs.append("rules.ai.persona에 support(기본 성향)가 있어야 합니다.")
+	else:
+		for k in per:
+			if not k.begins_with("_") and (not per[k].has("risk") or not per[k].has("vote")):
+				errs.append("rules.ai.persona.%s에 risk와 vote가 있어야 합니다." % k)
+	for c in characters.get("characters", []):
+		var pk := str(c.get("persona", ""))
+		if pk != "" and typeof(per) == TYPE_DICTIONARY and not per.has(pk):
+			errs.append("요원 %s: 성향 %s가 rules.ai.persona에 없습니다." % [c.get("id", "?"), pk])
 
 
 func _validate_rules(errs: Array[String]) -> void:
@@ -386,7 +509,7 @@ func _validate_missions(errs: Array[String]) -> void:
 		if c.get("type") == "coop":
 			coop += 1
 		var intel = c.get("intel")
-		if intel != null and not intel in ["nearest", "entered"] and not intel in BASE_IDS:
+		if intel != null and not intel in ["nearest", "entered"] and not intel in base_ids:
 			errs.append("%s: intel '%s'는 거점 id가 아닙니다." % [who, intel])
 		_check_marker_card(errs, who, c, false)
 	var ops: Array = missions.get("ops", [])
@@ -416,7 +539,7 @@ func _check_marker_card(errs: Array[String], who: String, c: Dictionary, is_op: 
 		kind = str(cond["kind"])
 	if cond.has("where") and not _where_ok(cond["where"]):
 		errs.append("%s: 조건의 알 수 없는 where '%s'" % [who, cond["where"]])
-	if cond.has("base") and not cond["base"] in BASE_IDS:
+	if cond.has("base") and not cond["base"] in base_ids:
 		errs.append("%s: 조건의 base '%s'는 거점 id가 아닙니다." % [who, cond["base"]])
 	if is_op and kind in ["cover_entry", "people", "opposite_edges"]:
 		errs.append("%s: 일제 작전에는 협동 조건을 쓸 수 없습니다." % who)
@@ -472,7 +595,7 @@ func _check_marker_card(errs: Array[String], who: String, c: Dictionary, is_op: 
 			errs.append("%s: %s 조건에는 %s 마커가 있어야 합니다." % [who, kind, r])
 	if kind in ["cover_entry", "people", "opposite_edges"] and not markers.is_empty():
 		errs.append("%s: 협동 미션에는 마커가 없습니다." % who)
-	if kind == "infiltrate" and not str(cond.get("base", "")) in BASE_IDS:
+	if kind == "infiltrate" and not str(cond.get("base", "")) in base_ids:
 		errs.append("%s: infiltrate에는 base(거점 id)가 있어야 합니다." % who)
 	# 기한 · 놓침
 	if c.has("deadline"):
@@ -491,7 +614,7 @@ func _check_marker_card(errs: Array[String], who: String, c: Dictionary, is_op: 
 		if typeof(b) != TYPE_DICTIONARY or typeof(b.get("if", null)) != TYPE_DICTIONARY or not b["if"].get("kind") in KNOWN_BONUS_CONDS:
 			errs.append("%s: bonus.if의 kind가 어휘에 없습니다." % who)
 		else:
-			if b["if"]["kind"] == "launch_target" and not str(b["if"].get("base", "")) in BASE_IDS:
+			if b["if"]["kind"] == "launch_target" and not str(b["if"].get("base", "")) in base_ids:
 				errs.append("%s: launch_target 보너스에는 base(거점 id)가 있어야 합니다." % who)
 			if str(b.get("text", "")).strip_edges() == "":
 				errs.append("%s: bonus.text가 비었습니다." % who)
@@ -548,12 +671,12 @@ func _validate_scenes(errs: Array[String]) -> void:
 		if base_id.begins_with("_"):
 			continue
 		var who: String = "결행 " + base_id
-		if not base_id in BASE_IDS:
+		if not base_id in base_ids:
 			errs.append("%s: 거점 id가 아닙니다." % who)
 		var s: Dictionary = strikes[base_id]
 		if str(s.get("name", "")).strip_edges() == "":
 			errs.append("%s: name이 비었습니다." % who)
-		if s.has("base") and not s["base"] in BASE_IDS:
+		if s.has("base") and not s["base"] in base_ids:
 			errs.append("%s: base '%s'는 거점 id가 아닙니다." % [who, s["base"]])
 		_check_effects(errs, who + " on_launch", s.get("on_launch", []))
 		var cards: Array = []
@@ -581,7 +704,7 @@ func _validate_scenes(errs: Array[String]) -> void:
 
 func _validate_endings(errs: Array[String]) -> void:
 	var strikes: Dictionary = endings.get("strikes", {})
-	for id in BASE_IDS:
+	for id in base_ids:
 		var entry: Dictionary = strikes.get(id, {})
 		for key in ["name", "ending"]:
 			if str(entry.get(key, "")).strip_edges() == "":
@@ -715,10 +838,10 @@ func _check_effects(errs: Array[String], who: String, effects: Array) -> void:
 		if op == "police_attach" and e.has("at") and e["at"] != "here":
 			errs.append("%s: police_attach의 알 수 없는 at '%s'" % [who, e["at"]])
 		if op == "police_dispatch" and e.has("from"):
-			if not e["from"] in ["random_base", "strike_base", "marker"] and not e["from"] in BASE_IDS:
+			if not e["from"] in ["random_base", "strike_base", "marker"] and not e["from"] in base_ids:
 				errs.append("%s: police_dispatch의 알 수 없는 from '%s'" % [who, e["from"]])
 		if op == "intel" and e.has("base"):
-			if not e["base"] in ["nearest", "choose", "entered", "highest"] and not e["base"] in BASE_IDS:
+			if not e["base"] in ["nearest", "choose", "entered", "highest"] and not e["base"] in base_ids:
 				errs.append("%s: intel의 알 수 없는 base '%s'" % [who, e["base"]])
 		if op == "funds" and int(e.get("value", 0)) == 0:
 			errs.append("%s: funds에는 value(0이 아님)가 있어야 합니다." % who)
@@ -750,7 +873,7 @@ func _check_saga_cond(errs: Array[String], who: String, cond) -> void:
 	_check_cond(errs, who, cond, KNOWN_SAGA_CONDITIONS)
 	if typeof(cond) == TYPE_DICTIONARY:
 		for k in ["base", "strike"]:
-			if cond.has(k) and not cond[k] in BASE_IDS:
+			if cond.has(k) and not cond[k] in base_ids:
 				errs.append("%s: 조건의 %s '%s'는 거점 id가 아닙니다." % [who, k, cond[k]])
 
 
@@ -763,7 +886,7 @@ func _check_cond(errs: Array[String], who: String, cond, known: Array) -> void:
 		errs.append("%s: 알 수 없는 조건 kind '%s'" % [who, kind])
 	if cond.has("where") and not _where_ok(cond["where"]):
 		errs.append("%s: 조건의 알 수 없는 where '%s'" % [who, cond["where"]])
-	if known == KNOWN_SCENE_CONDITIONS and cond.has("base") and not cond["base"] in BASE_IDS and cond["base"] != "card":
+	if known == KNOWN_SCENE_CONDITIONS and cond.has("base") and not cond["base"] in base_ids and cond["base"] != "card":
 		errs.append("%s: 조건의 base '%s'는 거점 id가 아닙니다." % [who, cond["base"]])
 	if kind == "any_of" or kind == "all_of":
 		for o in cond.get("options", []):
@@ -792,7 +915,7 @@ func _has_kind(cond, kind: String) -> bool:
 
 
 func _where_ok(w) -> bool:
-	return w in KNOWN_WHERE or w in BASE_IDS
+	return w in KNOWN_WHERE or w in base_ids
 
 
 func _collect_todos(node, path: String) -> void:

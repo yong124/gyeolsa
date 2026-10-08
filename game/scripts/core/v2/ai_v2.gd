@@ -2,22 +2,17 @@ class_name GameAIV2
 extends RefCounted
 ## 공개 정보와 자신의 사연만 사용해 합법 액션을 고른다.
 
-const ACT2_DAYS_PER_SCENE := 0.8
-## 사연 목표의 가치 (미션은 2~3). 팀 일보다 앞서지 않게 조금 낮게 둔다 (기획서 19.7)
-const SAGA_VALUE := 2.2
-## 갇힌 동료를 구하러 가는 가치와 거리 한도
-const RESCUE_VALUE := 3.5
-const RESCUE_RANGE := 8
-const PERSONA := {
-	"bold": {"risk": 0.35, "vote": 0.7},
-	"careful": {"risk": 1.4, "vote": 1.2},
-	"support": {"risk": 0.8, "vote": 1.0},
-}
+## 수치는 rules.json의 ai: act2_days_per_scene(2막 장면 하나에 드는 날), saga_value(사연 목표 가치, 미션은 2~3),
+## rescue(갇힌 동료 구하기 가치 · 거리 한도), persona(성향별 위험 · 투표 배수)
 const CHOICE_KINDS := ["launch_vote", "launch_target", "launch_benefit", "threat_look", "strike_target", "saga_keep", "reroll", "react_evade", "mission_gear", "informer_pay", "bribe",
 	"discard", "draw_pick", "effect_choice", "pick_player", "pick_cell", "pick_die", "pick_tile", "pick_item",
 	"pick_value", "pick_bury", "hop", "intel_base"]
 
 static var fallback_count := 0
+
+
+static func _ai(g: RulesV2) -> Dictionary:
+	return g.data.rules["ai"]
 
 
 static func next_actor(g: RulesV2) -> int:
@@ -82,7 +77,7 @@ static func decide(g: RulesV2, pid: int, persona := "") -> Dictionary:
 	var p: Dictionary = g.players[pid]
 	if persona == "":
 		persona = str(g.char_def(p).get("persona", "support"))
-	var policy: Dictionary = PERSONA.get(persona, PERSONA["support"])
+	var policy: Dictionary = _ai(g)["persona"].get(persona, _ai(g)["persona"]["support"])
 	var picked: Dictionary = {}
 	match g.phase:
 		"choice": picked = _choice(g, p, own, policy)
@@ -118,7 +113,7 @@ static func _choice(g: RulesV2, p: Dictionary, legal: Array, policy: Dictionary)
 		match kind:
 			"launch_vote":
 				var target := _best_target(g, p)
-				var needed := float(4 + g.alert_level() - 1) * ACT2_DAYS_PER_SCENE * float(policy["vote"])
+				var needed := float(4 + g.alert_level() - 1) * float(_ai(g)["act2_days_per_scene"]) * float(policy["vote"])
 				# 첩보가 쌓였거나, 준비가 넉넉해 결행 혜택을 받을 수 있거나, 2막에 쓸 날이 빠듯해지면 찬성 (기다려도 날만 줄어듦)
 				var margin := int(g.data.rules["ai"]["vote_ready_margin"])
 				var ready_now := int(g.intel.get(target, 0)) >= int(g.data.rules["launch"]["target_min_intel"]) or g.ready >= int(g.data.rules["launch_min"]) + margin
@@ -624,7 +619,7 @@ static func _give_die_action(g: RulesV2, p: Dictionary, legal: Array) -> Diction
 static func _buy_scene_now(g: RulesV2) -> bool:
 	## 장면 매수: 2막에서 남은 날이 장면 수에 비해 빠듯할 때
 	var left := g.scenes.size() - g.scene_index
-	return float(g.rounds_left) <= float(left) * ACT2_DAYS_PER_SCENE + float(_funds_cfg(g)["buy_slack_days"])
+	return float(g.rounds_left) <= float(left) * float(_ai(g)["act2_days_per_scene"]) + float(_funds_cfg(g)["buy_slack_days"])
 
 
 static func _scene_pay_other(g: RulesV2, p: Dictionary, legal: Array) -> Dictionary:
@@ -751,8 +746,8 @@ static func _goal(g: RulesV2, p: Dictionary, policy: Dictionary) -> Vector2i:
 	for q in g.players:
 		if q["jailed"] and q["id"] != p["id"] and not g.police_on(q["pos"]):
 			var d := _dist(p["pos"], q["pos"])
-			if d <= RESCUE_RANGE and RESCUE_VALUE / float(1 + d) > best_score:
-				best_score = RESCUE_VALUE / float(1 + d)
+			if d <= int(_ai(g)["rescue"]["range"]) and float(_ai(g)["rescue"]["value"]) / float(1 + d) > best_score:
+				best_score = float(_ai(g)["rescue"]["value"]) / float(1 + d)
 				best = q["pos"]
 	for t in _saga_targets(g, p):
 		var cells: Array = t[0]
@@ -996,7 +991,7 @@ static func _saga_targets(g: RulesV2, p: Dictionary) -> Array:
 		var cond: Dictionary = g.data.saga(str(id)).get("condition", {})
 		var tr: Dictionary = p["saga_track"].get(id, {})
 		var pr: Dictionary = prog.get(id, {"have": 0, "need": 1})
-		var value := SAGA_VALUE * (0.6 + 0.4 * float(pr["have"]) / float(maxi(1, pr["need"])))
+		var value := float(_ai(g)["saga_value"]) * (0.6 + 0.4 * float(pr["have"]) / float(maxi(1, pr["need"])))
 		var cells := []
 		match str(cond.get("kind", "")):
 			"end_turn_near_base":

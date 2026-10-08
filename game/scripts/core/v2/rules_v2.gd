@@ -209,7 +209,7 @@ func setup(player_defs: Array, seed_value: int = -1, game_data: GameDataV2 = nul
 		})
 	police = {}
 	intel = {}
-	for id in GameDataV2.BASE_IDS:
+	for id in data.base_ids:
 		intel[id] = 0
 	exposure = 0
 	ready = 0
@@ -747,7 +747,7 @@ func launch_target_preview() -> Array:
 	for id in intel:
 		best = maxi(best, int(intel[id]))
 	var out := []
-	for id in GameDataV2.BASE_IDS:
+	for id in data.base_ids:
 		if int(intel[id]) == best:
 			out.append(id)
 	return out
@@ -756,7 +756,7 @@ func launch_target_preview() -> Array:
 func launch_candidates() -> Array:
 	## 결행 대상 후보: 첩보가 rules.launch.target_min_intel 이상인 거점. 없으면 첩보가 가장 높은 거점.
 	var out := []
-	for id in GameDataV2.BASE_IDS:
+	for id in data.base_ids:
 		if int(intel[id]) >= int(data.rules["launch"]["target_min_intel"]):
 			out.append(id)
 	return out if not out.is_empty() else launch_target_preview()
@@ -1459,8 +1459,7 @@ func _vote_resolve() -> void:
 			if votes[pid]:
 				yes += 1
 		_log("결행 투표: 찬성 %d, 반대 %d · 대상 %s" % [yes, votes.size() - yes, ", ".join(parts)])
-		var lead_vote: bool = bool(votes.get(leader, false))
-		if not (yes * 2 > votes.size() or (yes * 2 == votes.size() and lead_vote)):
+		if not vote_passes(yes, votes.size(), bool(votes.get(leader, false))):
 			_log("결행을 하루 미루고 준비를 계속합니다.")
 			_morning_continue()
 			return
@@ -1470,10 +1469,26 @@ func _vote_resolve() -> void:
 	for id in tally:
 		best = maxi(best, int(tally[id]))
 	var top := []
-	for id in GameDataV2.BASE_IDS:
+	for id in data.base_ids:
 		if int(tally.get(id, 0)) == best:
 			top.append(id)
 	_launch("forced" if forced else "vote", "", top)
+
+
+func vote_passes(yes: int, total: int, leader_yes: bool) -> bool:
+	## 결행 투표 통과 (rules.launch.vote): 찬성 비율이 pass_ratio를 넘으면 통과, 딱 같으면 tie 규칙 (leader = 리더가 찬성했으면 통과 · pass · fail)
+	var v: Dictionary = data.rules["launch"]["vote"]
+	var need := float(v["pass_ratio"]) * float(total)
+	if float(yes) > need:
+		return true
+	if not is_equal_approx(float(yes), need):
+		return false
+	match str(v["tie"]):
+		"pass":
+			return true
+		"leader":
+			return leader_yes
+	return false
 
 
 func _fill_mission_row() -> void:
@@ -1736,7 +1751,7 @@ func _enter_base(p: Dictionary) -> void:
 	var ids := []
 	for id in mission_row:
 		var cond := card_cond(id)
-		if str(cond.get("kind", "")) == "infiltrate" and str(cond.get("base", "")) == GameDataV2.BASE_IDS[bi]:
+		if str(cond.get("kind", "")) == "infiltrate" and str(cond.get("base", "")) == data.base_ids[bi]:
 			ids.append(id)
 	var ctx := {"then": "base_finish", "entered_base": bi}
 	ids.append_array(_coop_enter_base(p, bi))
@@ -2594,7 +2609,7 @@ func _where_match(c: Vector2i, cond: Dictionary) -> bool:
 	## 협동 조건의 where(+ base): 그 거점의 안 / 옆 칸 / 안이거나 옆 칸. where가 거점 id면 그 거점 안.
 	var where := str(cond.get("where", "inside"))
 	var base_id := str(cond.get("base", ""))
-	if where in GameDataV2.BASE_IDS:
+	if where in data.base_ids:
 		return c == _base_cell(where)
 	if base_id == "":
 		return false
@@ -3394,10 +3409,10 @@ func _resolve_base(p: Dictionary, base, ctx: Dictionary) -> int:
 		return _nearest_base(p["pos"])
 	if b == "highest":
 		var top := -1
-		for id in GameDataV2.BASE_IDS:
+		for id in data.base_ids:
 			top = maxi(top, int(intel[id]))
 		var tops := []
-		for id in GameDataV2.BASE_IDS:
+		for id in data.base_ids:
 			if int(intel[id]) == top:
 				tops.append(id)
 		return data.base_index(tops[0] if tops.size() == 1 else tops[rng.randi_range(0, tops.size() - 1)])
@@ -3408,7 +3423,7 @@ func _op_intel(p: Dictionary, e: Dictionary, ctx: Dictionary) -> bool:
 	var v: int = int(e.get("value", 1))
 	if str(e.get("base", "nearest")) == "choose":
 		var opts := []
-		var near_ids := _bases_in_range(p["pos"], int(e["range"])) if e.has("range") else GameDataV2.BASE_IDS.duplicate()
+		var near_ids := _bases_in_range(p["pos"], int(e["range"])) if e.has("range") else data.base_ids.duplicate()
 		if near_ids.is_empty():
 			return false
 		if near_ids.size() == 1 and e.has("range"):
@@ -3428,14 +3443,14 @@ func _op_intel(p: Dictionary, e: Dictionary, ctx: Dictionary) -> bool:
 func _bases_in_range(c: Vector2i, dist: int) -> Array:
 	## c에서 dist칸 안에 있는 거점 id
 	var out := []
-	for id in GameDataV2.BASE_IDS:
+	for id in data.base_ids:
 		if walk_dist(c, data.bases[data.base_index(id)]) <= dist:
 			out.append(id)
 	return out
 
 
 func _add_intel(bi: int, v: int) -> void:
-	var id: String = GameDataV2.BASE_IDS[bi]
+	var id: String = data.base_ids[bi]
 	intel[id] = maxi(0, int(intel[id]) + v)
 	_log("%s 첩보 %+d (첩보 %d)" % [base_name(bi), v, intel[id]])
 	_push({"kind": "intel", "base": id, "value": v})
@@ -4933,7 +4948,7 @@ func _scene_at(p: Dictionary, cond: Dictionary, jailed_check := false) -> bool:
 		return jailed_check and p["pos"] == base
 	var d := _manhattan(p["pos"], base)
 	var where := _scene_where(cond)
-	if where in GameDataV2.BASE_IDS:
+	if where in data.base_ids:
 		return d == 0
 	match where:
 		"inside": return d == 0

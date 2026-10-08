@@ -1,0 +1,47 @@
+{
+	"_comment": "보드: 크기 · 시작 칸 · 결행 거점 4곳(id · 칸 · 이름) · 지도 그림 맞춤. 거점 id는 미션 · 장면 · 엔딩 · 사연이 가리키는 열쇠다. 지도의 origin · cell은 그림(px 크기) 위 첫 칸의 시작과 한 칸 크기(픽셀). tile_art: 타일 종류 -> 그림 이름(assets/tiles/*.png), used_texture는 쓴 뒤 그림. 없는 종류는 같은 이름의 그림이 있으면 그것을, 없으면 글자로 그린다.",
+	"version": 1,
+	"size": 11,
+	"start": [5, 5],
+	"bases": [
+		{
+			"id": "barracks",
+			"pos": [1, 1],
+			"name": "일본군영"
+		},
+		{
+			"id": "police_hq",
+			"pos": [9, 1],
+			"name": "종로경찰서"
+		},
+		{
+			"id": "prison",
+			"pos": [1, 9],
+			"name": "서대문형무소"
+		},
+		{
+			"id": "gg",
+			"pos": [9, 9],
+			"name": "조선총독부"
+		}
+	],
+	"map": {
+		"image": "res://assets/ui/board.png",
+		"px": 1400,
+		"origin": 33.33,
+		"cell": 121.33
+	},
+	"tile_art": {
+		"normal": {"texture": "normal"},
+		"event": {"texture": "event", "used_texture": "event_used"},
+		"item": {"texture": "item", "used_texture": "item_used"},
+		"check": {"texture": "check"},
+		"supply": {"texture": "supply"},
+		"assassin": {"texture": "assassin"},
+		"sabotage": {"texture": "sabotage"},
+		"bomb": {"texture": "bomb"},
+		"base": {"texture": "base"},
+		"station": {"texture": "station"},
+		"start": {"texture": "start"}
+	}
+}

@@ -4,7 +4,7 @@ extends Control
 ##
 ## 말과 경찰은 게임 상태가 아니라 "보이는 위치"(vis_*)에 그린다. 연출 큐가 이벤트 순서대로
 ## 이 위치를 움직이고, 연출이 끝나면 sync_from_game()으로 실제 상태와 맞춘다.
-## 지도 그림·타일 그림은 v1 데이터(GameData)에서 읽는다 (보드는 v1과 같음).
+## 지도 그림·타일 그림은 board.json(map · tile_art)에서 읽는다.
 
 signal cell_clicked(cell: Vector2i)
 signal cell_hovered(cell: Vector2i)   # U1: 선택 미리보기 띠
@@ -30,10 +30,8 @@ var reach := {}                  # 이동 미리 보기: 닿을 수 있는 칸 {
 var scouted := {}                # 정찰로 미리 깐 칸 (아직 아무도 멈추지 않은 곳)
 var marker_trails := {}          # 카드 id -> {"from", "to", "age"}: 표적이 움직인 자리 (잠깐 보임)
 
-const ROLE_GLYPH := {"target": "표", "informer": "정", "pickup": "받", "dropoff": "주", "work": "공", "spot": "잠", "base": "입"}
 const TRAIL_SECONDS := 9.0
 
-var _v1: GameData
 var _tex := {}
 var _faction_tex := {}
 var _prints: Array = []   # 먹 발자국 [{"c", "pid", "t"}]
@@ -45,17 +43,16 @@ var _map := {}
 func setup(g: RulesV2, human: int) -> void:
 	game = g
 	human_id = human
-	_v1 = GameData.load_default()
-	_map = _v1.balance["board"]["map"]
+	_map = g.data.map_info()
 	_map_tex = load(_map["image"])
-	for t in _v1.balance["tiles"]:
-		var def: Dictionary = _v1.tile(t)
+	for t in g.data.tile_art:
+		var def: Dictionary = g.data.tile_art[t]
 		for key in ["texture", "used_texture"]:
 			if def.has(key):
 				_tex[def[key]] = load("res://assets/tiles/%s.png" % def[key])
 	_tex["back"] = load("res://assets/tiles/back.png")
 	for t in g.data.rules["tiles"]:
-		if not str(t).begins_with("_") and _v1.tile(str(t)).is_empty() and ResourceLoader.exists("res://assets/tiles/%s.png" % t):
+		if not str(t).begins_with("_") and not g.data.tile_art.has(str(t)) and ResourceLoader.exists("res://assets/tiles/%s.png" % t):
 			_tex["new:" + str(t)] = load("res://assets/tiles/%s.png" % t)   # 새 타일 그림 (tools/gen_ui_art.py tiles)
 	for f in g.data.characters.get("factions", {}):
 		if not str(f).begins_with("_"):
@@ -286,7 +283,7 @@ func _tooltip(c: Vector2i) -> String:
 	var name := game.tile_label(t)
 	var bi := game.data.bases.find(c)
 	if bi >= 0:
-		var id: String = GameDataV2.BASE_IDS[bi]
+		var id: String = game.data.base_ids[bi]
 		name = "%s (일본군 거점)\n첩보 %d" % [game.data.base_names[bi], int(game.intel.get(id, 0))]
 		if game.act == 2 and str(game.launch_info.get("target", "")) == id:
 			name += " · 결행 거점"
@@ -357,7 +354,7 @@ func _draw_tiles() -> void:
 		var t: String = info["type"]
 		if t == "start":
 			continue
-		var def := _v1.tile(t)
+		var def: Dictionary = game.data.tile_art.get(t, {})
 		if def.is_empty():
 			_draw_plain_tile(c, t)
 			continue
@@ -440,7 +437,7 @@ func _tile_art(c: Vector2i, t: String, used: bool) -> Texture2D:
 	## V 연출 타일 그림 (art/tile). 길은 칸 위치로 4장 중 하나(늘 같은 그림), 쓴 이벤트·아이템 칸은 길, 거점은 거점마다
 	if t == "base":
 		var bi := game.data.bases.find(c)
-		return ArtV2.get_tex("tile", "base_" + GameDataV2.BASE_IDS[bi]) if bi >= 0 else null
+		return ArtV2.get_tex("tile", "base_" + game.data.base_ids[bi]) if bi >= 0 else null
 	if t == "normal" or used:
 		return ArtV2.get_tex("tile", "normal_%d" % (posmod(c.x * 7 + c.y * 13, 4) + 1))
 	return ArtV2.get_tex("tile", t)
@@ -571,7 +568,7 @@ func _can_hide_at(c: Vector2i) -> bool:
 
 
 func _draw_intel(r: Rect2, bi: int) -> void:
-	var n: int = int(game.intel.get(GameDataV2.BASE_IDS[bi], 0))
+	var n: int = int(game.intel.get(game.data.base_ids[bi], 0))
 	if n <= 0:
 		return
 	var font := Style.sans(800)
@@ -668,7 +665,7 @@ func _draw_markers() -> void:
 		draw_circle(ctr, rad + 2, Color(Style.PAPER_HI, alpha))
 		draw_circle(ctr, rad, Color(col, alpha))
 		var fs := maxi(10, int(rad * 1.25))
-		var g: String = str(ROLE_GLYPH.get(role, "?"))
+		var g: String = str(game.data.ui.get("marker_glyph", {}).get(role, "?"))
 		var gw := font.get_string_size(g, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
 		draw_string(font, ctr + Vector2(-gw / 2.0, fs * 0.36), g, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color.WHITE)
 		var days := game.card_days_left(id)

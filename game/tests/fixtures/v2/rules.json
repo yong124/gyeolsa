@@ -21,7 +21,7 @@
 		{"id": "item", "name": "아이템", "cost": 2, "cost_stat": "market_item_cost", "effects": [{"op": "draw_item", "count": 1}], "needs": "item_slot"},
 		{"id": "bomb", "name": "폭탄", "cost": 3, "cost_stat": "market_bomb_cost", "effects": [{"op": "gain_bomb", "count": 1}], "needs": "bomb_slot"}
 	], "_comment": "장터 행동(주사위 하나)에서 군자금으로 사는 것. cost_stat은 요원 특성이 값을 깎는 stat (주모 막례 아이템 값 1, 석 기술자 폭탄 값 2), needs는 살 수 있는 조건 (손패·폭탄 칸에 자리가 있고 보급이 남음)"},
-	"launch": {"target_min_intel": 2, "benefits": [
+	"launch": {"target_min_intel": 2, "vote": {"pass_ratio": 0.5, "tie": "leader"}, "benefits": [
 		{"id": "no_reinforce", "name": "경비 강화 빼기", "text": "2막에 경비 강화 장면을 넣지 않는다", "effects": [{"op": "no_reinforce"}]},
 		{"id": "dice_plus", "name": "첫날 주사위 +1", "text": "2막 첫날 아침 모든 요원의 작전 주사위 +1", "effects": [{"op": "dice_extra_tomorrow", "who": "everyone", "count": 1}]},
 		{"id": "intel_tokens", "name": "첩보 토큰 +2", "text": "2막에서 쓰는 첩보 토큰 2개를 더 받는다", "effects": [{"op": "intel_token_bonus", "value": 2}]},
@@ -29,7 +29,7 @@
 		{"id": "funds", "name": "군자금 +3", "text": "군자금 3을 얻는다", "effects": [{"op": "funds", "value": 3, "earned": false}]}
 	], "_comment": "결행 대상 후보의 첩보 문턱, 결행 혜택 (결행 준비가 launch_min을 넘는 1점마다 하나, 같은 것은 한 번). enabled false는 숨김"},
 	"counter": {"target": 7, "_comment": "반격을 막는 작전 판정 목표 (버티기 장면이 펼쳐진 날). 못 막으면 그날은 세지 않고 자리에 선 요원이 회피 판정(checks.evade)을 한다"},
-	"ai": {"launch_target": {"intel": 2.0, "saga": 1.5, "distance": 0.15}, "vote_ready_margin": 1, "mission": {"ready": 1.0, "intel": 0.6, "exposure": 0.5, "item": 0.7, "bomb": 0.5, "police": 0.4, "peek": 0.2, "grant": 0.7, "penalty": 0.8, "urgent": 1.0, "informer_detour": 6}, "funds": {"bribe_below": 0.65, "reserve": 1, "gear_min_gain": 0.12, "gear_funds_value": 0.08, "market_value": 1.6, "buy_slack_days": 3}, "_comment": "AI 군자금(funds): 뇌물은 검문 통과 확률이 bribe_below보다 낮을 때, reserve는 남겨 둘 군자금 (자금 동결·가택 수색이 덱에 남았으면 0), gear_min_gain은 정보원·무기 조달로 오르는 성공률 문턱, market_value는 장터까지 가는 가치, buy_slack_days는 남은 날이 장면 수 x 0.8 + 이 값 이하이면 장면 매수. AI 결행 투표: 대상 점수 = 첩보 x intel + 내 사연과 맞으면 saga − 거리 x distance. 준비가 launch_min + vote_ready_margin 이상이면 첩보가 모자라도 찬성"},
+	"ai": {"act2_days_per_scene": 0.8, "saga_value": 2.2, "rescue": {"value": 3.5, "range": 8}, "persona": {"bold": {"risk": 0.35, "vote": 0.7}, "careful": {"risk": 1.4, "vote": 1.2}, "support": {"risk": 0.8, "vote": 1.0}}, "launch_target": {"intel": 2.0, "saga": 1.5, "distance": 0.15}, "vote_ready_margin": 1, "mission": {"ready": 1.0, "intel": 0.6, "exposure": 0.5, "item": 0.7, "bomb": 0.5, "police": 0.4, "peek": 0.2, "grant": 0.7, "penalty": 0.8, "urgent": 1.0, "informer_detour": 6}, "funds": {"bribe_below": 0.65, "reserve": 1, "gear_min_gain": 0.12, "gear_funds_value": 0.08, "market_value": 1.6, "buy_slack_days": 3}, "_comment": "AI 군자금(funds): 뇌물은 검문 통과 확률이 bribe_below보다 낮을 때, reserve는 남겨 둘 군자금 (자금 동결·가택 수색이 덱에 남았으면 0), gear_min_gain은 정보원·무기 조달로 오르는 성공률 문턱, market_value는 장터까지 가는 가치, buy_slack_days는 남은 날이 장면 수 x 0.8 + 이 값 이하이면 장면 매수. AI 결행 투표: 대상 점수 = 첩보 x intel + 내 사연과 맞으면 saga − 거리 x distance. 준비가 launch_min + vote_ready_margin 이상이면 첩보가 모자라도 찬성"},
 
 	"hand_limit": 2,
 	"item_uses_per_turn": 1,

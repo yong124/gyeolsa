@@ -141,7 +141,7 @@ func _why(e: Dictionary, won: bool) -> Array:
 	if launched:
 		var tgt := str(li["target"])
 		out.append("%d일째, %s 첩보 %d · 결행 준비 %d로 결행했습니다." % [int(li.get("day", 0)),
-			game.base_name(GameDataV2.BASE_IDS.find(tgt)), int(li.get("intel", {}).get(tgt, 0)), int(li.get("ready", 0))])
+			game.base_name(game.data.base_ids.find(tgt)), int(li.get("intel", {}).get(tgt, 0)), int(li.get("ready", 0))])
 	else:
 		out.append("결행 준비가 %d / %d에 그쳐 결행을 선언하지 못했습니다." % [game.ready, int(game.data.rules["launch_min"])])
 	if not won:

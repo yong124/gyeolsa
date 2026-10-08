@@ -16,7 +16,7 @@ func _init() -> void:
 	var s: Dictionary = data.scenes.get("strikes", {})
 	print("결행 %d곳, 경비 강화 %d장" % [s.size(), data.scenes.get("reinforce", []).size()])
 	print("엔딩 %d종, 결행별 성공 문장 %d개" % [4, data.endings.get("strikes", {}).size()])
-	for id in GameDataV2.BASE_IDS:
+	for id in GameDataV2.load_default().base_ids:
 		if not data.endings.get("strikes", {}).has(id):
 			errs.append("엔딩에 결행 거점 %s가 없습니다." % id)
 	print("사연 %d장" % data.sagas.get("sagas", []).size())

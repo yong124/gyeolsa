@@ -13,9 +13,6 @@ signal finished
 const GAP := 8.0
 const AI_DELAY := 0.28
 const SECONDARY_MAX := 2          # 행동 패널의 보조 버튼 수 (나머지는 「더 보기」). 셋이면 글자가 잘림 (U1)
-const MISSION_ART := {"assassin": "res://assets/tiles/assassin.png", "infiltrate": "res://assets/tiles/base.png",
-	"bomb": "res://assets/tiles/bomb.png", "work": "res://assets/tiles/sabotage.png", "contact": "res://assets/tiles/station.png",
-	"lurk": "res://assets/tiles/check.png", "coop": "res://assets/tiles/start.png", "op": "res://assets/tiles/assassin.png"}
 const SAGA_COL := Color("#6b4f8a")
 const BOMB_COL := Color("#b86a1e")
 
@@ -39,7 +36,6 @@ var _banner_seen := {}            # U4: 같은 배너가 몇 번 나왔나 (세 
 var _cur_cat := "anim"            # U4: 지금 재생 중인 연출의 종류 (기다림 측정)
 var wait_stats := {}              # U4: 한 판 동안 종류별로 흐른 시간(초) {"내 입력", "AI 생각", "컷신", "배너", "말 움직임", "안내"}
 var _training := false            # 훈련 작전 (안내 단계, 저장하지 않음)
-const TRAIN_TASKS := [["move", "주사위로 이동하기"], ["mission", "미션에 손대기 (판정 · 바치기 · 잠입)"], ["police", "경찰 떨치기 (숨기 · 따돌리기 · 미끼)"]]
 var _tasks := {}                  # U4: 훈련 할 일 키 -> 했는가
 var _task_box: VBoxContainer
 var _was_chased := false
@@ -61,17 +57,6 @@ var _rail: VBoxContainer          # 오른쪽 레일 (미션 줄 · 일제 작�
 var _me_box: VBoxContainer        # 독의 「나」
 const DOCK_H := 198.0
 ## M3 행동 먼저: [키, 단추 글, 엔진 액션 종류들, _why_not_rows의 이름]
-const VERBS := [
-	["move", "이동", ["move_die"], ""],
-	["check", "작전 판정", ["mission_check", "scene_check", "counter_check"], "표적 판정"],
-	["give", "바치기", ["work_give", "scene_pay"], "공작 바치기"],
-	["pass", "건네기", ["give_die", "give_item"], "건네기"],
-	["decoy", "미끼", ["decoy"], "미끼"],
-	["hide", "숨기", ["hide"], "숨기"],
-	["scout", "정찰", ["scout"], "정찰"],
-	["market", "장터", ["market"], "장터"],
-	["escape", "탈옥", ["escape"], "탈옥"],
-]
 const LEFT_W := 330.0
 const RAIL_W := 384.0
 var _roster_box: VBoxContainer
@@ -158,6 +143,11 @@ static func opening_slides() -> Array:
 			return []
 		out.append({"tex": t, "lines": lines[i]})
 	return out
+
+
+func _ui() -> Dictionary:
+	## 화면 구성 데이터 (data/v2/ui.json)
+	return game.data.ui
 
 
 func _mult() -> float:
@@ -828,7 +818,7 @@ func _hover_lift(b: Control) -> void:
 
 func _mission_art(type: String) -> Texture2D:
 	## 미션 종류 그림 (없으면 예전 타일 그림)
-	return ArtV2.get_tex("mission", type, load(MISSION_ART.get(type, MISSION_ART["coop"])))
+	return ArtV2.get_tex("mission", type, load(str(_ui()["mission_art"].get(type, _ui()["mission_art"]["coop"]))))
 
 
 func _saga_art() -> Texture2D:
@@ -1089,24 +1079,25 @@ func _build_verbs(mine: Array, primary: Dictionary, others: Array) -> void:
 	for r in _why_not_rows(mine):
 		why[str(r[0])] = str(r[1])
 	var me: Dictionary = game.players[human]
-	for vb in VERBS:
-		var key: String = vb[0]
-		var types: Array = vb[2]
+	for vb in _ui()["verbs"]:
+		var key: String = vb["id"]
+		var types: Array = vb["actions"]
 		var acts: Array = mine.filter(func(a): return a["type"] in types)
-		if key == "escape" and not me["jailed"]:
+		var jail := str(vb.get("jailed", ""))
+		if jail == "only" and not me["jailed"]:
 			continue
-		if me["jailed"] and not key in ["escape", "pass"]:
+		if me["jailed"] and not jail in ["only", "allowed"]:
 			continue
-		if key == "market" and game.act == 2:
+		if vb.has("acts") and not game.act in (vb["acts"] as Array).map(func(x): return int(x)):
 			continue
 		var on := _verb == key
 		var rec := not primary.is_empty() and primary in acts
-		var b := UiKit.button(str(vb[1]), func(): _pick_verb(key, acts), 14, "primary" if on else "paper")
+		var b := UiKit.button(str(vb["label"]), func(): _pick_verb(key, acts), 14, "primary" if on else "paper")
 		b.custom_minimum_size = Vector2(0, 40)
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		if acts.is_empty():
 			b.disabled = true
-			var reason := str(why.get(str(vb[3]), ""))
+			var reason := str(why.get(str(vb["why"]), ""))
 			if key == "check" and game.act == 2:
 				reason = str(why.get("장면 판정·바치기", reason))
 			b.tooltip_text = "지금은 못 함" + (": " + reason if reason != "" else "")
@@ -1115,7 +1106,7 @@ func _build_verbs(mine: Array, primary: Dictionary, others: Array) -> void:
 			var first: Dictionary = acts[0]
 			if rec:
 				first = primary
-				b.text = str(vb[1]) + " ★"
+				b.text = str(vb["label"]) + " ★"
 				b.tooltip_text = "추천 · " + _label(primary) + "\n" + b.tooltip_text
 			b.mouse_entered.connect(func(): _hover_action(first))
 			b.mouse_exited.connect(func():
@@ -1165,7 +1156,7 @@ func _build_verbs(mine: Array, primary: Dictionary, others: Array) -> void:
 		pm.id_pressed.connect(func(id): _press(rest[id]))
 		col.add_child(more)
 	if _verb != "":
-		_act_hint.text = "「%s」 — 쓸 주사위를 누르세요 (반짝이는 주사위)" % str(VERBS.filter(func(v): return v[0] == _verb)[0][1])
+		_act_hint.text = "「%s」 — 쓸 주사위를 누르세요 (반짝이는 주사위)" % str(_ui()["verbs"].filter(func(v): return v["id"] == _verb)[0]["label"])
 
 
 func _pick_verb(key: String, acts: Array) -> void:
@@ -1519,7 +1510,7 @@ func _cell_gain_risk(c: Vector2i) -> Array:
 		var bi := game.data.bases.find(c)
 		if bi >= 0:
 			name = game.data.base_names[bi]
-			var bid: String = GameDataV2.BASE_IDS[bi]
+			var bid: String = game.data.base_ids[bi]
 			for id in game.mission_row:
 				var cond := game.card_cond(str(id))
 				if str(cond.get("kind", "")) == "infiltrate" and str(cond.get("base", "")) == bid:
@@ -1762,8 +1753,8 @@ func _build_tasks() -> void:
 	_task_box = VBoxContainer.new()
 	_task_box.add_theme_constant_override("separation", 2)
 	panel.add_child(_task_box)
-	for t in TRAIN_TASKS:
-		_tasks[t[0]] = false
+	for t in _ui()["training_tasks"]:
+		_tasks[t["id"]] = false
 	_refresh_tasks()
 
 
@@ -1772,9 +1763,9 @@ func _refresh_tasks() -> void:
 		return
 	UiKit.clear(_task_box)
 	_task_box.add_child(UiKit.title("훈련 · 직접 해 보기", 14, Style.SEAL_DARK))
-	for t in TRAIN_TASKS:
-		var done: bool = _tasks.get(t[0], false)
-		_task_box.add_child(UiKit.text(("✓ " if done else "☐ ") + str(t[1]), 13, Style.GOOD if done else Style.INK, false, 700))
+	for t in _ui()["training_tasks"]:
+		var done: bool = _tasks.get(t["id"], false)
+		_task_box.add_child(UiKit.text(("✓ " if done else "☐ ") + str(t["label"]), 13, Style.GOOD if done else Style.INK, false, 700))
 	call_deferred("_place_tasks")
 
 
@@ -1788,7 +1779,7 @@ func _task_done(key: String) -> void:
 		return
 	_tasks[key] = true
 	Sfx.play("success")
-	_fx.toast("훈련 · %s ✓" % str(TRAIN_TASKS.filter(func(t): return t[0] == key)[0][1]).split(" (")[0], "good")
+	_fx.toast("훈련 · %s ✓" % str(_ui()["training_tasks"].filter(func(t): return t["id"] == key)[0]["label"]).split(" (")[0], "good")
 	_refresh_tasks()
 
 
@@ -2507,7 +2498,7 @@ func _name(pid: int) -> String:
 
 
 func _where_text(w: String) -> String:
-	if w in GameDataV2.BASE_IDS:
+	if w in game.data.base_ids:
 		return "거점 안"
 	return {"inside": "거점 안", "adjacent": "거점 옆 칸", "inside_or_adjacent": "거점 안이나 옆 칸"}.get(w, w)
 
@@ -2646,7 +2637,7 @@ func _show_choice() -> void:
 		if kind == "saga_keep":
 			var s: Dictionary = game.data.saga(str(val))
 			label = "%s — %s" % [s.get("name", ""), s.get("condition_text", "")]
-		if kind in ["launch_target", "strike_target"] and str(val) in GameDataV2.BASE_IDS:
+		if kind in ["launch_target", "strike_target"] and str(val) in game.data.base_ids:
 			var d := game.walk_dist(game.players[human]["pos"], game.data.bases[game.data.base_index(str(val))])
 			label += (" · 거리 %d칸" % d) if d < 100 else (" · 길이 이어지지 않음 (직선 %d칸)" % (d - 100))
 		if kind == "reroll" and not game.check.is_empty() and str(val) == "grant":
@@ -2829,7 +2820,7 @@ func _op_info(id: String) -> Dictionary:
 	var status := game.card_status(id)
 	if status != "":
 		secs.append(["진행", status, Style.GOOD])
-	return {"band": "일 제 작 전", "color": Style.SEAL, "art": ArtV2.get_tex("op", id, load(MISSION_ART["op"])), "illus": ArtV2.get_tex("op", id), "name": str(oc.get("name", "")), "sections": secs}
+	return {"band": "일 제 작 전", "color": Style.SEAL, "art": ArtV2.get_tex("op", id, load(str(_ui()["mission_art"]["op"]))), "illus": ArtV2.get_tex("op", id), "name": str(oc.get("name", "")), "sections": secs}
 
 
 func _scene_info(card: Dictionary, i: int) -> Dictionary:

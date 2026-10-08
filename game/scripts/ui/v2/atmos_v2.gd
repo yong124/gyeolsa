@@ -5,8 +5,6 @@ extends Control
 ## - 날씨: 오늘의 위협에 따라 비(장맛비) · 탐조등(통금 · 경계령) · 붉은 깜빡임(공습경보 · 비상 소집)
 ## 상태는 set_state()로 받는다. 그림은 _draw로만 그린다(그림 파일 없음).
 
-const WEATHER := {"monsoon": "rain", "curfew": "light", "special_alert": "light", "full_alert": "light",
-	"air_raid": "siren", "emergency_muster": "siren", "blockade": "light"}
 
 var _tint := Color(0, 0, 0, 0)
 var _tint_to := Color(0, 0, 0, 0)
@@ -34,7 +32,7 @@ func set_state(phase: String, act: int, threat_id: String) -> void:
 	else:
 		_tint_to = Color(0, 0, 0, 0)
 		_night_to = 0.0
-	_weather = WEATHER.get(threat_id, "")
+	_weather = str(GameDataV2.load_default().ui.get("weather", {}).get(threat_id, ""))   # 날씨 연출은 ui.json
 	Sfx.loop("rain", _weather == "rain", 0.5)
 	Sfx.loop("siren", _weather == "siren", 0.25)
 

@@ -83,7 +83,7 @@ func _init() -> void:
 		print("엔딩 %s: %d/%d (%.1f%%)" % [id, int(stats["endings"].get(id, 0)), plain_games,
 			100.0 * int(stats["endings"].get(id, 0)) / maxi(plain_games, 1)])
 	print("2막 평균 %.2f일" % (float(stats["act2_days"]) / maxi(stats["launched"], 1)))
-	for id in GameDataV2.BASE_IDS:
+	for id in GameDataV2.load_default().base_ids:
 		print("결행 거점 %s: 돌파 장면 평균 %.2f장 (%d판)" % [id,
 			float(stats["target_breaks"].get(id, 0)) / maxi(int(stats["target_games"].get(id, 0)), 1), stats["target_games"].get(id, 0)])
 	var scene_ids: Array = stats["scene_shown"].keys()
@@ -112,7 +112,7 @@ func _mk(chars: Array, seed_value: int, fast := false) -> RulesV2:
 	## fast: 처음부터 2막(act 2)인 판 (2막의 하루 규칙을 봇으로 일찍 시험)
 	var g := RulesV2.new_game(chars, seed_value)
 	if fast:
-		g.launch_info = {"target": GameDataV2.BASE_IDS[0], "reason": "test", "day": g.day}
+		g.launch_info = {"target": GameDataV2.load_default().base_ids[0], "reason": "test", "day": g.day}
 		g._begin_act2()
 	return g
 

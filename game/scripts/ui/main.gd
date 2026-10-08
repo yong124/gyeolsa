@@ -20,6 +20,8 @@ func _ready() -> void:
 	data = GameData.load_default()
 	for err in data.validate():
 		push_error("데이터 오류: " + err)
+	for err in GameDataV2.load_default().validate():
+		push_error("v2 데이터 오류: " + err)
 	var args := OS.get_cmdline_user_args()
 	if "server" in args:
 		# 온라인 서버 (헤드리스): Godot --headless --path game -- server [port=8910]

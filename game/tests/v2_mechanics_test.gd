@@ -2074,7 +2074,7 @@ func _base(g: RulesV2, id: String) -> Vector2i:
 func _launch_game(chars: Array, target: String, gd: GameDataV2 = null) -> RulesV2:
 	## 결행 순간 시험용: 첩보가 target에만 있는 판 (다른 요원은 이미 이룰 수 있는 사연 하나씩)
 	var g := _new(chars, gd)
-	for id in GameDataV2.BASE_IDS:
+	for id in GameDataV2.load_default().base_ids:
 		g.intel[id] = 0
 	g.intel[target] = 3
 	g.leader = 0
@@ -2806,14 +2806,14 @@ func _run_4_tests() -> void:
 
 func _test_scene_all_cards() -> void:
 	var count := 0
-	for target in GameDataV2.BASE_IDS:
+	for target in GameDataV2.load_default().base_ids:
 		var strike: Dictionary = _fixed_data().strike(target)
 		var cards: Array = [strike["entry"]] + strike["middle"] + [strike["final"]]
 		for card in cards:
 			_test_one_scene(target, card)
 			count += 1
 	for card in _fixed_data().scenes["reinforce"]:
-		_test_one_scene(GameDataV2.BASE_IDS[0], card)
+		_test_one_scene(GameDataV2.load_default().base_ids[0], card)
 		count += 1
 	ok(count == 28, "빠짐없이: 결행 장면 24장과 경비 강화 4장")
 
@@ -3746,7 +3746,7 @@ func _run_e_tests() -> void:
 
 
 func _set_intel(g: RulesV2, values: Dictionary) -> void:
-	for id in GameDataV2.BASE_IDS:
+	for id in GameDataV2.load_default().base_ids:
 		g.intel[id] = int(values.get(id, 0))
 
 
@@ -4097,7 +4097,7 @@ func _test_e_flag_and_pair() -> void:
 	var all_seven := true
 	var count := 0
 	var cards: Array = data.scenes["reinforce"].duplicate()
-	for strike in GameDataV2.BASE_IDS:
+	for strike in GameDataV2.load_default().base_ids:
 		var s: Dictionary = data.strike(strike)
 		cards.append_array([s["entry"], s["final"]] + s["middle"])
 	for c in cards:
