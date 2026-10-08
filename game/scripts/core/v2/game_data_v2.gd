@@ -287,8 +287,9 @@ func _validate_board(errs: Array[String]) -> void:
 
 const TUTORIAL_DO := ["next", "reach", "start_day", "begin_turn", "move_die", "end_move", "work_give", "mission_check",
 	"hide", "give_die", "decoy", "scene_pay", "scene_check", "end_turn", "choose"]
-const TUTORIAL_TARGETS := ["", "primary", "end_turn", "me", "police", "dice", "threat", "missions", "ops", "hand", "allies", "ready", "choice"]
-const TUTORIAL_OPS := ["calm", "threats", "dice", "pos", "tiles", "tile_type", "missions", "marker", "police_on_me", "ready", "intel"]
+const TUTORIAL_TARGETS := ["", "primary", "end_turn", "me", "police", "dice", "threat", "missions", "ops", "hand", "allies", "ready",
+	"board", "dock", "top", "me_card", "choice"]
+const TUTORIAL_OPS := ["calm", "threats", "today_threat", "funds", "dice", "pos", "tiles", "tile_type", "missions", "marker", "police_on_me", "ready", "intel"]
 
 
 func _validate_tutorial(errs: Array[String]) -> void:

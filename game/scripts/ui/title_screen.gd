@@ -315,6 +315,42 @@ func _card(title: String, sub: String, tex: Texture2D, cb: Callable, accent := f
 	return b
 
 
+func offer_tutorial() -> void:
+	## 처음 켠 사람에게: 첫 화면 위에 튜토리얼 창
+	await get_tree().create_timer(0.6).timeout
+	if not is_inside_tree():
+		return
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 14)
+	var panel := UiKit.paper_panel(30)
+	panel.custom_minimum_size = Vector2(560, 0)
+	panel.add_child(box)
+	var head := HBoxContainer.new()
+	head.add_theme_constant_override("separation", 14)
+	box.add_child(head)
+	var mark := UiKit.title("結社", 52, Style.SEAL, 900)
+	mark.add_theme_font_override("font", Style.serif(900))
+	head.add_child(mark)
+	var hv := VBoxContainer.new()
+	hv.alignment = BoxContainer.ALIGNMENT_CENTER
+	head.add_child(hv)
+	hv.add_child(UiKit.title("처음이신가요?", 28, Style.INK, 900))
+	hv.add_child(UiKit.text("튜토리얼 · 약 15분", 15, Style.INK_3, false, 700))
+	box.add_child(UiKit.hsep())
+	var t := UiKit.text("결사가 어떤 게임인지부터, 주사위 · 이동 · 미션 · 경찰 · 협력 · 결행까지
+정해진 상황에서 하나씩 직접 해 보며 배웁니다.", 16, Style.INK_2)
+	box.add_child(t)
+	var go := UiKit.button("튜토리얼 시작", func():
+		_overlay.visible = false
+		training_requested.emit(), 22, "primary")
+	go.custom_minimum_size = Vector2(0, 56)
+	box.add_child(go)
+	var later := UiKit.button("나중에 하기", func(): _overlay.visible = false, 13, "tab")
+	later.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	box.add_child(later)
+	_overlay.show_with(panel)
+
+
 func _confirm_new(go: Callable) -> void:
 	## 저장된 판이 있으면 지워도 되는지 묻는다
 	if not SaveGameV2.exists():

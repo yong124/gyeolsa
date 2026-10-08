@@ -56,6 +56,13 @@ func _ready() -> void:
 		_trainclick()
 	elif "tutorial" in OS.get_cmdline_user_args():
 		_tutorial()
+	elif "firstrun" in OS.get_cmdline_user_args():
+		await _wait(0.5)
+		main._show_title()
+		main._screen.offer_tutorial()
+		await _wait(1.5)
+		await _shot("firstrun_offer")
+		get_tree().quit()
 	elif "endings" in OS.get_cmdline_user_args():
 		_endings()
 	elif "fx" in OS.get_cmdline_user_args():

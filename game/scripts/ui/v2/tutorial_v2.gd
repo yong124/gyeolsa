@@ -220,6 +220,10 @@ func _setup(ops: Array) -> void:
 			"police_on_me":
 				if not g.police.has(scr.human):
 					g._summon(g.players[scr.human])
+			"today_threat":
+				g.threat_today = str(o.get("id", ""))   # 오늘 위협을 보이는 카드로 맞춤 (효과는 다시 내지 않음)
+			"funds":
+				g.funds = int(o.get("value", 0))
 			"ready":
 				g.ready = int(o.get("value", 0))
 			"intel":
@@ -337,7 +341,12 @@ func _target_rect(t: String) -> Rect2:
 	if t.begins_with("mission:"):
 		var card = scr._mission_cards.get(t.substr(8))
 		return card.get_global_rect() if _ok(card) else Rect2()
-	var node = {"dice": scr._dice_row, "threat": scr._top._threat, "missions": scr._mid_box, "ops": scr._ops_row,
+	if t == "board":
+		return scr._board_rect()
+	if t == "me_card":
+		var mc: Control = scr._me_box.get_parent() if scr._me_box.get_parent() is Control else scr._me_box
+		return mc.get_global_rect()
+	var node = {"dock": scr._right, "top": scr._top, "dice": scr._dice_row, "threat": scr._top._threat, "missions": scr._mid_box, "ops": scr._ops_row,
 		"hand": scr._hand_row, "allies": scr._left, "ready": scr._top._gauge}.get(t)
 	return node.get_global_rect() if _ok(node) else Rect2()
 

@@ -140,11 +140,6 @@ func _show_intro() -> void:
 
 
 func _show_title() -> void:
-	# 완전 처음이면 메뉴 대신 튜토리얼부터 (튜토리얼 구석의 「건너뛰기」로 나올 수 있음). 시험 · 투어 실행에서는 건너뜀
-	if not Prefs.v2_training_done and not _tutorial_forced and OS.get_cmdline_user_args().is_empty():
-		_tutorial_forced = true
-		_tutorial_v2()
-		return
 	var title := TitleScreen.new(data)
 	title.start_requested.connect(func(cfg): _start(cfg))
 	title.continue_requested.connect(_continue)
@@ -156,6 +151,10 @@ func _show_title() -> void:
 	title.training_requested.connect(_tutorial_v2)
 	title.online_requested.connect(_show_online)
 	_swap(title)
+	# 완전 처음이면: 첫 화면을 띄운 뒤 그 위에 튜토리얼 창 (튜토리얼을 마칠 때까지, 켤 때마다 한 번). 시험 · 투어 실행에서는 건너뜀
+	if not Prefs.v2_training_done and not _tutorial_forced and OS.get_cmdline_user_args().is_empty():
+		_tutorial_forced = true
+		title.offer_tutorial.call_deferred()
 
 
 func _start(cfg: Dictionary, autoplay := false) -> void:
