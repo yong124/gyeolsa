@@ -46,7 +46,10 @@ func _ready() -> void:
 		title.free()
 		_start(cfg, "autoplay" in args)
 	elif OS.has_feature("web"):
-		_web_gate()   # 웹: 첫 클릭 전에는 소리를 내지 않는다 (브라우저 자동재생 제한) · 휴대폰이면 안내
+		if OS.has_feature("web_android") or OS.has_feature("web_ios"):
+			_web_gate()   # 휴대폰 · 태블릿만: PC에서 열어 달라는 안내를 먼저
+		else:
+			_after_gate()   # PC 웹: 바로 첫 화면 (소리는 첫 클릭 때 브라우저가 켬)
 	elif not Prefs.intro_seen:
 		_show_intro()
 	else:
@@ -109,7 +112,6 @@ func _web_gate() -> void:
 	var go := UiKit.button("눌러서 시작" if not mobile else "그래도 해 보기", func(): _after_gate(), 24, "primary")
 	go.custom_minimum_size = Vector2(0, 60)
 	v.add_child(go)
-	v.add_child(UiKit.text("소리가 납니다 · 저장은 이 브라우저에 남습니다", 13, Style.INK_3))
 
 
 func _show_intro() -> void:

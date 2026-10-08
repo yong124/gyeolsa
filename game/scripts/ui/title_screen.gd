@@ -173,17 +173,17 @@ func _show_menu() -> void:
 	if saved:
 		_panel.add_child(_hero("이어하기", SaveGameV2.summary(), ArtV2.get_tex("cut", "opening_2"), func(): continue_v2_requested.emit()))
 	else:
-		_panel.add_child(_hero("바로 시작", "요원은 결사가 정합니다 · 한 판 40~70분", ArtV2.get_tex("cut", "opening_2"), quick))
+		_panel.add_child(_hero("바로 시작", "", ArtV2.get_tex("cut", "opening_2"), quick))
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
 	_panel.add_child(row)
 	if saved:
-		row.add_child(_card("새 작전", "바로 시작", ArtV2.get_tex("cut", "opening_3"), quick))
+		row.add_child(_card("새 작전", "", ArtV2.get_tex("cut", "opening_3"), quick))
 	else:
-		row.add_child(_card("요원 골라 시작", "두 장 중 한 사람", ArtV2.get_tex("cut", "opening_3"), func(): _confirm_new(func(): v2_requested.emit())))
-	row.add_child(_card("훈련 작전", "처음이라면 추천" if not Prefs.v2_training_done else "안내를 따라 한 판", ArtV2.get_tex("mission", "work"), func(): training_requested.emit(), not Prefs.v2_training_done))
+		row.add_child(_card("요원 골라 시작", "", ArtV2.get_tex("cut", "opening_3"), func(): _confirm_new(func(): v2_requested.emit())))
+	row.add_child(_card("훈련 작전", "", ArtV2.get_tex("mission", "work"), func(): training_requested.emit(), not Prefs.v2_training_done))
 	if not OS.has_feature("web") or NetClientV2.web_online_ready():   # 웹판은 wss:// 서버 주소(online.json)가 있을 때만
-		row.add_child(_card("온라인", "친구와 2~4명", ArtV2.get_tex("cut", "opening_4"), func(): online_requested.emit()))
+		row.add_child(_card("온라인", "", ArtV2.get_tex("cut", "opening_4"), func(): online_requested.emit()))
 	var links := HFlowContainer.new()
 	links.add_theme_constant_override("h_separation", 4)
 	links.alignment = FlowContainer.ALIGNMENT_CENTER
@@ -263,12 +263,10 @@ func _hero(title: String, sub: String, tex: Texture2D, cb: Callable) -> Button:
 	t.add_theme_font_override("font", Style.serif(900))
 	t.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	v.add_child(t)
-	var s := UiKit.text(sub, 15, Style.INK_2, true, 600)
-	s.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	v.add_child(s)
-	var go := UiKit.text("▶  눌러서 시작", 14, Style.SEAL, false, 800)
-	go.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	v.add_child(go)
+	if sub != "":   # 이어하기: 저장된 판 (며칠째 · 남은 날)
+		var s := UiKit.text(sub, 15, Style.INK_2, true, 600)
+		s.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		v.add_child(s)
 	return b
 
 
@@ -276,7 +274,7 @@ func _card(title: String, sub: String, tex: Texture2D, cb: Callable, accent := f
 	## 작은 선택: 위에 그림 · 아래 제목과 한 줄
 	var b := Button.new()
 	_choice_style(b, accent)
-	b.custom_minimum_size = Vector2(0, 196)
+	b.custom_minimum_size = Vector2(0, 172)
 	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	b.pressed.connect(func():
 		Sfx.play("click")
@@ -297,10 +295,11 @@ func _card(title: String, sub: String, tex: Texture2D, cb: Callable, accent := f
 	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	t.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	v.add_child(t)
-	var s := UiKit.text(sub, 13, Style.SEAL if accent else Style.INK_3, false, 700)
-	s.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	s.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	v.add_child(s)
+	if sub != "":
+		var s := UiKit.text(sub, 13, Style.SEAL if accent else Style.INK_3, false, 700)
+		s.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		s.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		v.add_child(s)
 	return b
 
 

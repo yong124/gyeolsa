@@ -170,7 +170,7 @@ func _show_room(r: Dictionary) -> void:
 	var offer: Array = mine.get("offer", [])
 	if not offer.is_empty():
 		_box.add_child(UiKit.hsep())
-		_box.add_child(UiKit.text("내 요원 카드 두 장 중 한 사람:", 15, Style.INK_2))
+		_box.add_child(UiKit.text("요원을 고르세요", 15, Style.INK_2))
 		var orow := HBoxContainer.new()
 		orow.add_theme_constant_override("separation", 16)
 		_box.add_child(orow)
