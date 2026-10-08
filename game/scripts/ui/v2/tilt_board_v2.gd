@@ -291,7 +291,7 @@ func _draw_pieces() -> void:
 				_group_tag(it[2], cw, foot, rad, g)   # 여럿이 한 칸이면 이름표는 하나로 (맨 앞 말 위)
 			continue
 		if id == board.human_id or is_cur:
-			var tag: String = "나" if id == board.human_id else str(g.char_def(p).get("name", p["name"])).replace(" ", "")
+			var tag: String = TextV2.agent_tag(g, id, board.human_id)
 			var fs := maxi(10, int(cw * 0.15))
 			var w := font.get_string_size(tag, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x + 10
 			var tr := Rect2(ctr.x - w / 2, ctr.y - rad - fs * 1.45, w, fs * 1.3)

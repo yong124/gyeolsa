@@ -207,8 +207,7 @@ func refresh() -> void:
 
 
 func _short(pid: int) -> String:
-	var p: Dictionary = game.players[pid]
-	return "나" if pid == 0 else str(game.char_def(p).get("name", p["name"]))
+	return TextV2.agent_short(game, pid)   # 「나」는 내 자리 (온라인에서 0번이 아닐 수 있음)
 
 
 func threat_center() -> Vector2:

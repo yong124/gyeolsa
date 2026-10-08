@@ -307,7 +307,7 @@ func _marker_text(m: Dictionary) -> String:
 	## 마커 한 개의 설명: 어느 미션·작전의 무엇인가, 남은 날, 진행
 	var id := str(m["id"])
 	var card: Dictionary = game.card_def(id)
-	var role: String = {"target": "표적", "informer": "정보원", "pickup": "받기", "dropoff": "주기", "work": "공작 자리", "spot": "잠복 자리", "base": "잠입 거점"}.get(str(m["role"]), str(m["role"]))
+	var role := TextV2.marker_role(game, str(m["role"]))
 	var s := "%s · %s %s" % ["일제 작전" if game.data.is_op(id) else "미션", card.get("name", ""), role]
 	var days := game.card_days_left(id)
 	if days >= 0:
@@ -534,7 +534,7 @@ func _marker_short(m: Dictionary) -> String:
 			return "%d/%d일" % [int(st.get("lurk", 0)), int(cond.get("days", 1))]
 		"pickup":
 			var h := int(st.get("holder", -1))
-			return ("%s 듦" % str(game.char_def(game.players[h]).get("name", "")).replace(" ", "")) if h >= 0 else ""
+			return ("%s 듦" % TextV2.agent(game, h).replace(" ", "")) if h >= 0 else ""
 		"target":
 			return "멈춤" if bool(st.get("informed", false)) else ""
 	return ""
@@ -860,7 +860,7 @@ func _draw_players() -> void:
 				continue   # 여럿이 한 칸이면 이름표를 아래에서 하나로 합친다
 			if id != human_id and not is_cur and Vector2i(vis_players[id].round()) != hover:
 				continue   # U2: 동료 이름표는 지금 차례이거나 마우스를 올렸을 때만 (초상 고리 색으로 구분)
-			var tag: String = "나" if id == human_id else str(game.char_def(p).get("name", p["name"])).replace(" ", "")
+			var tag: String = TextV2.agent_tag(game, id, human_id)
 			var fs := maxi(10, int(r.size.x * 0.14))
 			var w := font.get_string_size(tag, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x + 10
 			var tr := Rect2(ctr.x - w / 2, ctr.y - lift - rad - fs * 1.35, w, fs * 1.3)

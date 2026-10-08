@@ -131,22 +131,22 @@ func _try_menu(screen: GameScreenV2, game: RulesV2, a: Dictionary, g_i: int) -> 
 	## 행동 메뉴를 실제로 열어 본다: 같은 주사위의 행동이 모두 단추로 나오고, 미리 보기(이동 도달 칸)가 그려지는지
 	var die := int(a["die"])
 	var acts := game.legal_actions().filter(func(x): return int(x.get("player", -1)) == 0 and x.has("die") and int(x["die"]) == die)
-	screen._die_menu(acts, die)
+	screen._actions.die_menu(acts, die)
 	await get_tree().process_frame
 	await get_tree().process_frame
-	if screen._menu == null or not is_instance_valid(screen._menu):
+	if screen._actions._menu == null or not is_instance_valid(screen._actions._menu):
 		_fail("판 %d: 행동 메뉴가 안 열림 (%s)" % [g_i, str(a)])
 		return
 	seen["menu"] = int(seen.get("menu", 0)) + 1
 	seen["menu:" + str(a["type"])] = int(seen.get("menu:" + str(a["type"]), 0)) + 1
 	for x in acts:
-		screen._hover_action(x)
+		screen._actions.hover_action(x)
 		if x["type"] == "move_die":
 			if screen._board.reach.is_empty() and not game.reach_cells(game.players[0], game.move_value(game.players[0], die)).is_empty():
 				_fail("판 %d: 이동 미리 보기가 비어 있음" % g_i)
-		if screen._hint(x) == null:
+		if screen._actions.hint(x) == null:
 			_fail("판 %d: 힌트 없음" % g_i)
-	screen._close_menu()
+	screen._actions.close_menu()
 
 
 func _fail(msg: String) -> void:

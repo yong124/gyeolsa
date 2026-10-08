@@ -68,7 +68,7 @@ func _ready() -> void:
 		var pid := int(ep["player"])
 		var p: Dictionary = game.players[pid]
 		var s: Dictionary = game.data.saga(str(ep.get("saga", "")))
-		var head := "%s%s — 사연 「%s」 %s" % ["(나) " if pid == human else "", game.char_def(p).get("name", ""), s.get("name", ""),
+		var head := "%s%s — 사연 「%s」 %s" % ["(나) " if pid == human else "", TextV2.agent(game, pid), s.get("name", ""),
 			"이룸" if ep.get("done", false) else "못 이룸"]
 		# 후일담 한 사람: 초상(있으면) + 사연 · 문장. 차례로 떠오른다
 		var row_ep := HBoxContainer.new()
@@ -166,7 +166,7 @@ func _why(e: Dictionary, won: bool) -> Array:
 		if int(st.get("rescues", 0)) > 0:
 			bits.append("동료를 %d번 구했고" % int(st["rescues"]))
 		bits.append("%d번 갇혔습니다" % int(st.get("jailed", 0)) if int(st.get("jailed", 0)) > 0 else "한 번도 잡히지 않았습니다")
-		out.append("나(%s)는 %s." % [game.char_def(me).get("name", ""), " ".join(bits)])
+		out.append("나(%s)는 %s." % [TextV2.agent(game, human), " ".join(bits)])
 	return out
 
 

@@ -307,9 +307,12 @@ func _validate_ui(errs: Array[String]) -> void:
 		if not k.begins_with("_") and not ResourceLoader.exists(str(art[k])):
 			errs.append("ui.mission_art.%s: 그림이 없습니다 (%s)." % [k, art[k]])
 	var glyph: Dictionary = ui.get("marker_glyph", {})
+	var names: Dictionary = ui.get("marker_names", {})
 	for r in KNOWN_MARKER_ROLES:
 		if str(glyph.get(r, "")) == "":
 			errs.append("ui.marker_glyph.%s(마커 글자)가 없습니다." % r)
+		if str(names.get(r, "")) == "":
+			errs.append("ui.marker_names.%s(마커 이름)가 없습니다." % r)
 	var weather: Dictionary = ui.get("weather", {})
 	for t in weather:
 		if t.begins_with("_"):

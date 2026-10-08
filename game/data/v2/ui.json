@@ -1,5 +1,5 @@
 {
-	"_comment": "화면 구성 (지시서 Z3). 규칙에는 영향 없음. verbs: 행동 단추판의 단추 순서 · 이름 · 묶는 액션 종류(actions) · 못 쓸 때 이유를 찾는 열쇠(why) · 갇혔을 때(jailed: only = 갇혔을 때만, allowed = 갇혀도 보임, 없음 = 갇히면 숨김) · 보이는 막(acts). mission_art: 미션 종류별 기본 그림(종류별 그림이 없을 때). marker_glyph: 보드 마커 역할별 한 글자. weather: 오늘의 위협 카드 id -> 날씨 연출(rain · light · siren). training_tasks: 훈련 작전 할 일(id는 화면 코드가 완료를 알리는 열쇠).",
+	"_comment": "화면 구성 (지시서 Z3). 규칙에는 영향 없음. verbs: 행동 단추판의 단추 순서 · 이름 · 묶는 액션 종류(actions) · 못 쓸 때 이유를 찾는 열쇠(why) · 갇혔을 때(jailed: only = 갇혔을 때만, allowed = 갇혀도 보임, 없음 = 갇히면 숨김) · 보이는 막(acts). mission_art: 미션 종류별 기본 그림(종류별 그림이 없을 때). marker_names · marker_glyph: 보드 마커 역할 이름과 한 글자. weather: 오늘의 위협 카드 id -> 날씨 연출(rain · light · siren). training_tasks: 훈련 작전 할 일(id는 화면 코드가 완료를 알리는 열쇠).",
 	"version": 1,
 	"verbs": [
 		{"id": "move", "label": "이동", "actions": ["move_die"], "why": ""},
@@ -22,6 +22,7 @@
 		"coop": "res://assets/tiles/start.png",
 		"op": "res://assets/tiles/assassin.png"
 	},
+	"marker_names": {"target": "표적", "informer": "정보원", "pickup": "받기", "dropoff": "주기", "work": "공작 자리", "spot": "잠복 자리", "base": "잠입 거점"},
 	"marker_glyph": {"target": "표", "informer": "정", "pickup": "받", "dropoff": "주", "work": "공", "spot": "잠", "base": "입"},
 	"weather": {"monsoon": "rain", "curfew": "light", "special_alert": "light", "full_alert": "light", "air_raid": "siren", "emergency_muster": "siren", "blockade": "light"},
 	"training_tasks": [

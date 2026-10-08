@@ -473,14 +473,14 @@ func _v2() -> void:
 			shots["turn"] = true
 			await _shot("v2_turn")
 			if not game.mission_row.is_empty() and screen._mid_box.get_child_count() > 0:
-				screen._peek.show_for(screen._mid_box.get_child(0), screen._mission_info(str(game.mission_row[0])), true)
+				screen._peek.show_for(screen._mid_box.get_child(0), screen._text.mission_info(str(game.mission_row[0])), true)
 				await _wait(0.2)
 				await _shot("v2_peek_mission")
 			var sg: Array = game.saga_cards(0)
-			screen._peek.show_for(screen._hand_row.get_child(0), screen._saga_info(str(sg[0]), game.saga_progress(0).get(sg[0], {"have": 0, "need": 1}), false), true)
+			screen._peek.show_for(screen._hand_row.get_child(0), screen._text.saga_info(str(sg[0]), game.saga_progress(0).get(sg[0], {"have": 0, "need": 1}), false), true)
 			await _wait(0.2)
 			await _shot("v2_peek_saga")
-			screen._peek.show_for(screen._top._threat, screen._threat_info(), true)
+			screen._peek.show_for(screen._top._threat, screen._text.threat_info(), true)
 			await _wait(0.2)
 			await _shot("v2_peek_threat")
 			screen._peek.visible = false
@@ -493,10 +493,10 @@ func _v2() -> void:
 			await _shot("v2_act2_turn")
 			for c in screen._mid_box.get_children():
 				if c is PanelContainer and c.custom_minimum_size.x > 200:
-					screen._peek.show_for(c, screen._scene_info(screen._scene_card_dict(str(game.scenes[game.scene_index])), game.scene_index), true)
+					screen._peek.show_for(c, screen._text.scene_info(screen._text.scene_card_dict(str(game.scenes[game.scene_index])), game.scene_index), true)
 			await _wait(0.2)
 			await _shot("v2_peek_scene")
-			screen._peek.show_for(screen._rows[1]["panel"], screen._char_info(game.players[1]), true)
+			screen._peek.show_for(screen._rows[1]["panel"], screen._text.char_info(game.players[1]), true)
 			await _wait(0.2)
 			await _shot("v2_peek_char")
 			screen._peek.visible = false
@@ -637,7 +637,7 @@ func _fxshots() -> void:
 	c._skip = true
 	await _wait(0.6)
 	var sid := str(game.scenes[game.scene_index])
-	c.cut({"tex": ArtV2.get_tex("scene", sid), "title": "장면 · " + str(screen._scene_card_dict(sid).get("name", "")), "sub": "조건 한 줄", "stamp": "돌 파",
+	c.cut({"tex": ArtV2.get_tex("scene", sid), "title": "장면 · " + str(screen._text.scene_card_dict(sid).get("name", "")), "sub": "조건 한 줄", "stamp": "돌 파",
 		"stamp_color": Style.GOOD, "hold": 3.0}, 1.0)
 	await _wait(1.2)
 	await _shot("fx_scene_break")
@@ -656,7 +656,7 @@ func _fxshots() -> void:
 	await _shot("fx_vignette_ink")
 	await _wait(2.5)
 	# 캐릭터 컷인 (동료: 오른쪽에서)
-	screen._cutin(2, 1.0)
+	screen._playback.cutin(2, 1.0)
 	await _wait(0.6)
 	await _shot("fx_cutin")
 	await _wait(1.2)
@@ -710,22 +710,22 @@ func _q() -> void:
 				screen.act_now(mine[0])
 		await _wait(0.6)
 	await _wait(0.8)
-	screen._tip_check()
+	screen._coach.tip_check()
 	await _wait(0.3)
 	await _shot("q_training_turn")
 	print("[tour] 넘침 %.0f · 받은 높이 %.0f · 최소 %s · 크기 %s · 화면 %s" % [screen.right_overflow(), screen._right_h, str(screen._right.get_combined_minimum_size()), str(screen._right.size), str(screen.size)])
 	screen._tip.visible = false
-	screen._tip_check()
+	screen._coach.tip_check()
 	await _wait(0.3)
 	await _shot("q_training_marker")
 	# U1: 이동 주사위에 올렸을 때 선택 미리보기 띠 · 갈 수 있는 칸
 	screen._tip.visible = false
 	var mv := game.legal_actions().filter(func(a): return int(a.get("player", -1)) == 0 and a["type"] == "move_die")
 	if not mv.is_empty():
-		screen._pick_verb("move", mv)   # M3: 「이동」을 누르면 쓸 주사위가 반짝
+		screen._actions.pick_verb("move", mv)   # M3: 「이동」을 누르면 쓸 주사위가 반짝
 		await _wait(0.4)
 		await _shot("q_verb_move")
-		screen._hover_action(mv[mv.size() - 1])
+		screen._actions.hover_action(mv[mv.size() - 1])
 		await _wait(0.4)
 		await _shot("q_preview_move")
 		# M2: 기운 보드에서 칸 누르기가 맞는 칸으로 가는가
@@ -832,25 +832,25 @@ func _v2f() -> void:
 	await _wait(0.4)
 	await _shot("v2f_board_top")
 	var acts := game.legal_actions().filter(func(a): return int(a.get("player", -1)) == 0 and a.has("die") and int(a["die"]) == 0)
-	screen._die_menu(acts, 0)
+	screen._actions.die_menu(acts, 0)
 	await _wait(0.5)
 	await _shot("v2f_menu")
-	screen._hover_action(acts[0])
+	screen._actions.hover_action(acts[0])
 	await _wait(0.3)
 	await _shot("v2f_menu_reach")
-	screen._close_menu()
+	screen._actions.close_menu()
 	# 장터
 	game.players[0]["pos"] = Vector2i(4, 4)
 	screen._refresh()
 	var macts := game.legal_actions().filter(func(a): return int(a.get("player", -1)) == 0 and a.has("die") and int(a["die"]) == 1)
-	screen._die_menu(macts, 1)
+	screen._actions.die_menu(macts, 1)
 	await _wait(0.5)
 	await _shot("v2f_market_menu")
-	screen._close_menu()
+	screen._actions.close_menu()
 	# 첫 판 안내
 	screen._tips_seen = {}
 	Prefs.v2_tips = true
-	screen._tip_check()
+	screen._coach.tip_check()
 	screen._layout()
 	await _wait(0.3)
 	await _shot("v2f_tip")

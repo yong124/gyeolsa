@@ -87,7 +87,7 @@ godot --headless --path game --script res://tools/v2_balance.gd -- games=1000   
 game/
 ├─ data/v2/          규칙 · 카드 · 문장 (JSON)
 ├─ scripts/core/v2/  규칙 엔진(rules_v2) · 데이터 로드와 검증(game_data_v2) · AI 동료(ai_v2)
-├─ scripts/ui/v2/    화면: 게임 · 기운 보드 · 연출(컷신 · 분위기) · 엔딩 · 온라인 로비
+├─ scripts/ui/v2/    화면: 게임(흐름) + 역할별 모듈(행동 단추판 · 연출 재생 · 문장 · 훈련 안내 · 미리보기) · 기운 보드 · 연출 · 엔딩 · 온라인 로비
 ├─ scripts/net/      온라인: 서버 권위 · 보기 거르기(남의 비밀 숨김) · 클라이언트
 ├─ tests/            규칙 · AI · 화면 · 온라인 시험
 └─ tools/            밸런스 측정 · 그림 · 글꼴 · 효과음 · 빌드

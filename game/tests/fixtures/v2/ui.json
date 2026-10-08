@@ -94,6 +94,7 @@
 		"coop": "res://assets/tiles/start.png",
 		"op": "res://assets/tiles/assassin.png"
 	},
+	"marker_names": {"target": "표적", "informer": "정보원", "pickup": "받기", "dropoff": "주기", "work": "공작 자리", "spot": "잠복 자리", "base": "잠입 거점"},
 	"marker_glyph": {
 		"target": "표",
 		"informer": "정",
