@@ -6,6 +6,7 @@ extends Node
 signal connected
 signal failed(msg: String)
 signal room_changed(room: Dictionary)
+signal rooms_listed(rooms: Array)   # 공개 방 목록 (대기 중 · 빈자리 있음)
 signal game_started(seat: int, view: Dictionary, names: Array)
 signal game_updated(view: Dictionary, events: Array, info: Dictionary)
 signal server_error(msg: String)
@@ -142,5 +143,7 @@ func _on_msg(m: Dictionary) -> void:
 			game_started.emit(seat, m["view"], m.get("names", []))
 		"update":
 			game_updated.emit(m["view"], m.get("events", []), m.get("info", {}))
+		"rooms":
+			rooms_listed.emit(m.get("rooms", []))
 		"error":
 			server_error.emit(str(m.get("msg", "")))

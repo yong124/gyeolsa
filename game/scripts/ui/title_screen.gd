@@ -38,7 +38,7 @@ func _ready() -> void:
 	Music.play("main")
 
 	var art := TextureRect.new()
-	art.texture = cover_texture()
+	art.texture = _street_art()
 	art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	art.custom_minimum_size = Vector2(820, 0)
@@ -88,6 +88,18 @@ func _ready() -> void:
 	_show_menu()
 
 
+func _street_art() -> Texture2D:
+	## 왼쪽 그림: 1945년 경성 거리 (오프닝 첫 장면). 그림 위아래 종이 여백은 잘라 낸다. 없으면 예전 표지
+	var t := ArtV2.get_tex("cut", "opening_1")
+	if t == null:
+		return cover_texture()
+	var a := AtlasTexture.new()
+	a.atlas = t
+	var k := t.get_height() / 1024.0
+	a.region = Rect2(0, 140 * k, t.get_width(), 745 * k)
+	return a
+
+
 static func cover_texture() -> AtlasTexture:
 	## 표지 그림의 태극기 쪽 (왼쪽에 박힌 「光復 IF」 글씨는 쓰지 않는다. 이름은 「결사」)
 	var cover := AtlasTexture.new()
@@ -103,15 +115,15 @@ func _cover_title() -> Control:
 	box.add_theme_constant_override("separation", -18)
 	box.position = Vector2(64, 70)
 	for ch in ["結", "社"]:
-		var l := UiKit.title(ch, 168, Style.INK, 900)
+		var l := UiKit.title(ch, 168, Color("#f3e7cf"), 900)
 		l.add_theme_font_override("font", Style.serif(900))
-		l.add_theme_color_override("font_shadow_color", Color(0.94, 0.89, 0.78, 0.85))
+		l.add_theme_color_override("font_shadow_color", Color(0.08, 0.05, 0.03, 0.85))
 		l.add_theme_constant_override("shadow_offset_x", 3)
 		l.add_theme_constant_override("shadow_offset_y", 3)
 		l.add_theme_constant_override("shadow_outline_size", 10)
 		box.add_child(l)
-	var sub := UiKit.title("1945 · 경성", 26, Style.SEAL_DARK, 800)
-	sub.add_theme_color_override("font_shadow_color", Color(0.94, 0.89, 0.78, 0.9))
+	var sub := UiKit.title("1945 · 경성", 26, Color("#f0c86e"), 800)
+	sub.add_theme_color_override("font_shadow_color", Color(0.08, 0.05, 0.03, 0.9))
 	sub.add_theme_constant_override("shadow_outline_size", 8)
 	box.add_child(sub)
 	return box

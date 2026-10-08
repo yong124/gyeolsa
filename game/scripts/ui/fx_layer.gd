@@ -207,7 +207,9 @@ func banner(text: String, tone: String, mult: float, sub := "") -> void:
 		_banner["alpha"] = a
 		queue_redraw(), 0.0, 1.0, 0.12 * mult)
 	await tw.finished
-	await get_tree().create_timer(0.75 * mult).timeout
+	# 읽을 시간: 빠르기 설정과 상관없이 글 길이만큼은 머문다 (「빠르게」에서 0.3초 만에 사라져 못 읽던 문제)
+	var read := clampf(0.6 + 0.06 * text.length() + 0.045 * sub.length(), 1.0, 3.2)
+	await get_tree().create_timer(maxf(0.75 * mult, read)).timeout
 	await _fade(_banner, 0.2 * mult)
 	_banner = {}
 	queue_redraw()

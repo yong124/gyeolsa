@@ -52,6 +52,8 @@ func _ready() -> void:
 		_measure()
 	elif "perf" in OS.get_cmdline_user_args():
 		_perf()
+	elif "trainclick" in OS.get_cmdline_user_args():
+		_trainclick()
 	elif "endings" in OS.get_cmdline_user_args():
 		_endings()
 	elif "fx" in OS.get_cmdline_user_args():
@@ -528,9 +530,18 @@ func _online() -> void:
 	var net: NetClientV2 = main._net
 	net.open(Prefs.online_url, "나")
 	await _until(func(): return net.token != "")
-	await _wait(0.3)
+	# 공개 방 목록이 비지 않게: 다른 사람 둘이 공개 방을 하나씩 열어 둔다
+	for nm in [["다른1", "초보 환영"], ["다른2", "종로 작전"]]:
+		var o := NetClientV2.new()
+		main.add_child(o)
+		o.open(Prefs.online_url, nm[0])
+		await _until(func(): return o.token != "")
+		o.send({"t": "create", "name": nm[1], "public": true})
+		await _until(func(): return o.room.has("code"))
+	net.send({"t": "list"})
+	await _wait(0.6)
 	await _shot("online_choose")
-	net.send({"t": "create"})
+	net.send({"t": "create", "name": "광복 작전 1호", "public": true})
 	await _until(func(): return net.room.has("code"))
 	var friend := NetClientV2.new()
 	main.add_child(friend)
@@ -541,6 +552,7 @@ func _online() -> void:
 	friend.send({"t": "pick", "character": friend.room["seats"][friend.seat]["offer"][0]})
 	await _wait(0.4)
 	net.send({"t": "pick", "character": net.room["seats"][net.seat]["offer"][1]})
+	friend.send({"t": "ready", "on": true})
 	await _wait(0.6)
 	await _shot("online_room")
 	var fview := [null]
@@ -964,6 +976,93 @@ func _measure() -> void:
 			parts.append("%s %.0f초" % [k, float(screen.wait_stats[k])])
 		print("[measure] %s · %d일 · 합계 %.1f분 · %s" % [setting[2], game.day, total / 60.0, " · ".join(parts)])
 	Engine.time_scale = 1.0
+	get_tree().quit()
+
+
+func _click(pos: Vector2) -> void:
+	## 진짜 마우스처럼: 움직이고 누르고 뗀다 (Input을 거쳐 _input · GUI가 모두 받음)
+	var mm := InputEventMouseMotion.new()
+	mm.position = pos
+	mm.global_position = pos
+	Input.parse_input_event(mm)
+	await _wait(0.05)
+	for down in [true, false]:
+		var mb := InputEventMouseButton.new()
+		mb.position = pos
+		mb.global_position = pos
+		mb.button_index = MOUSE_BUTTON_LEFT
+		mb.pressed = down
+		Input.parse_input_event(mb)
+		await _wait(0.05)
+
+
+func _find_button(root: Node, text: String) -> Control:
+	for n in root.find_children("*", "Button", true, false):
+		var b := n as Button
+		if b.text == text or b.find_children("*", "Label", true, false).any(func(l): return (l as Label).text == text):
+			return b
+	return null
+
+
+func _trainclick() -> void:
+	## 훈련 작전을 사람처럼 눌러 본다: 메뉴의 「훈련 작전」 → 도입부 건너뛰기 → 안내 「알겠습니다」 · 짚어 주는 곳만 누르기
+	await _wait(0.5)
+	Prefs.intro_seen = true
+	main._show_title()
+	await _wait(1.0)
+	var card := _find_button(main._screen, "훈련 작전")
+	print("[train] 훈련 카드: ", card != null)
+	await _click(card.get_global_rect().get_center())
+	await _wait(1.5)
+	await _shot("train_after_card")
+	var skip := _find_button(get_tree().root, "건너뛰기 ▸")
+	if skip != null:
+		await _click(skip.get_global_rect().get_center())
+	await _wait(2.0)
+	var screen = main._screen
+	print("[train] 화면: ", screen.get_class(), " 훈련=", screen is GameScreenV2 and screen._training)
+	if not (screen is GameScreenV2):
+		await _shot("train_stuck")
+		get_tree().quit()
+		return
+	var game: RulesV2 = screen.game
+	var last := ""
+	var same := 0
+	for step in 400:
+		await _wait(0.4)
+		var state := "%d일 %s %d 걸음%d 주사위%d" % [game.day, game.phase, game.current, game.steps_left, game.my_dice(0).size()]
+		same = same + 1 if state == last else 0
+		if state != last:
+			print("[train] ", state)
+		last = state
+		if same > 40:
+			print("[train] 멈춤: ", state, " · 짚는 곳 ", screen._coach.focus_now(), " · 안내 ", screen._tip.visible, " · 연출 ", screen._playing, " · AI ", screen._ai_waiting)
+			await _shot("train_stuck")
+			break
+		if game.phase == "over" or game.day >= 3:
+			print("[train] 진행 됨 (3일째까지)")
+			await _shot("train_ok")
+			break
+		if screen._tip.visible:
+			var ok := _find_button(screen._tip, "알겠습니다")
+			if ok != null:
+				await _click(ok.get_global_rect().get_center())
+				continue
+		if screen._choice != null and screen._choice.visible:
+			var bs: Array = screen._choice.find_children("*", "Button", true, false)
+			if not bs.is_empty():
+				await _click((bs[0] as Control).get_global_rect().get_center())
+				continue
+		var f: Array = screen._coach.focus_now()
+		var r: Rect2 = f[0]
+		if r.size == Vector2.ZERO:
+			continue
+		if game.phase == "turn" and game.steps_left > 0:
+			var cells: Array = game.reach_cells(game.players[0], game.steps_left).keys()
+			if not cells.is_empty():
+				await _click(screen._cell_screen(cells[0]))
+			continue
+		await _click(r.get_center())
 	get_tree().quit()
 
 

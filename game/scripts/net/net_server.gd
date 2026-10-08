@@ -24,6 +24,8 @@ const INBOUND_BYTES := 1 << 16 # 받는 버퍼 64KB (메시지 하나가 이보�
 const HELLO_TIMEOUT := 10.0    # 인사(hello) 없이 이만큼 지나면 끊음
 const BAD_CODE_LIMIT := 10     # 없는 방 코드를 이만큼 틀리면 끊음 (방 코드 맞히기 막기)
 const NAME_MAX := 12
+const ROOM_NAME_MAX := 16      # 방 이름 글자 수
+const LIST_MAX := 50           # 공개 방 목록에 한 번에 보내는 방 수
 
 var port := 8910
 var _tcp := TCPServer.new()
@@ -231,9 +233,16 @@ func _on_msg(id: int, m: Dictionary) -> void:
 				_err(id, "서버에 방이 가득 찼습니다. 잠시 뒤에 다시 해 주세요.")
 				return
 			var code := _new_code()
-			_rooms[code] = _new_room(code)
-			_log("방 %s 만듦 (%s)" % [code, p["name"]])
+			var room := _new_room(code)
+			# 방 이름 (서식 문자는 이름과 같이 거름) · 공개 여부 (비공개는 목록에 안 나오고 코드로만 들어옴)
+			var rname := clean_name(str(m.get("name", "")), ROOM_NAME_MAX)
+			room["name"] = rname if rname != "" else "%s의 작전" % p["name"]
+			room["public"] = bool(m.get("public", true))
+			_rooms[code] = room
+			_log("방 %s 만듦 (%s · %s)" % [code, p["name"], "공개" if room["public"] else "비공개"])
 			_join(id, code)
+		"list":
+			_send(id, {"t": "rooms", "rooms": public_rooms()})
 		"join":
 			if p["room"] != "":
 				return
@@ -260,6 +269,25 @@ func _on_msg(id: int, m: Dictionary) -> void:
 			_act(id, m.get("a", {}))
 		"leave":
 			_leave(id)
+
+
+func public_rooms() -> Array:
+	## 공개 방 목록: 아직 시작하지 않았고, 공개이고, 사람이 한 명 이상 있고, 빈자리가 있는 방 (먼저 만든 방부터)
+	var out := []
+	for code in _rooms:
+		var r: Dictionary = _rooms[code]
+		if r["game"] != null or not bool(r.get("public", false)):
+			continue
+		var humans := 0
+		for s in r["seats"]:
+			if s["human"]:
+				humans += 1
+		if humans == 0 or humans >= 4:
+			continue
+		out.append({"code": code, "name": str(r.get("name", "")), "humans": humans, "max": 4})
+		if out.size() >= LIST_MAX:
+			break
+	return out
 
 
 func _room_of(id: int) -> Dictionary:
@@ -350,7 +378,8 @@ func _send_room(r: Dictionary) -> void:
 			var o: Dictionary = r["seats"][j]
 			seats.append({"name": o["name"], "human": o["human"], "ready": o["ready"], "character": o["character"],
 				"offer": o["offer"] if j == i else [], "online": o["peer"] >= 0})
-		_send(s["peer"], {"t": "room", "code": r["code"], "host": r["host"], "you": i, "seats": seats})
+		_send(s["peer"], {"t": "room", "code": r["code"], "host": r["host"], "you": i, "seats": seats,
+			"name": str(r.get("name", "")), "public": bool(r.get("public", false))})
 
 
 func _leave(id: int) -> void:
@@ -446,9 +475,13 @@ func _start(id: int) -> void:
 	if _peers[id]["seat"] != r["host"]:
 		_err(id, "방장만 시작할 수 있습니다.")
 		return
-	for s in r["seats"]:
-		if s["human"] and s["character"] == "":
+	for i in 4:
+		var hs: Dictionary = r["seats"][i]
+		if hs["human"] and hs["character"] == "":
 			_err(id, "아직 요원을 고르지 않은 사람이 있습니다.")
+			return
+		if hs["human"] and i != r["host"] and not hs["ready"]:
+			_err(id, "모두 준비를 눌러야 시작할 수 있습니다.")
 			return
 	var data := _data
 	var taken := []

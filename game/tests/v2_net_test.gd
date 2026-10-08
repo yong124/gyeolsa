@@ -58,10 +58,32 @@ func _run() -> void:
 		c.open("ws://127.0.0.1:%d" % port, "사람%d" % (i + 1))
 	# 방장이 방을 만들고, 나머지가 들어온다
 	await _until(func(): return clients[0].token != "")
-	clients[0].send({"t": "create"})
+	clients[0].send({"t": "create", "name": "광복[b]작전", "public": true})
 	await _until(func(): return clients[0].room.has("code"))
 	var code: String = clients[0].room["code"]
 	ok(code.length() == 5, "방 코드 5자 (%s)" % code)
+	ok(str(clients[0].room.get("name", "")) == "광복b작전" and bool(clients[0].room.get("public", false)), "방 이름(서식 걸러짐) · 공개 (%s)" % clients[0].room.get("name", ""))
+	# 공개 방 목록: 구경꾼 연결이 목록을 받는다. 비공개 방은 목록에 없다
+	var lister := NetClientV2.new()
+	root.add_child(lister)
+	var listed := [null]
+	lister.rooms_listed.connect(func(rs): listed[0] = rs)
+	lister.open("ws://127.0.0.1:%d" % port, "구경")
+	await _until(func(): return lister.token != "")
+	lister.send({"t": "list"})
+	await _until(func(): return listed[0] != null)
+	var seen: Array = (listed[0] as Array).filter(func(x): return x["code"] == code)
+	ok(seen.size() == 1 and int(seen[0]["humans"]) == 1 and str(seen[0]["name"]) == "광복b작전", "대기 중인 공개 방이 목록에 보임")
+	lister.send({"t": "create", "name": "비밀", "public": false})
+	await _until(func(): return lister.room.has("code"))
+	var secret_code: String = lister.room["code"]
+	listed[0] = null
+	clients[0].send({"t": "list"})
+	clients[0].rooms_listed.connect(func(rs): listed[0] = rs, CONNECT_ONE_SHOT)
+	await _until(func(): return listed[0] != null)
+	ok(not (listed[0] as Array).any(func(x): return x["code"] == secret_code), "비공개 방은 목록에 안 보임")
+	lister.send({"t": "leave"})
+	lister.close()
 	for i in range(1, humans):
 		await _until(func(): return clients[i].token != "")
 		clients[i].send({"t": "join", "code": code})
@@ -71,9 +93,20 @@ func _run() -> void:
 		var mine: Dictionary = c.room["seats"][c.seat]
 		c.send({"t": "pick", "character": mine["offer"][0]})
 	await _until(func(): return clients[0].room["seats"].filter(func(s): return s["human"] and s["character"] != "").size() == humans)
+	if humans > 1:
+		# 방장 말고 아무도 준비를 안 눌렀으면 시작할 수 없다
+		var refused := [false]
+		clients[0].server_error.connect(func(msg): refused[0] = refused[0] or msg.contains("준비"), CONNECT_ONE_SHOT)
+		clients[0].send({"t": "start"})
+		await _until(func(): return refused[0], 600)
+		ok(refused[0] and server._rooms[code]["game"] == null, "모두 준비를 눌러야 시작됨")
+		for i in range(1, humans):
+			clients[i].send({"t": "ready", "on": true})
+		await _until(func(): return clients[0].room["seats"].filter(func(s): return s["human"] and s["ready"]).size() >= humans - 1)
 	clients[0].send({"t": "start"})
 	await _until(func(): return views.size() == humans)
 	ok(true, "시작: 사람 %d명 + AI %d명" % [humans, 4 - humans])
+	ok(not server.public_rooms().any(func(x): return x["code"] == code), "시작한 방은 목록에서 빠짐")
 	# 남의 자리 행동은 거절되어야 한다
 	var other: int = (int(seats[0]) + 1) % 4
 	clients[0].act({"type": "end_turn", "player": other})

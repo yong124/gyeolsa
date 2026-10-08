@@ -13,6 +13,11 @@ var _url: LineEdit
 var _name: LineEdit
 var _code: LineEdit
 var _ready_on := false
+var _room_name: LineEdit
+var _public := true               # 새로 만들 방을 목록에 보일까
+var _list_box: VBoxContainer      # 공개 방 목록
+var _list_timer: Timer            # 방 고르기 화면에 있는 동안 목록을 새로 받는다
+const LIST_EVERY := 4.0
 
 
 func _init(c: NetClientV2) -> void:
@@ -40,6 +45,13 @@ func _ready() -> void:
 	client.failed.connect(func(msg): _show_connect(msg))
 	client.waking.connect(func(sec): _set_status("서버를 깨우는 중… 한동안 아무도 없었으면 1분쯤 걸립니다 (%d초)" % sec))
 	client.room_changed.connect(_show_room)
+	client.rooms_listed.connect(_fill_list)
+	_list_timer = Timer.new()
+	_list_timer.wait_time = LIST_EVERY
+	_list_timer.timeout.connect(func():
+		if client.is_open() and client.room.is_empty():
+			client.send({"t": "list"}))
+	add_child(_list_timer)
 	client.server_error.connect(func(msg): _set_status(msg, true))
 	client.closed.connect(func(): _show_connect("서버와 연결이 끊겼습니다."))
 	client.game_started.connect(func(seat, view, _names): game_ready.emit(seat, view))
@@ -101,33 +113,104 @@ func _show_connect(msg: String) -> void:
 
 
 func _show_choose() -> void:
-	_head("방 고르기", "%s 님, 연결되었습니다." % client.player_name)
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 12)
-	_box.add_child(row)
-	row.add_child(UiKit.button("방 만들기", func():
+	_head("온라인 작전", "")
+	# 방 만들기
+	var make := HBoxContainer.new()
+	make.add_theme_constant_override("separation", 10)
+	_box.add_child(make)
+	_room_name = LineEdit.new()
+	_room_name.placeholder_text = "%s의 작전" % client.player_name
+	_room_name.max_length = 16
+	_room_name.custom_minimum_size = Vector2(300, 44)
+	make.add_child(_room_name)
+	var pub := UiKit.button("", func(): pass, 15, "paper")
+	pub.custom_minimum_size = Vector2(110, 44)
+	var set_pub := func():
+		pub.text = "공개" if _public else "비공개"
+		pub.tooltip_text = "공개: 아래 목록에 보입니다" if _public else "비공개: 코드를 아는 사람만 들어옵니다"
+	set_pub.call()
+	pub.pressed.connect(func():
+		_public = not _public
+		set_pub.call())
+	make.add_child(pub)
+	make.add_child(UiKit.button("방 만들기", func():
 		_set_status("방을 만드는 중…")
-		client.send({"t": "create"}), 18, "primary"))
+		client.send({"t": "create", "name": _room_name.text.strip_edges(), "public": _public}), 18, "primary"))
+	_box.add_child(UiKit.hsep())
+	# 공개 방 목록 (대기 중 · 빈자리 있음)
+	var lh := HBoxContainer.new()
+	_box.add_child(lh)
+	var lt := UiKit.title("공개 방", 20, Style.INK, 800)
+	lt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lh.add_child(lt)
+	lh.add_child(UiKit.button("새로 고침", func(): client.send({"t": "list"}), 13, "tab"))
+	var scroll := ScrollContainer.new()
+	scroll.custom_minimum_size = Vector2(0, 230)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_box.add_child(scroll)
+	_list_box = VBoxContainer.new()
+	_list_box.add_theme_constant_override("separation", 6)
+	_list_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(_list_box)
+	_list_box.add_child(UiKit.text("불러오는 중…", 14, Style.INK_3))
+	_box.add_child(UiKit.hsep())
+	# 코드로 참가 · 메뉴로
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	_box.add_child(row)
 	_code = LineEdit.new()
-	_code.placeholder_text = "참가 코드 5자"
+	_code.placeholder_text = "방 코드 5자"
 	_code.max_length = 5
 	_code.custom_minimum_size = Vector2(200, 44)
 	row.add_child(_code)
 	row.add_child(UiKit.button("코드로 참가", func():
 		_set_status("들어가는 중…")
-		client.send({"t": "join", "code": _code.text.strip_edges().to_upper()}), 18, "paper"))
+		client.send({"t": "join", "code": _code.text.strip_edges().to_upper()}), 16, "paper"))
+	var gap := Control.new()
+	gap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(gap)
 	row.add_child(UiKit.button("← 메뉴로", func():
+		_list_timer.stop()
 		client.close()
 		back_requested.emit(), 15, "tab"))
 	_status = UiKit.text("", 14, Style.INK_3)
 	_box.add_child(_status)
+	client.send({"t": "list"})
+	_list_timer.start()
+
+
+func _fill_list(rooms: Array) -> void:
+	## 공개 방 목록 줄: 방 이름 · 사람 수 · 참가
+	if not is_instance_valid(_list_box) or not client.room.is_empty():
+		return
+	UiKit.clear(_list_box)
+	if rooms.is_empty():
+		_list_box.add_child(UiKit.text("지금 기다리는 공개 방이 없습니다. 방을 만들어 보세요.", 14, Style.INK_3))
+		return
+	for r in rooms:
+		var row := PanelContainer.new()
+		row.add_theme_stylebox_override("panel", Style.flat(Color("#f6eedb"), Style.INK_3, 1, 4, 8))
+		var h := HBoxContainer.new()
+		h.add_theme_constant_override("separation", 12)
+		row.add_child(h)
+		var nm := UiKit.title(str(r.get("name", "")), 18, Style.INK, 800)
+		nm.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		nm.clip_text = true
+		h.add_child(nm)
+		h.add_child(UiKit.text("%d / %d명" % [int(r.get("humans", 0)), int(r.get("max", 4))], 15, Style.INK_2, false, 700))
+		var code := str(r.get("code", ""))
+		h.add_child(UiKit.button("참가", func():
+			_set_status("들어가는 중…")
+			client.send({"t": "join", "code": code}), 15, "primary"))
+		_list_box.add_child(row)
 
 
 func _show_room(r: Dictionary) -> void:
 	var me := int(r.get("you", -1))
 	var host := int(r.get("host", -1))
 	var data := GameDataV2.load_default()
-	_head("방 %s" % r["code"], "이 코드를 같이 할 사람에게 알려 주세요. 사람이 없는 자리는 AI 동료가 맡습니다.")
+	_list_timer.stop()
+	_head(str(r.get("name", "")) if str(r.get("name", "")) != "" else "방", "공개 방 · 목록에 보입니다" if bool(r.get("public", false)) else "비공개 방 · 코드를 아는 사람만 들어옵니다")
 	var crow := HBoxContainer.new()
 	crow.add_theme_constant_override("separation", 12)
 	_box.add_child(crow)
@@ -200,11 +283,16 @@ func _show_room(r: Dictionary) -> void:
 	brow.add_theme_constant_override("separation", 12)
 	_box.add_child(brow)
 	_ready_on = bool(mine.get("ready", false))
-	brow.add_child(UiKit.button("준비 취소" if _ready_on else "준비", func(): client.send({"t": "ready", "on": not _ready_on}), 16, "paper"))
+	if me != host:   # 방장은 「시작」으로 준비를 대신한다
+		brow.add_child(UiKit.button("준비 취소" if _ready_on else "준비", func(): client.send({"t": "ready", "on": not _ready_on}), 16, "primary" if not _ready_on else "paper"))
 	if me == host:
 		var all_picked := seats.all(func(s): return not s["human"] or str(s.get("character", "")) != "")
-		var sb := UiKit.button("시작" if all_picked else "시작 (모두 요원을 고르면)", func(): client.send({"t": "start"}), 18, "primary")
-		sb.disabled = not all_picked
+		var all_ready := true
+		for i in seats.size():
+			if seats[i]["human"] and i != host and not seats[i].get("ready", false):
+				all_ready = false
+		var sb := UiKit.button("시작" if all_picked and all_ready else ("모두 요원을 고르면 시작" if not all_picked else "모두 준비하면 시작"), func(): client.send({"t": "start"}), 18, "primary")
+		sb.disabled = not (all_picked and all_ready)
 		brow.add_child(sb)
 	else:
 		brow.add_child(UiKit.text("방장이 시작하기를 기다립니다.", 14, Style.INK_3))
