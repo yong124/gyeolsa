@@ -63,6 +63,7 @@ void fragment() {
 	_pieces = Control.new()
 	_pieces.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_pieces.draw.connect(_draw_pieces)
+	b.draw.connect(_pieces.queue_redraw)   # Z5: 말은 보드가 다시 그려질 때만 다시 그린다 (매 프레임 아님)
 	add_child(_pieces)
 	mouse_filter = Control.MOUSE_FILTER_STOP
 
@@ -90,6 +91,7 @@ func place(r: Rect2) -> void:
 	_mat.set_shader_parameter("inv", Basis(Vector3(m[0], m[3], m[6]), Vector3(m[1], m[4], m[7]), Vector3(m[2], m[5], m[8])))
 	_pieces.position = Vector2.ZERO
 	_pieces.size = size
+	_pieces.queue_redraw()
 	queue_redraw()
 
 
@@ -191,11 +193,6 @@ func cell_to_screen(c: Vector2) -> Vector2:
 
 # ---------------------------------------------------------------- 그리기
 
-func _process(_delta: float) -> void:
-	if _pieces != null:
-		_pieces.queue_redraw()
-
-
 func _draw() -> void:
 	if quad.is_empty():
 		return
@@ -210,7 +207,18 @@ func _draw() -> void:
 		draw_line(quad[3] + Vector2(0, THICK), quad[2] + Vector2(0, THICK), Color("#22170f"), 2.0)
 
 
+static var pieces_usec := 0   # Z5 측정: 말 그리기 시간 합(마이크로초)과 횟수
+static var pieces_count := 0
+
+
 func _draw_pieces() -> void:
+	var t0 := Time.get_ticks_usec()
+	_draw_pieces_all()
+	pieces_usec += Time.get_ticks_usec() - t0
+	pieces_count += 1
+
+
+func _draw_pieces_all() -> void:
 	## 서 있는 말: 칸의 바닥점에 그림자, 그 위로 초상 동그라미. 먼 줄일수록 작게
 	if board == null or board.game == null or quad.is_empty():
 		return

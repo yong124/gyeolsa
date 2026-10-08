@@ -39,8 +39,15 @@ func set_state(phase: String, act: int, threat_id: String) -> void:
 
 func _process(delta: float) -> void:
 	_t += delta
+	# Z5: 날씨가 있거나 빛이 바뀌는 동안만 다시 그린다 (가라앉으면 멈춤)
+	var settled := _tint.is_equal_approx(_tint_to) and is_equal_approx(_night, _night_to)
+	if settled and _weather == "":
+		return
 	_tint = _tint.lerp(_tint_to, minf(1.0, delta * 1.5))
 	_night = lerpf(_night, _night_to, minf(1.0, delta * 1.5))
+	if absf(_night - _night_to) < 0.002 and absf(_tint.a - _tint_to.a) < 0.002:
+		_tint = _tint_to   # 거의 다 왔으면 맞춰서 다음 프레임부터 멈춘다
+		_night = _night_to
 	queue_redraw()
 
 

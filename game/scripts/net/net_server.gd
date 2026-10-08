@@ -3,9 +3,14 @@ extends Node
 ## 온라인 서버 (헤드리스): 방을 만들고, 판을 서버에서 돌리고, 사람마다 볼 수 있는 것만 보낸다.
 ## 실행: Godot --headless --path game -- server [port=8910]
 ## 규약: v2_구현/온라인_규약.md. 메시지는 Dictionary를 var_to_bytes로 묶은 WebSocket 바이너리 패킷.
+## 서버 → 클라이언트 패킷은 앞 1바이트가 방식이다: 0 = 그대로, 1 = 원래 크기(4바이트) + zstd 압축 (Z5).
 ## 요원은 늘 4명이다. 빈자리 · 끊긴 자리는 서버의 AI(GameAIV2)가 둔다.
 
-const VERSION := 1
+const VERSION := 2   # 2: 서버 패킷 머리 바이트 · 압축, 작전 기록은 새 줄만 (Z5)
+const PACK_RAW := 0
+const PACK_ZSTD := 1
+const PACK_MIN := 512          # 이보다 작은 메시지는 압축하지 않는다
+const PACK_MAX := 1 << 23      # 풀었을 때 이보다 크면 받지 않는다
 const CODE_CHARS := "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"   # 헷갈리는 0 O 1 I 뺌
 const AI_STEP := 0.45          # AI 한 수 사이 간격(초): 사람이 따라 볼 수 있게
 const HUMAN_IDLE := 150.0      # 사람 자리가 이만큼 아무것도 안 하면 AI가 한 수 대신 둔다
@@ -160,7 +165,37 @@ func _send(id: int, msg: Dictionary) -> void:
 		return
 	var ws: WebSocketPeer = _peers[id]["ws"]
 	if ws.get_ready_state() == WebSocketPeer.STATE_OPEN:
-		ws.send(var_to_bytes(msg))
+		ws.send(pack(msg))
+
+
+static func pack(msg: Dictionary) -> PackedByteArray:
+	## 서버 → 클라이언트 패킷: [방식 1바이트] + (압축이면 원래 크기 4바이트) + 내용
+	var raw := var_to_bytes(msg)
+	var out := PackedByteArray()
+	if raw.size() < PACK_MIN:
+		out.append(PACK_RAW)
+		out.append_array(raw)
+		return out
+	out.append(PACK_ZSTD)
+	out.resize(5)
+	out.encode_u32(1, raw.size())
+	out.append_array(raw.compress(FileAccess.COMPRESSION_ZSTD))
+	return out
+
+
+static func unpack(pkt: PackedByteArray) -> Variant:
+	## pack()을 푼다. 모양이 틀리면 null
+	if pkt.is_empty():
+		return null
+	if pkt[0] == PACK_RAW:
+		return bytes_to_var(pkt.slice(1))
+	if pkt[0] == PACK_ZSTD and pkt.size() > 5:
+		var n := pkt.decode_u32(1)
+		if n <= 0 or n > PACK_MAX:
+			return null
+		var raw := pkt.slice(5).decompress(n, FileAccess.COMPRESSION_ZSTD)
+		return bytes_to_var(raw) if raw.size() == n else null
+	return null
 
 
 func _err(id: int, text: String) -> void:
@@ -397,6 +432,7 @@ func _try_resume(id: int) -> void:
 				p["seat"] = i
 				_log("방 %s 자리 %d 돌아옴" % [code, i])
 				var g: RulesV2 = r["game"]
+				s["log_sent"] = g.log_lines.size()   # 돌아온 사람은 기록을 처음부터 받는다
 				_send(id, {"t": "start", "seat": i, "view": NetViewV2.view_for(g, i), "names": _names(r)})
 				return
 
@@ -438,6 +474,7 @@ func _start(id: int) -> void:
 	for i in 4:
 		var s: Dictionary = r["seats"][i]
 		if s["human"] and s["peer"] >= 0:
+			s["log_sent"] = g.log_lines.size()
 			_send(s["peer"], {"t": "start", "seat": i, "view": NetViewV2.view_for(g, i), "names": _names(r)})
 
 
@@ -524,7 +561,9 @@ func _broadcast(r: Dictionary, ev: Array) -> void:
 	for i in 4:
 		var s: Dictionary = r["seats"][i]
 		if s["peer"] >= 0:
-			_send(s["peer"], {"t": "update", "view": NetViewV2.view_for(g, i), "events": NetViewV2.events_for(ev, i), "info": info})
+			var lf := mini(int(s.get("log_sent", 0)), g.log_lines.size())   # 이미 보낸 기록 줄은 다시 보내지 않는다
+			s["log_sent"] = g.log_lines.size()
+			_send(s["peer"], {"t": "update", "view": NetViewV2.view_for(g, i, lf), "events": NetViewV2.events_for(ev, i), "info": info})
 
 
 func _ai_actor(r: Dictionary) -> int:

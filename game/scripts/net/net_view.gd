@@ -9,8 +9,11 @@ const DECKS := ["tile_deck", "mission_deck", "event_deck", "item_deck", "op_deck
 const HIDDEN := "?"
 
 
-static func view_for(game: RulesV2, pid: int) -> Dictionary:
+static func view_for(game: RulesV2, pid: int, log_from := 0) -> Dictionary:
+	## log_from: 이 사람이 이미 받은 작전 기록 줄 수. 그 뒤의 새 줄만 담는다 (Z5: 기록이 보기의 절반을 차지함)
 	var st := game.save_state()
+	st["log_from"] = log_from
+	st["log_lines"] = (st.get("log_lines", []) as Array).slice(log_from)
 	st.erase("rng_seed")
 	st.erase("rng_state")
 	st["actions"] = []   # 선택 값(남긴 사연 등)이 들어 있다

@@ -50,6 +50,8 @@ func _ready() -> void:
 		get_tree().quit()
 	elif "measure" in OS.get_cmdline_user_args():
 		_measure()
+	elif "perf" in OS.get_cmdline_user_args():
+		_perf()
 	elif "endings" in OS.get_cmdline_user_args():
 		_endings()
 	elif "fx" in OS.get_cmdline_user_args():
@@ -962,6 +964,53 @@ func _measure() -> void:
 			parts.append("%s %.0f초" % [k, float(screen.wait_stats[k])])
 		print("[measure] %s · %d일 · 합계 %.1f분 · %s" % [setting[2], game.day, total / 60.0, " · ".join(parts)])
 	Engine.time_scale = 1.0
+	get_tree().quit()
+
+
+func _perf() -> void:
+	## Z5: 화면 프레임 시간. 내 차례에 입력을 기다리는 동안(가장 흔한 상태) 3초씩 잰다. 수직 동기 끄고 프레임 제한 없음
+	await _wait(0.5)
+	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
+	Engine.max_fps = 0
+	var data := GameDataV2.load_default()
+	for tilt in [true, false]:
+		Prefs.v2_tilt = tilt
+		Prefs.v2_tips = false
+		var defs := []
+		for id in ["yun", "jeong", "gaeddong", "oh"]:
+			defs.append({"name": str(data.character(id)["name"]), "character": id})
+		var game := RulesV2.new()
+		game.setup(defs, 4242)
+		var screen := GameScreenV2.new(game, 0, {})
+		main._swap(screen)
+		screen._fast = true
+		var guard := 0
+		while guard < 4000 and not (screen.is_idle() and game.phase == "turn" and game.current == 0):
+			guard += 1
+			await _wait(0.05)
+			if screen.is_idle() and game.phase == "plan":
+				screen.act_now({"type": "start_day", "player": 0})
+			elif screen.is_idle() and game.phase == "day":
+				screen.act_now({"type": "begin_turn", "player": 0})
+		await _wait(1.0)
+		BoardViewV2.draw_usec = 0
+		BoardViewV2.draw_count = 0
+		TiltBoardV2.pieces_usec = 0
+		TiltBoardV2.pieces_count = 0
+		var frames := 0
+		var calls := 0.0
+		var t0 := Time.get_ticks_usec()
+		while Time.get_ticks_usec() - t0 < 3000000:
+			await get_tree().process_frame
+			frames += 1
+			calls += Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)
+		var sec := (Time.get_ticks_usec() - t0) / 1000000.0
+		print("[perf] %s · 내 차례 대기 · %.0f fps (프레임 %.2fms) · 보드 그리기 초당 %.0f회 × %.2fms · 말 그리기 초당 %.0f회 × %.2fms · 그리기 호출 %.0f/프레임" % [
+			"기운 보드" if tilt else "평면 보드", frames / sec, 1000.0 * sec / frames,
+			BoardViewV2.draw_count / sec, BoardViewV2.draw_usec / 1000.0 / maxf(1, BoardViewV2.draw_count),
+			TiltBoardV2.pieces_count / sec, TiltBoardV2.pieces_usec / 1000.0 / maxf(1, TiltBoardV2.pieces_count),
+			calls / frames])
+	Prefs.v2_tilt = true
 	get_tree().quit()
 
 

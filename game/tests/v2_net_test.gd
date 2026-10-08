@@ -13,6 +13,7 @@ var waiting := {}      # 클라이언트 번호 -> 보낸 행동의 답을 기�
 var leaks := 0
 var rejected := 0
 var updates := 0
+var logs := {}            # 클라이언트 -> 이어 붙인 작전 기록
 
 
 func ok(cond: bool, label: String) -> void:
@@ -101,6 +102,17 @@ func _run() -> void:
 	ok(g2.phase == "over", "판이 끝까지 감 (엔딩 %s · %d일째 · 행동 %d)" % [g2.ending.get("id", "-"), g2.day, g2.actions.size()])
 	ok(leaks == 0, "받은 보기 %d번에 남의 비밀 없음 (누출 %d)" % [updates, leaks])
 	ok(rejected >= 1, "남의 자리 행동은 거절됨")
+	await _until(func(): return (logs.get(0, []) as Array).size() >= g2.log_lines.size(), 300)
+	if logs.get(0, []) != g2.log_lines:
+		var mine: Array = logs.get(0, [])
+		var k := 0
+		while k < mini(mine.size(), g2.log_lines.size()) and mine[k] == g2.log_lines[k]:
+			k += 1
+		print("  보기 받은 수 %s · 판 %s · 클라0 연결 %d · 자리 %d · 기다림 %s" % [str(updates), g2.phase, clients[0]._ws.get_ready_state(), clients[0].seat, str(waiting.get(0, false))])
+		print("  기록 차이: 클라 %d줄 · 서버 %d줄 · 처음 다른 줄 %d: %s | %s" % [mine.size(), g2.log_lines.size(), k, mine[k] if k < mine.size() else "-", g2.log_lines[k] if k < g2.log_lines.size() else "-"])
+	ok(logs.get(0, []) == g2.log_lines, "새 줄만 받아 이어 붙인 작전 기록이 서버 기록과 같음 (%d줄)" % g2.log_lines.size())
+	var big := NetServerV2.pack({"t": "update", "view": NetViewV2.view_for(g2, 0)})
+	ok(NetServerV2.unpack(big) is Dictionary and big[0] == NetServerV2.PACK_ZSTD, "큰 메시지는 압축해 보내고 풀림 (%d바이트)" % big.size())
 	await _security(port, code)
 	print("v2 온라인 시험: 통과 %d, 실패 %d" % [passed, failed])
 	quit(1 if failed > 0 else 0)
@@ -175,6 +187,11 @@ func _on_view(ci: int, seat: int, view: Dictionary, _ev: Array) -> void:
 	seats[ci] = seat
 	var g := RulesV2.new()
 	g.load_state(view)
+	# Z5: 서버는 새 기록 줄만 보낸다. 화면(GameScreenV2._apply_remote)과 같은 방식으로 이어 붙인다
+	var lf := int(view.get("log_from", 0))
+	logs[ci] = (logs.get(ci, []) as Array).slice(0, lf) + view.get("log_lines", []) if lf > 0 else view.get("log_lines", [])
+	if ci == 0 and lf > (logs.get(ci, []) as Array).size():
+		print("  [기록] 앞 줄이 모자람: log_from %d" % lf)
 	views[ci] = g
 	waiting[ci] = false
 	updates += 1

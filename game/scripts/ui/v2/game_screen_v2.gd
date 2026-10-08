@@ -1019,7 +1019,12 @@ func _on_remote_update(view: Dictionary, events: Array, info: Dictionary) -> voi
 
 
 func _apply_remote(view: Dictionary, events: Array) -> void:
+	var old_log := game.log_lines
 	game.load_state(view, game.data)
+	# 서버는 새 기록 줄만 보낸다 (log_from = 앞서 받은 줄 수)
+	var lf := int(view.get("log_from", 0))
+	if lf > 0:
+		game.log_lines = old_log.slice(0, lf) + view.get("log_lines", [])
 	game.human = human
 	game.events = events.duplicate(true)
 	_pump()

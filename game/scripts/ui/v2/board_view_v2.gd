@@ -25,6 +25,8 @@ var vis_police := {}             # id -> {"pos": Vector2, "active": bool, "alpha
 var hidden_tiles := {}
 var _reveal := {}
 var _pulse := 0.0
+var _idle_wait := 0.0             # Z5: 가만히 있을 때 다시 그리기까지 남은 시간
+const IDLE_REDRAW := 0.05         # 가만히 있을 때는 초당 20번만 다시 그린다 (반짝임 · 발자국은 느려서 충분). 움직임 · 뒤집기는 트윈이 매 프레임 그린다
 var _preview := {}
 var reach := {}                  # 이동 미리 보기: 닿을 수 있는 칸 {칸: 걸음 수} (행동 메뉴에서 이동에 올려 놓았을 때)
 var scouted := {}                # 정찰로 미리 깐 칸 (아직 아무도 멈추지 않은 곳)
@@ -77,7 +79,9 @@ func _process(delta: float) -> void:
 		marker_trails[id]["age"] = float(marker_trails[id]["age"]) + delta
 		if float(marker_trails[id]["age"]) > TRAIL_SECONDS:
 			marker_trails.erase(id)
-	if game and game.phase != "over":
+	_idle_wait -= delta
+	if game and game.phase != "over" and _idle_wait <= 0.0:
+		_idle_wait = IDLE_REDRAW
 		queue_redraw()
 
 
@@ -320,9 +324,20 @@ func _marker_text(m: Dictionary) -> String:
 
 # ------------------------------------------------------------------ 그리기
 
+static var draw_usec := 0     # Z5 측정: 그리기에 쓴 시간 합(마이크로초)과 횟수 (tour perf)
+static var draw_count := 0
+
+
 func _draw() -> void:
 	if _map_tex == null:
 		return
+	var t0 := Time.get_ticks_usec()
+	_draw_all()
+	draw_usec += Time.get_ticks_usec() - t0
+	draw_count += 1
+
+
+func _draw_all() -> void:
 	var side := minf(size.x, size.y)
 	draw_texture_rect(_map_tex, Rect2(0, 0, side, side), false)
 	draw_rect(Rect2(0, 0, side, side), FADE)

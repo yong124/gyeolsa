@@ -109,9 +109,12 @@ func _process(_d: float) -> void:
 			_opened = true
 			send({"t": "hello", "name": player_name, "token": token, "ver": NetServerV2.VERSION})
 		while _ws.get_available_packet_count() > 0:
-			var m = bytes_to_var(_ws.get_packet())
+			var pkt := _ws.get_packet()
+			var m = NetServerV2.unpack(pkt)   # 서버 패킷: 머리 바이트 + (압축)
 			if m is Dictionary:
 				_on_msg(m)
+			else:
+				print("[client] 못 푼 패킷 %d바이트 머리 %d" % [pkt.size(), pkt[0] if pkt.size() > 0 else -1])
 	elif st == WebSocketPeer.STATE_CLOSED and _state != WebSocketPeer.STATE_CLOSED:
 		if not _opened and _now() - _began < wake_wait(url):
 			_retry_at = _now() + RETRY_EVERY
