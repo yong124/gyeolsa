@@ -124,7 +124,7 @@
 					"options": [
 						{
 							"kind": "dice",
-							"sum": 7
+							"sum": 10
 						},
 						{
 							"kind": "pay_item",
@@ -178,7 +178,7 @@
 					"condition": {
 						"kind": "check",
 						"check": "generic",
-						"target": 9
+						"target": 12
 					},
 					"on_fail": [
 						{
@@ -199,7 +199,7 @@
 						"count": 2,
 						"same_day": true,
 						"where": "barracks",
-						"target": 8
+						"target": 10
 					},
 					"on_fail": [
 						{
@@ -217,7 +217,7 @@
 				"condition": {
 					"kind": "check",
 					"check": "assassin",
-					"target": 12
+					"target": 11
 				},
 				"on_fail": [
 					{
@@ -260,7 +260,7 @@
 							{
 								"kind": "check",
 								"check": "generic",
-								"target": 12
+								"target": 13
 							},
 							{
 								"kind": "pay_funds",
@@ -350,7 +350,7 @@
 						{
 							"kind": "check",
 							"check": "generic",
-							"target": 12
+							"target": 13
 						},
 						{
 							"kind": "pay_item",
@@ -388,7 +388,7 @@
 					"where": "inside",
 					"condition": {
 						"kind": "dice",
-						"sum": 13
+						"sum": 14
 					},
 					"on_fail": [],
 					"stop_text": "통신실의 전보는 본국으로 날아갔다."
@@ -425,7 +425,7 @@
 						"count": 2,
 						"same_day": true,
 						"where": "gg",
-						"target": 9
+						"target": 10
 					},
 					"on_fail": [
 						{
