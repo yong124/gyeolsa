@@ -21,3 +21,6 @@ Desktop.ini
 
 # Claude Code 로컬 설정 (워크트리 · 미리보기 설정)
 /.claude/
+
+# 파이썬 캐시
+__pycache__/

@@ -7,7 +7,7 @@
 | 대상 버전 | v1.0 (itch.io 무료 배포) |
 | 플랫폼 | PC (Windows) |
 | 개발 조건 | 1개월, 1인 개발 (+ AI 보조), Godot 4.7 |
-| 관련 문서 | [결사_기획서.md](결사_기획서.md) v1.4 (규칙), [game/README.md](game/README.md) (코드 구조), [game/data/README.md](game/data/README.md) (데이터) |
+| 관련 문서 | [결사_기획서.md](결사_기획서.md) v1.4 (규칙), [game/README.md](../../game/README.md) (코드 구조), [game/data/README.md](../../game/data/README.md) (데이터) |
 
 ---
 
