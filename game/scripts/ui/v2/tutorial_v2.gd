@@ -12,6 +12,7 @@ var steps: Array = []             # 펼친 단계 [{"lesson", "li", "si", ...단
 var i := 0                        # 지금 단계
 var _started_step := -1           # setup을 한 단계
 var _did := false                 # 이 단계의 do를 했는가
+var _turn_seen := false           # 이 단계에서 내 차례였던 적이 있는가 (차례 마치기를 다른 길로 했을 때)
 var _vote_target := ""            # 결행 대상 (동료도 같은 곳에 표)
 var spot: Spotlight
 var active := true
@@ -69,6 +70,7 @@ func update() -> void:
 				return
 			_started_step = i
 			_did = false
+			_turn_seen = false
 			_setup(s.get("setup", []))
 		if _done(s):
 			_next()
@@ -113,9 +115,29 @@ func press_next() -> void:
 
 func _done(s: Dictionary) -> bool:
 	var d := str(s.get("do", "next"))
+	var g := scr.game
+	var my_turn: bool = g.phase == "turn" and g.current == scr.human
 	if d == "reach":
 		var c: Array = s.get("cell", [0, 0])
-		return scr.game.players[scr.human]["pos"] == Vector2i(int(c[0]), int(c[1]))
+		return g.players[scr.human]["pos"] == Vector2i(int(c[0]), int(c[1]))
+	# 이미 그 일을 한 상태면 넘어간다 (미리 눌렀거나 다른 길로 같은 곳에 왔을 때 멈추지 않게)
+	match d:
+		"start_day":
+			if g.phase in ["day", "turn"]:
+				return true
+		"begin_turn", "move_die":
+			if d == "begin_turn" and my_turn:
+				return true
+			if d == "move_die" and my_turn and g.steps_left > 0:
+				return true
+		"end_move":
+			if my_turn and g.steps_left == 0:
+				return true   # 걸음을 다 써서 이미 이동이 끝났으면
+		"end_turn":
+			if not my_turn and _turn_seen:
+				return true
+	if my_turn:
+		_turn_seen = true
 	return _did
 
 
@@ -383,10 +405,12 @@ func block(event: InputEvent) -> bool:
 	if not (event is InputEventMouseButton and event.pressed):
 		return false
 	var p: Vector2 = (event as InputEventMouseButton).position   # 누른 자리 (화면 좌표)
+	if spot.owns(p):
+		return false
+	if f[3]:
+		return true   # 설명 단계: 밝힌 곳은 보여 주기만 (미리 눌러 앞 단계를 건너뛰지 않게) · 「다음」만
 	var r: Rect2 = f[0]
 	if r.size != Vector2.ZERO and r.grow(4.0).has_point(p):
-		return false
-	if spot.owns(p):
 		return false
 	return true
 

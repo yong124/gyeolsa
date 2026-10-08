@@ -1047,6 +1047,12 @@ func _tutorial() -> void:
 			shots[li] = true
 			await _wait(0.3)
 			await _shot("tutorial_%d" % (li + 1))
+		if f[3] and "early" in OS.get_cmdline_user_args() and str(tut.step().get("target", "")) == "dock":
+			# 설명 단계에서 미리 「이동」 · 주사위를 눌러 본다 (막혀야 함)
+			var fb = screen._actions.focus.get("verbs", {}).get("move")
+			if fb != null:
+				await _click(fb.get_global_rect().get_center())
+				print("[tutorial] 미리 누름: 이동 · verb=%s" % screen._verb)
 		if f[3]:
 			var np: Vector2 = tut.spot._next.get_global_rect().get_center()
 			await _click(np)
