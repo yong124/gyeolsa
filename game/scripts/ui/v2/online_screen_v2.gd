@@ -81,7 +81,7 @@ func _field(label: String, value: String, ph: String) -> LineEdit:
 
 func _show_connect(msg: String) -> void:
 	_head("온라인 결사", "사람끼리 한 판. 방을 만들어 코드를 알려 주거나, 받은 코드로 들어갑니다. 빈자리는 AI 동료가 맡습니다.")
-	_url = _field("서버 주소", Prefs.online_url, NetClientV2.DEFAULT_URL)
+	_url = _field("서버 주소", Prefs.online_url, NetClientV2.default_url())
 	_name = _field("내 이름", Prefs.online_name, "요원 이름 (12자까지)")
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 12)
@@ -91,11 +91,12 @@ func _show_connect(msg: String) -> void:
 		Prefs.online_name = _name.text.strip_edges()
 		Prefs.save()
 		_set_status("연결하는 중…")
-		client.open(Prefs.online_url if Prefs.online_url != "" else NetClientV2.DEFAULT_URL, Prefs.online_name if Prefs.online_name != "" else "요원"), 18, "primary"))
+		client.open(Prefs.online_url if Prefs.online_url != "" else NetClientV2.default_url(), Prefs.online_name if Prefs.online_name != "" else "요원"), 18, "primary"))
 	row.add_child(UiKit.button("← 메뉴로", func(): back_requested.emit(), 15, "tab"))
 	_status = UiKit.text(msg, 14, Style.SEAL if msg != "" else Style.INK_3)
 	_box.add_child(_status)
-	_box.add_child(UiKit.text("서버는 「Godot --headless --path game -- server」로 켭니다 (기본 포트 8910). 웹판에서는 wss:// 주소가 필요합니다.", 12, Style.INK_3))
+	if not OS.has_feature("web"):
+		_box.add_child(UiKit.text("서버는 「Godot --headless --path game -- server」로 켭니다 (기본 포트 8910). 웹판에서는 wss:// 주소가 필요합니다.", 12, Style.INK_3))
 
 
 func _show_choose() -> void:

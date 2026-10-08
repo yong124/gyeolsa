@@ -1,0 +1,21 @@
+{
+	"_comment": "온라인 방 설정 (지시서 H1 · Z2). server_url_desktop은 데스크톱판 기본 주소, server_url_web은 웹판 주소(반드시 wss://, 비어 있으면 웹판은 「온라인」 메뉴를 숨김). 시간은 초. limits는 서버 보안 상한(Z1).",
+	"version": 1,
+	"port": 8910,
+	"server_url_desktop": "ws://127.0.0.1:8910",
+	"server_url_web": "",
+	"ai_step": 0.45,
+	"human_idle": 150,
+	"day_wait": 60,
+	"drop_grace": 20,
+	"room_close_after": 120,
+	"limits": {
+		"max_peers": 256,
+		"max_rooms": 128,
+		"msg_per_sec": 30,
+		"inbound_bytes": 65536,
+		"hello_timeout": 10,
+		"bad_code_limit": 10,
+		"name_max": 12
+	}
+}

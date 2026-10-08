@@ -130,7 +130,7 @@ func _security(port: int, code: String) -> void:
 		await process_frame
 	ok(server._rooms.size() == rooms_before, "인사(hello) 없이는 방을 만들 수 없음")
 	# 3. 메시지 폭탄을 보내면 끊긴다
-	for k in NetServerV2.MSG_PER_SEC + 20:
+	for k in server.msg_per_sec + 20:
 		raw.send(var_to_bytes({"t": "ready", "on": true}))
 	var closed := false
 	for k in 300:
@@ -147,10 +147,10 @@ func _security(port: int, code: String) -> void:
 	guess.closed.connect(func(): guess_closed[0] = true)
 	guess.open("ws://127.0.0.1:%d" % port, "찍기")
 	await _until(func(): return guess.token != "")
-	for k in NetServerV2.BAD_CODE_LIMIT:
+	for k in server.bad_code_limit:
 		guess.send({"t": "join", "code": "ZZZZ%d" % k})
 	await _until(func(): return guess_closed[0], 600)
-	ok(guess_closed[0], "없는 방 코드를 %d번 틀리면 끊김" % NetServerV2.BAD_CODE_LIMIT)
+	ok(guess_closed[0], "없는 방 코드를 %d번 틀리면 끊김" % server.bad_code_limit)
 	# 5. 이름의 서식 문자 · 제어 문자는 걸러진다
 	var cleaned := NetServerV2.clean_name("[color=red]악당[/color]
 <b>")

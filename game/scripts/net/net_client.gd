@@ -11,7 +11,20 @@ signal game_updated(view: Dictionary, events: Array, info: Dictionary)
 signal server_error(msg: String)
 signal closed
 
-const DEFAULT_URL := "ws://127.0.0.1:8910"
+const DEFAULT_URL := "ws://127.0.0.1:8910"   # online.json이 없을 때
+
+
+static func default_url() -> String:
+	## 기본 서버 주소 (online.json): 웹판은 server_url_web(wss://), 데스크톱판은 server_url_desktop
+	var o: Dictionary = GameDataV2.load_default().online
+	if OS.has_feature("web"):
+		return str(o.get("server_url_web", ""))
+	return str(o.get("server_url_desktop", DEFAULT_URL))
+
+
+static func web_online_ready() -> bool:
+	## 웹판에서 온라인을 열 수 있는가: wss:// 주소가 있어야 한다 (https 페이지는 ws://에 못 붙음)
+	return default_url().begins_with("wss://")
 
 var url := DEFAULT_URL
 var player_name := "요원"

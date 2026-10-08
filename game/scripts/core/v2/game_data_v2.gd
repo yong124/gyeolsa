@@ -67,6 +67,7 @@ var scenes: Dictionary
 var endings: Dictionary
 var sagas: Dictionary
 var characters: Dictionary
+var online: Dictionary            # 온라인 방 설정 (online.json, 없으면 빈 사전 → 코드의 기본값)
 
 ## v1 GameData에서 읽기만 한 보드 정보
 var board := {}
@@ -109,6 +110,7 @@ func load_dir(dir: String) -> void:
 	endings = _read("endings.json")
 	sagas = _read("sagas.json")
 	characters = _read("characters.json")
+	online = _read_optional("online.json")
 	_load_board()
 	_missions = _index(missions.get("missions", []))
 	_ops = _index(missions.get("ops", []))
@@ -815,6 +817,13 @@ func _collect_todos(node, path: String) -> void:
 
 
 # ------------------------------------------------------------------ 유틸
+
+func _read_optional(file: String) -> Dictionary:
+	## 없어도 되는 파일 (없으면 빈 사전)
+	if not FileAccess.file_exists(_dir + file):
+		return {}
+	return _read(file)
+
 
 func _read(file: String) -> Dictionary:
 	var path := _dir + file

@@ -143,7 +143,7 @@ func _show_menu() -> void:
 	_menu_button("바로 시작", func(): _confirm_new(func(): quick_requested.emit()), "요원은 결사가 정합니다 · 한 판 60~90분", not saved)
 	_menu_button("요원 골라 시작", func(): _confirm_new(func(): v2_requested.emit()), "요원 카드 두 장 중 한 사람")
 	_menu_button("훈련 작전", func(): training_requested.emit(), "안내를 따라 한 판" + ("" if Prefs.v2_training_done else " · 처음이라면 추천"))
-	if not OS.has_feature("web"):   # 웹판은 1인 + AI만 (온라인은 wss 서버가 있어야 함)
+	if not OS.has_feature("web") or NetClientV2.web_online_ready():   # 웹판은 wss:// 서버 주소(online.json)가 있을 때만
 		_menu_button("온라인", func(): online_requested.emit(), "사람끼리 · 방을 만들거나 코드로 참가 · 빈자리는 AI")
 	_menu_button("규칙 요약", func():
 		var r := GameScreenV2.rules_panel(GameDataV2.load_default(), func(): _overlay.visible = false)

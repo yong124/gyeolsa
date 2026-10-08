@@ -24,6 +24,7 @@ func _ready() -> void:
 	if "server" in args:
 		# 온라인 서버 (헤드리스): Godot --headless --path game -- server [port=8910]
 		var srv := NetServerV2.new()
+		srv.port = int(GameDataV2.load_default().online.get("port", srv.port))
 		for a in args:
 			if a.begins_with("port="):
 				srv.port = int(a.substr(5))
