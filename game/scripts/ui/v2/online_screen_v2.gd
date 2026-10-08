@@ -38,6 +38,7 @@ func _ready() -> void:
 	panel.add_child(_box)
 	client.connected.connect(_show_choose)
 	client.failed.connect(func(msg): _show_connect(msg))
+	client.waking.connect(func(sec): _set_status("서버를 깨우는 중… 한동안 아무도 없었으면 1분쯤 걸립니다 (%d초)" % sec))
 	client.room_changed.connect(_show_room)
 	client.server_error.connect(func(msg): _set_status(msg, true))
 	client.closed.connect(func(): _show_connect("서버와 연결이 끊겼습니다."))

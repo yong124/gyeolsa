@@ -1,0 +1,12 @@
+# Render 블루프린트: 결사 온라인 서버 (무료 웹 서비스, 도커)
+# Render 대시보드 → New → Blueprint → 이 저장소를 고르면 아래 서비스가 만들어진다.
+services:
+  - type: web
+    name: gyeolsa-server
+    runtime: docker
+    plan: free
+    region: singapore
+    branch: v2
+    dockerfilePath: ./deploy/render/Dockerfile
+    dockerContext: .
+    autoDeploy: true

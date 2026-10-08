@@ -1,0 +1,11 @@
+# Render 서버 이미지에는 game/ 소스만 들어간다
+**/.godot/
+build/
+release/
+그림_원본/
+v2_구현/
+docs/
+assets/
+deploy/
+.git/
+.claude/

@@ -25,6 +25,8 @@ func _ready() -> void:
 		# 온라인 서버 (헤드리스): Godot --headless --path game -- server [port=8910]
 		var srv := NetServerV2.new()
 		srv.port = int(GameDataV2.load_default().online.get("port", srv.port))
+		if OS.get_environment("PORT").is_valid_int():   # 호스팅(Render 등)이 정해 주는 포트
+			srv.port = int(OS.get_environment("PORT"))
 		for a in args:
 			if a.begins_with("port="):
 				srv.port = int(a.substr(5))
