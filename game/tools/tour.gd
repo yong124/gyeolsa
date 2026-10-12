@@ -52,8 +52,6 @@ func _ready() -> void:
 		_measure()
 	elif "perf" in OS.get_cmdline_user_args():
 		_perf()
-	elif "trainclick" in OS.get_cmdline_user_args():
-		_trainclick()
 	elif "tutorial" in OS.get_cmdline_user_args():
 		_tutorial()
 	elif "firstrun" in OS.get_cmdline_user_args():
@@ -62,6 +60,12 @@ func _ready() -> void:
 		main._screen.offer_tutorial()
 		await _wait(1.5)
 		await _shot("firstrun_offer")
+		Prefs.v2_trainings = ["t1"]
+		main._screen._overlay.visible = false
+		main._screen._show_trainings()
+		await _wait(0.6)
+		await _shot("training_list")
+		Prefs.v2_trainings = []
 		get_tree().quit()
 	elif "endings" in OS.get_cmdline_user_args():
 		_endings()
@@ -718,7 +722,7 @@ func _q() -> void:
 	main._show_title()
 	await _wait(0.8)
 	await _shot("q_title")
-	main._training_v2()
+	main._quick_v2()
 	await _wait(1.2)
 	var screen: GameScreenV2 = main._screen
 	var game: RulesV2 = screen.game
@@ -848,7 +852,6 @@ func _v2f() -> void:
 	screen._paused = true
 	main._swap(screen)
 	await _wait(0.8)
-	screen._tips_seen = {"turn": true}
 	screen._board.note_scouted(Vector2i(5, 7))
 	game.players[0]["fx_cells"] = [Vector2i(6, 6)]
 	screen._refresh()
@@ -871,7 +874,7 @@ func _v2f() -> void:
 	await _shot("v2f_market_menu")
 	screen._actions.close_menu()
 	# 첫 판 안내
-	screen._tips_seen = {}
+	Prefs.v2_notes_seen = []
 	Prefs.v2_tips = true
 	screen._coach.tip_check()
 	screen._layout()
@@ -1013,128 +1016,314 @@ func _find_button(root: Node, text: String) -> Control:
 	return null
 
 
+var _tut_fail := 0
+
+
+func _tfail(msg: String) -> void:
+	_tut_fail += 1
+	print("[tutorial] FAIL ", msg)
+
+
 func _tutorial() -> void:
-	## 튜토리얼을 사람처럼 끝까지: 밝힌 곳만 누르고, 「다음」을 누른다. 레슨마다 한 장씩 찍는다
+	## 튜토리얼 훈련 클릭 투어: 훈련 4개를 사람처럼 끝까지 (밝힌 곳만 누르고 「다음」을 누른다).
+	## 옵션: tr=1..4 그 훈련만 · bad 훈련 2에서 2를 먼저 고르는 길 · skip 건너뛰기 · menu 중간에 메뉴로 나갔다가 다시 · notes 실전 쪽지
 	await _wait(0.5)
-	Prefs.speed = 3   # 동료 차례는 즉시 (투어를 빨리)
-	main._tutorial_v2()
+	Prefs.speed = 1 if "real" in OS.get_cmdline_user_args() else 3   # 동료 차례는 즉시 (투어를 빨리). real이면 보통 속도로 시간을 잼
+	Prefs.v2_training_done = false
+	Prefs.v2_trainings = []
+	var args := OS.get_cmdline_user_args()
+	if "skip" in args:
+		await _tut_skip()
+	elif "menu" in args:
+		await _tut_menu()
+	elif "notes" in args:
+		await _tut_notes()
+	elif "help" in args:
+		await _tut_help()
+	else:
+		var only := -1
+		for a in args:
+			if a.begins_with("tr="):
+				only = int(a.substr(3)) - 1
+		for idx in range(4):
+			if only >= 0 and idx != only:
+				continue
+			await _tut_one(idx, "bad" in args and idx == 1, only >= 0 or idx == 3)
+		if only < 0:
+			if Prefs.v2_trainings.size() != 4:
+				_tfail("훈련 4개를 모두 마치지 못함: %s" % str(Prefs.v2_trainings))
+		print("[tutorial] 마친 훈련: ", Prefs.v2_trainings)
+	print("[tutorial] ", "통과" if _tut_fail == 0 else "실패 %d건" % _tut_fail)
+	get_tree().quit(1 if _tut_fail > 0 else 0)
+
+
+func _tut_one(idx: int, bad: bool, last_stays: bool) -> void:
+	## 훈련 idx를 처음부터 끝까지. 끝나면 완료 화면에서 「다음 훈련」(마지막이면 「실전 시작」)을 누른다
+	main._tutorial_v2(idx)
 	await _wait(1.5)
 	var screen = main._screen
 	var tut: TutorialV2 = screen._tutor
+	var t0 := Time.get_ticks_msec()
 	var last := -1
 	var same := 0
+	var bad_done := not bad
 	var shots := {}
-	for n in 900:
+	var clicks := 0
+	var tag := "t%d" % (idx + 1)
+	if tut == null:
+		_tfail("%s: 훈련 화면이 아님" % tag)
+		return
+	for n in 1200:
 		await _wait(0.25)
+		if not is_instance_valid(screen) or screen != main._screen:
+			break   # 화면이 바뀜 (다음 훈련 · 실전 · 메뉴)
+		if tut._complete != null and is_instance_valid(tut._complete):
+			if not shots.has("done"):
+				shots["done"] = true
+				await _wait(0.3)
+				await _shot("%s_complete" % tag)
+				print("[tutorial] %s 완료 · 단계 %d · 누른 횟수 %d · 걸린 시간(투어) %.0f초 · 기다린 시간 %s" % [tag, tut.steps.size(), clicks, (Time.get_ticks_msec() - t0) / 1000.0, str(screen.wait_stats)])
+			var label := "다음 훈련" if idx < 3 else "실전 시작"
+			var btn := _find_button(tut._complete, label)
+			if btn == null:
+				_tfail("%s: 완료 화면에 「%s」 단추가 없음" % [tag, label])
+				return
+			await _click(btn.get_global_rect().get_center())
+			await _wait(1.0)
+			return
 		if not tut.active:
-			print("[tutorial] 끝 (단계 %d/%d)" % [tut.i, tut.steps.size()])
 			break
 		if tut.i != last:
 			last = tut.i
 			same = 0
-			var s := tut.step()
-			print("[tutorial] %d %s · %s · %s" % [tut.i, s.get("lesson", ""), s.get("do", ""), s.get("target", "")])
 		same += 1
-		if same > 120:
-			print("[tutorial] 멈춤: 단계 %d · phase %s · current %d · 짚는 곳 %s · 연출 %s · 선택 %s" % [tut.i, screen.game.phase, screen.game.current, str(tut.focus()), screen._playing, str(screen.game.pending.get("kind", ""))])
-			await _shot("tutorial_stuck")
-			break
+		if same > 160:
+			print("[tutorial] 멈춤: %s 단계 %d · phase %s · current %d · 짚는 곳 %s · 연출 %s · 선택 %s" % [tag, tut.i, screen.game.phase, screen.game.current, str(tut.focus()), screen._playing, str(screen.game.pending.get("kind", ""))])
+			await _shot("%s_stuck" % tag)
+			_tfail("%s: 단계 %d에서 멈춤" % [tag, tut.i])
+			return
 		var f: Array = tut.focus()
 		if f[1] == "":
 			continue
-		var li := int(tut.step().get("li", 0))
-		if not shots.has(li) and _started_ok(f):
-			shots[li] = true
+		var st := tut.step()
+		var key := "s%d" % int(st["si"])
+		if not shots.has(key) and (int(st["si"]) == 0 or str(f[4]) == "watch" and not shots.has("watch") or st.has("pick") or "all" in OS.get_cmdline_user_args()):
+			shots[key] = true
+			if str(f[4]) == "watch":
+				shots["watch"] = true
 			await _wait(0.3)
-			await _shot("tutorial_%d" % (li + 1))
-		if f[3] and "early" in OS.get_cmdline_user_args() and str(tut.step().get("target", "")) == "dock":
-			# 설명 단계에서 미리 「이동」 · 주사위를 눌러 본다 (막혀야 함)
-			var fb = screen._actions.focus.get("verbs", {}).get("move")
-			if fb != null:
-				await _click(fb.get_global_rect().get_center())
-				print("[tutorial] 미리 누름: 이동 · verb=%s" % screen._verb)
+			await _shot("%s_step%d_%s" % [tag, int(st["si"]) + 1, str(f[4])])
 		if f[3]:
-			var np: Vector2 = tut.spot._next.get_global_rect().get_center()
-			await _click(np)
-			if same == 30:
-				var hov = get_tree().root.gui_get_hovered_control()
-				print("[tutorial] 다음 단추 %s · 마우스 아래 %s (%s) · 말풍선 %s" % [str(np), str(hov), hov.get_path() if hov != null else "-", str(tut.spot._bubble.get_global_rect())])
+			await _click(tut.spot._next.get_global_rect().get_center())
+			clicks += 1
 			continue
-		if screen._choice.visible and not str(tut.step().get("target", "")).begins_with("choice:"):
+		if screen._choice.visible and not str(st.get("target", "")).begins_with("choice"):
 			var bs: Array = screen._choice.find_children("*", "Button", true, false)
 			if not bs.is_empty():
 				await _click((bs[0] as Control).get_global_rect().get_center())
+				clicks += 1
+				continue
+		if st.has("pick"):
+			# 고르기: 「작전 판정」 → 주사위. bad이면 나쁜 눈(2)을 먼저 눌러 되묻는지 본다
+			var pk: Dictionary = st["pick"]
+			if screen._verb == "":
+				await _click(f[0].get_center())
+				clicks += 1
+				continue
+			var good_i := -1
+			var bad_i := -1
+			for di in screen._actions.focus.get("dice", {}):
+				var dd: Dictionary = screen.game.op_dice[di]
+				if dd["used"] or int(dd["owner"]) != 0:
+					continue
+				if int(dd["value"]) == int(pk["good"]):
+					good_i = di
+				else:
+					bad_i = di
+			if not bad_done and bad_i >= 0:
+				var before: int = screen.game.actions.size()
+				await _click(screen._actions.focus["dice"][bad_i].get_global_rect().get_center())
+				clicks += 1
+				await _wait(0.4)
+				if screen.game.actions.size() != before:
+					_tfail("%s: 나쁜 눈을 눌렀는데 행동이 들어감" % tag)
+				if tut._bad_say == "":
+					_tfail("%s: 나쁜 눈을 눌러도 되묻지 않음" % tag)
+				else:
+					bad_done = true
+					await _shot("%s_pick_bad" % tag)
+				continue
+			if good_i >= 0:
+				await _click(screen._actions.focus["dice"][good_i].get_global_rect().get_center())
+				clicks += 1
+			continue
+		var tgt := str(st.get("target", ""))
+		if tgt.begins_with("act:") and tgt.split(":").size() == 2 and screen._verb != "":
+			# 행동을 골랐고 아무 주사위나 내면 되는 단계: 쓸 수 있는 주사위 하나를 누른다
+			var any_i := -1
+			for di in screen._actions.focus.get("dice", {}):
+				var d2: Dictionary = screen.game.op_dice[di]
+				if not d2["used"] and int(d2["owner"]) == 0:
+					any_i = di
+					break
+			if any_i >= 0:
+				await _click(screen._actions.focus["dice"][any_i].get_global_rect().get_center())
+				clicks += 1
 				continue
 		var r: Rect2 = f[0]
 		if r.size != Vector2.ZERO:
 			await _click(r.get_center())
-	get_tree().quit()
+			clicks += 1
+	_tfail("%s: 끝나지 않음" % tag)
 
 
-func _started_ok(f: Array) -> bool:
-	return f[1] != ""
-
-
-func _trainclick() -> void:
-	## 훈련 작전을 사람처럼 눌러 본다: 메뉴의 「훈련 작전」 → 도입부 건너뛰기 → 안내 「알겠습니다」 · 짚어 주는 곳만 누르기
-	await _wait(0.5)
-	Prefs.intro_seen = true
-	main._show_title()
-	await _wait(1.0)
-	var card := _find_button(main._screen, "훈련 작전")
-	print("[train] 훈련 카드: ", card != null)
-	await _click(card.get_global_rect().get_center())
+func _tut_skip() -> void:
+	## 건너뛰기: 훈련 1 어디서든 「훈련 건너뛰기」를 두 번 눌러 메뉴로 (훈련 ✔는 안 붙고, 더는 처음 켤 때 권하지 않음)
+	main._tutorial_v2(0)
 	await _wait(1.5)
-	await _shot("train_after_card")
-	var skip := _find_button(get_tree().root, "건너뛰기 ▸")
-	if skip != null:
-		await _click(skip.get_global_rect().get_center())
-	await _wait(2.0)
 	var screen = main._screen
-	print("[train] 화면: ", screen.get_class(), " 훈련=", screen is GameScreenV2 and screen._training)
-	if not (screen is GameScreenV2):
-		await _shot("train_stuck")
-		get_tree().quit()
-		return
-	var game: RulesV2 = screen.game
-	var last := ""
-	var same := 0
-	for step in 400:
-		await _wait(0.4)
-		var state := "%d일 %s %d 걸음%d 주사위%d" % [game.day, game.phase, game.current, game.steps_left, game.my_dice(0).size()]
-		same = same + 1 if state == last else 0
-		if state != last:
-			print("[train] ", state)
-		last = state
-		if same > 40:
-			print("[train] 멈춤: ", state, " · 짚는 곳 ", screen._coach.focus_now(), " · 안내 ", screen._tip.visible, " · 연출 ", screen._playing, " · AI ", screen._ai_waiting)
-			await _shot("train_stuck")
+	var tut: TutorialV2 = screen._tutor
+	var skip := tut.spot._skip
+	await _click(skip.get_global_rect().get_center())
+	await _wait(0.2)
+	await _click(skip.get_global_rect().get_center())
+	await _wait(1.0)
+	if main._screen is GameScreenV2:
+		_tfail("건너뛰기 뒤에도 게임 화면")
+	if not Prefs.v2_training_done:
+		_tfail("건너뛰었는데 v2_training_done이 꺼져 있음")
+	if Prefs.v2_trainings.has("t1"):
+		_tfail("건너뛰었는데 훈련 1에 ✔")
+	print("[tutorial] 건너뛰기 확인 · 화면 ", main._screen.get_class())
+
+
+func _tut_menu() -> void:
+	## 중간에 메뉴로 나갔다가 다시 시작: 이어하기 저장이 생기지 않고, 훈련 1이 처음 단계부터 다시 시작
+	SaveGameV2.erase()
+	main._tutorial_v2(0)
+	await _wait(1.5)
+	var screen = main._screen
+	var tut: TutorialV2 = screen._tutor
+	for n in 120:
+		await _wait(0.25)
+		if tut.i >= 4:
 			break
-		if game.phase == "over" or game.day >= 3:
-			print("[train] 진행 됨 (3일째까지)")
-			await _shot("train_ok")
+		var f: Array = tut.focus()
+		if f[1] == "":
+			continue
+		if f[3]:
+			await _click(tut.spot._next.get_global_rect().get_center())
+			continue
+		var r: Rect2 = f[0]
+		if r.size != Vector2.ZERO:
+			await _click(r.get_center())
+	print("[tutorial] 나가기 전 단계 ", tut.i)
+	screen._pause()
+	await _wait(0.4)
+	var leave := _find_button(screen._choice, "훈련 그만두고 메인 메뉴로")
+	if leave == null:
+		_tfail("일시정지 메뉴에 「훈련 그만두고 메인 메뉴로」가 없음")
+		return
+	await _click(leave.get_global_rect().get_center())
+	await _wait(1.0)
+	if main._screen is GameScreenV2:
+		_tfail("메뉴로 나갔는데 게임 화면")
+	if SaveGameV2.exists():
+		_tfail("훈련에서 나왔는데 이어하기 저장이 생김")
+	main._tutorial_v2(0)
+	await _wait(1.5)
+	var tut2: TutorialV2 = main._screen._tutor
+	if tut2.i != 0 or main._screen.game.day != 1:
+		_tfail("다시 시작했는데 처음 단계가 아님 (단계 %d)" % tut2.i)
+	print("[tutorial] 다시 시작 단계 ", tut2.i)
+
+
+func _tut_help() -> void:
+	## 도움말 창: 탭마다 한 장 (위쪽 「?」로 열고, 탭을 눌러 본다)
+	var data := GameDataV2.load_default()
+	var defs := []
+	for id in ["park", "jeong", "gaeddong", "oh"]:
+		defs.append({"name": "나" if defs.is_empty() else str(data.character(id).get("name", "")), "character": id})
+	var game := RulesV2.new()
+	game.setup(defs, 20450815, data)
+	var screen := GameScreenV2.new(game, 0, {})
+	main._swap(screen)
+	await _wait(1.0)
+	var q := _find_button(screen._top, "?")
+	if q == null:
+		_tfail("위쪽 띠에 「?」 단추가 없음")
+		return
+	await _click(q.get_global_rect().get_center())
+	await _wait(0.5)
+	if not screen._paused or not screen._choice.visible:
+		_tfail("「?」를 눌러도 도움말 창이 안 열림")
+		return
+	await _shot("help_first")
+	for tab in ["미션", "타일", "판정", "경찰 · 노출", "결행 · 2막"]:
+		var b := _find_button(screen._choice, tab)
+		if b == null:
+			_tfail("도움말 탭 「%s」가 없음" % tab)
+			continue
+		await _click(b.get_global_rect().get_center())
+		await _wait(0.3)
+		await _shot("help_" + tab.replace(" · ", "_"))
+	var cl := _find_button(screen._choice, "닫기")
+	await _click(cl.get_global_rect().get_center())
+	await _wait(0.4)
+	if screen._paused:
+		_tfail("닫기를 눌러도 판이 멈춰 있음")
+
+
+func _tut_notes() -> void:
+	## 실전 첫 판 쪽지: 새 판을 AI로 돌리며 쪽지가 처음에만, 판을 멈추지 않고 뜨는지
+	Prefs.v2_tips = true
+	Prefs.v2_notes_seen = []
+	var data := GameDataV2.load_default()
+	var defs := []
+	for id in ["park", "jeong", "gaeddong", "oh"]:
+		defs.append({"name": "나" if defs.is_empty() else str(data.character(id).get("name", "")), "character": id})
+	var game := RulesV2.new()
+	game.setup(defs, 20450815, data)
+	var screen := GameScreenV2.new(game, 0, {})
+	main._swap(screen)
+	await _wait(1.0)
+	var shown := {}
+	var shot_taken := false
+	var steps := 0
+	for n in 1500:
+		await _wait(0.2)
+		if game.phase == "over":
 			break
 		if screen._tip.visible:
-			var ok := _find_button(screen._tip, "알겠습니다")
-			if ok != null:
-				await _click(ok.get_global_rect().get_center())
-				continue
-		if screen._choice != null and screen._choice.visible:
-			var bs: Array = screen._choice.find_children("*", "Button", true, false)
-			if not bs.is_empty():
-				await _click((bs[0] as Control).get_global_rect().get_center())
-				continue
-		var f: Array = screen._coach.focus_now()
-		var r: Rect2 = f[0]
-		if r.size == Vector2.ZERO:
-			continue
-		if game.phase == "turn" and game.steps_left > 0:
-			var cells: Array = game.reach_cells(game.players[0], game.steps_left).keys()
-			if not cells.is_empty():
-				await _click(screen._cell_screen(cells[0]))
-			continue
-		await _click(r.get_center())
-	get_tree().quit()
+			var key: String = screen._coach._cur
+			if key != "" and not shown.has(key):
+				shown[key] = 1
+				if not shot_taken:
+					shot_taken = true
+					await _shot("note_%s" % key)
+			elif key != "" and shown.has(key):
+				shown[key] += 1
+			if shown.size() >= 3 and n > 200:
+				break
+		if screen.is_idle() and screen._ai_actor() < 0:
+			var a := GameAIV2.decide(game, 0)
+			if not a.is_empty():
+				screen.act_now(a)
+				steps += 1
+	print("[tutorial] 쪽지: ", shown, " · 사람 행동 ", steps, " · 본 쪽지 ", Prefs.v2_notes_seen)
+	if shown.is_empty():
+		_tfail("쪽지가 하나도 뜨지 않음")
+	for k in shown:
+		if int(Prefs.v2_notes_seen.count(k)) != 1:
+			_tfail("쪽지 %s가 한 번이 아님" % k)
+	if steps < 3:
+		_tfail("쪽지가 떠 있는 동안 판이 멈춤 (사람 행동 %d)" % steps)
+	# 도움말 창
+	screen._show_rules("police")
+	await _wait(0.4)
+	await _shot("help_police")
+	screen._choice.visible = false
+	screen._paused = false
 
 
 func _perf() -> void:

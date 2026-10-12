@@ -35,6 +35,7 @@ func _init() -> void:
 	_run_e_tests()
 	_run_c_tests()
 	_run_d_tests()
+	_run_t_tests()
 	_test_c_coverage()
 	_test_q_save_file()
 	print("v2 규칙 시험: 통과 %d, 실패 %d" % [passed, failed])
@@ -5485,6 +5486,28 @@ func _test_c_coverage() -> void:
 
 
 # ================================================================== D단계: 군자금
+
+func _run_t_tests() -> void:
+	## T2: 튜토리얼이 쓰는 「정해 둔 굴림」은 평소에는 늘 비어 있고, 저장 · 되살리기에 들어가지 않는다
+	var g := _new(CH)
+	ok(g.rigged_rolls.is_empty(), "정해 둔 굴림: 새 판에서는 비어 있음")
+	g.rigged_rolls = [3, 4]
+	ok(g._roll_die() == 3 and g._roll_die() == 4 and g.rigged_rolls.is_empty(), "정해 둔 굴림: 앞에서부터 하나씩 꺼내 씀")
+	var r := g._roll_die()
+	ok(r >= 1 and r <= 6, "정해 둔 굴림: 다 쓰면 다시 무작위")
+	g.rigged_rolls = [2, 5]
+	ok(g._d2(2) == 7 and g.last_roll == [2, 5], "정해 둔 굴림: 판정 주사위 2개도 정한 눈으로")
+	g.rigged_rolls = [6]
+	var st := g.save_state()
+	ok(not st.has("rigged_rolls"), "정해 둔 굴림: 저장 상태에 들어가지 않음")
+	var g2 := RulesV2.new()
+	g2.load_state(st, _fixed_data())
+	ok(g2.rigged_rolls.is_empty(), "정해 둔 굴림: 되살린 판에서는 비어 있음")
+	var g3 := _new(CH, null, 77)
+	var g4 := _new(CH, null, 77)
+	g4.rigged_rolls = []
+	ok(g3._roll_die() == g4._roll_die(), "정해 둔 굴림: 비어 있으면 같은 시드가 같은 눈 (결정적)")
+
 
 func _run_d_tests() -> void:
 	_test_d_gain_lose()

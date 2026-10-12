@@ -59,6 +59,7 @@ var leader := 0
 var day := 1
 var rounds_total := 10
 var rounds_left := 10
+var rigged_rolls: Array = []   # 튜토리얼 전용: 앞에서부터 꺼내 쓰는 정해 둔 주사위 눈 (SAVE_FIELDS에 없음 · 저장 · 시험 판에서는 늘 비어 있음)
 var act := 1
 var phase := "morning"
 var current := -1
@@ -1511,6 +1512,8 @@ func _fill_mission_row() -> void:
 
 
 func _roll_die() -> int:
+	if not rigged_rolls.is_empty():
+		return int(rigged_rolls.pop_front())   # 튜토리얼이 정해 둔 굴림 (저장하지 않음, 평소엔 비어 있음)
 	return rng.randi_range(1, int(data.rules["die_sides"]))
 
 

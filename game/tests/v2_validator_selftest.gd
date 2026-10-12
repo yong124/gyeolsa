@@ -182,6 +182,40 @@ func _init() -> void:
 		and "work_reduce" in GameDataV2.KNOWN_STATS and not "sabotage_bonus" in GameDataV2.KNOWN_STATS, "새 op(police_back·threat_peek_bonus·event_card)와 stat(work_reduce·work_exposure)이 등록돼 있고 방해 stat은 없다")
 	_check("assassin_adjacent" in GameDataV2.KNOWN_STATS and "die" in GameDataV2.KNOWN_COSTS, "새 어휘(assassin_adjacent, cost die)가 등록돼 있다")
 
+	# T2 튜토리얼 · 도움말: 말풍선 60자, 「다음」만 누르는 단계 3개, 목록 금지, 쪽지 규칙
+	var tu1 := GameDataV2.new()
+	tu1.load_dir("res://data/v2/")
+	tu1.tutorial["trainings"][0]["steps"][1]["say"] = "이 말풍선은 일부러 아주 길게 늘려서 쓴 글이라 예순 글자를 훌쩍 넘기고 말아요. 그래서 검증기가 잡아야 해요. 정말로요."
+	tu1.tutorial["trainings"][0]["steps"][2]["say"] = "이동 · 판정 · 바치기를 한꺼번에 늘어놓으면 안 돼요."
+	var eu1 := tu1.validate()
+	_check(_has(eu1, "자 (60자 이하여야 함)") and _has(eu1, "목록 · 괄호 설명은 쓰지 않습니다"), "말풍선이 60자를 넘거나 목록이면 잡는다")
+	var tu2 := GameDataV2.new()
+	tu2.load_dir("res://data/v2/")
+	for s in tu2.tutorial["trainings"][1]["steps"]:
+		if s["do"] != "complete":
+			s["do"] = "next"
+	tu2.tutorial["trainings"][2]["learned"] = ["하나뿐"]
+	tu2.tutorial["trainings"][3]["steps"][0]["when"] = {"weather": "rain"}
+	tu2.tutorial["trainings"][0]["steps"][4]["pick"] = {"good": 5}
+	var eu2 := tu2.validate()
+	_check(_has(eu2, "「다음」만 누르는 단계가") and _has(eu2, "learned(배운 것)는 3줄") and _has(eu2, "모르는 when 조건 weather") and _has(eu2, "pick에는 good과 bad_say"), "「다음」 4개 이상 · 배운 것이 3줄 아님 · 모르는 when · pick 누락을 잡는다")
+	var tu3 := GameDataV2.new()
+	tu3.load_dir("res://data/v2/")
+	tu3.tutorial["trainings"][0]["steps"].pop_back()
+	tu3.tutorial["trainings"][1]["steps"][0]["setup"][0] = {"op": "no_such_setup"}
+	tu3.tutorial["trainings"][2]["steps"][5]["ally"] = {"who": 1}
+	var eu3 := tu3.validate()
+	_check(_has(eu3, "complete 단계가 정확히 하나") and _has(eu3, "모르는 setup op no_such_setup") and _has(eu3, "ally에는 who와 do"), "complete 누락 · 모르는 setup op · ally 누락을 잡는다")
+	var hp1 := GameDataV2.new()
+	hp1.load_dir("res://data/v2/")
+	hp1.help["notes"][0]["text"] = "쪽지가 너무 길면 안 돼요. 한 번에 한 가지만 짧게 알려 주는 것이 쪽지의 약속이라서, 예순 글자를 넘기면 검증기가 막아요. 정말이에요."
+	hp1.help["notes"][1]["tab"] = "no_such_tab"
+	hp1.help["notes"][2]["text"] = "군자금은 {no.such.path}예요."
+	var ehp := hp1.validate()
+	_check(_has(ehp, "help.notes.first_morning: 쪽지") and _has(ehp, "자세히가 여는 탭 no_such_tab") and _has(ehp, "{경로}가 rules.json에 없습니다"), "쪽지가 60자를 넘거나 없는 탭 · 없는 {경로}를 잡는다")
+	_check(real.help_text("뇌물 {checkpoint.bribe}") == "뇌물 2" and real.help_text("노출 {exposure.max}") == "노출 9", "도움말 글 속 {경로}가 rules.json 값(정수)으로 바뀐다")
+	_check(real.tutorial["trainings"].size() == 4 and real.help["notes"].size() == 15, "훈련 4개 · 쪽지 15개")
+
 	print("v2 검증기 자체 시험: %s" % ("통과" if _fail == 0 else "%d건 실패" % _fail))
 	quit(1 if _fail > 0 else 0)
 
