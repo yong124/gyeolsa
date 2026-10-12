@@ -51,7 +51,7 @@ func write_waits() -> void:
 	var out := scr.wait_stats.duplicate()
 	out.erase("_ai_steps")
 	var rec := {"time": Time.get_datetime_string_from_system(), "days": scr.game.day, "ending": str(scr.game.ending.get("id", "")),
-		"training": scr._training, "online": scr._remote != null, "cine": Prefs.v2_cine, "speed": Prefs.speed, "seconds": out}
+		"training": scr._tutor != null, "online": scr._remote != null, "cine": Prefs.v2_cine, "speed": Prefs.speed, "seconds": out}
 	DirAccess.make_dir_recursive_absolute("user://playtests")
 	var f := FileAccess.open("user://playtests/v2_waits_%d.json" % int(Time.get_unix_time_from_system()), FileAccess.WRITE)
 	if f != null:
@@ -116,8 +116,6 @@ func play_event(e: Dictionary) -> void:
 				else:
 					await scr._fx.banner("투옥 · " + scr.game.base_name(scr.game.data.bases.find(jp["pos"])) + " 감옥", "bad", m)
 		"mission_done":
-			if int(e.get("player", -1)) == scr.human:
-				scr._coach.task_done("mission")
 			Sfx.play("score")
 			var mc: Control = scr._mission_cards.get(str(e["id"]), null)
 			if mc != null and is_instance_valid(mc):

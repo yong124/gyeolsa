@@ -3,6 +3,7 @@ extends PanelContainer
 ## v2 상단 바 (v1 TopBar 모양): 막 · 날짜 달력 · 남은 날 · 오늘의 일제 위협(다음 위협) · 결행 준비 칸 / 첩보 토큰 · 노출·경계 · 메뉴
 
 signal menu_pressed
+signal help_pressed
 
 var game: RulesV2
 var _act_lbl: Label
@@ -121,12 +122,16 @@ func _ready() -> void:
 	_alert_lbl = UiKit.text("", 13, Style.INK_2, false, 700)
 	h.add_child(_alert_lbl)
 
+	var help := UiKit.button("?", func(): help_pressed.emit(), 18, "paper")
+	help.custom_minimum_size = Vector2(40, 40)
+	help.tooltip_text = "도움말 (행동 · 미션 · 타일 · 판정 · 경찰 · 결행)"
+	h.add_child(help)
 	var menu := UiKit.button("", func(): menu_pressed.emit(), 14, "paper")
 	menu.icon = UiKit.ui_icon("menu")
 	menu.expand_icon = true
 	menu.custom_minimum_size = Vector2(44, 40)
 	menu.add_theme_constant_override("icon_max_width", 22)
-	menu.tooltip_text = "일시정지 · 속도 · 규칙 요약 (ESC)"
+	menu.tooltip_text = "일시정지 · 속도 · 도움말 (ESC)"
 	h.add_child(menu)
 	refresh()
 

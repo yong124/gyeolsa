@@ -9,6 +9,7 @@ extends Control
 
 signal back_to_title
 signal finished
+signal tutorial_exit(result: String)   # 훈련에서 나감: skip · menu · next · real
 
 const GAP := 8.0
 const AI_DELAY := 0.28
@@ -32,9 +33,6 @@ var _ai_first := true             # 낮의 순서: AI 동료가 먼저 하고 �
 var _auto := false                # 자동 진행 (내 자리도 AI가 둠, 화면 확인·캡처용)
 var _cur_cat := "anim"            # U4: 지금 재생 중인 연출의 종류 (기다림 측정)
 var wait_stats := {}              # U4: 한 판 동안 종류별로 흐른 시간(초) {"내 입력", "AI 생각", "컷신", "배너", "말 움직임", "안내"}
-var _training := false            # 훈련 작전 (안내 단계, 저장하지 않음)
-var _task_box: VBoxContainer
-var _was_chased := false
 var _remote: NetClientV2 = null   # 온라인: 판정은 서버가, 이 화면은 서버가 보낸 보기만 그린다
 var _remote_queue: Array = []     # 연출 중에 온 서버 보기 (차례로 반영)
 var _remote_info := {}            # 서버가 덧붙인 정보 (아침에 기다리는 자리, AI가 맡은 자리)
@@ -72,10 +70,8 @@ var _pv_labels: Array = []        # U1 선택 미리보기 띠: [갈 곳, 얻는
 var _pv_box: HBoxContainer
 var _roster_open := false         # U1: 동료 상세를 펼쳤는가 (기본은 접힌 한 줄)
 var _roster_btn: Button
-var _tip: PanelContainer          # 첫 판 안내 말풍선
+var _tip: PanelContainer          # 실전 첫 판 쪽지 (처음 나올 때 한 번, 7초 뒤나 누르면 사라짐)
 var _tip_lbl: Label
-var _tip_key := ""
-var _tips_seen := {}
 var _ticker: LogTickerV2
 var _fx: FxLayer
 var _cine: CinemaV2              # 컷신 · 화면 효과 (V 연출)
@@ -104,7 +100,6 @@ func _init(g: RulesV2, human_id := 0, meta_info := {}) -> void:
 	game.human = human_id   # 결행 혜택은 사람이 고른다
 	meta = meta_info
 	_auto = bool(meta.get("autoplay", false))
-	_training = bool(meta.get("training", false))
 	_remote = meta.get("remote", null)
 	if _remote != null:
 		_remote.game_updated.connect(_on_remote_update)
@@ -117,9 +112,9 @@ func _init(g: RulesV2, human_id := 0, meta_info := {}) -> void:
 	_coach = ScreenCoachV2.new(self)
 	_playback = ScreenPlaybackV2.new(self)
 	if bool(meta.get("tutorial", false)):
-		_tutor = TutorialV2.new(self)
-		_ai_first = false   # 튜토리얼: 내가 먼저 (동료가 차례를 마치면 주사위를 건넬 수 없음)
-		_tutor.finished.connect(func(_skipped): back_to_title.emit())
+		_tutor = TutorialV2.new(self, int(meta.get("training_index", 0)))
+		_ai_first = false   # 훈련: 내가 먼저 (동료가 차례를 마치면 주사위를 건넬 수 없음)
+		_tutor.finished.connect(func(result): tutorial_exit.emit(result))
 
 
 func _ready() -> void:
@@ -172,6 +167,7 @@ func _build() -> void:
 
 	_top = TopBarV2.new(game)
 	_top.menu_pressed.connect(_pause)
+	_top.help_pressed.connect(func(): _show_rules())
 	add_child(_top)
 
 	_frame = PanelContainer.new()
@@ -302,10 +298,6 @@ func _build() -> void:
 	_coach.build_tip()
 	if _tutor != null:
 		_tutor.build()
-	if _training:
-		_coach.build_focus()
-	if _training:
-		_coach.build_tasks()
 
 
 func _panel(title: String, hint: String, parent: Container) -> Array:
@@ -369,13 +361,9 @@ func _layout() -> void:
 	var br := _board_rect()
 	side = br.size.x
 	# 줄바꿈하는 글은 폭이 정해져야 높이가 정해진다 (안 정하면 한 글자 폭으로 재서 화면만큼 길어짐)
-	_tip.custom_minimum_size = Vector2(RAIL_W, 0)   # 안내는 오른쪽 레일 아래 빈자리에 (보드를 가리지 않게)
-	if _training:
-		_tip_lbl.custom_minimum_size = Vector2(RAIL_W - 32, 0)
+	_tip.custom_minimum_size = Vector2(RAIL_W, 0)   # 쪽지는 오른쪽 레일 아래 빈자리에 (보드를 가리지 않게)
 	_tip.reset_size()
 	_coach.place_tip()
-	if _task_box != null:
-		_coach.place_tasks.call_deferred()
 	_fx.focus_center = br.get_center()
 	_fx.board_rect = br
 	if _tilt != null:
@@ -887,6 +875,8 @@ func _fit_right() -> void:
 
 func _press(a: Dictionary) -> void:
 	## 단추·단축키로 누른 행동. 주사위가 남았는데 차례를 마치려면 한 번 확인한다.
+	if _tutor != null and _tutor.intercept(a):
+		return   # 훈련의 고르기: 나쁜 눈이면 이유만 알려 주고 다시 고르게
 	if a["type"] == "end_turn" and game.phase == "turn" and game.current == human and not game.players[human]["jailed"] and not game.my_dice(human).is_empty():
 		var box := VBoxContainer.new()
 		box.add_theme_constant_override("separation", 10)
@@ -942,13 +932,6 @@ func _refresh() -> void:
 	if _tutor != null:
 		_tutor.update()   # 레슨: 단계 시작 조건이 맞으면 판을 정하고, 한 일이면 다음 단계로
 	_refresh_me()
-	if _training:
-		var chased := game.police.has(human)
-		if _was_chased and not chased and not game.players[human]["jailed"]:
-			_coach.task_done("police")   # 따돌렸거나 동료가 미끼로 떼어 냄
-		_was_chased = chased
-		_coach.training_force_chase()
-		_was_chased = game.police.has(human)
 	_atmos.set_state(game.phase, game.act, game.threat_today)
 	_cine.heartbeat(game.act == 2 and game.phase != "over" and not game.scenes.is_empty() and game.scene_index == game.scenes.size() - 1)
 	_top.refresh()
@@ -987,11 +970,6 @@ func _act(a: Dictionary) -> void:
 	if game.apply(a):
 		if _tutor != null:
 			_tutor.on_action(a)
-		if int(a["player"]) == human:
-			match str(a["type"]):
-				"move_die": _coach.task_done("move")
-				"mission_check", "work_give": _coach.task_done("mission")
-				"hide", "decoy": _coach.task_done("police")
 		_pump()
 	else:
 		push_warning("받아들여지지 않은 액션: %s" % str(a))
@@ -1001,6 +979,9 @@ func _pump() -> void:
 	for e in game.events:
 		if e["kind"] == "reveal":
 			_board.hidden_tiles[e["pos"]] = true
+		if _tutor != null:
+			_tutor.on_event(e)
+		_coach.on_event(e)
 		_queue.append(e)
 	game.events.clear()
 	if not _playing:
@@ -1047,7 +1028,7 @@ func _apply_remote(view: Dictionary, events: Array) -> void:
 
 func _save_now() -> void:
 	## 이어하기 저장: 훈련·자동 진행 판과 끝난 판은 저장하지 않는다. 연출 중에는 엔진이 입력을 기다리는 상태가 아닐 수 있어 건너뛴다
-	if _training or _auto or _remote != null or game.phase == "over" or _playing:
+	if _tutor != null or _auto or _remote != null or game.phase == "over" or _playing:
 		return
 	SaveGameV2.write(game, meta)
 
@@ -1058,9 +1039,6 @@ func _after_queue() -> void:
 		_apply_remote(nx[0], nx[1])
 		return
 	if game.phase == "over":
-		if Prefs.v2_tips and not _tips_seen.is_empty():
-			Prefs.v2_tips = false   # 안내는 첫 판에 한해
-			Prefs.save()
 		if _ended:
 			return
 		_ended = true   # 끝 연출은 한 번만
@@ -1117,6 +1095,8 @@ func _ai_actor() -> int:
 	## 지금 AI가 둘 차례면 그 요원 id, 사람이 둘 차례면 -1
 	if game.phase == "over" or _remote != null:
 		return -1   # 온라인: 다른 자리는 서버(사람 · AI)가 둔다
+	if _tutor != null and _tutor.holds():
+		return -1   # 훈련의 보기 단계: 말풍선을 읽는 동안 동료도 가만히
 	if _auto:
 		return GameAIV2.next_actor(game)
 	match game.phase:
@@ -1127,7 +1107,7 @@ func _ai_actor() -> int:
 			return -1 if game.current == human else game.current
 		"plan":
 			if _tutor != null and _tutor.active:
-				return -1   # 튜토리얼: 아침에 동료는 능력 · 아이템을 쓰지 않는다
+				return -1   # 훈련: 아침에 동료는 능력 · 아이템을 쓰지 않는다
 			for p in game.players:
 				if p["id"] == human:
 					continue
@@ -1214,10 +1194,8 @@ func _on_cell(c: Vector2i) -> void:
 
 
 func _input(event: InputEvent) -> void:
-	## 훈련: 누를 곳이 아닌 클릭을 한 번 막는다 (GUI보다 먼저 받음)
-	if _training and _coach.guard_click(event):
-		get_viewport().set_input_as_handled()
-	elif _tutor != null and _tutor.block(event):
+	## 훈련: 밝힌 곳 밖의 클릭을 막는다 (GUI보다 먼저 받음)
+	if _tutor != null and _tutor.block(event):
 		get_viewport().set_input_as_handled()
 
 
@@ -1291,7 +1269,7 @@ func _pause() -> void:
 	fast.toggled.connect(func(on): _fast = on)
 	box.add_child(fast)
 	var tips := CheckButton.new()
-	tips.text = "첫 판 안내 말풍선"
+	tips.text = "첫 판 쪽지 (처음 나올 때 한 번)"
 	tips.button_pressed = Prefs.v2_tips
 	tips.add_theme_color_override("font_color", Style.INK)
 	tips.toggled.connect(func(on):
@@ -1300,10 +1278,10 @@ func _pause() -> void:
 		if not on:
 			_tip.visible = false)
 	box.add_child(tips)
-	box.add_child(UiKit.button("규칙 요약", func():
+	box.add_child(UiKit.button("도움말", func():
 		_paused = false
 		_show_rules(), 17, "paper"))
-	box.add_child(UiKit.button("방 나가기 (자리는 AI가 맡음)" if _remote != null else ("훈련 그만두고 메인 메뉴로" if _training else "저장하고 메인 메뉴로"), func():
+	box.add_child(UiKit.button("방 나가기 (자리는 AI가 맡음)" if _remote != null else ("훈련 그만두고 메인 메뉴로" if _tutor != null else "저장하고 메인 메뉴로"), func():
 		_choice.visible = false
 		if _remote != null:
 			_remote.close()
@@ -1312,39 +1290,19 @@ func _pause() -> void:
 	_choice.show_with(panel)
 
 
-func _show_rules() -> void:
+func _show_rules(tab := "") -> void:
 	if _paused:
 		return
 	_paused = true
 	_choice.show_with(rules_panel(game.data, func():
 		_paused = false
 		_choice.visible = false
-		_after_queue()))
+		_after_queue(), tab))
 
 
-static func rules_panel(data: GameDataV2, close: Callable) -> Control:
-	## 규칙 요약 창 (게임 안 일시 정지 메뉴와 타이틀이 함께 쓴다)
-	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 8)
-	var panel := UiKit.paper_panel(24)
-	panel.custom_minimum_size = Vector2(720, 0)
-	panel.add_child(box)
-	box.add_child(UiKit.title("규칙 요약", Style.FS_H3))
-	var lines := [
-		"하루: 아침에 위협 카드 → (1막 짝수 날) 일제 작전 → (1막) 표적 이동·기한 → 결행 투표 → 공개 미션 줄 채우기 → 요원마다 작전 주사위 굴리기 → 낮 → 밤. 남은 주사위는 밤에 사라집니다.",
-		"미션은 보드 위 마커로 이뤄집니다: 암살(표적 칸에서 판정, 표적은 매일 움직임) · 잠입(거점에 들어감) · 폭파(폭탄을 들고 마커 칸에) · 공작(마커 칸에서 주사위 바치기) · 연락(받기 → 주기) · 잠복(마커 곁에서 쫓기지 않고 차례를 마침) · 협동. 일제 작전은 기한 안에 막지 못하면 벌칙이 있고, 일제 동향이 높을수록 벌칙이 커집니다.",
-		"낮: 요원마다 한 차례씩, 순서는 자유입니다 (한 번에 한 요원). 주사위 1개 = 행동 1개: 이동 · 작전 판정 · 바치기 · 건네기 · 미끼 · 숨기 · 정찰 · 장터. 아이템 1장과 능력 1번은 공짜. 원하면 언제든 「차례 마치기」.",
-		"요원끼리는 같은 칸에 설 수 있고, 경찰이 있는 칸에는 못 들어갑니다. 같은 칸의 효과는 한 차례에 한 번만 받습니다. 거리는 깔린 길을 따라 걷는 칸 수입니다. 경찰은 쫓기는 요원이 차례를 마칠 때 다가옵니다 (숨기를 하면 안 옴).",
-		"1막: 공개 미션을 이뤄 결행 준비를 %d까지 올리면 아침에 결행 투표가 열립니다. 남은 날이 %d일이 되면 강제로 결행합니다." % [int(data.rules["launch_min"]), int(data.rules["forced_launch_days_left"])],
-		"2막: 결행할 때 첩보가 %d 이상인 거점 중에서 대상을 투표로 고르고, 결행 혜택 하나를 받습니다. 장면을 하나씩 돌파하고 마지막 장면을 돌파하면 대성공입니다. 첩보는 토큰이 되어 판정 +1 또는 주사위 조건 −2로 씁니다." % int(data.rules["launch"]["target_min_intel"]),
-		"군자금: 팀이 함께 쓰는 돈 (시작 2, 최대 10). 장터(아이템 2 · 폭탄 3), 검문소 뇌물 2, 간수 매수 2, 정보원 1, 무기 조달 2, 장면 매수에 씁니다. 부호의 헌금 · 독립 공채 같은 미션과 이벤트로 얻고, 가택 수색 · 자금 동결 · 노출 9에서 잃습니다. 남으면 후일담에 한 줄 붙습니다.",
-		"개인 사연: 비밀입니다. 이루면 즉시 보상을 받습니다.",
-		"투옥: 노출이 오르고, 들고 있던 아이템 1장을 무작위로 압수당합니다 (폭탄은 그대로). 동료가 그 거점에 들어오면 구출됩니다.",
-	]
-	for l in lines:
-		box.add_child(UiKit.text("· " + l, 15))
-	box.add_child(UiKit.button("닫기", close, 17, "paper"))
-	return panel
+static func rules_panel(data: GameDataV2, close: Callable, tab := "") -> Control:
+	## 도움말 창 (위쪽 띠의 「?」 · 일시 정지 메뉴 · 타이틀이 함께 쓴다). 내용은 data/v2/help.json (HelpV2)
+	return HelpV2.panel(data, close, tab)
 
 
 # ================================================================ 시험용 조회

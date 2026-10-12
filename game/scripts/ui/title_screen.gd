@@ -10,7 +10,7 @@ signal intro_requested
 signal v2_requested            # v2 요원 골라 시작
 signal quick_requested         # v2 바로 시작
 signal continue_v2_requested
-signal training_requested      # v2 훈련 작전
+signal training_requested(index: int)   # v2 튜토리얼 훈련 (0부터)
 signal online_requested        # v2 온라인 (방 · 코드)
 
 const DIFFICULTY := [{"name": "쉬움", "days": 1}, {"name": "보통", "days": 0}, {"name": "어려움", "days": -1}]
@@ -193,7 +193,7 @@ func _show_menu() -> void:
 		row.add_child(_card("새 작전", "", ArtV2.get_tex("cut", "opening_3"), quick))
 	else:
 		row.add_child(_card("요원 골라 시작", "", ArtV2.get_tex("cut", "opening_3"), func(): _confirm_new(func(): v2_requested.emit())))
-	row.add_child(_card("튜토리얼", "", ArtV2.get_tex("mission", "work"), func(): training_requested.emit(), not Prefs.v2_training_done))
+	row.add_child(_card("튜토리얼", "", ArtV2.get_tex("mission", "work"), func(): _show_trainings(), not Prefs.v2_training_done))
 	if not OS.has_feature("web") or NetClientV2.web_online_ready():   # 웹판은 wss:// 서버 주소(online.json)가 있을 때만
 		row.add_child(_card("온라인", "", ArtV2.get_tex("cut", "opening_4"), func(): online_requested.emit()))
 	var links := HFlowContainer.new()
@@ -203,7 +203,7 @@ func _show_menu() -> void:
 	var items := []
 	if saved:
 		items.append(["요원 골라 시작", func(): _confirm_new(func(): v2_requested.emit())])
-	items.append(["규칙 요약", func():
+	items.append(["도움말", func():
 		var r := GameScreenV2.rules_panel(GameDataV2.load_default(), func(): _overlay.visible = false)
 		_overlay.show_with(r)])
 	items.append(["설정", _show_settings])
@@ -335,19 +335,46 @@ func offer_tutorial() -> void:
 	hv.alignment = BoxContainer.ALIGNMENT_CENTER
 	head.add_child(hv)
 	hv.add_child(UiKit.title("처음이신가요?", 28, Style.INK, 900))
-	hv.add_child(UiKit.text("튜토리얼 · 약 15분", 15, Style.INK_3, false, 700))
+	hv.add_child(UiKit.text("짧은 훈련 4개 · 하나에 2~3분", 15, Style.INK_3, false, 700))
 	box.add_child(UiKit.hsep())
-	var t := UiKit.text("결사가 어떤 게임인지부터, 주사위 · 이동 · 미션 · 경찰 · 협력 · 결행까지
-정해진 상황에서 하나씩 직접 해 보며 배웁니다.", 16, Style.INK_2)
+	var t := UiKit.text("먼저 해 보고, 한 줄로 알려 드려요.
+첫 훈련 하나만 해 봐도 바로 실전을 할 수 있어요.", 16, Style.INK_2)
 	box.add_child(t)
-	var go := UiKit.button("튜토리얼 시작", func():
+	var go := UiKit.button("훈련 1 시작", func():
 		_overlay.visible = false
-		training_requested.emit(), 22, "primary")
+		training_requested.emit(0), 22, "primary")
 	go.custom_minimum_size = Vector2(0, 56)
 	box.add_child(go)
 	var later := UiKit.button("나중에 하기", func(): _overlay.visible = false, 13, "tab")
 	later.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	box.add_child(later)
+	_overlay.show_with(panel)
+
+
+func _show_trainings() -> void:
+	## 튜토리얼 카드: 훈련 4개 (마친 것은 ✓). 하나 골라 새 판에서 시작한다
+	var data := GameDataV2.load_default()
+	var list: Array = data.tutorial.get("trainings", [])
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 12)
+	var panel := UiKit.paper_panel(26)
+	panel.custom_minimum_size = Vector2(900, 0)
+	panel.add_child(box)
+	box.add_child(UiKit.title("튜토리얼", Style.FS_H3))
+	box.add_child(UiKit.text("훈련 하나는 2~3분이에요. 훈련 1만 하고 바로 실전으로 가도 돼요.", 15, Style.INK_2))
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	box.add_child(row)
+	var art := ["work", "assassin", "coop", "infiltrate"]
+	for i in list.size():
+		var tr: Dictionary = list[i]
+		var done: bool = Prefs.v2_trainings.has(str(tr.get("id", "")))
+		var idx := i
+		var title := "%s훈련 %d · %s" % ["✓ " if done else "", i + 1, tr.get("title", "")]
+		row.add_child(_card(title, str(tr.get("goal", "")), ArtV2.get_tex("mission", art[i % art.size()]), func():
+			_overlay.visible = false
+			training_requested.emit(idx), not done and (i == 0 or Prefs.v2_trainings.has(str(list[i - 1].get("id", ""))))))
+	box.add_child(UiKit.button("닫기", func(): _overlay.visible = false, 16, "paper"))
 	_overlay.show_with(panel)
 
 

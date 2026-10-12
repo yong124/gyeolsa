@@ -7,13 +7,11 @@ signal replay
 
 var game: RulesV2
 var human := 0
-var training := false
 
 
-func _init(g: RulesV2, human_id := 0, is_training := false) -> void:
+func _init(g: RulesV2, human_id := 0) -> void:
 	game = g
 	human = human_id
-	training = is_training
 
 
 func _ready() -> void:
@@ -58,8 +56,6 @@ func _ready() -> void:
 		var why := UiKit.text(line, 17, Style.INK_2, false, 700)
 		why.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		v.add_child(why)
-	if training:
-		v.add_child(UiKit.text("훈련 작전을 마쳤습니다. 이제 진짜 작전입니다. 「바로 시작」을 누르면 요원과 판이 새로 정해집니다.", 16, Style.SEAL_DARK, false, 700))
 	v.add_child(_summary(e, won))
 	v.add_child(UiKit.text(str(e.get("text", "")), Style.FS_LEAD, Style.INK))
 	v.add_child(UiKit.hsep())
@@ -97,7 +93,7 @@ func _ready() -> void:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 12)
 	v.add_child(row)
-	row.add_child(UiKit.button("바로 시작" if training else "다시 하기", func(): replay.emit(), 18, "primary"))
+	row.add_child(UiKit.button("다시 하기", func(): replay.emit(), 18, "primary"))
 	row.add_child(UiKit.button("메인 메뉴", func(): to_menu.emit(), 18, "paper"))
 	v.add_child(UiKit.hsep())
 	v.add_child(UiKit.title("작전 일지", Style.FS_H3))

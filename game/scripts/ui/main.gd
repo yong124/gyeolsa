@@ -232,10 +232,6 @@ func _survey_then(game: GameRules, meta: Dictionary, next: Callable) -> void:
 
 # ================================================================ v2 (지금 규칙)
 
-const TRAINING_SEED := 19450815
-const TRAINING_CHARS := ["park", "jeong", "gaeddong", "oh"]   # 훈련 작전: 나는 박 하사, 판은 늘 같다
-
-
 func _show_v2_setup() -> void:
 	var setup := SetupScreenV2.new()
 	setup.back_requested.connect(_show_title)
@@ -250,22 +246,10 @@ func _quick_v2() -> void:
 	_start_v2(SetupScreenV2.make_defs("", rng), rng.randi())
 
 
-func _tutorial_v2() -> void:
-	## 튜토리얼 레슨 (data/v2/tutorial.json): 정해진 판에서 하나씩 해 본다
-	var game := TutorialV2.new_game(GameDataV2.load_default())
-	_open_v2(game, {"tutorial": true})
-
-
-func _training_v2() -> void:
-	var data := GameDataV2.load_default()
-	var defs := []
-	for i in TRAINING_CHARS.size():
-		var id: String = TRAINING_CHARS[i]
-		defs.append({"name": "나" if i == 0 else str(data.character(id).get("name", "")), "character": id})
-	var game := RulesV2.new()
-	game.setup(defs, TRAINING_SEED)
-	_open_v2(game, {"defs": defs, "training": true, "opening": not _opening_seen})
-	_opening_seen = true
+func _tutorial_v2(index := 0) -> void:
+	## 튜토리얼 훈련 (data/v2/tutorial.json): 훈련마다 새 판에서 먼저 해 보고 한 줄로 배운다
+	var game := TutorialV2.new_game(GameDataV2.load_default(), index)
+	_open_v2(game, {"tutorial": true, "training_index": index})
 
 
 func _start_v2(defs: Array, seed_value: int) -> void:
@@ -303,15 +287,19 @@ func _show_online() -> void:
 func _open_v2(game: RulesV2, meta: Dictionary) -> void:
 	var screen := GameScreenV2.new(game, int(meta.get("seat", 0)), meta)
 	screen.back_to_title.connect(_show_title)
+	screen.tutorial_exit.connect(func(result: String):
+		var idx := int(meta.get("training_index", 0))
+		if result == "next":
+			_tutorial_v2(idx + 1)
+		elif result == "real":
+			_quick_v2()
+		else:
+			_show_title())
 	screen.finished.connect(func():
-		var training: bool = meta.get("training", false)
 		var online: bool = meta.has("remote")
-		if training:
-			Prefs.v2_training_done = true
-			Prefs.save()
-		elif not online:
+		if not online:
 			SaveGameV2.erase()
-		var e := EndingScreenV2.new(game, int(meta.get("seat", 0)), training)
+		var e := EndingScreenV2.new(game, int(meta.get("seat", 0)))
 		e.to_menu.connect(func():
 			if online:
 				_net.close()
