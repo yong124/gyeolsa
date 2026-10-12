@@ -334,11 +334,11 @@ func offer_tutorial() -> void:
 	var hv := VBoxContainer.new()
 	hv.alignment = BoxContainer.ALIGNMENT_CENTER
 	head.add_child(hv)
-	hv.add_child(UiKit.title("처음이신가요?", 28, Style.INK, 900))
+	hv.add_child(UiKit.title("처음이라면 훈련부터", 28, Style.INK, 900))
 	hv.add_child(UiKit.text("짧은 훈련 4개 · 하나에 2~3분", 15, Style.INK_3, false, 700))
 	box.add_child(UiKit.hsep())
-	var t := UiKit.text("먼저 해 보고, 한 줄로 알려 드려요.
-첫 훈련 하나만 해 봐도 바로 실전을 할 수 있어요.", 16, Style.INK_2)
+	var t := UiKit.text("먼저 해 보고, 한 줄로 알려 드립니다.
+훈련 1만 해 봐도 바로 실전을 할 수 있습니다.", 16, Style.INK_2)
 	box.add_child(t)
 	var go := UiKit.button("훈련 1 시작", func():
 		_overlay.visible = false
@@ -361,7 +361,7 @@ func _show_trainings() -> void:
 	panel.custom_minimum_size = Vector2(900, 0)
 	panel.add_child(box)
 	box.add_child(UiKit.title("튜토리얼", Style.FS_H3))
-	box.add_child(UiKit.text("훈련 하나는 2~3분이에요. 훈련 1만 하고 바로 실전으로 가도 돼요.", 15, Style.INK_2))
+	box.add_child(UiKit.text("훈련 하나는 2~3분입니다. 훈련 1만 하고 바로 실전으로 가도 됩니다.", 15, Style.INK_2))
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
 	box.add_child(row)

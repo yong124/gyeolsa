@@ -24,6 +24,8 @@ var _evs := {}                    # 지금 단계 동안 나온 엔진 이벤트
 var _evs_prev := {}               # 앞 단계 동안 나온 이벤트 (앞 단계의 행동이 일으킨 일을 보기 단계가 알아보게)
 var _bad_say := ""                # 고르기에서 나쁜 눈을 눌렀을 때의 되묻는 말
 var _complete: Control = null     # 완료 화면
+var _ally_moved := false          # 동료 시범 이동: 이 단계에서 이동 주사위를 냈는가
+var _hud_done := false            # 위쪽 띠의 보일 칸을 정했는가
 var spot: Spotlight
 var active := true
 
@@ -75,6 +77,9 @@ func update() -> void:
 	## 화면이 갱신될 때마다: 단계 시작 조건이 맞으면 판을 정하고, 해 놓은 일이면 다음 단계로
 	if not active or _complete != null:
 		return
+	if not _hud_done:
+		_hud_done = true
+		_apply_hud()
 	var guard := 0
 	while active and i < steps.size() and guard < 8:
 		guard += 1
@@ -102,6 +107,7 @@ func _next() -> void:
 	i += 1
 	_did = false
 	_bad_say = ""
+	_ally_moved = false
 	_evs_prev = _evs
 	_evs = {}
 
@@ -147,7 +153,7 @@ func intercept(a: Dictionary) -> bool:
 func press_next() -> void:
 	## 말풍선의 「다음」
 	var s := step()
-	if str(s.get("do", "")) in ["next", "watch"] and _started_step == i:
+	if str(s.get("do", "")) in ["next", "watch", "briefing"] and _started_step == i:
 		_did = true
 		update()
 		scr._refresh()
@@ -205,6 +211,8 @@ func _when_ok(s: Dictionary) -> bool:
 	if w.has("police") and bool(w["police"]) != g.police.has(scr.human):
 		return false
 	if w.has("event") and not (_evs.has(str(w["event"])) or _evs_prev.has(str(w["event"]))):
+		return false
+	if w.has("done") and not bool(g.players[int(w["done"])]["done_today"]):
 		return false
 	return true
 
@@ -410,6 +418,24 @@ func _setup(ops: Array) -> void:
 				for v in o.get("values", []):
 					if st.has("left"):
 						st["left"].erase(int(v))
+			"tile_deck":
+				# 걸어 들어갈 때 뒤집힐 타일: ids 앞부터 차례로 (덱 맨 위는 배열의 끝)
+				var td: Array = o.get("ids", []).duplicate()
+				td.reverse()
+				for t in td:
+					g.tile_deck.append(str(t))
+			"item_deck":
+				# 다음에 뽑힐 아이템: ids 앞부터 차례로
+				var idk: Array = o.get("ids", []).duplicate()
+				idk.reverse()
+				for t in idk:
+					g.item_deck.erase(str(t))
+					g.item_deck.append(str(t))
+			"hand":
+				# 손패에 아이템을 넣어 둔다 (앞 훈련에서 얻은 것처럼)
+				for t in o.get("ids", []):
+					g.item_deck.erase(str(t))
+					g.players[_who(o.get("who", "me"))]["items"].append(str(t))
 			"no_ops":
 				g.op_deck = []   # 짝수 날 아침에도 일제 작전이 나오지 않게
 				g.op_discard = []
@@ -444,7 +470,11 @@ func ally_action(pid: int) -> Dictionary:
 	var s := step()
 	if not s.is_empty() and s.has("ally"):
 		var al: Dictionary = s["ally"]
-		if int(al.get("who", -1)) == pid and g.phase == "turn" and g.current == pid:
+		if int(al.get("who", -1)) == pid and g.phase == "turn" and g.current == pid and str(al.get("do", "")) == "move":
+			var mv := _ally_move(pid, al)
+			if not mv.is_empty():
+				return mv
+		elif int(al.get("who", -1)) == pid and g.phase == "turn" and g.current == pid:
 			for a in g.legal_actions():
 				if int(a.get("player", -1)) != pid or str(a["type"]) != str(al.get("do", "")):
 					continue
@@ -469,6 +499,58 @@ func ally_action(pid: int) -> Dictionary:
 	return {}
 
 
+func _ally_move(pid: int, al: Dictionary) -> Dictionary:
+	## 동료 시범 이동: 정한 눈의 주사위로 이동하고, path의 칸을 차례로 걷고, 다 걸으면 이동을 마친다. 끝났으면 빈 사전
+	var g := scr.game
+	var acts := g.legal_actions().filter(func(a): return int(a.get("player", -1)) == pid)
+	if g.steps_left == 0 and not _ally_moved:
+		for a in acts:
+			if str(a["type"]) == "move_die" and g.die_value(int(a["die"])) == int(al.get("die", -1)):
+				_ally_moved = true
+				return a
+		return {}
+	if g.steps_left > 0:
+		var path: Array = al.get("path", [])
+		var pos: Vector2i = g.players[pid]["pos"]
+		var k := 0
+		for pi in path.size():
+			if Vector2i(int(path[pi][0]), int(path[pi][1])) == pos:
+				k = pi + 1
+		if k < path.size():
+			var want := Vector2i(int(path[k][0]), int(path[k][1]))
+			for a in acts:
+				if str(a["type"]) == "step" and a["to"] == want:
+					return a
+		for a in acts:
+			if str(a["type"]) == "end_move":
+				return a
+	return {}
+
+
+# ---------------------------------------------------------------- 보일 것 (단계적 공개)
+
+func verb_shown(key: String) -> bool:
+	## 이 훈련에서 행동 단추를 보이는가 (show.verbs가 없으면 전부)
+	var sh: Dictionary = training.get("show", {})
+	if not active or not sh.has("verbs"):
+		return true
+	return key in sh["verbs"]
+
+
+func _apply_hud() -> void:
+	## 위쪽 띠: show.hud에 없는 칸은 흐리게 (자리는 그대로 두어 화면이 흔들리지 않게)
+	var sh: Dictionary = training.get("show", {})
+	if not sh.has("hud"):
+		return
+	var hud: Array = sh["hud"]
+	var top = scr._top
+	var parts := {"calendar": top._cal, "ready": top._gauge, "threat": top._threat, "alert": top._alert, "funds": top._funds, "trend": top._trend_box}
+	for k in parts:
+		var c = parts[k]
+		if c is CanvasItem and is_instance_valid(c):
+			(c as CanvasItem).modulate.a = 1.0 if k in hud else 0.18
+
+
 # ---------------------------------------------------------------- 밝힐 곳
 
 func focus() -> Array:
@@ -484,9 +566,11 @@ func focus() -> Array:
 	if _started_step != i:
 		# 아직 이 단계의 때가 아님: 사람의 선택 창이 떠 있으면 그것만 밝힌다
 		if g.phase == "choice" and int(g.pending.get("player", -1)) == scr.human and scr._choice.visible:
-			return [_choice_rect(), head, "하나를 고르세요.", false, "do"]
+			return [_choice_rect(), head, "창에서 하나를 고릅니다.", false, "do"]
 		return none
 	var d := str(s.get("do", ""))
+	if d == "briefing":
+		return [Rect2(), head, _briefing_text(s), not _did, "briefing"] if not _did else none
 	if d != "next" and d != "watch" and _did:
 		return none
 	if d == "watch" and _did:
@@ -494,10 +578,48 @@ func focus() -> Array:
 	var t := str(s.get("target", ""))
 	if scr._choice != null and scr._choice.visible and not t.begins_with("choice"):
 		# 확인 · 선택 창이 떠 있으면 그 창을 밝힌다 (예: 주사위가 남았는데 차례 마치기)
-		return [_choice_rect(), head, "창에서 「그래도 마친다」를 고르세요.", false, "do"]
+		return [_choice_rect(), head, "창에서 「그래도 마친다」를 고릅니다." if d == "end_turn" else "창에서 하나를 고릅니다.", false, "do"]
 	var r := _target_rect(t)
 	var say := _bad_say if _bad_say != "" else str(s.get("say", ""))
 	return [r, head, say, d == "next" or d == "watch", "next" if d == "next" else ("watch" if d == "watch" else "do")]
+
+
+func _next_cell(goal: Vector2i) -> Vector2i:
+	## 걷는 중: 목표로 가는 다음 옆 칸 (덮인 칸은 한 칸씩 눌러 들어가므로 한 칸만 밝힌다)
+	var g := scr.game
+	var pos: Vector2i = g.players[scr.human]["pos"]
+	if g.steps_left <= 0 or pos == goal:
+		return goal
+	var best := goal
+	var bd := 1 << 20
+	for a in g.legal_actions():
+		if str(a["type"]) == "step" and int(a.get("player", -1)) == scr.human:
+			var to: Vector2i = a["to"]
+			var d := absi(to.x - goal.x) + absi(to.y - goal.y)
+			if d < bd:
+				bd = d
+				best = to
+	return best
+
+
+func action_shown(a: Dictionary) -> bool:
+	## 이 훈련에서 보일 보조 행동인가: 아이템 · 능력은 show.extras에 있을 때만 (show가 없으면 전부)
+	var sh: Dictionary = training.get("show", {})
+	if not active or sh.is_empty():
+		return true
+	if str(a.get("type", "")) in ["use_item", "ability", "give_item", "use_intel", "decoy"]:
+		return str(a["type"]) in sh.get("extras", [])
+	return true
+
+
+func _briefing_text(s: Dictionary) -> String:
+	## 작전 브리핑 카드: 제목과 번호 붙은 짧은 줄 (말풍선 자리에 크게)
+	var out := "[font_size=26][b]%s[/b][/font_size]\n" % str(s.get("title", "작전 브리핑"))
+	var marks := ["①", "②", "③", "④"]
+	var lines: Array = s.get("lines", [])
+	for li in lines.size():
+		out += "\n%s %s" % [marks[mini(li, 3)], str(lines[li])]
+	return out
 
 
 func _ok(c) -> bool:
@@ -535,7 +657,11 @@ func _target_rect(t: String) -> Rect2:
 		return vb2.get_global_rect() if _ok(vb2) else Rect2()
 	if t.begins_with("cell:"):
 		var xy := t.substr(5).split(",")
-		return _cell_rect(Vector2i(int(xy[0]), int(xy[1])))
+		var goal := Vector2i(int(xy[0]), int(xy[1]))
+		var st := step()
+		if str(st.get("do", "")) == "reach" and _started_step == i:
+			return _cell_rect(_next_cell(goal))
+		return _cell_rect(goal)
 	if t == "me":
 		return _cell_rect(g.players[scr.human]["pos"])
 	if t == "police":
@@ -557,8 +683,12 @@ func _target_rect(t: String) -> Rect2:
 	if t == "me_card":
 		var mc: Control = scr._me_box.get_parent() if scr._me_box.get_parent() is Control else scr._me_box
 		return mc.get_global_rect()
+	if t == "ability" or t.begins_with("item:"):
+		var fb = f.get(t)
+		return fb.get_global_rect() if _ok(fb) else Rect2()
 	var node = {"dock": scr._right, "top": scr._top, "dice": scr._dice_row, "threat": scr._top._threat, "missions": scr._mid_box, "ops": scr._ops_row,
-		"hand": scr._hand_row, "allies": scr._left, "ready": scr._top._gauge}.get(t)
+		"hand": scr._hand_row, "allies": scr._left, "ready": scr._top._gauge, "alert": scr._top._alert, "calendar": scr._top._cal,
+		"funds": scr._top._funds, "trend": scr._top._trend_box}.get(t)
 	return node.get_global_rect() if _ok(node) else Rect2()
 
 
@@ -660,7 +790,7 @@ class Spotlight extends Control:
 		var finger := Finger.new()
 		finger.custom_minimum_size = Vector2(22, 22)
 		_tag.add_child(finger)
-		_tag.add_child(UiKit.text("해 보세요", 14, Style.SEAL, false, 800))
+		_tag.add_child(UiKit.text("직접 해 봅니다", 14, Style.SEAL, false, 800))
 		v.add_child(_tag)
 		_skip = UiKit.button("훈련 건너뛰기", func(): _ask_skip(), 12, "tab")
 		_skip.z_index = 41
@@ -670,10 +800,10 @@ class Spotlight extends Control:
 		return (_bubble.visible and _bubble.get_global_rect().has_point(p)) or _skip.get_global_rect().has_point(p)
 
 	func _ask_skip() -> void:
-		if _skip.text == "정말 건너뛸까요? 한 번 더 누르면 메뉴로":
+		if _skip.text == "정말 건너뛸까요? 한 번 더 누르면 메뉴로 갑니다":
 			tut.skip()
 			return
-		_skip.text = "정말 건너뛸까요? 한 번 더 누르면 메뉴로"
+		_skip.text = "정말 건너뛸까요? 한 번 더 누르면 메뉴로 갑니다"
 
 	static func markup(s: String) -> String:
 		return s.replace("[b]", "[b][color=#a83a2c]").replace("[/b]", "[/color][/b]")
@@ -691,7 +821,13 @@ class Spotlight extends Control:
 		if on and is_instance_valid(tut.scr._peek):
 			tut.scr._peek.visible = false   # 훈련 중에는 큰 카드가 말풍선 · 밝힌 곳을 가리지 않게
 		if on:
-			var key := str(f[1]) + str(f[2])
+			_next.text = "작전 시작 ▶" if _mode == "briefing" else "다음 ▶"
+			var bw := 600.0 if _mode == "briefing" else TutorialV2.BUBBLE_W
+			if _bubble.custom_minimum_size.x != bw:
+				_key = ""   # 폭이 바뀌면 글 높이를 다시 잰다
+			_bubble.custom_minimum_size.x = bw
+			_say.custom_minimum_size.x = _bubble.custom_minimum_size.x - 32.0
+			var key := str(f[1]) + str(f[2]) + str(f[4])
 			if key != _key:
 				_key = key
 				_head.text = f[1]
@@ -699,6 +835,7 @@ class Spotlight extends Control:
 				_bubble.reset_size()
 			_next.visible = f[3]
 			_tag.visible = _mode == "do"
+			_bubble.reset_size()   # 글 높이가 한 프레임 늦게 정해지므로 늘 글에 맞춘다 (남는 빈 공간 없게)
 			var pk := _key + str(_avoid) + str(_bubble.size)
 			if pk != _placed_for:
 				_placed_for = pk

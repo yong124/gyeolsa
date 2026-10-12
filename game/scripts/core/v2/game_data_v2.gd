@@ -288,15 +288,16 @@ func _validate_board(errs: Array[String]) -> void:
 				errs.append("board.tile_art.%s: 그림 assets/tiles/%s.png이 없습니다." % [t, a[k]])
 
 
-const TUTORIAL_DO := ["next", "watch", "complete", "reach", "start_day", "begin_turn", "move_die", "end_move", "work_give", "mission_check",
-	"hide", "give_die", "decoy", "scene_pay", "scene_check", "end_turn", "choose"]
+const TUTORIAL_DO := ["next", "watch", "complete", "briefing", "reach", "start_day", "begin_turn", "move_die", "end_move", "work_give", "mission_check",
+	"hide", "give_die", "decoy", "scene_pay", "scene_check", "end_turn", "choose", "use_item", "ability"]
 const TUTORIAL_TARGETS := ["", "primary", "end_turn", "me", "police", "dice", "threat", "missions", "ops", "hand", "allies", "ready",
-	"board", "dock", "top", "me_card", "choice"]
+	"board", "dock", "top", "me_card", "choice", "alert", "calendar", "funds", "trend", "ability"]
 const TUTORIAL_OPS := ["calm", "threats", "today_threat", "funds", "dice", "pos", "tiles", "tile_type", "missions", "marker", "police_on_me", "police_set",
-	"ready", "intel", "day", "rig", "work_paid", "no_ops", "morning"]
-const TUTORIAL_WHEN := ["phase", "day", "act", "me", "choice", "police", "event"]
+	"ready", "intel", "day", "rig", "work_paid", "no_ops", "morning", "tile_deck", "item_deck", "hand"]
+const TUTORIAL_WHEN := ["phase", "day", "act", "me", "choice", "police", "event", "done"]
+const TUTORIAL_HUD := ["calendar", "ready", "threat", "alert", "funds", "trend"]
 const SAY_MAX := 60            # 말풍선 · 쪽지 한 개의 글자 수 상한 (공백 포함)
-const NEXT_ONLY_MAX := 3       # 훈련 하나에서 「다음」만 누르는 단계 상한
+const NEXT_ONLY_MAX := 3       # 훈련 하나에서 「다음」만 누르는 단계 상한 (훈련의 max_next로 바꿀 수 있음, 4까지)
 
 
 static func say_length(text: String) -> int:
@@ -312,6 +313,8 @@ static func say_problem(text: String) -> String:
 		return "목록 · 괄호 설명은 쓰지 않습니다"
 	if text.contains(char(10)):
 		return "줄바꿈 없이 한 문장 흐름으로 씁니다"
+	if not text.strip_edges().ends_with("니다."):
+		return "「~습니다.」로 맺습니다 (해요체 · 「~다」체는 쓰지 않음)"
 	return ""
 
 
@@ -337,6 +340,19 @@ func _validate_tutorial(errs: Array[String]) -> void:
 		var learned: Array = l.get("learned", [])
 		if learned.size() != 3:
 			errs.append(who + ": learned(배운 것)는 3줄이어야 합니다.")
+		var sh: Dictionary = l.get("show", {})
+		for v in sh.get("verbs", []):
+			if not verbs.has(str(v)):
+				errs.append(who + ": show.verbs의 %s가 ui.json verbs에 없습니다." % v)
+		for v in sh.get("hud", []):
+			if not str(v) in TUTORIAL_HUD:
+				errs.append(who + ": show.hud의 %s를 모릅니다." % v)
+		if not str(l.get("order", "me")) in ["me", "ai"]:
+			errs.append(who + ": order는 me 또는 ai입니다.")
+		for c in l.get("characters", []):
+			if character(str(c)).is_empty():
+				errs.append(who + ": 요원 %s가 없습니다." % c)
+		var next_max := mini(int(l.get("max_next", NEXT_ONLY_MAX)), 4)
 		var next_only := 0
 		var completes := 0
 		var steps: Array = l.get("steps", [])
@@ -347,11 +363,18 @@ func _validate_tutorial(errs: Array[String]) -> void:
 				errs.append(who + ": 모르는 do %s" % d)
 			if d == "next":
 				next_only += 1
+			if d == "briefing":
+				var bl: Array = s.get("lines", [])
+				if bl.size() != 3 or str(s.get("title", "")) == "":
+					errs.append(who + ": briefing에는 title과 lines 3줄이 있어야 합니다.")
+				for b in bl:
+					if say_problem(str(b)) != "":
+						errs.append(who + ": 브리핑 줄 %s — 「%s」" % [say_problem(str(b)), b])
 			if d == "complete":
 				completes += 1
 				if si != steps.size() - 1:
 					errs.append(who + ": complete는 마지막 단계여야 합니다.")
-			else:
+			elif d != "briefing":
 				var say := str(s.get("say", ""))
 				if say.strip_edges() == "":
 					errs.append(who + ": say가 비었습니다 (단계 %d)." % (si + 1))
@@ -359,7 +382,7 @@ func _validate_tutorial(errs: Array[String]) -> void:
 					errs.append(who + ": 단계 %d 말풍선 %s — 「%s」" % [si + 1, say_problem(say), say])
 			var t := str(s.get("target", ""))
 			var head := t.split(":")[0]
-			if not t in TUTORIAL_TARGETS and not head in ["act", "verb", "cell", "choice", "mission"]:
+			if not t in TUTORIAL_TARGETS and not head in ["act", "verb", "cell", "choice", "mission", "item"]:
 				errs.append(who + ": 모르는 target %s" % t)
 			if head in ["act", "verb"] and not verbs.has(t.split(":")[1] if t.split(":").size() > 1 else ""):
 				errs.append(who + ": 행동 단추 %s가 ui.json verbs에 없습니다." % t)
@@ -374,6 +397,8 @@ func _validate_tutorial(errs: Array[String]) -> void:
 				var al: Dictionary = s["ally"]
 				if not al.has("who") or not al.has("do"):
 					errs.append(who + ": ally에는 who와 do가 있어야 합니다.")
+				elif str(al["do"]) == "move" and (not al.has("die") or (al.get("path", []) as Array).is_empty()):
+					errs.append(who + ": ally move에는 die와 path가 있어야 합니다.")
 			if s.has("pick"):
 				var pk: Dictionary = s["pick"]
 				if not pk.has("good") or str(pk.get("bad_say", "")) == "":
@@ -394,8 +419,8 @@ func _validate_tutorial(errs: Array[String]) -> void:
 								errs.append(who + ": 위협 %s가 없습니다." % id)
 		if completes != 1:
 			errs.append(who + ": complete 단계가 정확히 하나 있어야 합니다.")
-		if next_only > NEXT_ONLY_MAX:
-			errs.append(who + ": 「다음」만 누르는 단계가 %d개입니다 (%d개까지)." % [next_only, NEXT_ONLY_MAX])
+		if next_only > next_max:
+			errs.append(who + ": 「다음」만 누르는 단계가 %d개입니다 (%d개까지)." % [next_only, next_max])
 	if (tutorial.get("trainings", []) as Array).is_empty():
 		errs.append("tutorial.trainings가 비었습니다.")
 

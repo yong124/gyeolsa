@@ -1,178 +1,994 @@
 {
-	"_comment": "튜토리얼 (지시서 T2): 짧은 훈련 4개. 훈련마다 새 판에서 시작하고(시드 · 요원), 먼저 해 보게 한 뒤 한 줄로 풀어 준다. 말풍선(say)은 두 줄 · 공백 포함 60자 이하 · 해요체 · 목록 금지, [b]낱말[/b]은 강조색. 「다음」만 누르는 단계(do next)는 훈련마다 3개까지. 단계(step): say = 말풍선, target = 밝힐 곳, do = 해야 할 일, when = 이 상태가 되면 시작, setup = 시작할 때 판 바꾸기(when이 맞은 뒤), setup_first = 이 단계가 되자마자 판 바꾸기(when을 기다리지 않음). do: next(「다음」 단추) · watch(보기: 연출이 끝나고 when이 맞으면 말풍선과 「다음」) · complete(완료 화면) · 엔진 행동 종류(start_day, begin_turn, move_die, end_move, work_give, mission_check, hide, give_die, scene_pay, end_turn, choose) · reach(칸에 닿음, cell). when: phase · day · act · me · choice · police(내가 쫓기는 중) · event(앞 단계 뒤 엔진 이벤트 종류: dice, mission_done, scene_break …). ally: {who, do, die} 이 단계에서 동료가 먼저 낼 대본 행동. pick: {good, bad_say} 쓸 주사위를 고르게 하고, 나쁜 눈을 누르면 행동을 넣지 않고 bad_say로 알려 준 뒤 다시 고르게 한다. target: primary · end_turn · act:행동:눈(행동 단추 → 그 눈의 주사위) · verb:행동 · cell:x,y · me · police · dice · threat · missions · mission:카드 id · ops · hand · allies · ready · board · dock · top · me_card · choice · choice:값 · 빈 문자열. setup op: threats · today_threat · funds · calm · dice(values, who, exact) · pos · tiles · tile_type · missions · marker · police_on_me · police_set · ready · intel · day · rig(values: 다음 굴림을 정해 둠) · work_paid(id, values) · no_ops · morning(day: 그날 아침으로 가서 결행 투표를 연다).",
-	"version": 3,
+	"_comment": "튜토리얼 (지시서 T3): 짧은 훈련 4개. 근거는 v2_구현/조사_튜토리얼_설계.md. 훈련마다 새 판(시드 · characters)에서 시작한다. 먼저 보여 주고(동료 시범 · watch) 해 보게 한 뒤 한 줄로 짚는다. 말풍선(say)은 공백 포함 60자 이하 · 「~다.」로 맺음 · 목록 · 괄호 금지, [b]낱말[/b]은 강조색. 「다음」만 누르는 단계(do next)는 훈련마다 max_next(기본 3, 4까지). 훈련: id · title · goal · learned(3줄) · order(me 내가 먼저 · ai 동료 먼저) · characters(없으면 위의 characters) · show{verbs: 보일 행동 단추, hud: 또렷이 보일 위쪽 칸 calendar · ready · threat · alert · funds · trend}(없으면 전부). 단계: say · target · do · when · setup · setup_first. do: briefing(작전 브리핑 카드: title · lines 3줄) · next · watch · complete · reach(cell) · 엔진 행동 종류(start_day, begin_turn, move_die, end_move, work_give, mission_check, hide, give_die, scene_pay, end_turn, choose, use_item, ability). when: phase · day · act · me · choice · police · event · done(그 요원이 오늘 차례를 마침). ally: {who, do, die} 또는 {who, do: move, die, path} 동료 대본. pick: {good, bad_say}. target: primary · end_turn · act:행동:눈 · verb:행동 · cell:x,y · me · police · dice · threat · missions · mission:id · ops · hand · allies · ready · alert · calendar · funds · trend · ability · item:아이템 id · board · dock · top · me_card · choice · choice:값. setup op: threats · today_threat · funds · calm · dice(values, who, exact) · pos · tiles · tile_type · missions · marker · police_on_me · police_set · ready · intel · day · rig · work_paid · no_ops · morning · tile_deck(ids: 뒤집힐 타일 차례) · item_deck(ids: 뽑힐 아이템 차례) · hand(ids: 손패에 넣기).",
+	"version": 4,
 	"seed": 20450815,
-	"characters": ["park", "jeong", "gaeddong", "oh"],
+	"characters": [
+		"park",
+		"jeong",
+		"gaeddong",
+		"oh"
+	],
 	"trainings": [
 		{
 			"id": "t1",
-			"title": "첫 하루",
-			"goal": "미션 하나 이루기",
-			"learned": ["주사위 하나 = 행동 하나", "이동은 주사위 눈만큼 걷기", "미션을 이루면 결행 준비가 올라요"],
+			"title": "첫 걸음",
+			"goal": "덮인 지도를 걸어 미션 하나를 이룬다",
+			"order": "ai",
+			"max_next": 4,
+			"show": {
+				"verbs": [
+					"move",
+					"give"
+				],
+				"hud": [
+					"calendar",
+					"ready",
+					"threat"
+				]
+			},
+			"learned": [
+				"주사위 하나로 행동 하나를 합니다",
+				"덮인 지도는 걸어야 열리고, 멈춘 칸의 효과를 받습니다",
+				"미션을 이루면 결행 준비가 오릅니다"
+			],
 			"steps": [
 				{
 					"setup": [
-						{"op": "calm"},
-						{"op": "today_threat", "id": "calm_day"},
-						{"op": "threats", "ids": ["calm_day", "calm_day", "calm_day", "calm_day", "calm_day", "calm_day"]},
-						{"op": "missions", "ids": ["m_decode", "m_informant", "m_rich_donation", "m_bond"]},
-						{"op": "tiles", "cells": [[5, 4], [5, 3], [5, 2]], "type": "normal"},
-						{"op": "marker", "id": "m_decode", "role": "work", "cell": [5, 2]},
-						{"op": "marker", "id": "m_informant", "role": "target", "cell": [7, 7]},
-						{"op": "marker", "id": "m_informant", "role": "informer", "cell": [3, 7]},
-						{"op": "work_paid", "id": "m_decode", "values": [4, 6]},
-						{"op": "dice", "values": [5, 2], "exact": true}
+						{
+							"op": "calm"
+						},
+						{
+							"op": "today_threat",
+							"id": "calm_day"
+						},
+						{
+							"op": "threats",
+							"ids": [
+								"calm_day",
+								"calm_day",
+								"calm_day",
+								"calm_day",
+								"calm_day",
+								"calm_day"
+							]
+						},
+						{
+							"op": "missions",
+							"ids": [
+								"m_decode",
+								"m_informant",
+								"m_rich_donation",
+								"m_bond"
+							]
+						},
+						{
+							"op": "marker",
+							"id": "m_decode",
+							"role": "work",
+							"cell": [
+								5,
+								2
+							]
+						},
+						{
+							"op": "tile_type",
+							"cell": [
+								5,
+								2
+							],
+							"type": "item"
+						},
+						{
+							"op": "marker",
+							"id": "m_informant",
+							"role": "target",
+							"cell": [
+								7,
+								7
+							]
+						},
+						{
+							"op": "marker",
+							"id": "m_informant",
+							"role": "informer",
+							"cell": [
+								3,
+								7
+							]
+						},
+						{
+							"op": "work_paid",
+							"id": "m_decode",
+							"values": [
+								4,
+								6
+							]
+						},
+						{
+							"op": "tile_deck",
+							"ids": [
+								"normal",
+								"normal",
+								"normal",
+								"normal",
+								"normal",
+								"normal"
+							]
+						},
+						{
+							"op": "item_deck",
+							"ids": [
+								"train_ticket"
+							]
+						},
+						{
+							"op": "dice",
+							"values": [
+								5,
+								2
+							],
+							"exact": true
+						},
+						{
+							"op": "dice",
+							"who": 1,
+							"values": [
+								2
+							],
+							"exact": true
+						}
 					],
-					"say": "결사는 넷이 함께하는 독립운동 작전이에요. [b]11일[/b] 안에 일제 거점 하나를 무너뜨리면 이겨요.",
-					"target": "board", "do": "next"
+					"do": "briefing",
+					"target": "",
+					"title": "작전 브리핑",
+					"lines": [
+						"11일 안에 일제 거점 하나를 무너뜨리면 이깁니다.",
+						"1막에는 미션으로 준비를 쌓고, 2막에는 거점에 들이칩니다.",
+						"하루는 아침에 주사위를 굴리고, 낮에 행동하고, 밤을 넘깁니다."
+					]
 				},
-				{"say": "아침이에요. 오늘의 주사위가 나왔어요. 「하루 시작」을 누르세요.", "target": "primary", "do": "start_day"},
-				{"say": "내 차례예요. 「내 차례 시작」을 누르세요.", "target": "primary", "do": "begin_turn", "when": {"phase": "day"}},
-				{"say": "5와 2가 나왔어요. [b]주사위 하나[/b]로 [b]행동 하나[/b]를 해요.", "target": "dice", "do": "next", "when": {"phase": "turn", "me": true}},
-				{"say": "「이동」을 누르고 5를 고르세요. 5칸까지 걸을 수 있어요.", "target": "act:move:5", "do": "move_die"},
-				{"say": "빛나는 마커 칸을 누르세요.", "target": "cell:5,2", "do": "reach", "cell": [5, 2]},
-				{"say": "도착했어요. 「이동 마치기」를 누르세요.", "target": "primary", "do": "end_move"},
-				{"say": "「암호 해독」 미션이에요. 동료들이 4와 6을 바쳤고, [b]2[/b]만 남았어요.", "target": "mission:m_decode", "do": "next"},
-				{"say": "「바치기」를 누르고 남은 2를 내세요.", "target": "act:give:2", "do": "work_give"},
-				{"say": "미션 성공! [b]결행 준비[/b]가 1 올랐어요. 3이 되면 거점을 칠 수 있어요.", "target": "ready", "do": "watch", "when": {"event": "mission_done"}},
-				{"say": "주사위를 다 썼어요. 「차례 마치기」를 누르세요.", "target": "end_turn", "do": "end_turn"},
-				{"say": "", "target": "", "do": "complete"}
+				{
+					"say": "가운데가 [b]출발점[/b], 네 귀퉁이가 일제 [b]거점[/b]입니다.",
+					"target": "board",
+					"do": "next"
+				},
+				{
+					"say": "아침마다 [b]일제 위협[/b] 한 장이 뒤집힙니다. 오늘은 평온한 하루입니다.",
+					"target": "threat",
+					"do": "next"
+				},
+				{
+					"say": "아침 준비가 끝났습니다. 「하루 시작」을 누릅니다.",
+					"target": "primary",
+					"do": "start_day"
+				},
+				{
+					"ally": {
+						"who": 1,
+						"do": "move",
+						"die": 2,
+						"path": [
+							[
+								6,
+								5
+							],
+							[
+								7,
+								5
+							]
+						]
+					},
+					"say": "동료가 걷자 [b]덮인 칸[/b]이 뒤집혔습니다. 지도는 걸어야 열립니다.",
+					"target": "cell:7,5",
+					"do": "watch",
+					"when": {
+						"phase": "day",
+						"done": 1
+					}
+				},
+				{
+					"say": "이제 내 차례입니다. 「내 차례 시작」을 누릅니다.",
+					"target": "primary",
+					"do": "begin_turn",
+					"when": {
+						"phase": "day"
+					}
+				},
+				{
+					"say": "주사위는 5와 2입니다. [b]주사위 하나[/b]로 [b]행동 하나[/b]를 합니다.",
+					"target": "dice",
+					"do": "next",
+					"when": {
+						"phase": "turn",
+						"me": true
+					}
+				},
+				{
+					"say": "「이동」을 누르고 5를 고릅니다. [b]상하좌우[/b]로 5칸까지 걷습니다.",
+					"target": "act:move:5",
+					"do": "move_die"
+				},
+				{
+					"say": "빛나는 칸을 하나씩 눌러 [b]마커[/b]까지 갑니다. 미션이 있는 자리입니다.",
+					"target": "cell:5,2",
+					"do": "reach",
+					"cell": [
+						5,
+						2
+					]
+				},
+				{
+					"say": "내가 지나온 칸도 뒤집혔습니다. 길은 걸어 들어가야 드러납니다.",
+					"target": "cell:5,3",
+					"do": "watch",
+					"when": {
+						"event": "reveal"
+					}
+				},
+				{
+					"say": "걸음이 남아도 멈출 수 있습니다. 「이동 마치기」를 누릅니다.",
+					"target": "primary",
+					"do": "end_move"
+				},
+				{
+					"say": "멈춘 칸이 [b]아이템 타일[/b]이라 「승차권」을 얻었습니다. 손패에 들어갑니다.",
+					"target": "hand",
+					"do": "watch",
+					"when": {
+						"event": "card"
+					}
+				},
+				{
+					"say": "이 마커의 미션 카드입니다. 동료가 4와 6을 바쳤고 [b]2[/b]만 남았습니다.",
+					"target": "mission:m_decode",
+					"do": "next"
+				},
+				{
+					"say": "「바치기」를 누르고 남은 2를 냅니다.",
+					"target": "act:give:2",
+					"do": "work_give"
+				},
+				{
+					"say": "미션 성공! [b]결행 준비[/b]가 1 올랐습니다. 3이 되면 거점을 칠 수 있습니다.",
+					"target": "ready",
+					"do": "watch",
+					"when": {
+						"event": "mission_done"
+					}
+				},
+				{
+					"say": "주사위를 다 썼습니다. 「차례 마치기」를 누릅니다.",
+					"target": "end_turn",
+					"do": "end_turn"
+				},
+				{
+					"say": "모두 차례를 마치면 밤이 지나고 [b]다음 날[/b]이 옵니다.",
+					"target": "calendar",
+					"do": "watch",
+					"when": {
+						"phase": "plan",
+						"day": 2
+					}
+				},
+				{
+					"say": "",
+					"target": "",
+					"do": "complete"
+				}
 			]
 		},
 		{
 			"id": "t2",
-			"title": "쫓기는 몸",
-			"goal": "처단하고 경찰 떨치기",
-			"learned": ["판정 = 낸 눈 + 새 주사위", "시끄러운 일을 하면 경찰이 붙어요", "골목 · 주막에서는 숨을 수 있어요"],
+			"title": "판정과 경찰",
+			"goal": "순사 부장을 처단하고, 숨고, 달아난다",
+			"order": "me",
+			"show": {
+				"verbs": [
+					"move",
+					"give",
+					"check",
+					"hide"
+				],
+				"extras": [
+					"use_item"
+				],
+				"hud": [
+					"calendar",
+					"ready",
+					"threat",
+					"alert"
+				]
+			},
+			"learned": [
+				"판정은 낸 눈과 새 주사위의 합입니다",
+				"시끄러우면 경찰이 붙고, 숨거나 달아나 떨칩니다",
+				"아이템은 주사위 없이 한 번 씁니다"
+			],
 			"steps": [
 				{
-					"when": {"phase": "plan"},
+					"when": {
+						"phase": "plan"
+					},
 					"setup": [
-						{"op": "calm"},
-						{"op": "today_threat", "id": "calm_day"},
-						{"op": "threats", "ids": ["calm_day", "calm_day", "calm_day", "calm_day", "calm_day", "calm_day"]},
-						{"op": "day", "value": 2},
-						{"op": "missions", "ids": ["m_police_chief", "m_decode", "m_rich_donation", "m_bond"]},
-						{"op": "tiles", "cells": [[9, 2], [9, 3], [8, 3], [7, 3], [6, 3]], "type": "normal"},
-						{"op": "tiles", "cells": [[5, 3]], "type": "alley"},
-						{"op": "pos", "who": "me", "cell": [7, 3]},
-						{"op": "marker", "id": "m_police_chief", "role": "target", "cell": [7, 3]},
-						{"op": "marker", "id": "m_police_chief", "role": "informer", "cell": [3, 7]},
-						{"op": "no_ops"},
-						{"op": "dice", "values": [5, 2], "exact": true}
+						{
+							"op": "calm"
+						},
+						{
+							"op": "today_threat",
+							"id": "calm_day"
+						},
+						{
+							"op": "threats",
+							"ids": [
+								"calm_day",
+								"calm_day",
+								"calm_day",
+								"calm_day",
+								"calm_day",
+								"calm_day"
+							]
+						},
+						{
+							"op": "day",
+							"value": 2
+						},
+						{
+							"op": "missions",
+							"ids": [
+								"m_police_chief",
+								"m_decode",
+								"m_rich_donation",
+								"m_bond"
+							]
+						},
+						{
+							"op": "tiles",
+							"cells": [
+								[
+									7,
+									3
+								],
+								[
+									8,
+									3
+								],
+								[
+									9,
+									3
+								]
+							],
+							"type": "normal"
+						},
+						{
+							"op": "tile_type",
+							"cell": [
+								7,
+								3
+							],
+							"type": "alley"
+						},
+						{
+							"op": "pos",
+							"who": "me",
+							"cell": [
+								7,
+								3
+							]
+						},
+						{
+							"op": "marker",
+							"id": "m_police_chief",
+							"role": "target",
+							"cell": [
+								7,
+								3
+							]
+						},
+						{
+							"op": "marker",
+							"id": "m_police_chief",
+							"role": "informer",
+							"cell": [
+								3,
+								7
+							]
+						},
+						{
+							"op": "no_ops"
+						},
+						{
+							"op": "hand",
+							"ids": [
+								"train_ticket"
+							]
+						},
+						{
+							"op": "tile_deck",
+							"ids": [
+								"normal",
+								"normal",
+								"normal",
+								"normal",
+								"normal",
+								"normal",
+								"normal",
+								"normal"
+							]
+						},
+						{
+							"op": "dice",
+							"values": [
+								5,
+								2
+							],
+							"exact": true
+						}
 					],
-					"say": "이번엔 순사 부장을 처단해요. 「하루 시작」을 누르세요.",
-					"target": "primary", "do": "start_day"
+					"say": "오늘 목표는 순사 부장 처단입니다. 「하루 시작」을 누릅니다.",
+					"target": "primary",
+					"do": "start_day"
 				},
-				{"say": "「내 차례 시작」을 누르세요.", "target": "primary", "do": "begin_turn", "when": {"phase": "day"}},
-				{"say": "순사 부장이 이 칸에 있어요. 처단은 「작전 판정」으로 해요.", "target": "me", "do": "next", "when": {"phase": "turn", "me": true}},
-				{"say": "판정은 [b]낸 주사위 + 새로 굴린 주사위[/b]예요. 합이 9 이상이면 성공.", "target": "mission:m_police_chief", "do": "next"},
 				{
-					"setup_first": [{"op": "rig", "values": [4]}],
-					"say": "「작전 판정」을 누르고, 어느 주사위를 낼지 골라 보세요.",
-					"target": "act:check", "do": "mission_check",
-					"pick": {"good": 5, "bad_say": "2를 내면 성공 확률 0%예요. 5를 내면 50%. 큰 눈으로 다시 골라 볼까요?"}
+					"say": "「내 차례 시작」을 누릅니다.",
+					"target": "primary",
+					"do": "begin_turn",
+					"when": {
+						"phase": "day"
+					}
 				},
-				{"say": "5 + 4 = 9, 성공! 큰 눈은 판정에 아껴 두면 좋아요.", "target": "me", "do": "watch", "when": {"event": "dice"}},
 				{
-					"setup": [{"op": "police_on_me"}, {"op": "police_set", "cell": [8, 3]}],
-					"say": "하지만 시끄러웠어요. 붉은 모자, [b]경찰[/b]이 나를 쫓기 시작해요.",
-					"target": "police", "do": "watch", "when": {"police": true}
+					"say": "표적이 바로 이 칸에 있습니다. 처단은 [b]작전 판정[/b]으로 합니다.",
+					"target": "me",
+					"do": "next",
+					"when": {
+						"phase": "turn",
+						"me": true
+					}
 				},
-				{"say": "남은 2로 옆 골목까지 가세요. 골목은 숨을 수 있는 곳이에요.", "target": "act:move:2", "do": "move_die"},
-				{"say": "골목 칸을 누르세요.", "target": "cell:5,3", "do": "reach", "cell": [5, 3]},
-				{"say": "「차례 마치기」를 누르세요.", "target": "end_turn", "do": "end_turn"},
-				{"say": "차례를 마칠 때마다 경찰이 [b]2칸[/b]씩 다가와요. 잡히면 감옥에 가요.", "target": "police", "do": "watch", "when": {"phase": "plan", "day": 3}},
 				{
-					"when": {"phase": "plan", "day": 3},
-					"setup": [{"op": "dice", "values": [3, 1], "exact": true}],
-					"say": "다음 날이에요. 「하루 시작」을 누르세요.",
-					"target": "primary", "do": "start_day"
+					"say": "판정은 [b]낸 주사위 + 새로 굴린 주사위[/b]입니다. 합이 9 이상이면 성공입니다.",
+					"target": "mission:m_police_chief",
+					"do": "next"
 				},
-				{"say": "「내 차례 시작」을 누르세요.", "target": "primary", "do": "begin_turn", "when": {"phase": "day"}},
-				{"say": "골목에서는 「숨기」를 할 수 있어요. 아무 주사위나 내세요.", "target": "act:hide", "do": "hide", "when": {"phase": "turn", "me": true}},
-				{"say": "「차례 마치기」를 누르세요.", "target": "end_turn", "do": "end_turn"},
-				{"say": "숨은 덕분에 경찰이 오지 못했어요. 멀리 달아나도 떨칠 수 있어요.", "target": "police", "do": "watch", "when": {"phase": "plan", "day": 4}},
-				{"say": "", "target": "", "do": "complete"}
+				{
+					"setup_first": [
+						{
+							"op": "rig",
+							"values": [
+								4
+							]
+						}
+					],
+					"say": "「작전 판정」을 누르고, 낼 주사위를 고릅니다.",
+					"target": "act:check",
+					"do": "mission_check",
+					"pick": {
+						"good": 5,
+						"bad_say": "2를 내면 아무리 굴려도 9가 안 됩니다. 5를 내면 절반은 됩니다."
+					}
+				},
+				{
+					"say": "5 + 4 = 9, 성공입니다. [b]큰 눈[/b]은 판정에 아껴 두면 좋습니다.",
+					"target": "me",
+					"do": "watch",
+					"when": {
+						"event": "dice"
+					}
+				},
+				{
+					"setup": [
+						{
+							"op": "police_on_me"
+						},
+						{
+							"op": "police_set",
+							"cell": [
+								9,
+								3
+							]
+						}
+					],
+					"say": "시끄러운 일에는 [b]경찰[/b]이 붙습니다. 잡히면 감옥에 갑니다.",
+					"target": "police",
+					"do": "watch",
+					"when": {
+						"police": true
+					}
+				},
+				{
+					"say": "[b]노출[/b]도 올랐습니다. 노출이 쌓이면 경찰이 빨라집니다.",
+					"target": "alert",
+					"do": "watch",
+					"when": {
+						"police": true
+					}
+				},
+				{
+					"say": "이 칸은 [b]골목[/b]이라 숨을 수 있습니다. 「숨기」로 남은 2를 냅니다.",
+					"target": "act:hide",
+					"do": "hide"
+				},
+				{
+					"say": "「차례 마치기」를 누릅니다.",
+					"target": "end_turn",
+					"do": "end_turn"
+				},
+				{
+					"say": "숨은 덕에 경찰이 다가오지 못했습니다. 하지만 아직 나를 쫓습니다.",
+					"target": "police",
+					"do": "watch",
+					"when": {
+						"phase": "plan",
+						"day": 3
+					}
+				},
+				{
+					"when": {
+						"phase": "plan",
+						"day": 3
+					},
+					"setup": [
+						{
+							"op": "dice",
+							"values": [
+								3,
+								1
+							],
+							"exact": true
+						}
+					],
+					"say": "오늘은 멀리 달아납니다. 「하루 시작」을 누릅니다.",
+					"target": "primary",
+					"do": "start_day"
+				},
+				{
+					"say": "「내 차례 시작」을 누릅니다.",
+					"target": "primary",
+					"do": "begin_turn",
+					"when": {
+						"phase": "day"
+					}
+				},
+				{
+					"say": "[b]아이템[/b]은 주사위 없이 씁니다. 「승차권」을 씁니다.",
+					"target": "item:train_ticket",
+					"do": "use_item",
+					"when": {
+						"phase": "turn",
+						"me": true
+					}
+				},
+				{
+					"say": "오늘 이동이 3칸씩 늘었습니다. 아이템은 한 번 쓰면 사라집니다.",
+					"target": "dice",
+					"do": "watch",
+					"when": {
+						"phase": "turn"
+					}
+				},
+				{
+					"say": "「이동」으로 3을 냅니다. 이제 6칸까지 걷습니다.",
+					"target": "act:move:3",
+					"do": "move_die"
+				},
+				{
+					"say": "빛나는 칸을 하나씩 눌러 경찰에게서 멀어집니다.",
+					"target": "cell:1,3",
+					"do": "reach",
+					"cell": [
+						1,
+						3
+					]
+				},
+				{
+					"say": "「차례 마치기」를 누릅니다.",
+					"target": "end_turn",
+					"do": "end_turn"
+				},
+				{
+					"say": "경찰이 2칸 따라왔지만 너무 멉니다. [b]5칸 넘게[/b] 벌어지면 떨칩니다.",
+					"target": "me",
+					"do": "watch",
+					"when": {
+						"police": false
+					}
+				},
+				{
+					"say": "",
+					"target": "",
+					"do": "complete"
+				}
 			]
 		},
 		{
 			"id": "t3",
 			"title": "함께",
-			"goal": "동료의 암살을 돕기",
-			"learned": ["같은 칸 동료에게 주사위를 건네요", "건네기는 동료 차례 전에 해요", "결사는 함께 이기고 함께 져요"],
+			"goal": "동료에게 다가가 주사위와 능력으로 돕는다",
+			"order": "me",
+			"characters": [
+				"han",
+				"jeong",
+				"gaeddong",
+				"oh"
+			],
+			"show": {
+				"verbs": [
+					"move",
+					"give",
+					"check",
+					"hide",
+					"pass"
+				],
+				"extras": [
+					"ability"
+				],
+				"hud": [
+					"calendar",
+					"ready",
+					"threat",
+					"alert"
+				]
+			},
+			"learned": [
+				"요원끼리는 같은 칸에 서서 주사위를 건넵니다",
+				"능력은 하루 한 번, 주사위 없이 씁니다",
+				"돕는 일은 동료 차례 전에 합니다"
+			],
 			"steps": [
 				{
-					"when": {"phase": "plan"},
+					"when": {
+						"phase": "plan"
+					},
 					"setup": [
-						{"op": "calm"},
-						{"op": "today_threat", "id": "calm_day"},
-						{"op": "threats", "ids": ["calm_day", "calm_day", "calm_day", "calm_day", "calm_day", "calm_day"]},
-						{"op": "day", "value": 3},
-						{"op": "missions", "ids": ["m_police_chief", "m_decode", "m_rich_donation", "m_bond"]},
-						{"op": "pos", "who": "me", "cell": [7, 3]},
-						{"op": "pos", "who": 1, "cell": [7, 3]},
-						{"op": "marker", "id": "m_police_chief", "role": "target", "cell": [7, 3]},
-						{"op": "marker", "id": "m_police_chief", "role": "informer", "cell": [3, 7]},
-						{"op": "no_ops"},
-						{"op": "dice", "values": [6], "exact": true},
-						{"op": "dice", "values": [2, 1], "who": 1, "exact": true}
+						{
+							"op": "calm"
+						},
+						{
+							"op": "today_threat",
+							"id": "calm_day"
+						},
+						{
+							"op": "threats",
+							"ids": [
+								"calm_day",
+								"calm_day",
+								"calm_day",
+								"calm_day",
+								"calm_day",
+								"calm_day"
+							]
+						},
+						{
+							"op": "day",
+							"value": 3
+						},
+						{
+							"op": "missions",
+							"ids": [
+								"m_police_chief",
+								"m_decode",
+								"m_rich_donation",
+								"m_bond"
+							]
+						},
+						{
+							"op": "tiles",
+							"cells": [
+								[
+									5,
+									3
+								],
+								[
+									7,
+									3
+								]
+							],
+							"type": "normal"
+						},
+						{
+							"op": "pos",
+							"who": "me",
+							"cell": [
+								5,
+								3
+							]
+						},
+						{
+							"op": "pos",
+							"who": 1,
+							"cell": [
+								7,
+								3
+							]
+						},
+						{
+							"op": "marker",
+							"id": "m_police_chief",
+							"role": "target",
+							"cell": [
+								7,
+								3
+							]
+						},
+						{
+							"op": "marker",
+							"id": "m_police_chief",
+							"role": "informer",
+							"cell": [
+								3,
+								7
+							]
+						},
+						{
+							"op": "no_ops"
+						},
+						{
+							"op": "tile_deck",
+							"ids": [
+								"normal",
+								"normal",
+								"normal",
+								"normal"
+							]
+						},
+						{
+							"op": "dice",
+							"values": [
+								6,
+								2
+							],
+							"exact": true
+						},
+						{
+							"op": "dice",
+							"who": 1,
+							"values": [
+								2,
+								1
+							],
+							"exact": true
+						}
 					],
-					"say": "혼자서는 다 못 해요. 이번엔 동료를 도와요. 「하루 시작」을 누르세요.",
-					"target": "primary", "do": "start_day"
+					"say": "혼자서는 다 못 합니다. 오늘은 동료를 돕습니다. 「하루 시작」을 누릅니다.",
+					"target": "primary",
+					"do": "start_day"
 				},
-				{"say": "정 인쇄공이 같은 칸에서 암살을 노려요. 그런데 주사위가 2와 1뿐이에요.", "target": "allies", "do": "next"},
-				{"say": "동료보다 먼저 해야 건넬 수 있어요. 「내 차례 시작」을 누르세요.", "target": "primary", "do": "begin_turn", "when": {"phase": "day"}},
-				{"say": "「건네기」를 누르고 [b]6[/b]을 주세요.", "target": "act:pass:6", "do": "give_die", "when": {"phase": "turn", "me": true}},
-				{"say": "「차례 마치기」를 누르세요. 이제 동료 차례예요.", "target": "end_turn", "do": "end_turn"},
 				{
-					"setup_first": [{"op": "rig", "values": [4]}],
-					"ally": {"who": 1, "do": "mission_check", "die": 6},
-					"say": "동료가 내 6으로 성공했어요! 건넨 주사위만큼 동료가 한 번 더 움직여요.",
-					"target": "allies", "do": "watch", "when": {"event": "mission_done"}
+					"say": "정 인쇄공이 순사 부장을 노립니다. 그런데 주사위가 2와 1뿐입니다.",
+					"target": "cell:7,3",
+					"do": "next"
 				},
-				{"say": "주사위는 [b]같은 칸[/b]에서만 건넬 수 있어요. 동료 차례 전에 건네세요.", "target": "allies", "do": "next"},
-				{"say": "", "target": "", "do": "complete"}
+				{
+					"say": "동료보다 먼저 움직여야 도울 수 있습니다. 「내 차례 시작」을 누릅니다.",
+					"target": "primary",
+					"do": "begin_turn",
+					"when": {
+						"phase": "day"
+					}
+				},
+				{
+					"say": "「이동」을 누르고 2를 고릅니다. 동료에게 다가갑니다.",
+					"target": "act:move:2",
+					"do": "move_die",
+					"when": {
+						"phase": "turn",
+						"me": true
+					}
+				},
+				{
+					"say": "동료가 선 칸을 누릅니다. 요원끼리는 [b]같은 칸[/b]에 설 수 있습니다.",
+					"target": "cell:7,3",
+					"do": "reach",
+					"cell": [
+						7,
+						3
+					]
+				},
+				{
+					"say": "같은 칸이면 주사위를 건넬 수 있습니다. 「건네기」로 [b]6[/b]을 줍니다.",
+					"target": "act:pass:6",
+					"do": "give_die"
+				},
+				{
+					"say": "이번 훈련의 나는 [b]한 간호장교[/b]입니다. 요원마다 [b]능력[/b]이 다릅니다.",
+					"target": "me_card",
+					"do": "next"
+				},
+				{
+					"say": "능력은 하루 한 번, 주사위 없이 씁니다. 「응급 처치」를 씁니다.",
+					"target": "ability",
+					"do": "ability"
+				},
+				{
+					"say": "「차례 마치기」를 누릅니다. 이제 동료 차례입니다.",
+					"target": "end_turn",
+					"do": "end_turn"
+				},
+				{
+					"setup_first": [
+						{
+							"op": "rig",
+							"values": [
+								2
+							]
+						}
+					],
+					"ally": {
+						"who": 1,
+						"do": "mission_check",
+						"die": 6
+					},
+					"say": "6 + 2 + 응급 처치 2 = 10, 성공입니다. 능력이 없었다면 실패였습니다.",
+					"target": "cell:7,3",
+					"do": "watch",
+					"when": {
+						"event": "mission_done"
+					}
+				},
+				{
+					"say": "",
+					"target": "",
+					"do": "complete"
+				}
 			]
 		},
 		{
 			"id": "t4",
 			"title": "결행",
-			"goal": "첫 장면 돌파",
-			"learned": ["결행 준비가 3이면 결행 투표가 열려요", "장면 조건을 채워 하나씩 돌파해요", "처음 보는 건 실전에서 그때그때 알려 드려요"],
+			"goal": "투표로 결행하고 첫 장면을 뚫는다",
+			"order": "me",
+			"learned": [
+				"준비가 3이면 결행을 투표합니다",
+				"첩보가 있는 거점만 칠 수 있습니다",
+				"장면 조건을 채워 하나씩 뚫습니다"
+			],
 			"steps": [
 				{
-					"when": {"phase": "plan"},
+					"when": {
+						"phase": "plan"
+					},
 					"setup": [
-						{"op": "calm"},
-						{"op": "today_threat", "id": "calm_day"},
-						{"op": "threats", "ids": ["calm_day", "calm_day", "calm_day", "calm_day", "calm_day", "calm_day"]},
-						{"op": "ready", "value": 3},
-						{"op": "intel", "base": "prison", "value": 3}
+						{
+							"op": "calm"
+						},
+						{
+							"op": "today_threat",
+							"id": "calm_day"
+						},
+						{
+							"op": "threats",
+							"ids": [
+								"calm_day",
+								"calm_day",
+								"calm_day",
+								"calm_day",
+								"calm_day",
+								"calm_day"
+							]
+						},
+						{
+							"op": "ready",
+							"value": 3
+						},
+						{
+							"op": "intel",
+							"base": "prison",
+							"value": 3
+						}
 					],
-					"say": "[b]결행 준비[/b]가 3이 됐어요. 이제 거점을 칠 수 있어요.",
-					"target": "ready", "do": "next"
+					"say": "[b]결행 준비[/b]가 3이 찼습니다. 이제 투표로 결행을 정합니다.",
+					"target": "ready",
+					"do": "next"
 				},
 				{
-					"setup_first": [{"op": "no_ops"}, {"op": "morning", "day": 6}],
-					"say": "「결행한다」를 고르세요. 미루면 준비는 쌓이지만 날이 줄어요.",
-					"target": "choice:true", "do": "choose", "when": {"choice": "launch_vote"}
+					"say": "[b]첩보[/b]는 미션으로 거점마다 모읍니다. 첩보가 있는 거점만 칠 수 있습니다.",
+					"target": "cell:1,9",
+					"do": "next"
 				},
-				{"say": "첩보를 모아 둔 「서대문형무소」를 고르세요.", "target": "choice:prison", "do": "choose", "when": {"choice": "launch_target"}},
-				{"say": "사연은 나만 아는 개인 목표예요. 하나를 품고 가세요.", "target": "choice", "do": "choose", "when": {"choice": "saga_keep"}},
 				{
-					"when": {"act": 2, "phase": "plan"},
-					"setup": [{"op": "calm"}, {"op": "pos", "who": "me", "cell": [2, 9]}, {"op": "dice", "values": [5, 2, 1], "exact": true}],
-					"say": "2막이에요. 형무소의 장면을 하나씩 뚫어요. 첫 장면은 「담 넘기」.",
-					"target": "missions", "do": "next"
+					"setup_first": [
+						{
+							"op": "no_ops"
+						},
+						{
+							"op": "morning",
+							"day": 6
+						}
+					],
+					"say": "「결행한다」를 고릅니다. 미루면 준비는 쌓이지만 날이 줄어듭니다.",
+					"target": "choice:true",
+					"do": "choose",
+					"when": {
+						"choice": "launch_vote"
+					}
 				},
-				{"say": "담 옆 칸에서 주사위 합 [b]7[/b]을 바치면 넘을 수 있어요.", "target": "missions", "do": "next"},
-				{"say": "「하루 시작」을 누르세요.", "target": "primary", "do": "start_day"},
-				{"say": "「내 차례 시작」을 누르세요.", "target": "primary", "do": "begin_turn", "when": {"phase": "day"}},
-				{"say": "「바치기」를 누르고 5를 내세요.", "target": "act:give:5", "do": "scene_pay", "when": {"phase": "turn", "me": true}},
-				{"say": "2를 더 내면 7이에요.", "target": "act:give:2", "do": "scene_pay"},
-				{"say": "돌파! 이렇게 마지막 장면까지 뚫으면 승리예요.", "target": "missions", "do": "watch", "when": {"event": "scene_break"}},
-				{"say": "", "target": "", "do": "complete"}
+				{
+					"say": "첩보가 가장 많은 「서대문형무소」를 고릅니다.",
+					"target": "choice:prison",
+					"do": "choose",
+					"when": {
+						"choice": "launch_target"
+					}
+				},
+				{
+					"say": "[b]사연[/b]은 나만 아는 개인 목표입니다. 하나를 품고 갑니다.",
+					"target": "choice",
+					"do": "choose",
+					"when": {
+						"choice": "saga_keep"
+					}
+				},
+				{
+					"when": {
+						"act": 2,
+						"phase": "plan"
+					},
+					"setup": [
+						{
+							"op": "calm"
+						},
+						{
+							"op": "pos",
+							"who": "me",
+							"cell": [
+								2,
+								9
+							]
+						},
+						{
+							"op": "dice",
+							"values": [
+								5,
+								2,
+								1
+							],
+							"exact": true
+						}
+					],
+					"say": "2막입니다. 거점의 [b]장면[/b]을 하나씩 뚫습니다. 첫 장면은 「담 넘기」입니다.",
+					"target": "missions",
+					"do": "next"
+				},
+				{
+					"say": "「하루 시작」을 누릅니다.",
+					"target": "primary",
+					"do": "start_day"
+				},
+				{
+					"say": "「내 차례 시작」을 누릅니다.",
+					"target": "primary",
+					"do": "begin_turn",
+					"when": {
+						"phase": "day"
+					}
+				},
+				{
+					"say": "담 옆 칸에서 합 7을 바치면 넘습니다. 「바치기」로 5를 냅니다.",
+					"target": "act:give:5",
+					"do": "scene_pay",
+					"when": {
+						"phase": "turn",
+						"me": true
+					}
+				},
+				{
+					"say": "2를 더 내면 7입니다.",
+					"target": "act:give:2",
+					"do": "scene_pay"
+				},
+				{
+					"say": "돌파했습니다! 이렇게 [b]마지막 장면[/b]까지 뚫으면 승리합니다.",
+					"target": "missions",
+					"do": "watch",
+					"when": {
+						"event": "scene_break"
+					}
+				},
+				{
+					"say": "",
+					"target": "",
+					"do": "complete"
+				}
 			]
 		}
 	]

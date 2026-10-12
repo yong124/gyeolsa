@@ -113,7 +113,7 @@ func _init(g: RulesV2, human_id := 0, meta_info := {}) -> void:
 	_playback = ScreenPlaybackV2.new(self)
 	if bool(meta.get("tutorial", false)):
 		_tutor = TutorialV2.new(self, int(meta.get("training_index", 0)))
-		_ai_first = false   # 훈련: 내가 먼저 (동료가 차례를 마치면 주사위를 건넬 수 없음)
+		_ai_first = str(_tutor.training.get("order", "me")) == "ai"   # 훈련: 기본은 내가 먼저 (동료가 차례를 마치면 주사위를 건넬 수 없음), 시범 훈련은 동료 먼저
 		_tutor.finished.connect(func(result): tutorial_exit.emit(result))
 
 

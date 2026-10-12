@@ -101,6 +101,9 @@ func on_event(e: Dictionary) -> void:
 				note("alert")
 		"jail":
 			note("jail" if int(e.get("player", -1)) == scr.human else "ally_jail")
+		"card":
+			if str(e.get("deck", "")) == "event":
+				note("event")
 
 
 func tip_check() -> void:
@@ -130,6 +133,11 @@ func _state_notes() -> void:
 			note("intel_token")
 	if not me["items"].is_empty():
 		note("item")
+	if g.act == 1:
+		for k in g.intel:
+			if int(g.intel[k]) > 0:
+				note("intel")
+				break
 	if g.counter_active():
 		note("counter")
 	if g.phase == "choice" and int(g.pending.get("player", -1)) == scr.human and str(g.pending.get("kind", "")) == "launch_benefit":

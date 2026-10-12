@@ -214,7 +214,15 @@ func _init() -> void:
 	var ehp := hp1.validate()
 	_check(_has(ehp, "help.notes.first_morning: 쪽지") and _has(ehp, "자세히가 여는 탭 no_such_tab") and _has(ehp, "{경로}가 rules.json에 없습니다"), "쪽지가 60자를 넘거나 없는 탭 · 없는 {경로}를 잡는다")
 	_check(real.help_text("뇌물 {checkpoint.bribe}") == "뇌물 2" and real.help_text("노출 {exposure.max}") == "노출 9", "도움말 글 속 {경로}가 rules.json 값(정수)으로 바뀐다")
-	_check(real.tutorial["trainings"].size() == 4 and real.help["notes"].size() == 15, "훈련 4개 · 쪽지 15개")
+	_check(real.tutorial["trainings"].size() == 4 and real.help["notes"].size() == 17, "훈련 4개 · 쪽지 17개")
+	var tu4 := GameDataV2.new()
+	tu4.load_dir("res://data/v2/")
+	tu4.tutorial["trainings"][1]["steps"][1]["say"] = "「내 차례 시작」을 누르세요."
+	tu4.tutorial["trainings"][0]["steps"][0]["lines"] = ["한 줄뿐이다."]
+	tu4.tutorial["trainings"][0]["show"] = {"verbs": ["fly"], "hud": ["moon"]}
+	tu4.tutorial["trainings"][0]["steps"][4]["ally"] = {"who": 1, "do": "move", "die": 2}
+	var eu4 := tu4.validate()
+	_check(_has(eu4, "「~습니다.」로 맺습니다") and _has(eu4, "briefing에는 title과 lines 3줄") and _has(eu4, "show.verbs의 fly") and _has(eu4, "show.hud의 moon") and _has(eu4, "ally move에는 die와 path"), "말투 · 브리핑 줄 수 · 보일 행동 · 동료 이동 대본 오류를 잡는다")
 
 	print("v2 검증기 자체 시험: %s" % ("통과" if _fail == 0 else "%d건 실패" % _fail))
 	quit(1 if _fail > 0 else 0)

@@ -153,6 +153,8 @@ func refresh_actions() -> void:
 		for a in others:
 			if a == primary:
 				continue
+			if scr._tutor != null and not scr._tutor.action_shown(a):
+				continue   # 훈련: 아직 배우지 않은 아이템 · 능력은 숨긴다
 			var aa: Dictionary = a
 			secs.append({"text": scr._text.label(a), "icon": _icon(a), "cb": func(): scr._press(aa), "action": a})
 	for i in mini(secs.size(), SECONDARY_MAX):
@@ -205,6 +207,8 @@ func _build_verbs(mine: Array, primary: Dictionary, others: Array) -> void:
 			continue
 		if vb.has("acts") and not scr.game.act in (vb["acts"] as Array).map(func(x): return int(x)):
 			continue
+		if scr._tutor != null and not scr._tutor.verb_shown(key):
+			continue   # 훈련: 아직 배우지 않은 행동은 숨긴다 (단계적 공개)
 		var on := scr._verb == key
 		var rec := not primary.is_empty() and primary in acts
 		var b := UiKit.button(str(vb["label"]), func(): pick_verb(key, acts), 14, "primary" if on else "paper")
@@ -244,6 +248,8 @@ func _build_verbs(mine: Array, primary: Dictionary, others: Array) -> void:
 	for a in others:
 		if _die_of(a) >= 0 or a == primary:
 			continue
+		if scr._tutor != null and not scr._tutor.action_shown(a):
+			continue
 		if a["type"] == "end_turn":
 			var aa: Dictionary = a
 			var eb := UiKit.button("차례 마치기", func(): scr._press(aa), 15, "dark")
@@ -263,7 +269,24 @@ func _build_verbs(mine: Array, primary: Dictionary, others: Array) -> void:
 		focus["end_is_primary"] = true
 		col.add_child(eb2)
 		scr._shown_actions.append(primary)
-	if not rest.is_empty():
+	if not rest.is_empty() and scr._tutor != null and scr._tutor.active:
+		# 훈련: 아이템 · 능력을 메뉴에 숨기지 않고 단추로 하나씩 (짚어 누를 수 있게)
+		for a in rest:
+			var ra: Dictionary = a
+			var rb := UiKit.button(scr._text.label(ra).replace("능력 「", "").replace("」", ""), func(): scr._press(ra), 13, "paper")
+			rb.custom_minimum_size = Vector2(0, 40)
+			rb.clip_text = true
+			rb.tooltip_text = scr._text.label(ra)
+			if ra["type"] == "ability":
+				focus["ability"] = rb
+			elif ra["type"] == "use_item":
+				var items: Array = scr.game.players[scr.human]["items"]
+				var ii := int(ra.get("index", -1))
+				if ii >= 0 and ii < items.size():
+					focus["item:" + str(items[ii])] = rb
+			col.add_child(rb)
+			scr._shown_actions.append(ra)
+	elif not rest.is_empty():
 		var more := MenuButton.new()
 		more.text = "아이템 · 능력 (%d)" % rest.size()
 		more.flat = false
