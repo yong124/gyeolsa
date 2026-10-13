@@ -1,11 +1,8 @@
 extends Control
-## 화면 흐름: (첫 실행) 도입부 → 메인 메뉴 → 새 작전 / 이어하기 / 튜토리얼 → 게임 → 엔딩 → 메뉴·다시 하기
+## 화면 흐름: (첫 실행) 도입부 → 메인 메뉴 → 바로 시작 / 요원 골라 시작 / 이어하기 / 튜토리얼 / 온라인 → 게임 → 엔딩 → 메뉴·다시 하기
 ##
-## 테스트용 실행 인자: godot --path game -- autostart [autoplay]
-##   autostart  메뉴를 건너뛰고 기본 설정으로 바로 시작
-##   autoplay   내 자리도 AI가 조작 (화면 확인·녹화용)
+## 실행 인자: godot --path game -- v2 (요원 고르기부터) · server [port=] (온라인 서버) · v2uitest · tour (개발용)
 
-var data: GameData
 var _screen: Control
 var _opening_seen := false   # 이번 실행에서 오프닝 4컷을 이미 봤는가 (도입부로 봤으면 판 시작 때 또 틀지 않음)
 var _tutorial_forced := false   # 처음 켰을 때 튜토리얼로 한 번 보냈는가
@@ -18,9 +15,6 @@ func _ready() -> void:
 	bg.color = UiKit.COL_BG
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(bg)
-	data = GameData.load_default()
-	for err in data.validate():
-		push_error("데이터 오류: " + err)
 	for err in GameDataV2.load_default().validate():
 		push_error("v2 데이터 오류: " + err)
 	var args := OS.get_cmdline_user_args()
@@ -40,12 +34,7 @@ func _ready() -> void:
 	elif "tour" in args:
 		add_child(load("res://tools/tour.gd").new())   # 개발용 화면 캡처 (빌드에는 없음)
 	elif "v2" in args:
-		_show_v2_setup()   # 새 규칙 v2 바로 시작 (게임_실행_v2.bat)
-	elif "autostart" in args:
-		var title := TitleScreen.new(data)
-		var cfg := {"defs": title.make_players(4, 0), "difficulty": 0}
-		title.free()
-		_start(cfg, "autoplay" in args)
+		_show_v2_setup()   # 요원 고르기부터 (게임_실행_v2.bat)
 	elif OS.has_feature("web"):
 		if OS.has_feature("web_android") or OS.has_feature("web_ios"):
 			_web_gate()   # 휴대폰 · 태블릿만: PC에서 열어 달라는 안내를 먼저
@@ -131,19 +120,13 @@ func _show_intro() -> void:
 		Prefs.save()
 		_show_title()
 		return
-	var intro := IntroScreen.new(data)
-	intro.finished.connect(func():
-		Prefs.intro_seen = true
-		Prefs.save()
-		_show_title())
-	_swap(intro)
+	Prefs.intro_seen = true   # 오프닝 그림이 없으면 도입부 없이 메뉴로
+	Prefs.save()
+	_show_title()
 
 
 func _show_title() -> void:
-	var title := TitleScreen.new(data)
-	title.start_requested.connect(func(cfg): _start(cfg))
-	title.continue_requested.connect(_continue)
-	title.tutorial_requested.connect(_start_tutorial)
+	var title := TitleScreen.new()
 	title.intro_requested.connect(_show_intro)
 	title.v2_requested.connect(_show_v2_setup)
 	title.quick_requested.connect(_quick_v2)
@@ -157,80 +140,7 @@ func _show_title() -> void:
 		title.offer_tutorial.call_deferred()
 
 
-func _start(cfg: Dictionary, autoplay := false) -> void:
-	if autoplay:
-		cfg = cfg.duplicate(true)
-		for d in cfg["defs"]:
-			d["ai"] = true
-		Records.disabled = true
-	var game := GameRules.from_cfg(cfg, data)
-	if not autoplay:
-		SaveGame.erase()
-	var meta := {"cfg": cfg, "tutorial": false}
-	if not autoplay and Prefs.playtest and not PlaytestLog.disabled:
-		meta["playtest"] = PlaytestLog.begin(game, cfg)
-	_open_game(game, meta, not autoplay)
-
-
-func _continue() -> void:
-	var r := SaveGame.read(data)
-	if r.is_empty():
-		_show_title()
-		return
-	if r["meta"].has("playtest"):
-		r["meta"]["playtest"]["sessions"] = int(r["meta"]["playtest"].get("sessions", 1)) + 1
-	_open_game(r["game"], r["meta"], false)
-
-
-func _start_tutorial(id := "tutorial") -> void:
-	## id: "tutorial"(기본 훈련) · "tutorial2"(2막 훈련) — data/text.json의 같은 이름 항목
-	var sc: Dictionary = data.text[id]["scenario"]
-	var game := GameRules.new()
-	game.scenario = {}
-	for k in sc:
-		if not k in ["players", "seed"]:
-			game.scenario[k] = sc[k]
-	game.setup(sc["players"].duplicate(true), int(sc.get("seed", 1945)), data)
-	_open_game(game, {"tutorial": true, "tutorial_id": id}, false)
-
-
-func _open_game(game: GameRules, meta: Dictionary, briefing: bool) -> void:
-	var screen := GameScreen.new(game, 0, meta, briefing)
-	screen.back_to_title.connect(_show_title)
-	screen.finished.connect(func(): _show_ending(game, meta))
-	_swap(screen)
-
-
-func _show_ending(game: GameRules, meta: Dictionary) -> void:
-	var tutorial: bool = meta.get("tutorial", false)
-	if tutorial:
-		Prefs.tutorial_done = true
-		Prefs.save()
-	var fresh := Records.record(game, meta)
-	if meta.has("playtest"):
-		PlaytestLog.finish(meta["playtest"], game)
-	var e := EndingScreen.new(game, tutorial, fresh)
-	e.to_menu.connect(func(): _survey_then(game, meta, _show_title))
-	e.replay.connect(func(): _survey_then(game, meta, func(): _start(meta["cfg"])))
-	_swap(e)
-
-
-func _survey_then(game: GameRules, meta: Dictionary, next: Callable) -> void:
-	## 플레이테스트 기록이 있는 판이면 설문을 먼저 받는다 (한 판에 한 번)
-	if not meta.has("playtest") or meta.get("surveyed", false):
-		next.call()
-		return
-	meta["surveyed"] = true
-	var seats := []
-	for p in game.players:
-		if not p["ai"]:
-			seats.append({"id": p["id"], "name": p["name"]})
-	var s := SurveyScreen.new(meta["playtest"], seats)
-	s.finished.connect(next)
-	_swap(s)
-
-
-# ================================================================ v2 (지금 규칙)
+# ================================================================ 게임
 
 func _show_v2_setup() -> void:
 	var setup := SetupScreenV2.new()
@@ -320,11 +230,3 @@ func _swap(screen: Control) -> void:
 		_screen.queue_free()
 	_screen = screen
 	add_child(screen)
-
-
-func _exit_tree() -> void:
-	# 테스트(autoplay) 확인용: 종료 시점 상태를 출력
-	if "autoplay" in OS.get_cmdline_user_args() and (_screen is GameScreen or _screen is EndingScreen):
-		var g: GameRules = _screen.game
-		print("[autoplay] 화면=%s phase=%s 날짜=%s 광복=%d/%d 로그=%d줄 엔딩=%s" % [_screen.get_class() if not _screen is EndingScreen else "엔딩", g.phase, g.date_label(), g.score, g.goal,
-			g.log_lines.size(), g.ending.get("name", "-")])

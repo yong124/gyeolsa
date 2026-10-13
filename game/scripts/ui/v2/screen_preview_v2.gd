@@ -57,7 +57,7 @@ func preview_idle() -> void:
 	elif scr.game.steps_left > 0:
 		_set_preview("걷는 중: %d칸 남음" % scr.game.steps_left, "칸을 가리키면 그 칸의 보상", risk)
 	else:
-		_set_preview("주사위 %d개 남음 — 주사위를 가리켜 보세요" % scr.game.my_dice(scr.human).size(), "칸 · 주사위를 가리키면 여기에", risk)
+		_set_preview("주사위 %d개 남음 — 주사위를 가리켜 봅니다" % scr.game.my_dice(scr.human).size(), "칸 · 주사위를 가리키면 여기에", risk)
 
 
 func _cell_gain_risk(c: Vector2i) -> Array:

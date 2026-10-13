@@ -1,6 +1,6 @@
 class_name TopBarV2
 extends PanelContainer
-## v2 상단 바 (v1 TopBar 모양): 막 · 날짜 달력 · 남은 날 · 오늘의 일제 위협(다음 위협) · 결행 준비 칸 / 첩보 토큰 · 노출·경계 · 메뉴
+## v2 상단 바: 막 · 날짜 달력 · 남은 날 · 오늘의 일제 위협(다음 위협) · 결행 준비 칸 / 첩보 토큰 · 노출·경계 · 메뉴
 
 signal menu_pressed
 signal help_pressed

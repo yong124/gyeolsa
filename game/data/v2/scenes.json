@@ -199,7 +199,7 @@
 						"count": 2,
 						"same_day": true,
 						"where": "barracks",
-						"target": 10
+						"target": 11
 					},
 					"on_fail": [
 						{
@@ -425,7 +425,7 @@
 						"count": 2,
 						"same_day": true,
 						"where": "gg",
-						"target": 10
+						"target": 11
 					},
 					"on_fail": [
 						{

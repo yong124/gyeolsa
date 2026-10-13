@@ -1,6 +1,6 @@
 @echo off
 chcp 65001 >nul
-rem 광복 IF 새 규칙 v2 (시험판): 메뉴를 건너뛰고 v2 요원 고르기 화면으로 바로 들어갑니다.
+rem 결사: 메뉴를 건너뛰고 요원 고르기 화면으로 바로 들어갑니다.
 
 set "GODOT=E:\Godot\Godot_v4.7.1-stable_win64.exe"
 

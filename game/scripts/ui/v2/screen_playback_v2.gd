@@ -7,6 +7,7 @@ var scr: GameScreenV2   # 이 모듈이 맡은 화면
 var _last_exposure := -1          # 노출이 오를 때만 붉은 비네트
 var _banner_seen := {}            # U4: 같은 배너가 몇 번 나왔나 (세 번 넘으면 기록 띠로만)
 var _cine_seen := {}              # U4: 컷신 종류별 본 횟수 (설정 「연출: 처음만」)
+var _dice_cutin_day := {}         # 판정 앞 컷인을 요원마다 하루 한 번만 (가망 낮은 판정이 이어질 때 같은 대사가 되풀이되지 않게)
 
 
 func _init(screen: GameScreenV2) -> void:
@@ -87,8 +88,10 @@ func play_event(e: Dictionary) -> void:
 			if scr._board.police_changed(e["police_snap"]):
 				await scr._board.animate_police(e["police_snap"], 0.28 * m)
 		"dice":
-			if int(e.get("player", -1)) >= 0 and (int(e.get("target", 0)) >= 10 or (scr.game.act == 2 and scr.game.scene_index == scr.game.scenes.size() - 1)):
-				await cutin(int(e["player"]), m)
+			var cpid := int(e.get("player", -1))
+			if cpid >= 0 and int(_dice_cutin_day.get(cpid, -1)) != scr.game.day 					and (int(e.get("target", 0)) >= 10 or (scr.game.act == 2 and scr.game.scene_index == scr.game.scenes.size() - 1)):
+				_dice_cutin_day[cpid] = scr.game.day
+				await cutin(cpid, m)
 			await scr._fx.roll_dice(e, m)
 			scr._cine.ink(scr._fx.focus_center, bool(e.get("ok", false)), m)
 		"banner":
@@ -127,7 +130,7 @@ func play_event(e: Dictionary) -> void:
 			scr._fx.toast("미션 성공 · %s (%s)" % [scr.game.mission_def(str(e["id"])).get("name", ""), scr._text.name(int(e["player"]))], "good")
 		"saga_done":
 			Sfx.play("success")
-			await cutin(int(e["player"]), m, "사연 「%s」을(를) 이루다" % scr.game.data.saga(str(e["id"])).get("name", ""))
+			await cutin(int(e["player"]), m, RulesV2.josa("사연 「%s」을(를) 이루다" % scr.game.data.saga(str(e["id"])).get("name", "")))
 			scr._fx.toast("사연을 이룸 · %s — %s" % [scr._text.name(int(e["player"])), scr.game.data.saga(str(e["id"])).get("name", "")], "good")
 		"scene":
 			var card: Dictionary = scr.game.current_scene()
@@ -256,7 +259,7 @@ func play_event(e: Dictionary) -> void:
 			Sfx.play("dice", 0.1, 0.6)
 		"die_given":
 			if int(e["target"]) == scr.human:
-				scr._fx.toast("%s이(가) 주사위 %d을(를) 건넸습니다" % [scr._text.name(int(e["player"])), int(e["value"])], "good")
+				scr._fx.toast(RulesV2.josa("%s이(가) 주사위 %d을(를) 건넸습니다" % [scr._text.name(int(e["player"])), int(e["value"])]), "good")
 	if e.has("players_snap"):
 		scr._board.apply_players_snap(e["players_snap"])
 	if k in ["morning", "threat", "dice_rolled", "die_used", "die_given", "day_start", "mission_done", "launch", "scene", "scene_break", "confiscate",

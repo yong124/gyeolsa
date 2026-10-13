@@ -147,7 +147,8 @@ func roll_dice(e: Dictionary, mult: float) -> void:
 	var odds := -1.0
 	if judged:
 		var bonus: int = e.get("bonus", 0)
-		odds = success_chance(e["target"], bonus)
+		# v2는 규칙 엔진이 낸 눈까지 넣어 계산한 확률을 함께 보낸다 (낸 눈 + 새 주사위 1개). 없으면 v1처럼 두 개 합
+		odds = float(e["chance"]) if e.has("chance") else success_chance(e["target"], bonus)
 		sub = "목표 %d 이상%s · 성공 확률 %d%%" % [e["target"], (" (보정 %+d)" % bonus) if bonus else "", roundi(odds * 100)]
 	if mult <= 0.0:
 		return

@@ -1595,7 +1595,7 @@ func _test_abilities() -> void:
 	ok(g.apply({"type": "ability", "player": 0}), "능력 무전 지원: 아침(계획)에 씀")
 	ok(g.phase == "choice" and g.pending["kind"] == "pick_die" and g.pending["options"].size() == 3, "능력 무전 지원: 다른 요원의 주사위까지 골라 다시 굴림")
 	_answer(g, 2)
-	ok(_log_has(g, "요원 oh의 주사위을(를) 다시 굴려") and g.phase == "plan" and g.players[0]["ability_day"] == g.day, "능력 무전 지원: 고른 주사위를 다시 굴림")
+	ok(_log_has(g, "요원 oh의 주사위를 다시 굴려") and g.phase == "plan" and g.players[0]["ability_day"] == g.day, "능력 무전 지원: 고른 주사위를 다시 굴림")
 	_cov("ability", "yun")
 
 	# 박 하사: 동료의 오늘 이동 +1
@@ -1960,7 +1960,7 @@ func _test_ops_misc() -> void:
 	_fx(g, 0, [{"op": "die_reroll", "scope": "any"}])
 	ok(g.pending.get("kind", "") == "pick_die" and g.pending["options"].size() == 2, "op die_reroll(scope any): 아무 요원의 주사위를 고름")
 	_answer(g, 0)
-	ok(_log_has(g, "의 주사위을(를) 다시 굴려"), "op die_reroll: 고른 주사위를 다시 굴림")
+	ok(_log_has(g, "의 주사위를 다시 굴려"), "op die_reroll: 고른 주사위를 다시 굴림")
 
 	# threat_bury peek
 	g = _new(CH)

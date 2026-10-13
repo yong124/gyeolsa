@@ -800,10 +800,10 @@ class Spotlight extends Control:
 		return (_bubble.visible and _bubble.get_global_rect().has_point(p)) or _skip.get_global_rect().has_point(p)
 
 	func _ask_skip() -> void:
-		if _skip.text == "정말 건너뛸까요? 한 번 더 누르면 메뉴로 갑니다":
+		if _skip.text == "정말 건너뛰겠습니까? 한 번 더 누르면 메뉴로 갑니다":
 			tut.skip()
 			return
-		_skip.text = "정말 건너뛸까요? 한 번 더 누르면 메뉴로 갑니다"
+		_skip.text = "정말 건너뛰겠습니까? 한 번 더 누르면 메뉴로 갑니다"
 
 	static func markup(s: String) -> String:
 		return s.replace("[b]", "[b][color=#a83a2c]").replace("[/b]", "[/color][/b]")

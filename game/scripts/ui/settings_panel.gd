@@ -86,7 +86,7 @@ func _ready() -> void:
 		Prefs.playtest = on
 		Prefs.save())
 	pt.add_child(pc)
-	pt.add_child(UiKit.button("기록 폴더 열기", func(): OS.shell_open(PlaytestLog.folder()), 14, "paper"))
+	pt.add_child(UiKit.button("기록 폴더 열기", func(): OS.shell_open(_playtest_folder()), 14, "paper"))
 	grid.add_child(pt)
 
 	v.add_child(UiKit.hsep())
@@ -110,3 +110,9 @@ func _slider(value: float, on_change: Callable) -> HSlider:
 	s.value_changed.connect(on_change)
 	s.drag_ended.connect(func(_c): Prefs.save())
 	return s
+
+
+static func _playtest_folder() -> String:
+	## 플레이테스트 기록 폴더 (v2: 판마다 기다린 시간 user://playtests/v2_waits_*.json)
+	DirAccess.make_dir_recursive_absolute("user://playtests")
+	return ProjectSettings.globalize_path("user://playtests")

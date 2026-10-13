@@ -1,6 +1,6 @@
 @echo off
 chcp 65001 >nul
-rem 광복 IF 실행: 이 파일을 더블클릭하면 Godot 4.7.1로 game 폴더의 게임을 켭니다.
+rem 결사 실행: 이 파일을 더블클릭하면 Godot 4.7.1로 game 폴더의 게임을 켭니다.
 rem 에디터로 열려면: 게임_실행.bat editor
 
 set "GODOT=E:\Godot\Godot_v4.7.1-stable_win64.exe"

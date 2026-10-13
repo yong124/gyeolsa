@@ -37,7 +37,7 @@ func refresh_actions() -> void:
 	match scr.game.phase:
 		"plan":
 			title = "아 침 계 획"
-			hint = "오늘의 작전 주사위 · 주사위 1개 = 행동 1개 · 큰 눈을 이동에 쓸지, 판정에 남길지 정하세요"
+			hint = "오늘의 작전 주사위 · 주사위 1개 = 행동 1개 · 큰 눈을 이동에 쓸지, 판정에 남길지 정합니다"
 			primary = _take_type(others, "start_day")
 			if scr._remote != null:
 				# 온라인: 「하루 시작」은 사람마다 누르고, 모두 누르면 서버가 시작한다
@@ -50,7 +50,7 @@ func refresh_actions() -> void:
 		"day":
 			title = "누 가 먼 저 ?"
 			if scr.game.can_begin_turn(me):
-				hint = "자유 순서 · 다음 차례를 고르세요 (내 차례 또는 동료 한 명)"
+				hint = "자유 순서 · 다음 차례를 고릅니다 (내 차례 또는 동료 한 명)"
 				primary = _take_type(others, "begin_turn")
 				if scr._remote == null:
 					extra_btns.append(_order_toggle())
@@ -71,7 +71,7 @@ func refresh_actions() -> void:
 				elif scr.game.steps_left > 0:
 					hint = "이동 %d칸 남음 · 보드에서 칸을 누르면 그 길로 걸어갑니다 · 이동을 마치면 다른 행동을 고를 수 있습니다" % scr.game.steps_left
 				elif not scr.game.my_dice(scr.human).is_empty():
-					hint = "주사위 1개 = 행동 1개 · 주사위를 눌러 이동·판정·건네기·정찰·숨기를 고르세요 · 다 하면 「차례 마치기」"
+					hint = "주사위 1개 = 행동 1개 · 주사위를 눌러 이동·판정·건네기·정찰·숨기를 고릅니다 · 다 하면 「차례 마치기」"
 				else:
 					hint = "주사위를 다 썼습니다 · 「차례 마치기」"
 				if scr.game.act == 2:
@@ -100,7 +100,7 @@ func refresh_actions() -> void:
 				hint = "%s의 차례입니다." % scr._text.name(scr.game.current)
 		"choice":
 			title = "선 택"
-			hint = "%s가 고르는 중입니다." % scr._text.name(int(scr.game.pending["player"])) if int(scr.game.pending["player"]) != scr.human else "선택 창에서 고르세요."
+			hint = "%s가 고르는 중입니다." % scr._text.name(int(scr.game.pending["player"])) if int(scr.game.pending["player"]) != scr.human else "선택 창에서 고릅니다."
 		"over":
 			title = "작 전 종 료"
 	if scr._playing:
@@ -299,7 +299,7 @@ func _build_verbs(mine: Array, primary: Dictionary, others: Array) -> void:
 		pm.id_pressed.connect(func(id): scr._press(rest[id]))
 		col.add_child(more)
 	if scr._verb != "":
-		scr._act_hint.text = "「%s」 — 쓸 주사위를 누르세요 (반짝이는 주사위)" % str(scr._ui()["verbs"].filter(func(v): return v["id"] == scr._verb)[0]["label"])
+		scr._act_hint.text = "「%s」 — 쓸 주사위를 누릅니다 (반짝이는 주사위)" % str(scr._ui()["verbs"].filter(func(v): return v["id"] == scr._verb)[0]["label"])
 
 
 func pick_verb(key: String, acts: Array) -> void:
@@ -473,7 +473,7 @@ func _refresh_dice(mine: Array) -> void:
 		v.add_child(l)
 		scr._dice_row.add_child(v)
 	if false:   # M: 독에는 자리가 없어 고정 안내를 두지 않는다 (훈련 안내 · 미리보기 띠가 대신)
-		var tip := UiKit.text("주사위 1개 = 행동 1개: 이동(눈만큼) · 작전 판정(눈 + 주사위 1개) · 바치기\n건네기 · 미끼 · 숨기 · 정찰 · 장터 — 주사위를 눌러 고르세요\n남은 주사위는 밤에 사라집니다", 11, Style.INK_3, false)
+		var tip := UiKit.text("주사위 1개 = 행동 1개: 이동(눈만큼) · 작전 판정(눈 + 주사위 1개) · 바치기\n건네기 · 미끼 · 숨기 · 정찰 · 장터 — 주사위를 눌러 고릅니다\n남은 주사위는 밤에 사라집니다", 11, Style.INK_3, false)
 		tip.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		tip.name = "DiceTip"
 		scr._dice_row.add_child(tip)
@@ -506,7 +506,7 @@ func die_menu(acts: Array, die := -1) -> void:
 	v.custom_minimum_size = Vector2(430, 0)
 	panel.add_child(v)
 	var dv := scr.game.die_value(die) if die >= 0 else 0
-	v.add_child(UiKit.title("주사위 %d — 무엇을 할까요? (주사위 1개 = 행동 1개)" % dv if die >= 0 else "행동 고르기", 15, Style.INK))
+	v.add_child(UiKit.title("주사위 %d — 무엇을 하겠습니까? (주사위 1개 = 행동 1개)" % dv if die >= 0 else "행동 고르기", 15, Style.INK))
 	for a in acts:
 		var aa: Dictionary = a
 		var row := VBoxContainer.new()
@@ -578,7 +578,7 @@ func hint(a: Dictionary) -> String:
 				"bomb":
 					return "폭탄을 내고 장면 조건을 채움 (주사위 하나도 씀)"
 		"give_die":
-			return "하루 한 번. %s은(는) 행동이 하나 늘고 나는 하나 줆" % scr._text.name(int(a["target"]))
+			return RulesV2.josa("하루 한 번. %s은(는) 행동이 하나 늘고 나는 하나 줆" % scr._text.name(int(a["target"])))
 		"give_item":
 			return "아이템 카드를 동료에게 줌 (주사위 하나를 씀)"
 		"decoy":

@@ -185,7 +185,7 @@ func _fill_list(rooms: Array) -> void:
 		return
 	UiKit.clear(_list_box)
 	if rooms.is_empty():
-		_list_box.add_child(UiKit.text("지금 기다리는 공개 방이 없습니다. 방을 만들어 보세요.", 14, Style.INK_3))
+		_list_box.add_child(UiKit.text("지금 기다리는 공개 방이 없습니다. 방을 만들어 봅니다.", 14, Style.INK_3))
 		return
 	for r in rooms:
 		var row := PanelContainer.new()
@@ -253,7 +253,7 @@ func _show_room(r: Dictionary) -> void:
 	var offer: Array = mine.get("offer", [])
 	if not offer.is_empty():
 		_box.add_child(UiKit.hsep())
-		_box.add_child(UiKit.text("요원을 고르세요", 15, Style.INK_2))
+		_box.add_child(UiKit.text("요원을 고릅니다", 15, Style.INK_2))
 		var orow := HBoxContainer.new()
 		orow.add_theme_constant_override("separation", 16)
 		_box.add_child(orow)

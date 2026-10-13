@@ -531,6 +531,8 @@ func _validate_vote_ai(errs: Array[String]) -> void:
 	for k in ["act2_days_per_scene", "saga_value"]:
 		if float(ai.get(k, 0.0)) <= 0.0:
 			errs.append("rules.ai.%s가 없거나 0 이하입니다." % k)
+	if ai.has("check_min") and (float(ai["check_min"]) < 0.0 or float(ai["check_min"]) >= 1.0):
+		errs.append("rules.ai.check_min은 0 이상 1 미만이어야 합니다 (없으면 0: 모든 판정을 해 본다).")
 	var r = ai.get("rescue", null)
 	if typeof(r) != TYPE_DICTIONARY or float(r.get("value", 0.0)) <= 0.0 or int(r.get("range", 0)) <= 0:
 		errs.append("rules.ai.rescue에 value와 range(양수)가 있어야 합니다.")

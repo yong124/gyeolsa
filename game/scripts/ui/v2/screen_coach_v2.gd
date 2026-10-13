@@ -104,6 +104,8 @@ func on_event(e: Dictionary) -> void:
 		"card":
 			if str(e.get("deck", "")) == "event":
 				note("event")
+			elif str(e.get("deck", "")) == "threat":
+				note("first_morning")   # 위협 카드가 뒤집힐 때 바로 (위협 효과로 고르기 창이 먼저 뜨면 설명이 그 뒤에 나오던 문제)
 
 
 func tip_check() -> void:

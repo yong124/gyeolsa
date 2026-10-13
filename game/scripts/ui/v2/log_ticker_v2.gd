@@ -1,6 +1,6 @@
 class_name LogTickerV2
 extends PanelContainer
-## v2 작전 기록 (v1 LogTicker 모양): 평소엔 최근 소식 한 줄, "작전 기록"을 누르면 위로 서랍이 열린다.
+## v2 작전 기록: 평소엔 최근 소식 한 줄, "작전 기록"을 누르면 위로 서랍이 열린다.
 
 var game: RulesV2
 var drawer: PanelContainer
@@ -80,7 +80,7 @@ func refresh() -> void:
 	_date.text = game.date_label()
 	while _count < game.log_lines.size():
 		var line: String = str(game.log_lines[_count]).replace("[", "[lb]")   # 이름 등 글 속 [ ]를 서식으로 읽지 않게 (Z1)
-		var col := LogTicker.tone_of(line)
+		var col := tone_of(line)
 		if line.begins_with("──"):
 			_log.append_text("\n[color=#%s][b]%s[/b][/color]\n" % [col.to_html(false), line.strip_edges().trim_prefix("──").trim_suffix("──").strip_edges()])
 		else:
@@ -95,3 +95,24 @@ func _emph(line: String) -> String:
 	if i > 0 and i < 24:
 		return "[b]%s[/b]  %s" % [line.substr(0, i), line.substr(i + 2)]
 	return line
+
+
+static func _has_any(s: String, words: Array) -> bool:
+	for w in words:
+		if w in s:
+			return true
+	return false
+
+
+static func tone_of(line: String) -> Color:
+	# 로그에는 어조 정보가 없어 낱말로 가른다
+	var low := line
+	if _has_any(low, ["광복", "성공", "구출"]):
+		return Style.GOOD_ON_DARK
+	if _has_any(low, ["체포", "투옥", "실패"]):
+		return Style.BAD_ON_DARK
+	if _has_any(low, ["경찰", "검문"]):
+		return UiKit.COL_WARN
+	if line.begins_with("──") or line.begins_with("["):
+		return Style.ON_DARK_ACCENT
+	return Color("#d8cbb4")

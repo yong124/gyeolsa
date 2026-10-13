@@ -172,7 +172,7 @@ page = f'''<!doctype html>
   <div class="chart">
     <div class="cap">2. 결행 대상별 승률 (회색: 출시 뒤 조정 전 → 빨강: 지금)</div>
     {chart_strikes()}
-    <div class="read">출시 뒤 미션을 손본 뒤 격차가 18.2%p로 벌어졌다. 마지막 장면은 눈금 1에 20%p 넘게 흔들려서, 군영 마지막 장면만 한 칸 낮추고 같은 거점의 다른 장면으로 되돌렸다(9가지 조합 비교). 격차 {spread:.1f}%p.</div>
+    <div class="read">출시 뒤 미션을 손본 뒤 격차가 18.2%p로 벌어졌다. 마지막 장면은 눈금 1에 20%p 넘게 흔들려서, 군영 마지막 장면만 한 칸 낮추고 같은 거점의 다른 장면으로 되돌렸다(9가지 조합 비교). 그 뒤 점검에서 <b>AI가 성공 확률 0%인 판정을 판당 13.8번</b> 하던 것을 고치자(4.2번, 남는 주사위는 동료에게) 승률이 57.1%로 올라, 가장 높던 총독부 근위대와 군영 군견 판정을 10 → 11로 맞췄다. 격차 {spread:.1f}%p.</div>
   </div>
 </section>
 
@@ -180,7 +180,7 @@ page = f'''<!doctype html>
   <div class="chart">
     <div class="cap">3. 요원 12명의 승률 차이 (그 요원이 있는 판 − 전체, %p · 초록 띠: 목표 ±10)</div>
     {chart_chars()}
-    <div class="read">모두 목표 안. 가장 약한 정 인쇄공(−6.0)은 능력이 「주사위 건네기」라, AI가 협력을 덜 하는 만큼 낮게 나올 수 있다.</div>
+    <div class="read">모두 목표 안(가장 낮은 요원 {min(now['character_diff_pp'].values()):+.1f} · 가장 높은 요원 {max(now['character_diff_pp'].values()):+.1f}).</div>
   </div>
 
   <div class="chart">
@@ -207,7 +207,7 @@ page = f'''<!doctype html>
   <ul>
     <li><b>사람 플레이테스트가 없다.</b> 모든 수치는 AI 기준이다. itch.io 공개로 사람 판을 모으는 중이다.</li>
     <li><b>결행 혜택 「군자금」은 거의 고르지 않는다</b>({ben.get('funds',0)}번). 다른 혜택보다 약하거나, AI가 돈의 값을 낮게 본다. 사람 판을 보고 고친다.</li>
-    <li><b>다른 시드에서는 격차가 {spread_alt:.1f}%p</b>로 목표 경계선이다. 형무소는 고르는 판이 적어(1,000판 중 {now['strikes']['prison']}판) 흔들림이 크다.</li>
+    <li><b>다른 시드에서는 승률 {100*alt['win_rate']:.1f}% · 격차 {spread_alt:.1f}%p</b>로 목표의 위쪽 끝이다. 형무소는 고르는 판이 적어(1,000판 중 {now['strikes']['prison']}판) 흔들림이 크다.</li>
     <li>장교 숙소(판정 12)처럼 다른 길이 없는 높은 판정은 첩보 토큰이 있어야 닿는다. 사람에게 막막하게 느껴지는지 봐야 한다.</li>
   </ul>
   <p class="small muted">자료: <code>portfolio/data/balance_1000.json</code> · <code>balance_1000_seed910000.json</code> · <code>winrate_history.json</code> (측정 도구 <code>game/tools/v2_balance.gd</code>)</p>

@@ -49,7 +49,7 @@ func _deal() -> void:
 func _show() -> void:
 	UiKit.clear(_box)
 	_box.add_child(UiKit.title("요원 고르기", Style.FS_H2))
-	_box.add_child(UiKit.text("요원 카드 두 장이 왔습니다. 한 사람을 고르세요. 나머지 동료 셋은 결사가 정해 보냅니다.", Style.FS_BODY, Style.INK_2))
+	_box.add_child(UiKit.text("요원 카드 두 장이 왔습니다. 한 사람을 고릅니다. 나머지 동료 셋은 결사가 정해 보냅니다.", Style.FS_BODY, Style.INK_2))
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 18)
 	_box.add_child(row)

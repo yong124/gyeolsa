@@ -494,7 +494,7 @@ func card_status(id: String) -> String:
 			return "잠복 %d / %d일" % [int(st.get("lurk", 0)), int(cond.get("days", 1))]
 		"contact":
 			var h := int(st.get("holder", -1))
-			return ("%s이(가) 들고 있음" % players[h]["name"]) if h >= 0 else "아직 받지 않음"
+			return josa("%s이(가) 들고 있음" % players[h]["name"]) if h >= 0 else "아직 받지 않음"
 		"assassinate":
 			return "동선 파악됨 (표적이 멈춤)" if bool(st.get("informed", false)) else ""
 	return ""
@@ -1434,7 +1434,7 @@ func _vote_next() -> void:
 			var opts := []
 			for id in launch_candidates():
 				opts.append({"value": id, "label": "%s · 첩보 %d" % [data.base_names[data.base_index(id)], int(intel[id])]})
-			var tp := "결행할 거점을 고르세요. 첩보 %d 이상인 곳이 후보입니다." % int(data.rules["launch"]["target_min_intel"])
+			var tp := "결행할 거점을 고릅니다. 첩보 %d 이상인 곳이 후보입니다." % int(data.rules["launch"]["target_min_intel"])
 			_ask(q, "launch_target", tp, opts, {"then": "morning"})
 			pending["secret"] = true
 			return
@@ -2040,7 +2040,7 @@ func _check_roll(p: Dictionary) -> void:
 	var ok: bool = c["total"] >= int(c["target"])
 	var label := _check_label(c)
 	_push({"kind": "dice", "what": label, "dice": c["dice"], "bonus": c["bonus"], "target": c["target"],
-		"player": p["id"], "ok": ok, "played": dv})
+		"player": p["id"], "ok": ok, "played": dv, "chance": check_chance(c, dv)})
 	_log("%s: %s 판정 %d%s (목표 %d) → %s" % [p["name"], label, r,
 		(" %+d" % c["bonus"]) if c["bonus"] != 0 else "", c["target"], "성공" if ok else "실패"])
 	if ok:
@@ -2363,7 +2363,7 @@ func _marker_arrive(p: Dictionary, cell: Vector2i) -> bool:
 		return true
 	if not asking.is_empty():
 		var cost := int(card_cond(str(asking["id"]))["informer_cost"]["funds"])
-		_ask(p, "informer_pay", "정보원에게 사례금 군자금 %d을 낼까요? 동선을 알아내면 표적이 멈추고 판정이 쉬워집니다. (지금 %d)" % [cost, funds],
+		_ask(p, "informer_pay", "정보원에게 사례금 군자금 %d을 내겠습니까? 동선을 알아내면 표적이 멈추고 판정이 쉬워집니다. (지금 %d)" % [cost, funds],
 			[{"value": true, "label": "사례금 (군자금 %d)" % cost}, {"value": false, "label": "그냥 지나간다"}], {})
 		pending["marker"] = int(asking["uid"])
 		pending["stop"] = stop
@@ -2938,7 +2938,7 @@ func _ask_discard(p: Dictionary) -> void:
 	var opts := []
 	for i in p["items"].size():
 		opts.append({"value": i, "label": item_def(p["items"][i])["name"]})
-	_ask(p, "discard", "아이템은 %d장까지 가질 수 있습니다. 버릴 카드를 고르세요." % hand_limit(p), opts, {"then": "resume"})
+	_ask(p, "discard", "아이템은 %d장까지 가질 수 있습니다. 버릴 카드를 고릅니다." % hand_limit(p), opts, {"then": "resume"})
 
 
 func _use_item(p: Dictionary, idx: int) -> void:
@@ -3329,9 +3329,18 @@ func _op_police_attach(p: Dictionary, e: Dictionary, queue: Array) -> bool:
 	return false
 
 
-func _ask_leader_pick(e: Dictionary, ids: Array, queue: Array) -> bool:
+const _TIE_WHO := {"isolated": "동료와 가장 멀리 떨어진(고립된) 요원", "wanted": "가장 많이 갇혔던(수배된) 요원", "nearest_to_base": "거점에 가장 가까운 요원"}
+const _TIE_WHAT := {"police_attach": "그 요원에게 경찰이 붙습니다", "checkpoint_place": "그 요원 옆 빈칸에 검문소가 생깁니다",
+	"discard_item": "그 요원이 아이템을 버립니다"}
+
+
+func _ask_leader_pick(e: Dictionary, ids: Array, queue: Array, who := "") -> bool:
 	## 동점은 그날의 리더가 고른다. 고른 뒤 같은 효과를 그 요원으로(e["pid"]) 다시 처리한다.
-	return _ask_pick(players[leader], e, queue, "pid", "pick_player", "동점입니다. 리더가 대상을 고르세요.", _player_options(ids))
+	## 무엇을 고르는지(기준 · 받는 효과)를 함께 적는다 (처음 하는 사람이 맥락 없이 고르지 않게)
+	var crit: String = _TIE_WHO.get(who, "대상")
+	var what: String = _TIE_WHAT.get(str(e.get("op", "")), "고른 요원이 이 효과를 받습니다")
+	var prompt := "%s이(가) 여럿입니다. 리더가 한 명을 고릅니다. %s." % [crit, what]
+	return _ask_pick(players[leader], e, queue, "pid", "pick_player", prompt, _player_options(ids))
 
 
 func _player_options(ids: Array) -> Array:
@@ -3395,11 +3404,11 @@ func _resolve_who(p: Dictionary, e: Dictionary, ctx: Dictionary, queue: Array, w
 		var cands := _ally_candidates(p, who, e, include_jailed)
 		if cands.size() <= 1:
 			return cands
-		_ask_pick(p, e, queue, "pid", "pick_player", "대상 동료를 고르세요.", _player_options(cands))
+		_ask_pick(p, e, queue, "pid", "pick_player", "대상 동료를 고릅니다.", _player_options(cands))
 		return null
 	var ids := _who_pick(p, who, e)
 	if ids.size() > 1 and who in ["isolated", "wanted", "nearest_to_base"]:
-		_ask_leader_pick(e, ids, queue)
+		_ask_leader_pick(e, ids, queue, who)
 		return null
 	return ids
 
@@ -3434,7 +3443,7 @@ func _op_intel(p: Dictionary, e: Dictionary, ctx: Dictionary) -> bool:
 			return false
 		for id in near_ids:
 			opts.append({"value": id, "label": data.base_names[data.base_index(id)]})
-		_ask(p, "intel_base", "첩보를 쌓을 거점을 고르세요.", opts, ctx)
+		_ask(p, "intel_base", "첩보를 쌓을 거점을 고릅니다.", opts, ctx)
 		pending["amount"] = v
 		return true
 	var bi := _resolve_base(p, e.get("base", "nearest"), ctx)
@@ -3502,7 +3511,7 @@ func _op_draw_item(p: Dictionary, e: Dictionary, queue: Array) -> bool:
 	var opts := []
 	for i in cards.size():
 		opts.append({"value": i, "label": item_def(cards[i])["name"]})
-	_ask(p, "draw_pick", "아이템 %d장 중 1장을 고르세요 (나머지는 버립니다)." % cards.size(), opts, {})
+	_ask(p, "draw_pick", "아이템 %d장 중 1장을 고릅니다 (나머지는 버립니다)." % cards.size(), opts, {})
 	pending["cards"] = cards
 	return true
 
@@ -3514,9 +3523,19 @@ func _op_choice(p: Dictionary, e: Dictionary) -> bool:
 	for i in options.size():
 		opts.append({"value": i, "label": options[i].get("label", "")})
 		effs.append(options[i].get("effects", []))
-	_ask(p, "effect_choice", "고르세요.", opts, {})
+	_ask(p, "effect_choice", "고릅니다.", opts, {})
 	pending["effects"] = effs
 	return true
+
+
+static func grant_label(g: Dictionary) -> String:
+	## 한 번 쓰는 권리의 화면 이름 (기록에 kind id가 그대로 나오지 않게)
+	match str(g.get("kind", "")):
+		"check_bonus": return "판정 +%d" % int(g.get("value", 0))
+		"reroll": return "다시 굴리기"
+		"evade_auto": return "회피 자동 성공"
+		"escape_instant": return "즉시 탈옥"
+	return "권리"
 
 
 func _op_grant_once(p: Dictionary, e: Dictionary, ctx: Dictionary, queue: Array) -> bool:
@@ -3529,7 +3548,7 @@ func _op_grant_once(p: Dictionary, e: Dictionary, ctx: Dictionary, queue: Array)
 	for id in ids:
 		var q: Dictionary = players[id]
 		q["grants"].append({"kind": e.get("kind", ""), "value": int(e.get("value", 0)), "scope": e.get("scope", "any")})
-		_log("%s: 한 번 쓰는 권리를 얻었습니다 (%s)." % [q["name"], e.get("kind", "")])
+		_log("%s: 한 번 쓰는 권리를 얻었습니다 (%s)." % [q["name"], grant_label(e)])
 	return false
 
 
@@ -3805,7 +3824,7 @@ func _op_discard_item(p: Dictionary, e: Dictionary, queue: Array) -> bool:
 	var opts := []
 	for i in p["items"].size():
 		opts.append({"value": i, "label": item_def(p["items"][i])["name"]})
-	_ask(p, "discard", "버릴 아이템을 고르세요.", opts, {})
+	_ask(p, "discard", "버릴 아이템을 고릅니다.", opts, {})
 	return true
 
 
@@ -3828,7 +3847,7 @@ func _op_scout(p: Dictionary, e: Dictionary, queue: Array) -> bool:
 		var opts := []
 		for c in cells:
 			opts.append({"value": c, "label": "(%d, %d)" % [c.x, c.y]})
-		return _ask_pick(p, e, queue, "cell", "pick_cell", "정찰할 덮인 칸을 고르세요.", opts)
+		return _ask_pick(p, e, queue, "cell", "pick_cell", "정찰할 덮인 칸을 고릅니다.", opts)
 	var cell: Vector2i = e["cell"] if e.has("cell") else cells[0]
 	if board.has(cell) or _manhattan(cell, p["pos"]) > r:
 		return false
@@ -3854,7 +3873,7 @@ func _op_threat_look(e: Dictionary) -> bool:
 	for i in n:
 		var id: String = threat_deck[threat_deck.size() - 1 - i]
 		opts.append({"value": i, "label": "%s — %s" % [data.threat(id).get("name", id), data.threat(id).get("text", "")]})
-	_ask(players[benefit_chooser()], "threat_look", "2막 위협 맨 위 %d장입니다. 버릴 한 장을 고르세요." % n, opts, {})
+	_ask(players[benefit_chooser()], "threat_look", "2막 위협 맨 위 %d장입니다. 버릴 한 장을 고릅니다." % n, opts, {})
 	return true
 
 
@@ -3872,7 +3891,7 @@ func _op_give_die(p: Dictionary, e: Dictionary, ctx: Dictionary, queue: Array) -
 		var opts := []
 		for i in mine:
 			opts.append({"value": i, "label": "주사위 %d" % die_value(i)})
-		return _ask_pick(p, e, queue, "die", "pick_die", "%s에게 건넬 주사위를 고르세요." % players[ids[0]]["name"], opts)
+		return _ask_pick(p, e, queue, "die", "pick_die", "%s에게 건넬 주사위를 고릅니다." % players[ids[0]]["name"], opts)
 	var di: int = int(e["die"]) if e.has("die") else mine[0]
 	if not di in mine:
 		return false
@@ -3927,7 +3946,7 @@ func _op_die(p: Dictionary, e: Dictionary, queue: Array) -> bool:
 						opts.append({"value": "%d:%d" % [i, sign * mag], "label": "%s: %d → %d" % [_die_owner_label(i), die_value(i), nv]})
 			if opts.is_empty():
 				return false
-			return _ask_pick(p, e, queue, "sel", "pick_die", "어느 주사위를 어떻게 바꿀까요?", opts)
+			return _ask_pick(p, e, queue, "sel", "pick_die", "어느 주사위를 어떻게 바꾸겠습니까?", opts)
 		var parts: PackedStringArray = str(e["sel"]).split(":")
 		var di := int(parts[0])
 		op_dice[di]["value"] = clampi(die_value(di) + int(parts[1]), 1, sides)
@@ -3949,7 +3968,7 @@ func _op_die(p: Dictionary, e: Dictionary, queue: Array) -> bool:
 			var vopts := []
 			for v in range(1, sides + 1):
 				vopts.append({"value": v, "label": "눈 %d" % v})
-			return _ask_pick(p, e, queue, "val", "pick_value", "원하는 눈을 고르세요.", vopts)
+			return _ask_pick(p, e, queue, "val", "pick_value", "원하는 눈을 고릅니다.", vopts)
 		op_dice[i2]["value"] = clampi(int(e["val"]), 1, sides)
 		_log("%s의 눈을 %d(으)로 정했습니다." % [_die_owner_label(i2), die_value(i2)])
 		_push_dice()
@@ -4012,7 +4031,7 @@ func _op_place_tile(p: Dictionary, e: Dictionary, queue: Array) -> bool:
 		if opts.is_empty():
 			_log("더미에 타일이 없습니다.")
 			return false
-		return _ask_pick(p, e, queue, "tile", "pick_tile", "더미에서 깔 타일을 고르세요.", opts)
+		return _ask_pick(p, e, queue, "tile", "pick_tile", "더미에서 깔 타일을 고릅니다.", opts)
 	var kind: String = str(e["tile"]) if type == "choose" else type
 	var free := _free_neighbors(p["pos"])
 	if free.is_empty():
@@ -4022,7 +4041,7 @@ func _op_place_tile(p: Dictionary, e: Dictionary, queue: Array) -> bool:
 		var copts := []
 		for c in free:
 			copts.append({"value": c, "label": "(%d, %d)" % [c.x, c.y]})
-		return _ask_pick(p, e, queue, "cell", "pick_cell", "타일을 깔 칸을 고르세요.", copts)
+		return _ask_pick(p, e, queue, "cell", "pick_cell", "타일을 깔 칸을 고릅니다.", copts)
 	var cell: Vector2i = e["cell"] if e.has("cell") else free[0]
 	if board.has(cell) or _manhattan(cell, p["pos"]) != 1:
 		return false
@@ -4064,7 +4083,7 @@ func _op_move_to_ally(p: Dictionary, e: Dictionary, ctx: Dictionary, queue: Arra
 		var opts := []
 		for c in cells:
 			opts.append({"value": c, "label": "(%d, %d)" % [c.x, c.y]})
-		return _ask_pick(p, e, queue, "cell", "pick_cell", "%s 곁의 어느 칸으로 갈까요?" % q["name"], opts)
+		return _ask_pick(p, e, queue, "cell", "pick_cell", "%s 곁의 어느 칸으로 가겠습니까?" % q["name"], opts)
 	var to: Vector2i = e["cell"] if e.has("cell") else cells[0]
 	if not to in cells:
 		return false
@@ -4103,7 +4122,7 @@ func _op_transfer_item(p: Dictionary, e: Dictionary, ctx: Dictionary, queue: Arr
 		var opts := []
 		for i in p["items"].size():
 			opts.append({"value": i, "label": item_def(p["items"][i])["name"]})
-		return _ask_pick(p, e, queue, "item", "pick_item", "%s에게 줄 아이템을 고르세요." % q["name"], opts)
+		return _ask_pick(p, e, queue, "item", "pick_item", "%s에게 줄 아이템을 고릅니다." % q["name"], opts)
 	var idx: int = int(e["item"]) if e.has("item") else 0
 	if idx < 0 or idx >= p["items"].size():
 		return false
@@ -4125,7 +4144,10 @@ func _op_transfer_item(p: Dictionary, e: Dictionary, ctx: Dictionary, queue: Arr
 # ================================================================ 선택
 
 func _ask(p: Dictionary, kind: String, prompt: String, options: Array, ctx: Dictionary) -> void:
-	pending = {"kind": kind, "player": p["id"], "prompt": prompt, "options": options,
+	for o in options:
+		if typeof(o) == TYPE_DICTIONARY and o.get("label") is String:
+			o["label"] = josa(o["label"])
+	pending = {"kind": kind, "player": p["id"], "prompt": josa(prompt), "options": options,
 		"ctx": ctx, "rest": [], "resume_phase": phase}
 	phase = "choice"
 	_push({"kind": "choice", "player": p["id"]})
@@ -4281,7 +4303,7 @@ func _launch(reason: String, target := "", tied: Array = []) -> void:
 	var opts := []
 	for id in cands:
 		opts.append({"value": id, "label": data.base_names[data.base_index(id)]})
-	_ask(players[leader], "strike_target", "표가 같은 거점이 여럿입니다. 리더가 결행할 곳을 고르세요.", opts, {})
+	_ask(players[leader], "strike_target", "표가 같은 거점이 여럿입니다. 리더가 결행할 곳을 고릅니다.", opts, {})
 
 
 func _finish_launch(base_id: String) -> void:
@@ -4732,7 +4754,7 @@ func _launch_benefit_next() -> bool:
 	for b in avail:
 		opts.append({"value": str(b["id"]), "label": "%s — %s" % [b.get("name", ""), b.get("text", "")]})
 	var who: Dictionary = players[benefit_chooser()]
-	_ask(who, "launch_benefit", "결행 혜택을 고르세요 (%d개 남음, 같은 것은 한 번만)." % int(launch_info["benefit_left"]), opts, {"then": "launch"})
+	_ask(who, "launch_benefit", "결행 혜택을 고릅니다 (%d개 남음, 같은 것은 한 번만)." % int(launch_info["benefit_left"]), opts, {"then": "launch"})
 	return true
 
 
@@ -5484,7 +5506,57 @@ func _shuffle(a: Array) -> void:
 
 
 func _log(s: String) -> void:
-	log_lines.append(s)
+	log_lines.append(josa(s))
+
+
+# ---- 조사: 「%s이(가)」처럼 이름 · 숫자 뒤에 붙는 조사를 앞 글자의 받침에 맞춰 고른다
+
+const _JOSA_PAIRS := [["이(가)", "이", "가"], ["을(를)", "을", "를"], ["은(는)", "은", "는"], ["과(와)", "과", "와"], ["와(과)", "과", "와"]]
+const _JOSA_SKIP := "」』]）)\"'›》"
+## 숫자를 읽을 때 마지막 소리의 받침: 0 영 · 1 일(ㄹ) · 3 삼 · 6 육 · 7 칠(ㄹ) · 8 팔(ㄹ)은 받침, 2 · 4 · 5 · 9는 없음
+const _DIGIT_FINAL := {"0": 21, "1": 8, "2": 0, "3": 16, "4": 0, "5": 0, "6": 1, "7": 8, "8": 8, "9": 0}
+
+
+static func _final_of(text: String, end: int) -> int:
+	## text[end - 1]부터 거꾸로 닫는 괄호 · 따옴표를 건너뛰고 본 글자의 받침 번호 (0이면 받침 없음, 8이면 ㄹ, -1이면 알 수 없음)
+	var i := end - 1
+	while i >= 0 and _JOSA_SKIP.contains(text[i]):
+		i -= 1
+	if i < 0:
+		return -1
+	var c := text[i]
+	var code := c.unicode_at(0)
+	if code >= 0xAC00 and code <= 0xD7A3:
+		return (code - 0xAC00) % 28
+	if c.is_valid_int():
+		if c == "0" and i > 0 and text[i - 1].is_valid_int():
+			return 17   # 10 · 20 · 100 …: 십 · 백 · 천은 모두 받침이 있다 (ㄹ은 아님)
+		return int(_DIGIT_FINAL[c])
+	return -1
+
+
+static func josa(text: String) -> String:
+	## 「석 기술자이(가)」 → 「석 기술자가」, 「주사위 3이(가)」 → 「주사위 3이」, 「6(으)로」 → 「6으로」. 앞 글자를 모르면 그대로 둔다
+	if not "(" in text:
+		return text
+	for pair in _JOSA_PAIRS:
+		var at := text.find(pair[0])
+		while at >= 0:
+			var f := _final_of(text, at)
+			if f >= 0:
+				text = text.substr(0, at) + (pair[1] if f > 0 else pair[2]) + text.substr(at + pair[0].length())
+				at = text.find(pair[0], at + 1)
+			else:
+				at = text.find(pair[0], at + pair[0].length())
+	var ro := text.find("(으)로")
+	while ro >= 0:
+		var f2 := _final_of(text, ro)
+		if f2 >= 0:
+			text = text.substr(0, ro) + ("으로" if f2 > 0 and f2 != 8 else "로") + text.substr(ro + 4)
+			ro = text.find("(으)로", ro + 1)
+		else:
+			ro = text.find("(으)로", ro + 4)
+	return text
 
 
 func _push(e: Dictionary) -> void:

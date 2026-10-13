@@ -72,6 +72,9 @@ var _roster_open := false         # U1: 동료 상세를 펼쳤는가 (기본은
 var _roster_btn: Button
 var _tip: PanelContainer          # 실전 첫 판 쪽지 (처음 나올 때 한 번, 7초 뒤나 누르면 사라짐)
 var _tip_lbl: Label
+var _small_hint: Button           # 창이 작으면(기준 1600×900의 0.75배 아래) 글자가 작아진다는 안내. 누르면 이번 판에는 다시 안 뜸
+var _small_hint_off := false
+const SMALL_WINDOW := Vector2i(1200, 675)
 var _ticker: LogTickerV2
 var _fx: FxLayer
 var _cine: CinemaV2              # 컷신 · 화면 효과 (V 연출)
@@ -120,7 +123,13 @@ func _init(g: RulesV2, human_id := 0, meta_info := {}) -> void:
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_build()
+	_small_hint = UiKit.button("창이 작아 글자가 작게 보입니다 · 전체 화면(F11 또는 itch 화면 오른쪽 아래 전체 화면 단추)으로 하면 잘 보입니다  ×", func():
+		_small_hint_off = true
+		_small_hint.visible = false, 17, "paper")   # 창이 작을 때 뜨므로 글자는 크게 (0.6배로 줄어도 읽히게)
+	_small_hint.visible = false
+	add_child(_small_hint)
 	resized.connect(_layout)
+	get_window().size_changed.connect(_layout)   # 같은 비율로 줄면 화면(1600×900 기준) 크기는 그대로라 resized가 오지 않는다
 	_layout()
 	_board.sync_from_game()
 	_refresh()
@@ -328,6 +337,11 @@ func _panel(title: String, hint: String, parent: Container) -> Array:
 func _layout() -> void:
 	var w := size.x
 	var h := size.y
+	if _small_hint != null:
+		var ws := get_window().size
+		_small_hint.visible = not _small_hint_off and not _auto and (ws.x < SMALL_WINDOW.x or ws.y < SMALL_WINDOW.y)
+		_small_hint.reset_size()
+		_small_hint.position = Vector2((w - _small_hint.size.x) * 0.5, 70)
 	_top.position = Vector2(20, 10)
 	_top.size = Vector2(w - 40, 56)
 	var top_y := 78.0
@@ -407,7 +421,7 @@ func _make_row(p: Dictionary) -> Dictionary:
 	bar.color = Style.seat(p["id"])
 	bar.custom_minimum_size = Vector2(5, 0)
 	h.add_child(bar)
-	var face := AgentPanel.Face.new()
+	var face := AgentFaceV2.new()
 	face.tex = ArtV2.get_tex("token", str(p["character"]), _board.faction_texture(str(game.char_def(p).get("faction", ""))))
 	face.full = ArtV2.has("token", str(p["character"]))
 	face.ring = Style.seat(p["id"])
@@ -517,7 +531,7 @@ func _refresh_roster() -> void:
 			row["panel"].add_theme_stylebox_override("panel", st)
 			row["stamp"].visible = is_cur
 		var ring: Color = Style.seat(p["id"])
-		var face: AgentPanel.Face = row["face"]
+		var face: AgentFaceV2 = row["face"]
 		if face.jailed != p["jailed"] or face.ring != ring:
 			face.jailed = p["jailed"]
 			face.ring = ring
@@ -795,7 +809,7 @@ func _refresh_hand() -> void:
 		for i in int(pr["need"]):
 			dots += "●" if i < int(pr["have"]) else "○"
 		band += " " + dots   # 진행은 띠에 (조건 글은 마우스를 올리면 큰 카드)
-		var card := CardView.face(band, SAGA_COL, _saga_art(), str(s.get("name", "")), "", W, H, false, 0.36, true)
+		var card := CardFaceV2.face(band, SAGA_COL, _saga_art(), str(s.get("name", "")), "", W, H, false, 0.36, true)
 		_peek.attach(card, _text.saga_info(str(id), pr, done))
 		if not done:
 			var tag := UiKit.stamp("비밀", 10, SAGA_COL, 12)
@@ -806,12 +820,12 @@ func _refresh_hand() -> void:
 	for i in me["items"].size():
 		var it: Dictionary = game.item_def(str(me["items"][i]))
 		var item_id := str(me["items"][i])
-		var card := CardView.face("아 이 템", Style.ITEM, ArtV2.get_tex("item", item_id, load("res://assets/cards/item_back.png")), str(it.get("name", "")), "", W, H, false, 0.36, true)
+		var card := CardFaceV2.face("아 이 템", Style.ITEM, ArtV2.get_tex("item", item_id, load("res://assets/cards/item_back.png")), str(it.get("name", "")), "", W, H, false, 0.36, true)
 		_peek.attach(card, {"band": "아 이 템", "color": Style.ITEM, "art": load("res://assets/cards/item_back.png"), "illus": ArtV2.get_tex("item", item_id), "name": str(it.get("name", "")),
 			"sections": [["효과", str(it.get("text", ""))], ["", "같은 칸 동료에게 줄 수 있습니다." + (" 2막 장면에 아이템으로 바칠 수도 있습니다." if game.act == 2 else "")]]})
 		_hand_row.add_child(card)
 	for i in me["bombs"]:
-		var card := CardView.face("폭 탄", BOMB_COL, load("res://assets/cards/bomb.png"), "폭탄", "", W, H, false, 0.36, true)
+		var card := CardFaceV2.face("폭 탄", BOMB_COL, load("res://assets/cards/bomb.png"), "폭탄", "", W, H, false, 0.36, true)
 		_peek.attach(card, {"band": "폭 탄", "color": BOMB_COL, "art": load("res://assets/cards/bomb.png"), "name": "폭탄",
 			"sections": [["쓰는 곳", "1막: 폭파 미션의 마커 칸까지 들고 가면 미션을 이룹니다.\n2막: 폭탄을 요구하는 장면에 바칩니다."]]})
 		_hand_row.add_child(card)
@@ -883,9 +897,9 @@ func _press(a: Dictionary) -> void:
 		var panel := UiKit.paper_panel(22)
 		panel.custom_minimum_size = Vector2(480, 0)
 		panel.add_child(box)
-		box.add_child(UiKit.title("차례를 마칠까요?", Style.FS_H3))
+		box.add_child(UiKit.title("차례를 마치겠습니까?", Style.FS_H3))
 		var dv: Array = game.my_dice(human).map(func(i): return str(game.die_value(i)))
-		box.add_child(UiKit.text("주사위 %s이(가) 남았습니다. 남은 주사위는 밤에 사라지고, 나를 쫓는 경찰이 다가옵니다." % ", ".join(dv), Style.FS_BODY))
+		box.add_child(UiKit.text(RulesV2.josa("주사위 %s이(가) 남았습니다. 남은 주사위는 밤에 사라지고, 나를 쫓는 경찰이 다가옵니다." % ", ".join(dv)), Style.FS_BODY))
 		box.add_child(UiKit.button("그래도 마친다", func():
 			_choice.visible = false
 			_act(a), 16, "paper"))
@@ -1210,6 +1224,7 @@ func _unhandled_input(event: InputEvent) -> void:
 # ================================================================ 선택 창 · 메뉴
 
 func _show_choice() -> void:
+	_coach.tip_check()   # 고르기 전에 쪽지 먼저 (예: 위협 카드가 바로 고르기 창을 띄울 때 위협 설명)
 	_choice_btns = {}
 	var pd: Dictionary = game.pending
 	var kind: String = pd["kind"]
@@ -1224,7 +1239,7 @@ func _show_choice() -> void:
 	var panel := UiKit.paper_panel(22)
 	panel.custom_minimum_size = Vector2(560, 0)
 	panel.add_child(box)
-	box.add_child(UiKit.title({"launch_vote": "결행 투표", "launch_target": "결행 대상 투표", "strike_target": "결행 대상 (리더)", "launch_benefit": "결행 혜택", "mission_gear": "값을 낼까요?", "informer_pay": "정보원 사례금", "bribe": "검문소 뇌물", "threat_look": "위협 덱 보기", "saga_keep": "남길 사연", "reroll": "다시 하기", "discard": "버릴 아이템"}.get(kind, "선택"), Style.FS_H3))
+	box.add_child(UiKit.title({"launch_vote": "결행 투표", "launch_target": "결행 대상 투표", "strike_target": "결행 대상 (리더)", "launch_benefit": "결행 혜택", "mission_gear": "값을 내겠습니까?", "informer_pay": "정보원 사례금", "bribe": "검문소 뇌물", "threat_look": "위협 덱 보기", "saga_keep": "남길 사연", "reroll": "다시 하기", "discard": "버릴 아이템"}.get(kind, "선택"), Style.FS_H3))
 	box.add_child(UiKit.text(str(pd.get("prompt", "")), Style.FS_BODY))
 	if kind in ["pick_cell", "hop"]:
 		box.add_child(UiKit.text("보드에서 빨간 점선 칸을 눌러도 됩니다.", 14, Style.INK_3))

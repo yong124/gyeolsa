@@ -525,7 +525,8 @@ static func _best_move(g: RulesV2, p: Dictionary, legal: Array) -> int:
 
 
 static func _check_action(g: RulesV2, p: Dictionary, legal: Array, kind: String) -> Dictionary:
-	## 작전 판정 행동: 성공 확률이 가장 높은 주사위로 (같으면 작은 눈)
+	## 작전 판정 행동: 성공 확률이 가장 높은 주사위로 (같으면 작은 눈).
+	## 가장 좋은 주사위로도 rules.ai.check_min보다 낮으면(닿을 수 없는 판정) 하지 않는다. 그 주사위는 건네기 · 숨기 등으로 간다
 	var best: Dictionary = {}
 	var best_chance := -1.0
 	for a in legal:
@@ -536,6 +537,8 @@ static func _check_action(g: RulesV2, p: Dictionary, legal: Array, kind: String)
 		if chance > best_chance + 0.0001 or (absf(chance - best_chance) <= 0.0001 and g.die_value(int(a["die"])) < g.die_value(int(best["die"]))):
 			best_chance = chance
 			best = a
+	if not best.is_empty() and best_chance < float(_ai(g).get("check_min", 0.0)):
+		return {}
 	return best
 
 
