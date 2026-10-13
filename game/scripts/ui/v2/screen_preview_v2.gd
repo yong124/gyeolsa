@@ -39,7 +39,7 @@ func preview_idle() -> void:
 	if scr.game.police.has(scr.human):
 		risk = "경찰이 %d칸 뒤에서 쫓는 중 (차례 끝에 %d칸 다가옴)" % [scr.game.walk_dist(me["pos"], scr.game.police[scr.human]["pos"]), scr.game.police_speed()]
 	elif me["jailed"]:
-		risk = "감옥 — 탈옥 판정 또는 동료의 구출"
+		risk = "감옥 — 탈옥 판정으로만 나옴"
 	if scr.game.phase == "plan":
 		_set_preview("주사위를 이동 · 판정 중 어디에 쓸지", "큰 눈은 멀리 · 판정은 큰 눈이 유리", risk)
 	elif not _my_turn():
@@ -79,9 +79,6 @@ func _cell_gain_risk(c: Vector2i) -> Array:
 				var cond := scr.game.card_cond(str(id))
 				if str(cond.get("kind", "")) == "infiltrate" and str(cond.get("base", "")) == bid:
 					gain.append("잠입: " + str(scr.game.card_def(str(id)).get("name", "")))
-			for q in scr.game.players:
-				if q["jailed"] and q["pos"] == c and q["id"] != scr.human:
-					gain.append("%s 구출" % scr._text.name(int(q["id"])))
 			if scr.game.act == 1:
 				risk.append("들어가면 경찰이 붙음 (3칸 떨어져)")
 		elif not scr.game.board[c].get("used", false):

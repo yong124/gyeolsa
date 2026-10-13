@@ -154,12 +154,12 @@
 			"condition_text": "공작 미션(전단 살포·독립 공채·쌀 창고 등)에 주사위를 두 번 바침",
 			"reward": [
 				{
-					"op": "funds",
-					"value": 3,
-					"earned": false
+					"op": "intel",
+					"base": "choose",
+					"value": 1
 				}
 			],
-			"reward_text": "군자금 +3",
+			"reward_text": "원하는 거점에 첩보 1개",
 			"epilogue": {
 				"win_done": "그가 모은 돈은 해방 뒤 학교 하나가 되었다.",
 				"win_fail": "결행은 이뤄졌다. 그가 모은 것은 그날 모두 쓰였다.",
@@ -362,11 +362,10 @@
 			"branch": "bond",
 			"story": "함께 잡혔던 동지를 감옥에 두고 혼자 나왔다.",
 			"condition": {
-				"kind": "rescue_or_escape",
-				"rescue_within_days": 1,
-				"escapes": 1
+				"kind": "escapes",
+				"count": 1
 			},
-			"condition_text": "갇힌 동료를 그 동료가 갇힌 날이나 다음 날 안에 구출하거나, 탈옥에 한 번 성공",
+			"condition_text": "탈옥에 한 번 성공",
 			"reward": [
 				{
 					"op": "grant_once",
@@ -449,10 +448,11 @@
 			"branch": "bond",
 			"story": "옛 스승이 남긴 물건들을 필요한 동지들에게 나눠 주라는 부탁을 받았다.",
 			"condition": {
-				"kind": "give_items",
-				"count": 1
+				"kind": "visit_tile",
+				"tile": "item",
+				"count": 3
 			},
-			"condition_text": "동료에게 아이템을 한 번 건넴",
+			"condition_text": "아이템 타일 세 곳을 밟음",
 			"reward": [
 				{
 					"op": "move_mod_next",

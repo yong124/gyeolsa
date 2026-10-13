@@ -77,7 +77,7 @@
 		{
 			"id": "checkpoint_add",
 			"name": "검문소 증설",
-			"count": 2,
+			"count": 3,
 			"tone": "bad",
 			"art": "checkpoint",
 			"text": "고립된 요원과 수배된 요원의 옆 빈칸에 검문소 하나씩",
@@ -160,19 +160,13 @@
 			"count": 3,
 			"tone": "bad",
 			"art": "money",
-			"text": "군자금 −2 (모자라면 고립된 요원(감옥 포함)이 아이템 1장을 버림)",
+			"text": "고립된 요원(감옥 포함)이 아이템 1장을 버림",
 			"effects": [
 				{
-					"op": "funds",
-					"value": -2,
-					"short": [
-						{
-							"op": "discard_item",
-							"who": "isolated",
-							"include_jailed": true,
-							"count": 1
-						}
-					]
+					"op": "discard_item",
+					"who": "isolated",
+					"include_jailed": true,
+					"count": 1
 				}
 			]
 		},
@@ -187,19 +181,6 @@
 				{
 					"op": "exposure",
 					"value": -1
-				}
-			]
-		},
-		{
-			"id": "fund_freeze",
-			"name": "자금 동결",
-			"count": 1,
-			"tone": "bad",
-			"art": "money",
-			"text": "총독부가 은행 계좌를 묶었다. 군자금 절반 (내림)",
-			"effects": [
-				{
-					"op": "funds_half"
 				}
 			]
 		},

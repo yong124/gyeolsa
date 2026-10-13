@@ -107,7 +107,7 @@ static func _has_any(s: String, words: Array) -> bool:
 static func tone_of(line: String) -> Color:
 	# 로그에는 어조 정보가 없어 낱말로 가른다
 	var low := line
-	if _has_any(low, ["광복", "성공", "구출"]):
+	if _has_any(low, ["광복", "성공", "탈옥"]):
 		return Style.GOOD_ON_DARK
 	if _has_any(low, ["체포", "투옥", "실패"]):
 		return Style.BAD_ON_DARK

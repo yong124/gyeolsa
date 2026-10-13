@@ -400,8 +400,6 @@ func _setup(ops: Array) -> void:
 					g.police[scr.human]["summon_turn"] = int(g.players[scr.human]["turns"]) - 1   # 바로 움직이는 경찰 (이번 차례 끝에 다가옴)
 			"today_threat":
 				g.threat_today = str(o.get("id", ""))   # 오늘 위협을 보이는 카드로 맞춤 (효과는 다시 내지 않음)
-			"funds":
-				g.funds = int(o.get("value", 0))
 			"ready":
 				g.ready = int(o.get("value", 0))
 			"intel":
@@ -544,7 +542,7 @@ func _apply_hud() -> void:
 		return
 	var hud: Array = sh["hud"]
 	var top = scr._top
-	var parts := {"calendar": top._cal, "ready": top._gauge, "threat": top._threat, "alert": top._alert, "funds": top._funds, "trend": top._trend_box}
+	var parts := {"calendar": top._cal, "ready": top._gauge, "threat": top._threat, "alert": top._alert, "trend": top._trend_box}
 	for k in parts:
 		var c = parts[k]
 		if c is CanvasItem and is_instance_valid(c):
@@ -607,7 +605,7 @@ func action_shown(a: Dictionary) -> bool:
 	var sh: Dictionary = training.get("show", {})
 	if not active or sh.is_empty():
 		return true
-	if str(a.get("type", "")) in ["use_item", "ability", "give_item", "use_intel", "decoy"]:
+	if str(a.get("type", "")) in ["use_item", "ability", "use_intel"]:
 		return str(a["type"]) in sh.get("extras", [])
 	return true
 
@@ -688,7 +686,7 @@ func _target_rect(t: String) -> Rect2:
 		return fb.get_global_rect() if _ok(fb) else Rect2()
 	var node = {"dock": scr._right, "top": scr._top, "dice": scr._dice_row, "threat": scr._top._threat, "missions": scr._mid_box, "ops": scr._ops_row,
 		"hand": scr._hand_row, "allies": scr._left, "ready": scr._top._gauge, "alert": scr._top._alert, "calendar": scr._top._cal,
-		"funds": scr._top._funds, "trend": scr._top._trend_box}.get(t)
+		"trend": scr._top._trend_box}.get(t)
 	return node.get_global_rect() if _ok(node) else Rect2()
 
 

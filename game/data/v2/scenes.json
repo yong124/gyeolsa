@@ -28,7 +28,7 @@
 						"count": 2,
 						"same_day": true,
 						"where": "prison",
-						"target": 8
+						"target": 9
 					},
 					"on_fail": [
 						{
@@ -43,17 +43,8 @@
 					"name": "열쇠 꾸러미",
 					"where": "inside",
 					"condition": {
-						"kind": "any_of",
-						"options": [
-							{
-								"kind": "pay_item",
-								"count": 1
-							},
-							{
-								"kind": "pay_funds",
-								"count": 3
-							}
-						]
+						"kind": "pay_item",
+						"count": 1
 					},
 					"on_fail": [],
 					"stop_text": "열쇠 꾸러미는 간수장의 허리춤에 그대로 매달려 있었다."
@@ -78,7 +69,7 @@
 					"condition": {
 						"kind": "check",
 						"check": "generic",
-						"target": 9
+						"target": 10
 					},
 					"on_fail": [
 						{
@@ -95,7 +86,7 @@
 				"condition": {
 					"kind": "check",
 					"check": "lock",
-					"target": 11
+					"target": 12
 				},
 				"on_fail": [
 					{
@@ -142,19 +133,10 @@
 					"name": "보초 교대",
 					"where": "adjacent",
 					"condition": {
-						"kind": "any_of",
-						"options": [
-							{
-								"kind": "hold",
-								"where": "adjacent",
-								"days": 1,
-								"count": 1
-							},
-							{
-								"kind": "pay_funds",
-								"count": 3
-							}
-						]
+						"kind": "hold",
+						"where": "adjacent",
+						"days": 1,
+						"count": 1
 					},
 					"on_fail": [],
 					"stop_text": "보초는 끝내 자리를 비우지 않았다.",
@@ -255,18 +237,9 @@
 					"name": "당직 순사",
 					"where": "inside",
 					"condition": {
-						"kind": "any_of",
-						"options": [
-							{
-								"kind": "check",
-								"check": "generic",
-								"target": 13
-							},
-							{
-								"kind": "pay_funds",
-								"count": 3
-							}
-						]
+						"kind": "check",
+						"check": "generic",
+						"target": 13
 					},
 					"on_fail": [
 						{
@@ -398,19 +371,10 @@
 					"name": "문서고",
 					"where": "inside",
 					"condition": {
-						"kind": "any_of",
-						"options": [
-							{
-								"kind": "hold",
-								"where": "inside",
-								"days": 2,
-								"count": 1
-							},
-							{
-								"kind": "pay_funds",
-								"count": 4
-							}
-						]
+						"kind": "hold",
+						"where": "inside",
+						"days": 2,
+						"count": 1
 					},
 					"on_fail": [],
 					"stop_text": "문서고의 기록은 불타지 않았다."
@@ -425,7 +389,7 @@
 						"count": 2,
 						"same_day": true,
 						"where": "gg",
-						"target": 11
+						"target": 12
 					},
 					"on_fail": [
 						{
@@ -481,10 +445,6 @@
 						"count": 2,
 						"where": "inside_or_adjacent",
 						"same_day": true
-					},
-					{
-						"kind": "pay_funds",
-						"count": 2
 					}
 				]
 			},

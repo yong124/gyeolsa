@@ -41,8 +41,11 @@ func _run() -> void:
 	server.port = port
 	server.quiet = true
 	server.ai_step = 0.0
+	# 시험 봇은 화면 없이 프레임마다 두어 사람보다 훨씬 빠르다. 판 동안만 초당 메시지 상한을 풀고, 보안 시험 전에 되돌린다
 	root.add_child(server)
 	await process_frame
+	var msg_limit := server.msg_per_sec   # 서버 _ready(설정 읽기)가 끝난 뒤에 바꾼다
+	server.msg_per_sec = 100000
 	for i in humans:
 		var c := NetClientV2.new()
 		root.add_child(c)
@@ -146,6 +149,7 @@ func _run() -> void:
 	ok(logs.get(0, []) == g2.log_lines, "새 줄만 받아 이어 붙인 작전 기록이 서버 기록과 같음 (%d줄)" % g2.log_lines.size())
 	var big := NetServerV2.pack({"t": "update", "view": NetViewV2.view_for(g2, 0)})
 	ok(NetServerV2.unpack(big) is Dictionary and big[0] == NetServerV2.PACK_ZSTD, "큰 메시지는 압축해 보내고 풀림 (%d바이트)" % big.size())
+	server.msg_per_sec = msg_limit
 	await _security(port, code)
 	print("v2 온라인 시험: 통과 %d, 실패 %d" % [passed, failed])
 	quit(1 if failed > 0 else 0)

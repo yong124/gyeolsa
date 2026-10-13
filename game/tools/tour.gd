@@ -447,7 +447,7 @@ func _v2f() -> void:
 				game.board[c] = game._new_tile("normal")
 	game.board[Vector2i(4, 6)] = game._new_tile("alley")
 	game.board[Vector2i(6, 6)] = game._new_tile("watchtower")
-	game.board[Vector2i(4, 4)] = game._new_tile("market")
+	game.board[Vector2i(4, 4)] = game._new_tile("item")
 	game.board[Vector2i(6, 4)] = game._new_tile("tavern")
 	game.mission_row = []
 	game.markers = []
@@ -458,7 +458,6 @@ func _v2f() -> void:
 	game.op_row.append("op_censorship")
 	game._place_card("op_censorship")
 	game.trend = 3
-	game.funds = 4
 	game.ready = 5
 	game.exposure = 3
 	game.mission_state["m_open_rice"]["sum"] = 5
@@ -489,14 +488,6 @@ func _v2f() -> void:
 	screen._actions.hover_action(acts[0])
 	await _wait(0.3)
 	await _shot("v2f_menu_reach")
-	screen._actions.close_menu()
-	# 장터
-	game.players[0]["pos"] = Vector2i(4, 4)
-	screen._refresh()
-	var macts := game.legal_actions().filter(func(a): return int(a.get("player", -1)) == 0 and a.has("die") and int(a["die"]) == 1)
-	screen._actions.die_menu(macts, 1)
-	await _wait(0.5)
-	await _shot("v2f_market_menu")
 	screen._actions.close_menu()
 	# 첫 판 안내
 	Prefs.v2_notes_seen = []

@@ -52,5 +52,5 @@ godot --headless --path game --script res://tools/v2_balance.gd -- games=1000   
 ```
 
 ## 빌드
-- 웹(itch.io): 프로젝트 루트에서 `powershell -ExecutionPolicy Bypass -File game\tools\build_web.ps1 -Version 2.1.2` → `build/web/`, `build/GwangbokIF_web_v2.1.2.zip`
+- 웹(itch.io): 프로젝트 루트에서 `powershell -ExecutionPolicy Bypass -File game\tools\build_web.ps1 -Version 2.2.0` → `build/web/`, `build/GwangbokIF_web_v2.2.0.zip`
 - 온라인 서버: `../v2_구현/서버_배포.md`

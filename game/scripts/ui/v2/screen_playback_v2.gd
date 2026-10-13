@@ -201,20 +201,10 @@ func play_event(e: Dictionary) -> void:
 			Sfx.play("click")
 		"tile_fx":
 			Sfx.play("click")
-		"funds":
-			if int(e.get("change", 0)) != 0:
-				Sfx.play("score" if int(e["change"]) > 0 else "fail")
-				scr._fx.toast("군자금 %+d (지금 %d)" % [int(e["change"]), int(e["value"])], "good" if int(e["change"]) > 0 else "bad")
-				if int(e["change"]) <= -2 and str(e.get("why", "")) in ["lose", "cap"]:
-					await scr._fx.banner("군자금 %d을 잃었다" % -int(e["change"]), "bad", m, "지금 군자금 %d" % int(e["value"]))
 		"trend":
 			Sfx.play("alert")
 			var pen := scr.game._trend_penalty()
 			scr._fx.toast("일제 동향 %d / %d — 못 막으면 추가 벌칙: %s" % [int(e["value"]), int(scr.game.data.rules["ops"]["trend_max"]), scr._text.fx_text(pen)], "bad")
-		"market_buy":
-			Sfx.play("click")
-		"bribe":
-			Sfx.play("click")
 		"vote_reveal":
 			Sfx.play("click")
 			var yes := 0
@@ -263,7 +253,7 @@ func play_event(e: Dictionary) -> void:
 	if e.has("players_snap"):
 		scr._board.apply_players_snap(e["players_snap"])
 	if k in ["morning", "threat", "dice_rolled", "die_used", "die_given", "day_start", "mission_done", "launch", "scene", "scene_break", "confiscate",
-			"saga_done", "jail", "rescue", "intel", "ready", "exposure", "turn", "night", "markers", "trend", "op_appear", "op_blocked", "op_missed",
-			"mission_missed", "pickup", "item_lost", "work_give", "lurk", "informed", "marker_moved", "funds", "market_buy", "bribe"]:
+			"saga_done", "jail", "intel", "ready", "exposure", "turn", "night", "markers", "trend", "op_appear", "op_blocked", "op_missed",
+			"mission_missed", "pickup", "item_lost", "work_give", "lurk", "informed", "marker_moved"]:
 		scr._refresh_panels()
 	scr._ticker.refresh()

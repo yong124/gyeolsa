@@ -77,8 +77,6 @@ func cond_text(c: Dictionary, card := {}) -> String:
 			return "%s에서 폭탄 %d개를 바침%s" % [where, int(c.get("count", 1)), " (나눠 바쳐도 됨)" if c.get("split", false) else ""]
 		"people":
 			return "%d명이 같은 날 %s에서 차례를 마침" % [int(c.get("count", 2)), where]
-		"pay_funds":
-			return "%s에서 군자금 %d을 내고 매수 (마지막 장면은 매수할 수 없음)" % [where, int(c.get("count", 1))]
 		"hold":
 			return "%d명이 %s에서 %d밤을 넘김" % [int(c.get("count", 1)), where, int(c.get("days", 1))]
 		"jailed_here":
@@ -99,14 +97,6 @@ func cond_text(c: Dictionary, card := {}) -> String:
 				parts2.append(cond_text(o, card))
 			return " 그리고 ".join(parts2)
 	return str(c.get("kind", ""))
-
-
-func funds_price() -> int:
-	## 지금 장면의 매수 값 (군자금)
-	for leaf in scr.game._scene_leaves(scr.game.current_scene().get("condition", {})):
-		if str(leaf["cond"].get("kind", "")) == "pay_funds":
-			return int(leaf["cond"].get("count", 0))
-	return 0
 
 
 func chance(a: Dictionary) -> int:
@@ -130,12 +120,6 @@ func label(a: Dictionary) -> String:
 		"counter_check": return "반격 막기 (주사위 %d · 성공 %d%%)" % [scr.game.die_value(int(a["die"])), chance(a)]
 		"hide": return "숨기 (주사위 %d)" % scr.game.die_value(int(a["die"]))
 		"scout": return "정찰 (주사위 %d: %d칸 안의 덮인 칸 %d곳)" % [scr.game.die_value(int(a["die"])), scr.game.die_value(int(a["die"])), int(scr.game.data.rules["scout"]["count"])]
-		"market":
-			var offer := {}
-			for o in scr.game.data.rules["market"]["offers"]:
-				if str(o["id"]) == str(a["offer"]):
-					offer = o
-			return "장터: %s 사기 (군자금 %d · 주사위 %d)" % [offer.get("name", ""), scr.game.market_cost(me, offer), scr.game.die_value(int(a["die"]))]
 		"use_item":
 			return "[%s] 사용" % scr.game.item_def(str(me["items"][int(a["index"])])).get("name", "")
 		"ability":
@@ -145,10 +129,6 @@ func label(a: Dictionary) -> String:
 			if a.has("die"):
 				return "능력 「%s」 (주사위 %d를 냄)" % [ab.get("name", ""), scr.game.die_value(int(a["die"]))]
 			return "능력 「%s」" % ab.get("name", "")
-		"give_item":
-			return "[%s] → %s 건네기 (주사위 %d)" % [scr.game.item_def(str(me["items"][int(a["index"])])).get("name", ""), name(int(a["to"])), scr.game.die_value(int(a["die"]))]
-		"decoy":
-			return "미끼: %s의 경찰을 내 쪽으로 (주사위 %d)" % [name(int(a["from"])), scr.game.die_value(int(a["die"]))]
 		"move_die":
 			var mv := scr.game.move_value(me, int(a["die"]))
 			return "주사위 %d로 이동 (+%d칸)" % [scr.game.die_value(int(a["die"])), mv]
@@ -161,7 +141,6 @@ func label(a: Dictionary) -> String:
 				"die": return "주사위 %d 장면에 바치기" % scr.game.die_value(int(a["die"]))
 				"item": return "[%s] 바치기 (주사위 %d를 냄)" % [scr.game.item_def(str(me["items"][int(a["index"])])).get("name", ""), scr.game.die_value(int(a["with"]))]
 				"bomb": return "폭탄 바치기 (주사위 %d를 냄)" % scr.game.die_value(int(a["with"]))
-				"funds": return "장면 매수 (군자금 %d · 주사위 %d를 냄)" % [funds_price(), scr.game.die_value(int(a["with"]))]
 		"use_intel":
 			return "첩보 토큰: 판정 +%d" % int(scr.game.data.rules["intel_token"]["check_bonus"]) if a["mode"] == "check" \
 				else "첩보 토큰: 주사위 조건 −%d" % int(scr.game.data.rules["intel_token"]["dice_reduce"])
@@ -251,7 +230,7 @@ func scene_info(card: Dictionary, i: int) -> Dictionary:
 		var need := scr.game.scene_need()
 		var parts := []
 		for key in need:
-			parts.append("%s %d" % [{"dice": "주사위 합", "item": "아이템", "bomb": "폭탄", "check_pair": "판정 성공", "people": "사람", "hold": "밤", "funds": "군자금"}.get(key, key), int(need[key])])
+			parts.append("%s %d" % [{"dice": "주사위 합", "item": "아이템", "bomb": "폭탄", "check_pair": "판정 성공", "people": "사람", "hold": "밤"}.get(key, key), int(need[key])])
 		if not parts.is_empty():
 			secs.append(["남은 것", ", ".join(parts), Style.GOOD])
 	secs.append(["여기서 멈추면", str(card.get("stop_text", "")), Style.SEAL])

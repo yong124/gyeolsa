@@ -74,10 +74,9 @@ func _init() -> void:
 	r3.load_dir("res://data/v2/")
 	r3.rules.erase("hide")
 	r3.rules["scout"]["count"] = 0
-	r3.rules["market"] = {"tile": 3}
 	r3.rules["police"]["rejoin_distance"] = 0
 	var e3 := r3.validate()
-	_check(_has(e3, "rules.hide") and _has(e3, "rules.scout.count") and _has(e3, "rules.market") and _has(e3, "rejoin_distance"), "rules의 hide·scout·market·police 값 누락을 잡는다")
+	_check(_has(e3, "rules.hide") and _has(e3, "rules.scout.count") and _has(e3, "rejoin_distance"), "rules의 hide·scout·police 값 누락을 잡는다")
 	var r4 := GameDataV2.new()
 	r4.load_dir("res://data/v2/")
 	r4.characters["characters"][0]["trait"] = {"mods": [{"stat": "no_such_stat", "value": 1}]}
@@ -108,13 +107,12 @@ func _init() -> void:
 	m1.mission("m_rail_bomb")["bonus"]["if"]["kind"] = "lucky"
 	m1.mission("m_decode")["condition"]["mode"] = "pile"
 	m1.mission("m_secret_docs").erase("missed")
-	m1.mission("m_mp_captain")["condition"]["gear"]["cost"] = "gold"
 	m1.mission("m_informant")["condition"]["kind"] = "dance"
 	m1.mission("m_gg_blueprint")["bonus"]["if"]["base"] = "moon"
 	var em := m1.validate()
 	_check(_has(em, "알 수 없는 마커 role 'nobody'") and _has(em, "work 조건에는 work 마커가 있어야") and _has(em, "bonus.if의 kind가 어휘에 없습니다")
-		and _has(em, "알 수 없는 공작 방식 'pile'") and _has(em, "기한이 있으면 놓쳤을 때(missed)") and _has(em, "gear에는 cost({item, funds})")
-		and _has(em, "알 수 없는 조건 kind 'dance'") and _has(em, "launch_target 보너스에는 base"), "미션 마커·조건·보너스·기한·돈 대신 아이템의 오타와 누락을 잡는다")
+		and _has(em, "알 수 없는 공작 방식 'pile'") and _has(em, "기한이 있으면 놓쳤을 때(missed)")
+		and _has(em, "알 수 없는 조건 kind 'dance'") and _has(em, "launch_target 보너스에는 base"), "미션 마커·조건·보너스·기한의 오타와 누락을 잡는다")
 	var m2 := GameDataV2.new()
 	m2.load_dir("res://data/v2/")
 	m2.missions["ops"][0]["markers"][0]["at"] = "start"
@@ -147,35 +145,15 @@ func _init() -> void:
 	m5.load_dir("res://data/v2/")
 	m5.threats["act1"][0]["count"] = 9
 	_check(_has(m5.validate(), "[장수] 위협 act1"), "1막 위협 덱 장수(21장)를 확인한다")
-	# D단계 어휘: 군자금 op · 장터 · 뇌물 · 매수 · 번 군자금 사연
-	var f1 := GameDataV2.new()
-	f1.load_dir("res://data/v2/")
-	f1.rules["market"]["offers"][0]["cost_stat"] = "no_such_stat"
-	f1.rules["market"]["offers"][1]["needs"] = "wallet"
-	f1.rules["market"]["offers"].append(f1.rules["market"]["offers"][0].duplicate())
-	f1.rules["funds"]["start"] = 11
-	f1.rules["checkpoint"]["bribe"] = 0
-	var ef := f1.validate()
-	_check(_has(ef, "알 수 없는 cost_stat 'no_such_stat'") and _has(ef, "알 수 없는 needs 'wallet'") and _has(ef, "id가 비었거나 겹칩니다") and _has(ef, "rules.funds에") and _has(ef, "rules.checkpoint.bribe"),
-		"장터 값 stat·조건·중복 id와 군자금·뇌물 값의 오류를 잡는다")
+	# 규칙 단순화(군자금 · 장터 · 미끼 · 아이템 건네기 · 구출 삭제): 뺀 어휘는 더 받지 않는다
+	_check(not "funds" in GameDataV2.KNOWN_OPS and not "funds_half" in GameDataV2.KNOWN_OPS and not "pay_funds" in GameDataV2.KNOWN_SCENE_CONDITIONS
+		and not "funds_earned" in GameDataV2.KNOWN_SAGA_CONDITIONS and not "rescue_or_escape" in GameDataV2.KNOWN_SAGA_CONDITIONS
+		and not "rescued_this_turn" in GameDataV2.KNOWN_BONUS_CONDS and not "market_item_cost" in GameDataV2.KNOWN_STATS and not "decoy" in GameDataV2.TUTORIAL_DO,
+		"뺀 규칙의 어휘(funds · pay_funds · 구출 · 장터 값 · 미끼)는 등록돼 있지 않다")
 	var f2 := GameDataV2.new()
 	f2.load_dir("res://data/v2/")
-	f2.mission("m_mp_captain")["condition"]["gear"]["cost"] = {"coin": 1}
-	f2.mission("m_informant")["condition"]["informer_cost"] = {"funds": 0}
-	f2.threats["act1"][0]["effects"] = [{"op": "funds", "value": 0}]
-	f2.threats["act1"][1]["effects"] = [{"op": "funds", "value": -2, "short": [{"op": "no_such_short"}]}]
-	var ff := f2.validate()
-	_check(_has(ff, "gear의 알 수 없는 cost 'coin'") and _has(ff, "informer_cost에는 funds") and _has(ff, "funds에는 value(0이 아님)") and _has(ff, "알 수 없는 op 'no_such_short'"),
-		"돈 대신 아이템(gear) 값·정보원 값·funds op의 오류를 잡는다")
-	var f3 := GameDataV2.new()
-	f3.load_dir("res://data/v2/")
-	var last: Dictionary = f3.strike("prison")["final"]
-	last["condition"] = {"kind": "any_of", "options": [last["condition"], {"kind": "pay_funds", "count": 2}]}
-	f3.endings["funds_left"]["text"] = "남은 군자금"
-	var e3f := f3.validate()
-	_check(_has(e3f, "마지막 장면은 매수(pay_funds)할 수 없습니다") and _has(e3f, "funds_left: text에 {n}"), "마지막 장면의 매수와 후일담 문장의 {n} 빠짐을 잡는다")
-	_check("funds" in GameDataV2.KNOWN_OPS and "funds_half" in GameDataV2.KNOWN_OPS and "pay_funds" in GameDataV2.KNOWN_SCENE_CONDITIONS and "funds_earned" in GameDataV2.KNOWN_SAGA_CONDITIONS
-		and "market_item_cost" in GameDataV2.KNOWN_STATS, "새 어휘(funds · funds_half · pay_funds · funds_earned · 장터 값 stat)가 등록돼 있다")
+	f2.threats["act1"][0]["effects"] = [{"op": "funds", "value": 2}]
+	_check(_has(f2.validate(), "알 수 없는 op 'funds'"), "군자금 op(funds)는 이제 오류로 잡는다")
 	_check("work" in GameDataV2.KNOWN_MISSION_KINDS and "contact" in GameDataV2.KNOWN_MISSION_KINDS and "target" in GameDataV2.KNOWN_MARKER_ROLES
 		and "launch_target" in GameDataV2.KNOWN_BONUS_CONDS and "combo" in GameDataV2.KNOWN_WORK_MODES, "새 어휘(미션 kind·마커 역할·공작 방식·보너스 조건)가 등록돼 있다")
 	_check("police_back" in GameDataV2.KNOWN_OPS and "threat_peek_bonus" in GameDataV2.KNOWN_OPS and "event_card" in GameDataV2.KNOWN_OPS
@@ -213,8 +191,8 @@ func _init() -> void:
 	hp1.help["notes"][2]["text"] = "군자금은 {no.such.path}예요."
 	var ehp := hp1.validate()
 	_check(_has(ehp, "help.notes.first_morning: 쪽지") and _has(ehp, "자세히가 여는 탭 no_such_tab") and _has(ehp, "{경로}가 rules.json에 없습니다"), "쪽지가 60자를 넘거나 없는 탭 · 없는 {경로}를 잡는다")
-	_check(real.help_text("뇌물 {checkpoint.bribe}") == "뇌물 2" and real.help_text("노출 {exposure.max}") == "노출 9", "도움말 글 속 {경로}가 rules.json 값(정수)으로 바뀐다")
-	_check(real.tutorial["trainings"].size() == 4 and real.help["notes"].size() == 17, "훈련 4개 · 쪽지 17개")
+	_check(real.help_text("떨치기 {police.escape_distance}칸") == "떨치기 %d칸" % int(real.rules["police"]["escape_distance"]) and real.help_text("노출 {exposure.max}") == "노출 9", "도움말 글 속 {경로}가 rules.json 값(정수)으로 바뀐다")
+	_check(real.tutorial["trainings"].size() == 4 and real.help["notes"].size() == 15, "훈련 4개 · 쪽지 15개 (장터 · 미끼 쪽지를 뺌)")
 	var tu4 := GameDataV2.new()
 	tu4.load_dir("res://data/v2/")
 	tu4.tutorial["trainings"][1]["steps"][1]["say"] = "「내 차례 시작」을 누르세요."

@@ -3,8 +3,8 @@ extends RefCounted
 ## 공개 정보와 자신의 사연만 사용해 합법 액션을 고른다.
 
 ## 수치는 rules.json의 ai: act2_days_per_scene(2막 장면 하나에 드는 날), saga_value(사연 목표 가치, 미션은 2~3),
-## rescue(갇힌 동료 구하기 가치 · 거리 한도), persona(성향별 위험 · 투표 배수)
-const CHOICE_KINDS := ["launch_vote", "launch_target", "launch_benefit", "threat_look", "strike_target", "saga_keep", "reroll", "react_evade", "mission_gear", "informer_pay", "bribe",
+## persona(성향별 위험 · 투표 배수)
+const CHOICE_KINDS := ["launch_vote", "launch_target", "launch_benefit", "threat_look", "strike_target", "saga_keep", "reroll", "react_evade",
 	"discard", "draw_pick", "effect_choice", "pick_player", "pick_cell", "pick_die", "pick_tile", "pick_item",
 	"pick_value", "pick_bury", "hop", "intel_base"]
 
@@ -140,9 +140,6 @@ static func _choice(g: RulesV2, p: Dictionary, legal: Array, policy: Dictionary)
 			"reroll":
 				score = _check_option_score(g, p, str(v))
 			"react_evade": score = 10.0 if bool(v) else 0.0
-			"mission_gear": score = _gear_score(g, p, int(v))
-			"informer_pay": score = _informer_score(g, p, bool(v))
-			"bribe": score = _bribe_score(g, p, bool(v))
 			"discard": score = -float(g.item_def(str(p["items"][int(v)])).get("ai_value", 3))
 			"draw_pick": score = float(g.item_def(str(g.pending.get("cards", [])[int(v)])).get("ai_value", 3))
 			"pick_bury": score = 10.0 if bool(v) else 0.0
@@ -226,77 +223,6 @@ static func _threat_harm(g: RulesV2, i: int) -> float:
 		return 0.0
 	var card: Dictionary = g.data.threat(str(g.threat_deck[idx]))
 	return (2.0 if str(card.get("tone", "bad")) == "bad" else 0.0) + float(card.get("effects", []).size())
-
-
-static func _funds_cfg(g: RulesV2) -> Dictionary:
-	return g.data.rules["ai"]["funds"]
-
-
-static func _funds_threat_left(g: RulesV2) -> bool:
-	## 군자금을 빼앗는 위협(가택 수색·자금 동결)이 덱에 남았는가 — 남았으면 쌓기보다 쓴다
-	for id in g.threat_deck:
-		for e in g.data.threat(str(id)).get("effects", []):
-			if str(e.get("op", "")) == "funds_half" or (str(e.get("op", "")) == "funds" and int(e.get("value", 0)) < 0):
-				return true
-	return false
-
-
-static func _funds_spare(g: RulesV2) -> int:
-	## 써도 되는 군자금 (남겨 둘 몫을 뺀 값)
-	return g.funds - (0 if _funds_threat_left(g) else int(_funds_cfg(g)["reserve"]))
-
-
-static func _gear_score(g: RulesV2, p: Dictionary, index: int) -> float:
-	## 아이템 1장이나 군자금을 내고 판정을 쉽게(무기 조달) 하거나 경찰이 안 붙게(간수 매수) 할지. 쓰지 않으면 0점.
-	## 성공률이 크게 오를 때만 쓴다 (rules.ai.funds.gear_min_gain).
-	if index < 0:
-		return 0.0
-	var gear: Dictionary = g.pending.get("gear", {})
-	var cost := 0.0
-	if index >= RulesV2.GEAR_FUNDS:
-		cost = float(gear["cost"]["funds"]) * float(_funds_cfg(g)["gear_funds_value"])
-		if _funds_spare(g) < int(gear["cost"]["funds"]):
-			return -1.0
-	else:
-		cost = float(g.item_def(str(p["items"][index])).get("ai_value", 3)) * 0.06
-	var gain := 0.0
-	if gear.has("check_bonus") and not g.check.is_empty():
-		var c: Dictionary = g.check.duplicate()
-		var die := int(c.get("die_value", 0))
-		var before := g.check_chance(c, die)
-		c["bonus"] = int(c["bonus"]) + int(gear["check_bonus"])
-		gain = g.check_chance(c, die) - before
-		if gain < float(_funds_cfg(g)["gear_min_gain"]):
-			return -1.0
-	elif gear.has("effects"):
-		gain = 0.25 if g.alert_level() >= 2 else 0.1   # 경찰이 안 붙으면 이동이 자유롭다
-	return gain - cost
-
-
-static func _informer_score(g: RulesV2, p: Dictionary, pay: bool) -> float:
-	## 정보원 사례금: 표적을 멈추고 판정 성공률이 크게 오를 때만
-	if not pay:
-		return 0.0
-	var uid := int(g.pending.get("marker", -1))
-	for m in g.markers:
-		if int(m["uid"]) == uid:
-			var cond: Dictionary = g.card_cond(str(m["id"]))
-			if _funds_spare(g) < int(cond["informer_cost"]["funds"]):
-				return -1.0
-			var gain := _target_chance(g, p, cond, true) - _target_chance(g, p, cond, false)
-			if gain < float(_funds_cfg(g)["gear_min_gain"]):
-				return -1.0
-			return gain - float(_funds_cfg(g)["gear_min_gain"]) + 0.05
-	return -1.0
-
-
-static func _bribe_score(g: RulesV2, p: Dictionary, pay: bool) -> float:
-	## 검문소 뇌물: 통과 확률이 낮고 돈이 넉넉할 때
-	if not pay:
-		return 0.0
-	if _funds_spare(g) < int(g.data.rules["checkpoint"]["bribe"]):
-		return -1.0
-	return float(_funds_cfg(g)["bribe_below"]) - g.evade_chance(p)
 
 
 static func _effects_value(g: RulesV2, p: Dictionary, effects: Array) -> float:
@@ -383,18 +309,11 @@ static func _turn(g: RulesV2, p: Dictionary, legal: Array, policy: Dictionary) -
 			if not intel.is_empty() and intel.get("mode") == "check" and g.intel_tokens > 0:
 				return intel
 			return sc
-	var buy := _market_action(g, p, legal)
-	if not buy.is_empty():
-		return buy
 	# 2. 공짜로 쓸 것: 사연을 위한 건네기, 능력, 아이템
 	if _saga_kind(g, p, "give_dice") and g.my_dice(p["id"]).size() >= 2:
 		var gd := _give_die_action(g, p, legal)
 		if not gd.is_empty():
 			return gd
-	if _saga_kind(g, p, "give_items") and p["items"].size() > 0 and not g.my_dice(p["id"]).is_empty():
-		var give := _smallest(g, p, legal, "give_item")
-		if not give.is_empty():
-			return give
 	var free := _free_use(g, p, legal, policy)
 	if not free.is_empty():
 		return free
@@ -560,77 +479,25 @@ static func _work_action(g: RulesV2, p: Dictionary, legal: Array) -> Dictionary:
 	return gives[0]
 
 
-static func _market_action(g: RulesV2, p: Dictionary, legal: Array) -> Dictionary:
-	## 장터: 손패에 자리가 있고 쓸 곳이 보일 때 산다. 폭탄은 폭탄이 모자란 판에서만, 아이템은 돈이 넉넉할 때(또는 빼앗길 위협이 남았을 때)
-	var best: Dictionary = {}
-	var best_score := 0.0
-	for a in legal:
-		if a["type"] != "market":
-			continue
-		var offer: Dictionary = {}
-		for o in g.data.rules["market"]["offers"]:
-			if str(o["id"]) == str(a["offer"]):
-				offer = o
-		var cost := g.market_cost(p, offer)
-		var score := 0.0
-		var wants_bomb := _bombs_short(g) > 0 or g.has_bomb_card()
-		for fx in offer.get("effects", []):
-			if str(fx.get("op", "")) == "gain_bomb" and wants_bomb and p["bombs"] == 0:
-				score = 2.0
-			elif str(fx.get("op", "")) == "draw_item":
-				score = 1.0
-		if score <= 0.0 or _funds_spare(g) < cost:
-			continue
-		score -= float(cost) * 0.1
-		if score > best_score + 0.0001 or (absf(score - best_score) <= 0.0001 and not best.is_empty() and g.die_value(int(a["die"])) < g.die_value(int(best["die"]))):
-			best = a
-			best_score = score
-	return best
-
-
-static func _market_targets(g: RulesV2, p: Dictionary) -> Array:
-	## 장터까지 갈 만한가: 손패에 자리가 있고 돈이 넉넉할 때
-	var cells := []
-	if p["items"].size() >= g.hand_limit(p) and p["bombs"] >= g.bomb_slots(p):
-		return cells
-	var cheapest := 99
-	for o in g.data.rules["market"]["offers"]:
-		cheapest = mini(cheapest, g.market_cost(p, o))
-	if _funds_spare(g) < cheapest:
-		return cells
-	for c in g.board:
-		if g.tile_type(c) == str(g.data.rules["market"]["tile"]) and c != p["pos"]:
-			cells.append(c)
-	return cells
-
-
 static func _give_die_action(g: RulesV2, p: Dictionary, legal: Array) -> Dictionary:
-	## 남는 주사위를 동료에게: 감옥의 동료(탈옥에 씀)가 먼저, 다음은 아직 차례를 안 한 동료. 가장 큰 눈을 준다.
+	## 남는 주사위를 아직 차례를 안 한 동료에게. 가장 큰 눈을 준다.
 	var best: Dictionary = {}
 	var best_score := -1.0
 	for a in legal:
 		if a["type"] != "give_die":
 			continue
 		var q: Dictionary = g.players[int(a["target"])]
-		var score := float(g.die_value(int(a["die"]))) + (10.0 if q["jailed"] else 0.0)
+		var score := float(g.die_value(int(a["die"])))
 		if score > best_score:
 			best_score = score
 			best = a
 	return best
 
 
-static func _buy_scene_now(g: RulesV2) -> bool:
-	## 장면 매수: 2막에서 남은 날이 장면 수에 비해 빠듯할 때
-	var left := g.scenes.size() - g.scene_index
-	return float(g.rounds_left) <= float(left) * float(_ai(g)["act2_days_per_scene"]) + float(_funds_cfg(g)["buy_slack_days"])
-
-
 static func _scene_pay_other(g: RulesV2, p: Dictionary, legal: Array) -> Dictionary:
-	## 아이템·폭탄·군자금 바치기: 행동 하나이므로 가장 작은 눈을 낸다 (군자금 매수는 날이 빠듯할 때만)
+	## 아이템·폭탄 바치기: 행동 하나이므로 가장 작은 눈을 낸다
 	var best: Dictionary = {}
 	for a in legal:
-		if a["type"] == "scene_pay" and a["what"] == "funds" and not _buy_scene_now(g):
-			continue
 		if a["type"] == "scene_pay" and a["what"] != "die":
 			if best.is_empty() or g.die_value(int(a["with"])) < g.die_value(int(best["with"])):
 				best = a
@@ -746,12 +613,6 @@ static func _goal(g: RulesV2, p: Dictionary, policy: Dictionary) -> Vector2i:
 		if score > best_score:
 			best_score = score
 			best = near
-	for q in g.players:
-		if q["jailed"] and q["id"] != p["id"] and not g.police_on(q["pos"]):
-			var d := _dist(p["pos"], q["pos"])
-			if d <= int(_ai(g)["rescue"]["range"]) and float(_ai(g)["rescue"]["value"]) / float(1 + d) > best_score:
-				best_score = float(_ai(g)["rescue"]["value"]) / float(1 + d)
-				best = q["pos"]
 	for t in _saga_targets(g, p):
 		var cells: Array = t[0]
 		if cells.is_empty():
@@ -880,9 +741,6 @@ static func _mission_targets(g: RulesV2, p: Dictionary) -> Array:
 				cells = _coop_cells(g, p, cond)
 		if not cells.is_empty():
 			out.append([cells, value])
-	var mk := _market_targets(g, p)
-	if not mk.is_empty():
-		out.append([mk, float(_funds_cfg(g)["market_value"])])
 	return out
 
 
@@ -1040,7 +898,7 @@ static func _saga_targets(g: RulesV2, p: Dictionary) -> Array:
 				for m in g.markers:
 					if str(m["role"]) == "work" and m["pos"] != p["pos"]:
 						cells.append(m["pos"])
-			"same_cell_turns", "give_items", "give_dice":
+			"same_cell_turns", "give_dice":
 				for q in g.players:
 					if q["id"] != p["id"] and not q["jailed"]:
 						cells.append(q["pos"])

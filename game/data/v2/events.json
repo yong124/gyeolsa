@@ -76,7 +76,7 @@
 			"name": "국내 동지의 밀서",
 			"count": 2,
 			"tone": "good",
-			"text": "아이템 1장 또는 군자금 +2",
+			"text": "아이템 1장 또는 노출 −1",
 			"effects": [
 				{
 					"op": "choice",
@@ -91,11 +91,11 @@
 							]
 						},
 						{
-							"label": "군자금 +2",
+							"label": "노출 −1",
 							"effects": [
 								{
-									"op": "funds",
-									"value": 2
+									"op": "exposure",
+									"value": -1
 								}
 							]
 						}

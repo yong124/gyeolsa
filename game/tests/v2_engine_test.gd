@@ -19,13 +19,13 @@ func _init() -> void:
 	var data := GameDataV2.load_default()
 	var char_ids: Array = data.characters["characters"].map(func(c): return c["id"])
 	var stats := {"days": 0, "forced": 0, "vote": 0, "stub": 0, "stub3": 0, "stub4": 0, "other": 0, "jailed": 0, "actions": 0,
-		"missions": {}, "missed": 0, "ops_blocked": 0, "ops_missed": 0, "ops_seen": 0, "checks": 0, "rescues": 0, "escapes": 0, "launched": 0,
+		"missions": {}, "missed": 0, "ops_blocked": 0, "ops_missed": 0, "ops_seen": 0, "checks": 0, "escapes": 0, "launched": 0,
 		"saga_done": 0, "saga_dealt": {}, "saga_hit": {}, "confiscated": 0,
 		"keeps": 0, "saga_players": 0, "endings": {}, "scene_breaks": {}, "scene_shown": {},
 		"target_breaks": {}, "target_games": {}, "act2_days": 0}
 	var plain_games := 0
 	var fast_stats := {"days": 0, "forced": 0, "vote": 0, "stub": 0, "stub3": 0, "stub4": 0, "other": 0, "jailed": 0, "actions": 0,
-		"missions": {}, "missed": 0, "ops_blocked": 0, "ops_missed": 0, "ops_seen": 0, "checks": 0, "rescues": 0, "escapes": 0, "launched": 0,
+		"missions": {}, "missed": 0, "ops_blocked": 0, "ops_missed": 0, "ops_seen": 0, "checks": 0, "escapes": 0, "launched": 0,
 		"saga_done": 0, "saga_dealt": {}, "saga_hit": {}, "confiscated": 0,
 		"keeps": 0, "saga_players": 0, "endings": {}, "scene_breaks": {}, "scene_shown": {},
 		"target_breaks": {}, "target_games": {}, "act2_days": 0}
@@ -43,7 +43,7 @@ func _init() -> void:
 		_play(i, chars, 5000 + i, bot, data, fast_stats if fast else stats, fast)
 	# 2·3인 판: 사연이 켜져 있어야 한다
 	var small := {"days": 0, "forced": 0, "vote": 0, "stub": 0, "stub3": 0, "stub4": 0, "other": 0, "jailed": 0, "actions": 0,
-		"missions": {}, "missed": 0, "ops_blocked": 0, "ops_missed": 0, "ops_seen": 0, "checks": 0, "rescues": 0, "escapes": 0, "launched": 0,
+		"missions": {}, "missed": 0, "ops_blocked": 0, "ops_missed": 0, "ops_seen": 0, "checks": 0, "escapes": 0, "launched": 0,
 		"saga_done": 0, "saga_dealt": {}, "saga_hit": {}, "confiscated": 0,
 		"keeps": 0, "saga_players": 0, "endings": {}, "scene_breaks": {}, "scene_shown": {},
 		"target_breaks": {}, "target_games": {}, "act2_days": 0}
@@ -64,8 +64,8 @@ func _init() -> void:
 	if launched > 0:
 		print("결행까지 평균 %.2f일 · 강제 결행 %d/%d (%.0f%%) · 투표 결행 %d" % [
 			float(stats["days"]) / launched, stats["forced"], launched, 100.0 * stats["forced"] / launched, stats["vote"]])
-	print("끝난 판 %d/%d · 평균 액션 %.0f · 투옥 %d · 구출 %d · 탈옥 %d" % [launched, plain_games, float(stats["actions"]) / maxi(plain_games, 1),
-		stats["jailed"], stats["rescues"], stats["escapes"]])
+	print("끝난 판 %d/%d · 평균 액션 %.0f · 투옥 %d · 탈옥 %d" % [launched, plain_games, float(stats["actions"]) / maxi(plain_games, 1),
+		stats["jailed"], stats["escapes"]])
 	print("미션 성공(종류별): ", stats["missions"], " · 놓친 미션 ", stats["missed"], " · 일제 작전 ", stats["ops_seen"], "번 (막음 ", stats["ops_blocked"], " · 놓침 ", stats["ops_missed"], ")")
 	print("판당 이룬 사연 %.2f · 판당 압수당한 아이템 %.2f장" % [
 		float(stats["saga_done"]) / maxi(plain_games, 1), float(stats["confiscated"]) / maxi(plain_games, 1)])
@@ -181,8 +181,6 @@ func _play(idx: int, chars: Array, seed_value: int, bot: RandomNumberGenerator, 
 				stats["ops_blocked"] += 1
 			elif e["kind"] == "op_missed":
 				stats["ops_missed"] += 1
-			elif e["kind"] == "rescue":
-				stats["rescues"] += 1
 			elif e["kind"] == "confiscate":
 				stats["confiscated"] += e["items"].size()
 			elif e["kind"] == "saga_kept":
@@ -342,11 +340,6 @@ func _check_invariants(g: RulesV2, tag: String, turn_seen: Dictionary) -> void:
 			_fail("%s: 폭탄이 칸 수를 넘음" % tag)
 	if g.exposure < 0 or g.exposure > int(R["exposure"]["max"]):
 		_fail("%s: 노출 %d" % [tag, g.exposure])
-	if g.funds < 0 or g.funds > int(R["funds"]["max"]):
-		_fail("%s: 군자금 %d" % [tag, g.funds])
-	for q in g.players:
-		if int(q["funds_earned"]) < 0:
-			_fail("%s: 번 군자금이 음수" % tag)
 	# 하루에 요원마다 차례 한 번
 	for e in g.events:
 		if e["kind"] == "turn":

@@ -67,7 +67,7 @@ func refresh_actions() -> void:
 			if scr.game.current == scr.human:
 				title = "내 차 례"
 				if me["jailed"]:
-					hint = "감옥 · 주사위로 탈옥 판정 %d 이상 · 면회 온 동료와 주사위를 주고받을 수 있습니다" % scr.game.check_target("escape")
+					hint = "감옥 · 주사위로 탈옥 판정 %d 이상이면 나갑니다" % scr.game.check_target("escape")
 				elif scr.game.steps_left > 0:
 					hint = "이동 %d칸 남음 · 보드에서 칸을 누르면 그 길로 걸어갑니다 · 이동을 마치면 다른 행동을 고를 수 있습니다" % scr.game.steps_left
 				elif not scr.game.my_dice(scr.human).is_empty():
@@ -406,8 +406,6 @@ func _icon(a: Dictionary) -> String:
 		"begin_turn", "end_move", "end_turn", "scene_pay", "work_give": return "end"
 		"escape": return "escape"
 		"ability": return "ability"
-		"give_item": return "give"
-		"decoy": return "decoy"
 		"use_item": return "swap"
 	return "swap"
 
@@ -473,7 +471,7 @@ func _refresh_dice(mine: Array) -> void:
 		v.add_child(l)
 		scr._dice_row.add_child(v)
 	if false:   # M: 독에는 자리가 없어 고정 안내를 두지 않는다 (훈련 안내 · 미리보기 띠가 대신)
-		var tip := UiKit.text("주사위 1개 = 행동 1개: 이동(눈만큼) · 작전 판정(눈 + 주사위 1개) · 바치기\n건네기 · 미끼 · 숨기 · 정찰 · 장터 — 주사위를 눌러 고릅니다\n남은 주사위는 밤에 사라집니다", 11, Style.INK_3, false)
+		var tip := UiKit.text("주사위 1개 = 행동 1개: 이동(눈만큼) · 작전 판정(눈 + 주사위 1개) · 바치기\n건네기 · 숨기 · 정찰 — 주사위를 눌러 고릅니다\n남은 주사위는 밤에 사라집니다", 11, Style.INK_3, false)
 		tip.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		tip.name = "DiceTip"
 		scr._dice_row.add_child(tip)
@@ -571,34 +569,19 @@ func hint(a: Dictionary) -> String:
 				"die":
 					var need := int(scr.game.scene_need().get("dice", 0))
 					return "남은 합 %d → %d" % [need, maxi(0, need - scr.game.die_value(int(a["die"])))]
-				"funds":
-					return "군자금 %d을 내고 장면을 매수 (지금 %d)" % [scr._text.funds_price(), scr.game.funds]
 				"item":
 					return "아이템 1장을 내고 장면 조건을 채움 (주사위 하나도 씀)"
 				"bomb":
 					return "폭탄을 내고 장면 조건을 채움 (주사위 하나도 씀)"
 		"give_die":
 			return RulesV2.josa("하루 한 번. %s은(는) 행동이 하나 늘고 나는 하나 줆" % scr._text.name(int(a["target"])))
-		"give_item":
-			return "아이템 카드를 동료에게 줌 (주사위 하나를 씀)"
-		"decoy":
-			return "경찰을 내 쪽으로 끌어와 동료를 빼냄 — 대신 내가 쫓김"
 		"hide":
 			return "이번 차례 끝에 나를 쫓는 경찰이 다가오지 않음"
 		"scout":
 			return "눈 %d칸 안의 덮인 칸 %d곳을 골라 타일을 미리 깜 (효과는 그 칸에서 멈출 때)" % [scr.game.die_value(int(a["die"])), int(scr.game.data.rules["scout"]["count"])]
-		"market":
-			return "군자금 %d을 내고 얻음 (지금 %d)" % [_market_cost(a), scr.game.funds]
 		"ability":
 			return str(scr.game.ability_def(me).get("text", ""))
 	return ""
-
-
-func _market_cost(a: Dictionary) -> int:
-	for o in scr.game.data.rules["market"]["offers"]:
-		if str(o["id"]) == str(a.get("offer", "")):
-			return scr.game.market_cost(scr.game.players[scr.human], o)
-	return 0
 
 
 func _why_not_rows(acts: Array) -> Array:
@@ -612,7 +595,7 @@ func _why_not_rows(acts: Array) -> Array:
 		if not have.has("escape"):
 			rows.append(["탈옥", "주사위가 없음"])
 		return rows
-	if not have.has("give_die") and not have.has("give_item"):
+	if not have.has("give_die"):
 		if int(me["gives_today"]) >= int(scr.game.data.rules["give_per_day"]):
 			rows.append(["건네기", "오늘 이미 건넸음"])
 		else:
@@ -621,11 +604,6 @@ func _why_not_rows(acts: Array) -> Array:
 		rows.append(["숨기", "이미 숨었음" if me["hidden"] else "골목·주막·은신처 칸에서만 숨을 수 있음"])
 	if not have.has("scout"):
 		rows.append(["정찰", "범위 안에 덮인 칸이 없음"])
-	if not have.has("market"):
-		var mt := str(scr.game.data.rules["market"]["tile"])
-		rows.append(["장터", "장터 칸에서만 살 수 있음" if scr.game.tile_type(me["pos"]) != mt else "군자금이 모자라거나 자리가 없음 (지금 군자금 %d)" % scr.game.funds])
-	if not scr.game.police.is_empty() and not have.has("decoy"):
-		rows.append(["미끼", "나는 쫓기고 있지 않아야 하고, 3칸 안에 쫓기는 동료가 있어야 함" if not scr.game.police.has(scr.human) else "이미 쫓기는 중이라 미끼를 못 씀"])
 	if scr.game.act == 1:
 		var has_target := false
 		var has_work := false

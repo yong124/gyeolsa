@@ -409,7 +409,7 @@ func _draw_tiles() -> void:
 
 
 func _draw_plain_tile(c: Vector2i, t: String) -> void:
-	## 그림이 아직 없는 새 타일(골목·감시탑·장터·주막)은 글자로 그린다 (제대로 된 그림은 F단계)
+	## 그림이 아직 없는 새 타일(골목·감시탑·주막)은 글자로 그린다 (제대로 된 그림은 F단계)
 	var s := _scale()
 	var r := cell_rect(c).grow(-3.0 * s)
 	if _reveal.has(c):
@@ -705,10 +705,6 @@ func _draw_targets() -> void:
 	for c in mt:
 		if not marks.has(c):
 			marks[c] = [mt[c], Style.MISSION]
-	for q in game.players:
-		if q["jailed"] and q["id"] != human_id:
-			if not marks.has(q["pos"]):
-				marks[q["pos"]] = ["구출", Style.seat(1)]
 	var glow := 0.55 + 0.35 * sin(_pulse * 3.0)
 	for c in marks:
 		var r := cell_rect(c).grow(-1)

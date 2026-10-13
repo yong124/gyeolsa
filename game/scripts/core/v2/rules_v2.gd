@@ -10,7 +10,7 @@ extends RefCounted
 ## - legal_actions()는 apply가 받아들이는 액션과 정확히 같다.
 ##
 ## 낮 (11·12단계): 주사위 1개 = 행동 1개. 차례를 시작하면 「행동 고르기」가 이어지고, end_turn으로 마친다.
-##   행동(주사위 하나를 낸다): move_die · mission_check · work_give · escape · scene_check · scene_pay · give_die · give_item · decoy · hide · scout · market
+##   행동(주사위 하나를 낸다): move_die · mission_check · work_give · escape · scene_check · scene_pay · give_die · hide · scout
 ##   공짜(주사위 없이): use_item(차례에 1장) · ability(하루 1번, cost "die"인 능력은 주사위를 냄) · use_intel · end_move · end_turn
 ##
 ## 액션
@@ -24,12 +24,9 @@ extends RefCounted
 ##   {"type": "escape", "player", "die"}                  (turn, 갇힘) 탈옥 작전 판정
 ##   {"type": "scene_check", "player", "die"}             (2막 turn) 장면 작전 판정
 ##   {"type": "scene_pay", "player", "what", "die"?, "index"?, "with"?}  (2막 turn) 장면에 바침 (아이템·폭탄은 with로 주사위 하나를 냄)
-##   {"type": "give_die", "player", "die", "target"}      (turn) 같은 칸 동료에게 이 주사위를 줌 (하루 give_per_day번, 차례를 마친 요원에게는 안 됨, 갇힌 요원은 옆 칸에서 면회)
-##   {"type": "give_item", "player", "die", "index", "to"} (turn) 같은 칸이나 옆 칸 동료에게 아이템 1장
-##   {"type": "decoy", "player", "die", "from"}           (turn) 3칸 안 동료를 쫓는 경찰을 내 쪽으로
+##   {"type": "give_die", "player", "die", "target"}      (turn) 같은 칸 동료에게 이 주사위를 줌 (하루 give_per_day번, 차례를 마친 요원 · 갇힌 요원과는 안 됨)
 ##   {"type": "hide", "player", "die"}                    (turn) 숨기: 이번 차례 끝에 내 경찰이 다가오지 않음 (rules.hide의 칸에서만)
 ##   {"type": "scout", "player", "die"}                   (turn) 정찰: 눈만큼 떨어진 덮인 칸 2곳의 타일을 앞면으로 깜 (pick_cell로 고름)
-##   {"type": "market", "player", "die", "offer"}         (turn) 장터 칸에서 군자금으로 사기 (offer = rules.market.offers의 id)
 ##   {"type": "end_turn", "player"}                       (turn) 차례 마치기: 「차례를 마치면」 효과 → 내 경찰 이동 → 끝
 ##   {"type": "use_item", "player", "index"}              (plan: 아침 아이템 / turn) 아이템 사용 (차례에 1장)
 ##   {"type": "ability", "player", "target"?, "die"?}     캐릭터 능력 (하루 1회)
@@ -114,7 +111,6 @@ var peek_bonus := 0             # 위협 덱을 더 미리 보는 장수 (「경
 var bonus_wait: Array = []      # 결행 때 판정하는 미션 보너스 [{"player", "base", "reward"}]
 var expire_queue: Array = []    # 아침에 기한이 다 된 카드 (벌칙 처리 대기)
 var marker_seq := 0
-var funds := 0                  # 군자금 (팀 공용, 0~rules.funds.max)
 
 var actions: Array = []
 var events: Array = []
@@ -178,7 +174,6 @@ func setup(player_defs: Array, seed_value: int = -1, game_data: GameDataV2 = nul
 	bonus_wait = []
 	expire_queue = []
 	marker_seq = 0
-	funds = int(R["funds"]["start"])
 	event_deck = _expand(data.events.get("events", []))
 	event_discard = []
 	item_deck = _expand(data.items.get("items", []))
@@ -204,8 +199,8 @@ func setup(player_defs: Array, seed_value: int = -1, game_data: GameDataV2 = nul
 			"done_today": false, "turns": 0, "fx_cells": [], "hidden": false,
 			"ability_day": -1, "item_uses": 0, "grants": [], "flags": {},
 			"sagas": [], "saga_done": "", "saga_kept": "", "saga_track": {},
-			"jailed_day": -99, "funds_earned": 0,
-			"stats": {"missions": 0, "rescues": 0, "escapes": 0, "jailed": 0, "checkpoints": 0,
+			"jailed_day": -99,
+			"stats": {"missions": 0, "escapes": 0, "jailed": 0, "checkpoints": 0,
 				"assassinations": 0, "items": 0, "abilities": 0, "gives": 0},
 		})
 	police = {}
@@ -808,18 +803,13 @@ func can_move_die(p: Dictionary, i: int) -> bool:
 	return _acting(p) and not p["jailed"] and i in my_dice(p["id"])
 
 
-func _give_reach(p: Dictionary, q: Dictionary) -> int:
-	## 건네기가 닿는 거리 (칸). 갇힌 요원과는 옆 칸(면회)까지, 아니면 give_range (같은 칸)
-	return 1 if p["jailed"] or q["jailed"] else int(data.rules["give_range"])
-
-
 func give_die_targets(p: Dictionary) -> Array:
-	## 주사위를 건넬 수 있는 동료. 차례를 마친 요원에게는 안 되고, 하루 give_per_day번.
+	## 주사위를 건넬 수 있는 동료 (give_range 안, 보통 같은 칸). 차례를 마친 요원 · 갇힌 요원과는 안 되고, 하루 give_per_day번.
 	var out := []
-	if not _acting(p) or int(p["gives_today"]) >= int(data.rules["give_per_day"]) or my_dice(p["id"]).is_empty():
+	if not _acting(p) or p["jailed"] or int(p["gives_today"]) >= int(data.rules["give_per_day"]) or my_dice(p["id"]).is_empty():
 		return out
 	for q in players:
-		if q["id"] != p["id"] and not q["done_today"] and _manhattan(q["pos"], p["pos"]) <= _give_reach(p, q):
+		if q["id"] != p["id"] and not q["done_today"] and not q["jailed"] and _manhattan(q["pos"], p["pos"]) <= int(data.rules["give_range"]):
 			out.append(q["id"])
 	return out
 
@@ -867,37 +857,6 @@ func scout_cells(p: Dictionary, die: int) -> Array:
 			if in_bounds(c) and not board.has(c) and _manhattan(c, p["pos"]) <= r:
 				out.append(c)
 	return out
-
-
-func market_cost(p: Dictionary, offer: Dictionary) -> int:
-	## 장터에서 이 요원이 내는 값 (주모 막례 아이템 1, 석 기술자 폭탄 2: 요원 특성의 cost_stat)
-	var c := int(offer["cost"])
-	if offer.has("cost_stat"):
-		c += stat(p, str(offer["cost_stat"]))
-	return maxi(1, c)
-
-
-func market_offers(p: Dictionary) -> Array:
-	## 지금 살 수 있는 것 (군자금이 되고 손패·폭탄 칸에 자리가 있을 때)
-	var out := []
-	for o in data.rules["market"]["offers"]:
-		if funds < market_cost(p, o):
-			continue
-		match str(o.get("needs", "")):
-			"item_slot":
-				if p["items"].size() >= hand_limit(p):
-					continue
-			"bomb_slot":
-				if p["bombs"] >= bomb_slots(p) or bomb_supply <= 0:
-					continue
-		out.append(o)
-	return out
-
-
-func can_market(p: Dictionary) -> bool:
-	## 장터 칸에서 주사위가 있고 살 것이 있을 때
-	var tile := str(data.rules["market"]["tile"])
-	return tile != "" and _acting(p) and not p["jailed"] and tile_type(p["pos"]) == tile and not my_dice(p["id"]).is_empty() and not market_offers(p).is_empty()
 
 
 func mission_check_cells(p: Dictionary) -> Array:
@@ -1052,37 +1011,6 @@ func ability_costs_die(p: Dictionary) -> bool:
 	return str(ability_def(p).get("cost", "")) == "die"
 
 
-func give_options(p: Dictionary) -> Array:
-	## 건넬 수 있는 (아이템, 동료) 조합 [{"index", "to"}]. 같은 칸이나 옆 칸 동료에게, 갇힌 동료와는 옆 칸(면회)에서.
-	## 행동이라 주사위 하나를 내야 한다 (눈은 상관없음).
-	var out := []
-	if not _acting(p) or my_dice(p["id"]).is_empty():
-		return out
-	var coop: Dictionary = data.rules["coop"]
-	if bool(coop["give_counts_as_item_use"]) and p["item_uses"] >= int(data.rules["item_uses_per_turn"]):
-		return out
-	for q in players:
-		if q["id"] == p["id"] or _manhattan(q["pos"], p["pos"]) > int(coop["give_range"]):
-			continue
-		for i in p["items"].size():
-			out.append({"index": i, "to": q["id"]})
-	return out
-
-
-func decoy_options(p: Dictionary) -> Array:
-	## 미끼로 끌어올 수 있는 경찰 [요원 id]. 행동이라 주사위 하나를 내야 한다.
-	var out := []
-	if not _acting(p) or p["jailed"] or police.has(p["id"]) or my_dice(p["id"]).is_empty():
-		return out
-	var coop: Dictionary = data.rules["coop"]
-	if int(p["flags"].get("decoys", 0)) >= int(coop["decoy_per_turn"]):
-		return out
-	for pid in police:
-		if pid != p["id"] and walk_dist(police[pid]["pos"], p["pos"]) <= int(coop["decoy_range"]):
-			out.append(pid)
-	return out
-
-
 func _valid_choice(p: Dictionary, value) -> bool:
 	if phase != "choice" or pending.get("player", -1) != p["id"]:
 		return false
@@ -1145,19 +1073,12 @@ func _turn_actions(p: Dictionary) -> Array:
 			out.append({"type": "escape", "player": pid, "die": i})
 		if can_hide(p):
 			out.append({"type": "hide", "player": pid, "die": i})
-		if can_market(p):
-			for o in market_offers(p):
-				out.append({"type": "market", "player": pid, "die": i, "offer": str(o["id"])})
 		if not scout_cells(p, i).is_empty():
 			out.append({"type": "scout", "player": pid, "die": i})
 		for c in mission_check_cells(p):
 			out.append({"type": "mission_check", "player": pid, "die": i, "cell": c})
 		if can_work_give(p, i):
 			out.append({"type": "work_give", "player": pid, "die": i})
-		for o in give_options(p):
-			out.append({"type": "give_item", "player": pid, "die": i, "index": o["index"], "to": o["to"]})
-		for from in decoy_options(p):
-			out.append({"type": "decoy", "player": pid, "die": i, "from": from})
 		for t in give_die_targets(p):
 			out.append({"type": "give_die", "player": pid, "die": i, "target": t})
 	out.append_array(scene_options(p))
@@ -1260,12 +1181,6 @@ func _apply(a: Dictionary) -> bool:
 			if scout_cells(p, sd).is_empty():
 				return false
 			_scout(p, sd)
-		"market":
-			var kd := _int_of(a.get("die", null))
-			var offer := str(a.get("offer", ""))
-			if not can_market(p) or not kd in my_dice(pid) or not offer in market_offers(p).map(func(o): return str(o["id"])):
-				return false
-			_market(p, kd, offer)
 		"use_item":
 			var idx := _int_of(a.get("index", null))
 			if not can_use_item(p, idx):
@@ -1285,25 +1200,6 @@ func _apply(a: Dictionary) -> bool:
 			if not can_use_ability(p, t):
 				return false
 			_use_ability(p, t, ad)
-		"give_item":
-			var gi := _int_of(a.get("index", null))
-			var to_id := _int_of(a.get("to", null))
-			var gd := _int_of(a.get("die", null))
-			var found := false
-			for o in give_options(p):
-				if o["index"] == gi and o["to"] == to_id:
-					found = true
-			if not found or not gd in my_dice(pid):
-				return false
-			_use_die(p, gd, "give")
-			_give_item(p, gi, players[to_id])
-		"decoy":
-			var from := _int_of(a.get("from", null))
-			var dd := _int_of(a.get("die", null))
-			if not from in decoy_options(p) or not dd in my_dice(pid):
-				return false
-			_use_die(p, dd, "decoy")
-			_decoy(p, from)
 		"give_die":
 			var di := _int_of(a.get("die", null))
 			var tgt := _int_of(a.get("target", null))
@@ -1582,7 +1478,6 @@ func _begin_turn(p: Dictionary) -> void:
 	phase = "turn"
 	current = p["id"]
 	p["turns"] += 1
-	p["flags"]["decoys"] = 0
 	p["flags"]["escape_add"] = 0
 	p["flags"].erase("intel_check")
 	p["fx_cells"] = []
@@ -1700,12 +1595,6 @@ func _enter_checkpoint(p: Dictionary, to: Vector2i) -> void:
 		_log("%s: 통행증으로 검문소를 그냥 지나갑니다." % p["name"])
 		_arrive(p, to)
 		return
-	var bribe := int(data.rules["checkpoint"]["bribe"])
-	if funds >= bribe and evade_chance(p) < 1.0 and _grant_index(p, "evade_auto") < 0:
-		_ask(p, "bribe", "검문소입니다. 판정(회피 %d) 대신 군자금 %d을 내고 지나갈 수 있습니다. (지금 %d)" % [check_target("evade"), bribe, funds],
-			[{"value": true, "label": "뇌물 (군자금 %d)" % bribe}, {"value": false, "label": "판정으로 지나간다"}], {})
-		pending["cell"] = to
-		return
 	_log("%s: 검문소 통과를 시도합니다." % p["name"])
 	_start_check(p, "evade", "checkpoint", {"cell": to})
 
@@ -1736,18 +1625,6 @@ func _after_step(p: Dictionary) -> void:
 func _enter_base(p: Dictionary) -> void:
 	var bi := base_index_at(p["pos"])
 	_log("%s: %s에 들어갔습니다. 이동이 끝납니다." % [p["name"], base_name(bi)])
-	for q in players:
-		if q["jailed"] and q["pos"] == p["pos"] and q["id"] != p["id"] \
-				and not (act == 2 and p["pos"] == _base_cell(str(launch_info.get("target", "")))):
-			q["jailed"] = false
-			q["move_mod_next"] += stat(p, "rescued_move_bonus")
-			p["stats"]["rescues"] += 1
-			p["flags"]["rescued_turn"] = p["turns"]
-			_saga_note(p, "rescue_or_escape", {"what": "rescue", "rescued": q["id"]})
-			_log("%s: %s을(를) 구출했습니다!" % [p["name"], q["name"]])
-			_record("%s — %s 구출" % [p["name"], q["name"]], "good")
-			_banner("%s 구출!" % q["name"], "good", p)
-			_push({"kind": "rescue", "player": p["id"], "rescued": q["id"]})
 	for m in markers_at(p["pos"]):
 		if str(m["role"]) == "pickup":
 			_pickup(p, m)
@@ -1761,11 +1638,6 @@ func _enter_base(p: Dictionary) -> void:
 	if ids.is_empty():
 		_base_finish(p, ctx)
 		return
-	for id in ids:
-		var gear = card_cond(id).get("gear")
-		if typeof(gear) == TYPE_DICTIONARY and gear_affordable(p, gear):
-			_ask_gear(p, gear, {"kind": "base", "ids": ids, "ctx": ctx})
-			return
 	_complete_missions(p, ids, ctx)
 
 
@@ -1935,9 +1807,6 @@ func _start_check(p: Dictionary, name: String, ctx: String, extra: Dictionary = 
 				[{"value": true, "label": "%s 사용" % item_def(react)["name"]}, {"value": false, "label": "주사위로 판정"}], {})
 			pending["item"] = react
 			return
-	if check.has("gear") and gear_affordable(p, check["gear"]):
-		_ask_gear(p, check["gear"], {"kind": "check"})
-		return
 	_check_roll(p)
 
 
@@ -2116,7 +1985,7 @@ func _check_done(p: Dictionary, ok: bool) -> void:
 			if ok:
 				p["jailed"] = false
 				p["stats"]["escapes"] += 1
-				_saga_note(p, "rescue_or_escape", {"what": "escape"})
+				_saga_note(p, "escapes")
 				_log("%s: 탈옥 성공!" % p["name"])
 				_banner("탈옥 성공!", "good", p)
 				_summon(p)
@@ -2329,12 +2198,11 @@ func _morning_expire() -> void:
 # ---------------------------------------------------------------- 마커 칸에 들어갈 때
 
 func _marker_arrive(p: Dictionary, cell: Vector2i) -> bool:
-	## 방금 들어간 칸의 마커. 암살 표적 칸에서는 이동이 멈춘다 (판정은 따로 행동으로). 정보원에 들르면 동선을 알아내고,
+	## 방금 들어간 칸의 마커. 암살 표적 칸에서는 이동이 멈춘다 (판정은 따로 행동으로). 정보원에 들르면 동선을 알아내고(공짜),
 	## 받기 마커를 지나가면 물건을 들고, 폭탄을 들고 폭파 지점에 들어가거나 물건을 들고 주기 마커에 들어가면 이룬다.
 	## 미션을 이뤄 보상 처리를 시작했으면 true.
 	var done := []
 	var stop := false
-	var asking := {}
 	for m in markers_at(cell):
 		var id := str(m["id"])
 		var kind := str(card_cond(id).get("kind", ""))
@@ -2347,11 +2215,7 @@ func _marker_arrive(p: Dictionary, cell: Vector2i) -> bool:
 					_log("%s: 폭탄을 설치했습니다!" % p["name"])
 					done.append(id)
 			"informer":
-				var ic = card_cond(id).get("informer_cost")
-				if typeof(ic) != TYPE_DICTIONARY:
-					_use_informer(p, m)
-				elif funds >= int(ic["funds"]) and not bool(mission_state.get(id, {}).get("informed", false)):
-					asking = m
+				_use_informer(p, m)
 			"pickup":
 				_pickup(p, m)
 			"dropoff":
@@ -2360,13 +2224,6 @@ func _marker_arrive(p: Dictionary, cell: Vector2i) -> bool:
 	if not done.is_empty():
 		steps_left = 0
 		_complete_missions(p, done, {"then": "stop", "source": "mission"})
-		return true
-	if not asking.is_empty():
-		var cost := int(card_cond(str(asking["id"]))["informer_cost"]["funds"])
-		_ask(p, "informer_pay", "정보원에게 사례금 군자금 %d을 내겠습니까? 동선을 알아내면 표적이 멈추고 판정이 쉬워집니다. (지금 %d)" % [cost, funds],
-			[{"value": true, "label": "사례금 (군자금 %d)" % cost}, {"value": false, "label": "그냥 지나간다"}], {})
-		pending["marker"] = int(asking["uid"])
-		pending["stop"] = stop
 		return true
 	if stop:
 		steps_left = 0
@@ -2411,30 +2268,7 @@ func _drop_contacts(p: Dictionary) -> void:
 			_push({"kind": "item_lost", "id": id, "player": p["id"]})
 
 
-# ---------------------------------------------------------------- 돈 대신 아이템 (gear) · 공작 · 판정
-
-const GEAR_FUNDS := 1000   # 선택지 값: 이 값이면 군자금으로 낸다 (0 이상 1000 미만은 낼 아이템 번호)
-
-
-func gear_affordable(p: Dictionary, gear: Dictionary) -> bool:
-	## 이 값(cost: item 아이템 1장 또는 funds 군자금, 둘 다 있으면 하나를 고름)을 낼 수 있는가
-	var c: Dictionary = gear["cost"]
-	return (c.has("item") and not p["items"].is_empty()) or (c.has("funds") and funds >= int(c["funds"]))
-
-
-func _ask_gear(p: Dictionary, gear: Dictionary, flow: Dictionary) -> void:
-	## 값(아이템 1장 또는 군자금)을 내고 판정이나 거점 진입에 도움을 받을지 묻는다
-	var c: Dictionary = gear["cost"]
-	var opts := [{"value": -1, "label": "쓰지 않는다"}]
-	if c.has("item"):
-		for i in p["items"].size():
-			opts.append({"value": i, "label": "[%s]을(를) 버린다" % item_def(p["items"][i])["name"]})
-	if c.has("funds") and funds >= int(c["funds"]):
-		opts.append({"value": GEAR_FUNDS, "label": "군자금 %d을 낸다 (지금 %d)" % [int(c["funds"]), funds]})
-	_ask(p, "mission_gear", str(gear.get("text", "")), opts, {})
-	pending["gear"] = gear
-	pending["flow"] = flow
-
+# ---------------------------------------------------------------- 공작 · 판정
 
 func _work_give(p: Dictionary, die: int) -> void:
 	## 공작 마커에 주사위 하나를 바친다 (판정 없음). 합 N은 눈을 더하고, 조합은 필요한 눈 하나를 채우고,
@@ -2479,14 +2313,12 @@ func _work_give(p: Dictionary, die: int) -> void:
 
 
 func _begin_mission_check(p: Dictionary, cell: Vector2i, die: int) -> void:
-	## 표적 마커에서 작전 판정 행동 (낸 눈 + 새 주사위). 동선을 알아냈으면 판정이 쉽고, 무기 조달(gear)은 판정 직전에 묻는다.
+	## 표적 마커에서 작전 판정 행동 (낸 눈 + 새 주사위). 동선을 알아냈으면 판정이 쉽다.
 	var m := marker_at(cell)
 	var id := str(m["id"])
 	var cond := card_cond(id)
 	var extra := {"ids": [id], "target": int(cond["target"]), "cell": cell, "die_i": die,
 		"intel_bonus": int(cond.get("informed_bonus", 0)) if bool(mission_state.get(id, {}).get("informed", false)) else 0}
-	if cond.has("gear"):
-		extra["gear"] = cond["gear"]
 	_start_check(p, str(cond["check"]), "mission_check", extra)
 
 
@@ -2521,8 +2353,6 @@ func _bonus_holds(p: Dictionary, id: String, cond: Dictionary) -> bool:
 			return str(char_def(p).get("faction", "")) == str(cond.get("faction", ""))
 		"days_left":
 			return card_days_left(id) >= int(cond.get("min", 1))
-		"rescued_this_turn":
-			return int(p["flags"].get("rescued_turn", -1)) == p["turns"]
 		"ally_adjacent":
 			for q in players:
 				if q["id"] != p["id"] and not q["jailed"] and _manhattan(q["pos"], p["pos"]) <= 1:
@@ -2868,15 +2698,9 @@ func _expose(n: int) -> void:
 	if n == 0:
 		return
 	var before := alert_level()
-	var was_max := exposure >= int(data.rules["exposure"]["max"])
 	exposure = clampi(exposure + n, 0, int(data.rules["exposure"]["max"]))
 	stats["max_exposure"] = maxi(int(stats.get("max_exposure", 0)), exposure)
 	_push({"kind": "exposure", "value": exposure})
-	if exposure >= int(data.rules["exposure"]["max"]) and not was_max:
-		var cap_loss := int(data.rules["funds"]["exposure_cap_loss"])
-		if cap_loss > 0:
-			_log("노출이 최대에 닿아 대대적 단속이 벌어졌습니다! 군자금 −%d" % cap_loss)
-			_funds_change(-cap_loss, "cap")
 	var after := alert_level()
 	if after > before:
 		_log("노출 %d — 경계가 %d단계로 올랐습니다!" % [exposure, after])
@@ -2965,31 +2789,6 @@ func _use_ability(p: Dictionary, target: int, die := -1) -> void:
 	_run_effects(p, a.get("effects", []), {"then": "resume", "source": "ability", "target": target})
 
 
-func _give_item(p: Dictionary, idx: int, q: Dictionary) -> void:
-	var id: String = p["items"][idx]
-	p["items"].remove_at(idx)
-	q["items"].append(id)
-	if bool(data.rules["coop"]["give_counts_as_item_use"]):
-		p["item_uses"] += 1
-	p["stats"]["gives"] += 1
-	_saga_note(p, "give_items")
-	_saga_note(q, "hold_items")
-	_log("%s: [%s]을(를) %s에게 건넸습니다." % [p["name"], item_def(id)["name"], q["name"]])
-	if q["items"].size() > hand_limit(q):
-		_ask_discard(q)
-
-
-func _decoy(p: Dictionary, from: int) -> void:
-	var pol: Dictionary = police[from]
-	_police_off(from, "decoy")
-	# 끌어온 경찰은 곧바로 나를 쫓는다 (이번 차례 끝에 움직임)
-	police[p["id"]] = {"pos": pol["pos"], "summon_turn": p["turns"] - 1}
-	p["flags"]["decoys"] = int(p["flags"].get("decoys", 0)) + 1
-	_log("%s: 일부러 모습을 드러내 %s을(를) 쫓던 경찰을 유인했습니다!" % [p["name"], players[from]["name"]])
-	_banner("미끼 작전!", "info", p)
-	_push({"kind": "police"})
-
-
 func _hide(p: Dictionary, die: int) -> void:
 	## 숨기: 이번 차례 끝에 나를 쫓는 경찰이 다가오지 않는다
 	_use_die(p, die, "hide")
@@ -3004,20 +2803,6 @@ func _scout(p: Dictionary, die: int) -> void:
 	_use_die(p, die, "scout")
 	_log("%s: 주사위 %d로 정찰합니다." % [p["name"], r])
 	_run_effects(p, [{"op": "scout_tiles", "range": r, "count": int(data.rules["scout"]["count"])}], {"then": "resume", "source": "scout"})
-
-
-func _market(p: Dictionary, die: int, offer_id: String) -> void:
-	## 장터 행동: 주사위 하나를 내고 군자금으로 아이템이나 폭탄을 산다
-	var offer := {}
-	for o in data.rules["market"]["offers"]:
-		if str(o["id"]) == offer_id:
-			offer = o
-	var cost := market_cost(p, offer)
-	_use_die(p, die, "market")
-	_funds_change(-cost, "market")
-	_log("%s: 장터에서 군자금 %d으로 %s을(를) 샀습니다." % [p["name"], cost, offer.get("name", "")])
-	_push({"kind": "market_buy", "player": p["id"], "offer": offer_id, "cost": cost})
-	_run_effects(p, offer.get("effects", []), {"then": "resume", "source": "market"})
 
 
 # ================================================================ 효과 해석기
@@ -3095,12 +2880,6 @@ func _effect(p: Dictionary, e: Dictionary, ctx: Dictionary, queue: Array) -> boo
 			_op_police_dispatch(p, e, ctx)
 		"event_card":
 			_op_event_card(p, queue)
-		"funds":
-			_op_funds(p, e, queue)
-		"funds_half":
-			var keep := funds / 2
-			_log("군자금이 절반이 되었습니다 (%d → %d)." % [funds, keep])
-			_funds_change(keep - funds, "lose")
 		"police_back":
 			_op_police_back(p, e)
 		"threat_peek_bonus":
@@ -3635,34 +3414,6 @@ func _op_police_push(p: Dictionary, e: Dictionary) -> void:
 	_push({"kind": "police"})
 
 
-func _funds_change(n: int, why := "") -> int:
-	## 군자금을 바꾼다 (0~최대). 실제로 바뀐 몫을 돌려준다.
-	var before := funds
-	funds = clampi(funds + n, 0, int(data.rules["funds"]["max"]))
-	_push({"kind": "funds", "value": funds, "change": funds - before, "why": why})
-	return funds - before
-
-
-func _op_funds(p: Dictionary, e: Dictionary, queue: Array) -> void:
-	## 군자금 ±N. 얻으면 그 요원이 번 몫(funds_earned)에 더한다 (earned: false이면 안 셈). 잃을 때 모자라면 0이 되고,
-	## short 효과가 있으면 대신 그 효과를 처리한다 (가택 수색: 고립된 요원이 아이템 1장을 버림).
-	var v := int(e.get("value", 0))
-	if v > 0:
-		var got := _funds_change(v, "gain")
-		_log("군자금 +%d (군자금 %d)%s" % [got, funds, "" if got == v else " — 최대를 넘는 몫은 버립니다" if got > 0 else " — 이미 최대입니다"])
-		if got > 0 and bool(e.get("earned", true)):
-			p["funds_earned"] = int(p["funds_earned"]) + got
-			_saga_note(p, "funds_earned", {"amount": got})
-		return
-	var lost := mini(-v, funds)
-	_funds_change(-lost, "lose")
-	_log("군자금 −%d (군자금 %d)" % [lost, funds])
-	if lost < -v and e.has("short"):
-		_log("군자금이 모자랍니다.")
-		var sh: Array = e["short"]
-		for n in range(sh.size() - 1, -1, -1):
-			queue.push_front(sh[n])
-
 
 func _op_event_card(p: Dictionary, queue: Array) -> void:
 	## 이벤트 카드 한 장을 뽑아 그 효과를 이어서 처리한다 (이벤트 타일)
@@ -4132,7 +3883,6 @@ func _op_transfer_item(p: Dictionary, e: Dictionary, ctx: Dictionary, queue: Arr
 	if not free and bool(data.rules["coop"]["give_counts_as_item_use"]):
 		p["item_uses"] += 1
 	p["stats"]["gives"] += 1
-	_saga_note(p, "give_items")
 	_saga_note(q, "hold_items")
 	_log("%s: [%s]을(를) %s에게 건넸습니다." % [p["name"], item_def(id)["name"], q["name"]])
 	if q["items"].size() > hand_limit(q):
@@ -4181,45 +3931,6 @@ func _resolve_choice(value) -> void:
 		"saga_keep":
 			_keep_saga(p, str(value))
 			_launch_continue()
-		"informer_pay":
-			if bool(value):
-				for m in markers:
-					if int(m["uid"]) == int(pd["marker"]):
-						_funds_change(-int(card_cond(str(m["id"]))["informer_cost"]["funds"]), "informer")
-						_use_informer(p, m)
-						break
-			if bool(pd.get("stop", false)):
-				steps_left = 0
-			_after_step(p)
-		"bribe":
-			if bool(value):
-				_funds_change(-int(data.rules["checkpoint"]["bribe"]), "bribe")
-				_log("%s: 군자금 %d을 내고 검문소를 지나갑니다." % [p["name"], int(data.rules["checkpoint"]["bribe"])])
-				_push({"kind": "bribe", "player": p["id"]})
-				_arrive(p, pd["cell"])
-			else:
-				_log("%s: 검문소 통과를 시도합니다." % p["name"])
-				_start_check(p, "evade", "checkpoint", {"cell": pd["cell"]})
-		"mission_gear":
-			var gear: Dictionary = pd["gear"]
-			var flow: Dictionary = pd["flow"]
-			if int(value) >= 0:
-				if int(value) >= GEAR_FUNDS:
-					_funds_change(-int(gear["cost"]["funds"]), "gear")
-					_log("%s: 군자금 %d을 냈습니다 — %s" % [p["name"], int(gear["cost"]["funds"]), gear.get("text", "")])
-				else:
-					var gid: String = p["items"][int(value)]
-					p["items"].remove_at(int(value))
-					item_discard.append(gid)
-					_log("%s: [%s]을(를) 버렸습니다 — %s" % [p["name"], item_def(gid)["name"], gear.get("text", "")])
-				if gear.has("check_bonus") and not check.is_empty():
-					check["bonus"] = int(check["bonus"]) + int(gear["check_bonus"])
-				for ge in gear.get("effects", []):
-					_effect(p, ge, {"then": "resume"}, [])
-			if str(flow["kind"]) == "check":
-				_check_roll(p)
-			else:
-				_complete_missions(p, flow["ids"], flow["ctx"])
 		"reroll":
 			if str(value) == "grant":
 				var gi := _grant_index(players[check["player"]], "reroll", str(check.get("ctx", "")) == "scene")
@@ -4334,7 +4045,7 @@ func _next_voter(after: int) -> int:
 
 
 func _police_off(pid: int, reason: String) -> void:
-	## 경찰이 이 요원을 그만 쫓는다. reason: jail | shake | hideout | removed | decoy
+	## 경찰이 이 요원을 그만 쫓는다. reason: jail | shake | hideout | removed
 	## 투옥이 아닌 이유(따돌림·은신처·제거·미끼)는 「원수」 사연의 shake_police로 센다.
 	if not police.has(pid):
 		return
@@ -4425,7 +4136,7 @@ func saga_progress(pid: int) -> Dictionary:
 				need = int(cond.get("count", 1))
 				have = tr.get("bases", []).size()
 			"touch_edge", "end_turn_at_start", "rolled_value", "give_dice", "shake_police", "pass_checkpoint", \
-					"chased_turns_row", "coop_missions", "give_items", "funds_earned", "work_give":
+					"chased_turns_row", "coop_missions", "work_give", "escapes":
 				need = int(cond.get("count", 1))
 				have = int(tr.get("n", 0))
 			"visit_tile":
@@ -4434,9 +4145,6 @@ func saga_progress(pid: int) -> Dictionary:
 			"hold_items":
 				need = int(cond.get("count", 1))
 				have = mini(p["items"].size(), need)
-			"rescue_or_escape":
-				need = int(cond.get("escapes", 1))
-				have = int(tr.get("n", 0))
 			"same_cell_turns":
 				need = int(cond.get("count", 1))
 				for k in tr.get("with", {}):
@@ -4524,8 +4232,6 @@ func _saga_count(p: Dictionary, id: String, cond: Dictionary, ctx: Dictionary) -
 	match str(cond.get("kind", "")):
 		"mission_done_by_me":
 			return str(ctx.get("id", "")) == str(cond.get("mission", ""))
-		"funds_earned":
-			return _bump(tr, "n", int(ctx.get("amount", 0))) >= count
 		"end_turn_near_base":
 			if walk_dist(p["pos"], _base_cell(str(cond.get("base", "")))) > int(cond.get("range", 0)):
 				return false
@@ -4564,7 +4270,7 @@ func _saga_count(p: Dictionary, id: String, cond: Dictionary, ctx: Dictionary) -
 			return int(cond.get("value", 6)) in ctx["values"] and _bump(tr) >= count
 		"give_dice":
 			return _bump(tr) >= count
-		"shake_police", "pass_checkpoint", "coop_missions", "give_items", "work_give":
+		"shake_police", "pass_checkpoint", "coop_missions", "work_give", "escapes":
 			return _bump(tr) >= count
 		"never_jailed_until_launch":
 			return bool(ctx.get("launch", false)) and p["jail_count"] == 0
@@ -4573,11 +4279,6 @@ func _saga_count(p: Dictionary, id: String, cond: Dictionary, ctx: Dictionary) -
 				tr["n"] = 0
 				return false
 			return _bump(tr) >= count
-		"rescue_or_escape":
-			if str(ctx.get("what", "")) == "rescue":
-				var q: Dictionary = players[int(ctx["rescued"])]
-				return q["jailed_day"] >= 0 and day - q["jailed_day"] <= int(cond.get("rescue_within_days", 1))
-			return _bump(tr) >= int(cond.get("escapes", 2))
 		"same_cell_turns":
 			var w: Dictionary = tr.get("with", {})
 			var k := int(ctx["with"])
@@ -5017,13 +4718,13 @@ func _scene_leaves(cond: Dictionary, path := "") -> Array:
 func _scene_part(path: String) -> Dictionary:
 	if path == "":
 		if not scene_state.has("paid_dice"):
-			scene_state.merge({"paid_dice": 0, "paid_items": 0, "paid_bombs": 0, "paid_funds": 0,
+			scene_state.merge({"paid_dice": 0, "paid_items": 0, "paid_bombs": 0,
 				"hold_days": 0, "pair_ok": [], "people": [], "dice_reduce": 0, "done": false})
 		return scene_state
 	if not scene_state.has("parts"):
 		scene_state["parts"] = {}
 	if not scene_state["parts"].has(path):
-		scene_state["parts"][path] = {"paid_dice": 0, "paid_items": 0, "paid_bombs": 0, "paid_funds": 0,
+		scene_state["parts"][path] = {"paid_dice": 0, "paid_items": 0, "paid_bombs": 0,
 			"hold_days": 0, "pair_ok": [], "people": [], "dice_reduce": 0, "done": false}
 	return scene_state["parts"][path]
 
@@ -5058,7 +4759,6 @@ func _scene_complete(cond: Dictionary, path := "") -> bool:
 		"dice": return int(state.get("paid_dice", 0)) >= maxi(0, int(cond.get("sum", 0)) - int(state.get("dice_reduce", 0)))
 		"pay_item": return int(state.get("paid_items", 0)) >= int(cond.get("count", 1))
 		"pay_bomb": return int(state.get("paid_bombs", 0)) >= int(cond.get("count", 1))
-		"pay_funds": return int(state.get("paid_funds", 0)) >= int(cond.get("count", 1))
 		"people": return state.get("people", []).size() >= int(cond.get("count", 1))
 		"hold": return int(state.get("hold_days", 0)) >= int(cond.get("days", 1))
 		"jailed_here":
@@ -5184,8 +4884,6 @@ func _scene_pay_leaf(p: Dictionary, what: String, index: int) -> Dictionary:
 			var need := int(cond.get("count", 1)) if not cond.get("split", false) else 1
 			if p["bombs"] >= need and not my_dice(p["id"]).is_empty():
 				return leaf
-		if what == "funds" and kind == "pay_funds" and scene_index < scenes.size() - 1 and funds >= int(cond.get("count", 1)) and not my_dice(p["id"]).is_empty():
-			return leaf   # 마지막 장면은 매수할 수 없다
 	return {}
 
 
@@ -5212,11 +4910,7 @@ func _scene_pay(p: Dictionary, what: String, index: int, spend := -1) -> void:
 			p["bombs"] -= n
 			bomb_supply += n
 			part["paid_bombs"] = int(part["paid_bombs"]) + n
-		"funds":
-			_use_die(p, spend, "scene")
-			_funds_change(-int(cond.get("count", 1)), "scene")
-			part["paid_funds"] = int(cond.get("count", 1))
-	_log("%s: 장면에 %s을(를) 바쳤습니다." % [p["name"], {"die": "주사위", "item": "아이템", "bomb": "폭탄", "funds": "군자금"}[what]])
+	_log("%s: 장면에 %s을(를) 바쳤습니다." % [p["name"], {"die": "주사위", "item": "아이템", "bomb": "폭탄"}[what]])
 	_scene_auto_break_by(p["id"])
 
 
@@ -5273,9 +4967,6 @@ func scene_options(p: Dictionary) -> Array:
 	if _scene_can_pay(p, "bomb", -1):
 		for i in dice:
 			out.append({"type": "scene_pay", "player": p["id"], "what": "bomb", "with": i})
-	if _scene_can_pay(p, "funds", -1):
-		for i in dice:
-			out.append({"type": "scene_pay", "player": p["id"], "what": "funds", "with": i})
 	for mode in ["check", "dice"]:
 		if _scene_can_intel(p, mode):
 			out.append({"type": "use_intel", "player": p["id"], "mode": mode})
@@ -5393,7 +5084,6 @@ func scene_need(i := -1) -> Dictionary:
 			"dice": out["dice"] = maxi(0, int(c.get("sum", 0)) - int(part.get("dice_reduce", 0)) - int(part.get("paid_dice", 0)))
 			"pay_item": out["item"] = maxi(0, int(c.get("count", 1)) - int(part.get("paid_items", 0)))
 			"pay_bomb": out["bomb"] = maxi(0, int(c.get("count", 1)) - int(part.get("paid_bombs", 0)))
-			"pay_funds": out["funds"] = maxi(0, int(c.get("count", 1)) - int(part.get("paid_funds", 0)))
 			"check_pair": out["check_pair"] = maxi(0, int(c.get("count", 1)) - part.get("pair_ok", []).size())
 			"people": out["people"] = maxi(0, int(c.get("count", 1)) - part.get("people", []).size())
 			"hold": out["hold"] = maxi(0, int(c.get("days", 1)) - int(part.get("hold_days", 0)))
@@ -5440,11 +5130,7 @@ func _end_game(won: bool) -> void:
 		epilogues.append({"player": p["id"], "saga": saga_id, "key": epkey,
 			"text": "%s %s — %s" % [faction, character.get("name", p["name"]), str(line)],
 			"done": bool(result.get("done", false))})
-	var funds_text := ""
-	if funds > 0:
-		funds_text = str(data.endings.get("funds_left", {}).get("text", "")).replace("{n}", str(funds))
-		body += "\n\n" + funds_text
-	ending = {"id": id, "won": won, "target": target, "scene": str(card.get("id", "")), "funds_left": funds, "funds_text": funds_text,
+	ending = {"id": id, "won": won, "target": target, "scene": str(card.get("id", "")),
 		"scene_index": scene_index if act == 2 else -1, "title": str(def.get("name", "")), "text": body,
 		"epilogues": epilogues}
 	phase = "over"
@@ -5463,7 +5149,7 @@ const SAVE_FIELDS := ["players", "leader", "day", "rounds_total", "rounds_left",
 	"launch_info", "ending", "scenes", "scene_index", "scene_state", "intel_tokens", "search_queue", "effect_wait",
 	"check", "morning_step", "last_roll", "saga_decks", "saga_discard",
 	"saga_rewards", "launch_step", "launch_i", "human", "vote_state", "counter", "counter_queue",
-	"funds", "markers", "mission_state", "op_row", "op_deck", "op_discard", "trend", "peek_bonus", "bonus_wait", "expire_queue", "marker_seq",
+	"markers", "mission_state", "op_row", "op_deck", "op_discard", "trend", "peek_bonus", "bonus_wait", "expire_queue", "marker_seq",
 	"actions", "log_lines", "history", "stats"]
 
 
@@ -5491,8 +5177,6 @@ func load_state(st: Dictionary, game_data: GameDataV2 = null) -> void:
 			q["fx_cells"] = []
 		if not q.has("hidden"):
 			q["hidden"] = false
-		if not q.has("funds_earned"):
-			q["funds_earned"] = 0
 
 
 # ================================================================ 유틸

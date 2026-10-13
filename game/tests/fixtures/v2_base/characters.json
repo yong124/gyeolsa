@@ -92,12 +92,13 @@
 			"gender": "f",
 			"origin": "전선에서 돌아온 간호장교",
 			"persona": "support",
-			"trait_text": "내가 구출한 동료는 다음 이동 +2",
+			"trait_text": "연락 미션의 첩보 +1",
 			"trait": {
 				"mods": [
 					{
-						"stat": "rescued_move_bonus",
-						"value": 2
+						"stat": "mission_intel_bonus",
+						"value": 1,
+						"type": "contact"
 					}
 				]
 			},
@@ -161,10 +162,6 @@
 					{
 						"stat": "bomb_slots",
 						"value": 1
-					},
-					{
-						"stat": "market_bomb_cost",
-						"value": -1
 					}
 				]
 			},
@@ -270,10 +267,6 @@
 					{
 						"stat": "item_draw_choice",
 						"value": 2
-					},
-					{
-						"stat": "market_item_cost",
-						"value": -1
 					}
 				]
 			},

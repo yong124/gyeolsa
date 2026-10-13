@@ -127,8 +127,6 @@ func _state_notes() -> void:
 			note("saga")
 	if my_turn:
 		note("ability")
-		if tile_is(me["pos"], "market"):
-			note("market")
 		if tile_is(me["pos"], "check"):
 			note("checkpoint")
 		if g.act == 2:
@@ -149,8 +147,6 @@ func _state_notes() -> void:
 	for q in g.players:
 		if int(q["id"]) != scr.human and q["jailed"]:
 			note("ally_jail")
-		if int(q["id"]) != scr.human and g.police.has(int(q["id"])) and not g.police.has(scr.human) and not me["jailed"]:
-			note("lure")
 	if g.alert_level() > _was_alert:
 		note("alert")
 	_was_alert = g.alert_level()

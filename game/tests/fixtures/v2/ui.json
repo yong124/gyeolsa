@@ -33,19 +33,9 @@
 			"id": "pass",
 			"label": "건네기",
 			"actions": [
-				"give_die",
-				"give_item"
+				"give_die"
 			],
-			"why": "건네기",
-			"jailed": "allowed"
-		},
-		{
-			"id": "decoy",
-			"label": "미끼",
-			"actions": [
-				"decoy"
-			],
-			"why": "미끼"
+			"why": "건네기"
 		},
 		{
 			"id": "hide",
@@ -62,17 +52,6 @@
 				"scout"
 			],
 			"why": "정찰"
-		},
-		{
-			"id": "market",
-			"label": "장터",
-			"actions": [
-				"market"
-			],
-			"why": "장터",
-			"acts": [
-				1
-			]
 		},
 		{
 			"id": "escape",
@@ -94,7 +73,15 @@
 		"coop": "res://assets/tiles/start.png",
 		"op": "res://assets/tiles/assassin.png"
 	},
-	"marker_names": {"target": "표적", "informer": "정보원", "pickup": "받기", "dropoff": "주기", "work": "공작 자리", "spot": "잠복 자리", "base": "잠입 거점"},
+	"marker_names": {
+		"target": "표적",
+		"informer": "정보원",
+		"pickup": "받기",
+		"dropoff": "주기",
+		"work": "공작 자리",
+		"spot": "잠복 자리",
+		"base": "잠입 거점"
+	},
 	"marker_glyph": {
 		"target": "표",
 		"informer": "정",

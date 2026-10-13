@@ -159,8 +159,6 @@ func _why(e: Dictionary, won: bool) -> Array:
 	if not me.is_empty():
 		var st: Dictionary = me["stats"]
 		var bits := ["미션 %d개를 이루었고" % int(st.get("missions", 0))]
-		if int(st.get("rescues", 0)) > 0:
-			bits.append("동료를 %d번 구했고" % int(st["rescues"]))
 		bits.append("%d번 갇혔습니다" % int(st.get("jailed", 0)) if int(st.get("jailed", 0)) > 0 else "한 번도 잡히지 않았습니다")
 		out.append("나(%s)는 %s." % [TextV2.agent(game, human), " ".join(bits)])
 	return out

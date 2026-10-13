@@ -91,11 +91,11 @@
 							]
 						},
 						{
-							"label": "군자금 +2",
+							"label": "노출 −1",
 							"effects": [
 								{
-									"op": "funds",
-									"value": 2
+									"op": "exposure",
+									"value": -1
 								}
 							]
 						}
