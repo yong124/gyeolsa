@@ -36,10 +36,10 @@ func _ready() -> void:
 	elif "v2" in args:
 		_show_v2_setup()   # 요원 고르기부터 (게임_실행_v2.bat)
 	elif OS.has_feature("web"):
-		if OS.has_feature("web_android") or OS.has_feature("web_ios"):
-			_web_gate()   # 휴대폰 · 태블릿만: PC에서 열어 달라는 안내를 먼저
+		if OS.has_feature("web_android") or OS.has_feature("web_ios") or not Prefs.intro_seen:
+			_web_gate()   # 휴대폰 · 태블릿, 그리고 처음 와서 도입부를 볼 때: 이 클릭으로 브라우저가 소리를 허락해 도입부에 음악이 깔린다
 		else:
-			_after_gate()   # PC 웹: 바로 첫 화면 (소리는 첫 클릭 때 브라우저가 켬)
+			_after_gate()   # PC 웹 다시 방문: 바로 첫 화면 (소리는 첫 클릭 때 브라우저가 켬)
 	elif not Prefs.intro_seen:
 		_show_intro()
 	else:
@@ -107,6 +107,7 @@ func _web_gate() -> void:
 func _show_intro() -> void:
 	var slides := GameScreenV2.opening_slides()
 	if not slides.is_empty():
+		Music.play("main")   # 도입부부터 메인 음악 (첫 화면에서도 같은 곡이라 끊기지 않고 이어진다)
 		# V 연출: 오프닝 4컷이 있으면 그것을 도입부로
 		var holder := Control.new()
 		holder.set_anchors_preset(Control.PRESET_FULL_RECT)
