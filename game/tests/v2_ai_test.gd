@@ -9,7 +9,10 @@ var errors := []
 func _init() -> void:
 	var data := GameDataV2.load_default()
 	var ids: Array = data.characters.get("characters", []).map(func(c): return c["id"])
-	var source := FileAccess.get_file_as_string("res://scripts/core/v2/rules_v2.gd")
+	var source := ""   # 규칙 엔진은 층마다 한 파일 (rules_*_v2.gd)
+	for f in DirAccess.get_files_at("res://scripts/core/v2"):
+		if f.begins_with("rules_") and f.ends_with(".gd"):
+			source += FileAccess.get_file_as_string("res://scripts/core/v2/" + f)
 	var re := RegEx.new()
 	re.compile("_ask\\([^,]+,\\s*\"([^\"]+)\"")
 	var found := {}
@@ -92,7 +95,7 @@ func _init() -> void:
 			errors.append("%d판: 재생 결과 불일치" % i)
 	if GameAIV2.fallback_count != 0:
 		errors.append("AI 대체 액션 %d회" % GameAIV2.fallback_count)
-	if confiscated == 0:
+	if confiscated == 0 and int(data.rules["jail"]["confiscate_items"]) > 0:
 		errors.append("투옥 압수가 한 번도 없음")
 	for k in ["launch_vote", "launch_target", "strike_target", "launch_benefit"]:
 		if not choices.has(k) and k != "strike_target":
@@ -104,7 +107,7 @@ func _init() -> void:
 	if ops_blocked == 0:
 		errors.append("AI가 일제 작전을 한 번도 막지 못함")
 	print("AI가 이룬 미션(종류별): ", done_types, " · 막은 일제 작전 ", ops_blocked)
-	for t in ["move_die", "step", "end_move", "end_turn", "mission_check", "work_give", "escape", "scout", "scene_check", "scene_pay"]:
+	for t in ["move_die", "step", "end_move", "end_turn", "mission_check", "work_give", "escape", "scene_check", "scene_pay"]:
 		if int(used.get(t, 0)) == 0:
 			errors.append("AI가 한 번도 안 쓴 행동: " + t)
 	if int(used.get("end_turn", 0)) + total < int(used.get("begin_turn", 0)):

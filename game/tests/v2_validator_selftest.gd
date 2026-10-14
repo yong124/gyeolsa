@@ -38,6 +38,8 @@ func _init() -> void:
 	_check(_breaks(func(d): d.tile_art["normal"] = {"texture": "없는그림"}, "board.tile_art.normal"), "board.json 없는 타일 그림을 잡는다")
 	_check(_breaks(func(d): d.rules["launch"]["vote"]["tie"] = "coin", "tie는"), "투표 동률 규칙 오타를 잡는다")
 	_check(_breaks(func(d): d.rules["ai"]["persona"].erase("support"), "persona에 support"), "AI 기본 성향이 없으면 잡는다")
+	_check(_breaks(func(d): d.rules["ai"]["walk"].erase("danger"), "rules.ai.walk.danger"), "AI 가중치 하나가 빠지면 잡는다")
+	_check(_breaks(func(d): d.rules["ai"].erase("turn_order"), "rules.ai.turn_order 묶음"), "AI 가중치 묶음이 빠지면 잡는다")
 	_check(_breaks(func(d): d.ui["verbs"][0]["jailed"] = "maybe", "jailed는"), "ui.json 단추 jailed 오타를 잡는다")
 	_check(_breaks(func(d): d.ui["marker_glyph"].erase("target"), "marker_glyph.target"), "ui.json 마커 글자 빠짐을 잡는다")
 	_check(_breaks(func(d): d.ui["weather"] = {"no_such": "rain"}, "위협 카드 no_such"), "ui.json 날씨가 없는 위협을 가리키면 잡는다")
@@ -54,7 +56,7 @@ func _init() -> void:
 	_check(_has(berrs, "알 수 없는 op 'no_such_op'"), "choice 안쪽 오타를 잡는다")
 	_check(_has(berrs, "파일 없음: res://tests/fixtures/v2_bad/events.json"), "없는 파일을 오류로 기록한다")
 
-	# B단계 어휘: 능력의 cost, police_attach의 at, rules의 hide·scout·market·police
+	# B단계 어휘: 능력의 cost, police_attach의 at, rules의 hide·market·police
 	var real := GameDataV2.new()
 	real.load_dir("res://data/v2/")
 	_check(real.validate().is_empty(), "진짜 데이터는 오류 없음")
@@ -73,10 +75,9 @@ func _init() -> void:
 	var r3 := GameDataV2.new()
 	r3.load_dir("res://data/v2/")
 	r3.rules.erase("hide")
-	r3.rules["scout"]["count"] = 0
 	r3.rules["police"]["rejoin_distance"] = 0
 	var e3 := r3.validate()
-	_check(_has(e3, "rules.hide") and _has(e3, "rules.scout.count") and _has(e3, "rejoin_distance"), "rules의 hide·scout·police 값 누락을 잡는다")
+	_check(_has(e3, "rules.hide") and _has(e3, "rejoin_distance"), "rules의 hide·police 값 누락을 잡는다")
 	var r4 := GameDataV2.new()
 	r4.load_dir("res://data/v2/")
 	r4.characters["characters"][0]["trait"] = {"mods": [{"stat": "no_such_stat", "value": 1}]}
@@ -92,7 +93,7 @@ func _init() -> void:
 	r6.load_dir("res://data/v2/")
 	for c in r6.sagas["sagas"]:
 		if c["id"] == "sibling_revenge":
-			c["condition"]["or"]["mission"] = "m_nobody"
+			c["condition"]["or"] = {"kind": "mission_done_by_me", "mission": "m_nobody"}
 	for st in r6.scenes["strikes"].values():
 		if st is Dictionary and st.has("final") and st["final"]["condition"].get("kind", "") == "sequence":
 			st["final"]["condition"]["steps"] = [st["final"]["condition"]["steps"][0]]

@@ -27,6 +27,7 @@
 	},
 	"jail": {
 		"confiscate_items": 1,
+		"release_next_morning": false,
 		"_comment": "투옥되면 들고 있던 아이템을 무작위로 이만큼 압수당해 버림 더미로 간다 (폭탄은 압수하지 않음)"
 	},
 	"police": {
@@ -234,10 +235,6 @@
 		],
 		"_comment": "숨기를 할 수 있는 칸: 이 종류의 타일 위, 또는 이 표시(flag)가 있는 칸 (골목·주막 타일은 C단계에서 들어온다, 은신처는 mark_tile의 hideout)"
 	},
-	"scout": {
-		"count": 2,
-		"_comment": "정찰: 주사위 눈만큼 떨어진 곳까지의 덮인 칸을 이만큼 골라 타일을 앞면으로 깐다"
-	},
 	"launch": {
 		"target_min_intel": 2,
 		"vote": {
@@ -330,9 +327,9 @@
 			"grant": 0.7,
 			"penalty": 0.8,
 			"urgent": 1.0,
-			"informer_detour": 6
+			"informer_detour": 6, "bonus_share": 0.5, "missed_share": 0.5, "floor": 0.3, "assassin_base": 0.4, "assassin_chance": 0.6, "bomb_fetch": 0.7, "work_useless": 0.3, "contact_deliver": 1.5, "lurk_chased": 0.2
 		},
-		"_comment": "AI 군자금(funds): 뇌물은 검문 통과 확률이 bribe_below보다 낮을 때, reserve는 남겨 둘 군자금 (자금 동결·가택 수색이 덱에 남았으면 0), gear_min_gain은 정보원·무기 조달로 오르는 성공률 문턱, market_value는 장터까지 가는 가치, buy_slack_days는 남은 날이 장면 수 x 0.8 + 이 값 이하이면 장면 매수. AI 결행 투표: 대상 점수 = 첩보 x intel + 내 사연과 맞으면 saga − 거리 x distance. 준비가 launch_min + vote_ready_margin 이상이면 첩보가 모자라도 찬성"
+		"turn_order": {"jailed": 10.0, "chased": 5.0, "act2": 3.0, "hopper": -2.0, "donor": 1.5}, "vote_late_ratio": 0.55, "strike_pick": {"intel": 2.0, "distance": 0.1}, "saga_keep": {"strike_match": 0.5, "strike_kind_min": 0.5}, "saga_progress": {"base": 0.6, "progress": 0.4}, "benefit": {"no_reinforce": 4.0, "no_reinforce_low": 0.5, "no_reinforce_alert": 2, "intel_token_bonus": 3.0, "dice_extra_tomorrow": 2.0, "threat_look_discard": 1.0, "other": 0.2}, "threat_bad": 2.0, "effect_choice": {"item": 3.0, "item_full": 1.0, "dice_act1": 2.5, "dice_act2": 3.2, "other": 0.5}, "reroll_min": 0.05, "morning": {"reroll_max": 2, "adjust_at": 5}, "walk": {"progress": 10.0, "danger": 4.0, "unknown": 0.2}, "intel_trade": {"headroom": 2, "max_die": 3, "dice": 2}, "_comment": "AI 군자금(funds): 뇌물은 검문 통과 확률이 bribe_below보다 낮을 때, reserve는 남겨 둘 군자금 (자금 동결·가택 수색이 덱에 남았으면 0), gear_min_gain은 정보원·무기 조달로 오르는 성공률 문턱, market_value는 장터까지 가는 가치, buy_slack_days는 남은 날이 장면 수 x 0.8 + 이 값 이하이면 장면 매수. AI 결행 투표: 대상 점수 = 첩보 x intel + 내 사연과 맞으면 saga − 거리 x distance. 준비가 launch_min + vote_ready_margin 이상이면 첩보가 모자라도 찬성"
 	},
 	"hideout_flag": "hideout",
 	"_comment_hideout_flag": "이 표시가 있는 칸에서 차례를 마치면 나를 쫓던 경찰이 사라진다 (mark_tile의 flag 이름)",

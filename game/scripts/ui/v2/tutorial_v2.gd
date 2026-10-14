@@ -145,7 +145,7 @@ func intercept(a: Dictionary) -> bool:
 		_bad_say = ""
 		return false
 	_bad_say = str(pk.get("bad_say", ""))
-	scr._actions.close_menu()
+	scr.actions_mod.close_menu()
 	Sfx.play("click")
 	return true
 
@@ -156,7 +156,7 @@ func press_next() -> void:
 	if str(s.get("do", "")) in ["next", "watch", "briefing"] and _started_step == i:
 		_did = true
 		update()
-		scr._refresh()
+		scr.refresh_all()
 
 
 func holds() -> bool:
@@ -196,7 +196,7 @@ func _done(s: Dictionary) -> bool:
 func _when_ok(s: Dictionary) -> bool:
 	var w: Dictionary = s.get("when", {})
 	var g := scr.game
-	if scr._playing:
+	if scr.playing:
 		return false
 	if w.has("phase") and g.phase != str(w["phase"]):
 		return false
@@ -247,7 +247,7 @@ func _show_complete() -> void:
 		Prefs.v2_training_done = true
 	Prefs.save()
 	Sfx.play("success")
-	scr._paused = true   # 완료 화면이 떠 있는 동안 판은 가만히 (스페이스 등이 판에 닿지 않게)
+	scr.paused = true   # 완료 화면이 떠 있는 동안 판은 가만히 (스페이스 등이 판에 닿지 않게)
 	var last := ti >= count(scr.game.data) - 1
 	_complete = CompleteCard.new()
 	(_complete as CompleteCard).build(str(training.get("title", "")), training.get("learned", []), last, ti + 1,
@@ -447,10 +447,10 @@ func _setup(ops: Array) -> void:
 	if not keep_events:
 		g.events.clear()
 	g._dist_cache = {}
-	scr._board.sync_from_game()
-	scr._refresh_panels()
+	scr.board_view.sync_from_game()
+	scr.refresh_panels()
 	if keep_events:
-		scr._pump()   # 아침 연출(위협 카드 · 투표 창)을 보여 준다
+		scr.pump()   # 아침 연출(위협 카드 · 투표 창)을 보여 준다
 
 
 func _ensure_tile(c: Vector2i) -> void:
@@ -541,7 +541,7 @@ func _apply_hud() -> void:
 	if not sh.has("hud"):
 		return
 	var hud: Array = sh["hud"]
-	var top = scr._top
+	var top = scr.top_bar
 	var parts := {"calendar": top._cal, "ready": top._gauge, "threat": top._threat, "alert": top._alert, "trend": top._trend_box}
 	for k in parts:
 		var c = parts[k]
@@ -554,7 +554,7 @@ func _apply_hud() -> void:
 func focus() -> Array:
 	## [밝힐 곳(화면 좌표, 없으면 빈 Rect2), 머리글, 말풍선 글, 「다음」 단추가 있나, 모드("do" 해 보기 · "next" 읽기 · "watch" 보기)]
 	var none := [Rect2(), "", "", false, "do"]
-	if not active or _complete != null or scr._playing or scr._paused or not scr._started:
+	if not active or _complete != null or scr.playing or scr.paused or not scr.started:
 		return none
 	var g := scr.game
 	var s := step()
@@ -563,7 +563,7 @@ func focus() -> Array:
 	var head := "훈련 %d · %s · %d/%d" % [ti + 1, training.get("title", ""), int(s["si"]) + 1, int(s["ln"])]
 	if _started_step != i:
 		# 아직 이 단계의 때가 아님: 사람의 선택 창이 떠 있으면 그것만 밝힌다
-		if g.phase == "choice" and int(g.pending.get("player", -1)) == scr.human and scr._choice.visible:
+		if g.phase == "choice" and int(g.pending.get("player", -1)) == scr.human and scr.choice_overlay.visible:
 			return [_choice_rect(), head, "창에서 하나를 고릅니다.", false, "do"]
 		return none
 	var d := str(s.get("do", ""))
@@ -574,7 +574,7 @@ func focus() -> Array:
 	if d == "watch" and _did:
 		return none
 	var t := str(s.get("target", ""))
-	if scr._choice != null and scr._choice.visible and not t.begins_with("choice"):
+	if scr.choice_overlay != null and scr.choice_overlay.visible and not t.begins_with("choice"):
 		# 확인 · 선택 창이 떠 있으면 그 창을 밝힌다 (예: 주사위가 남았는데 차례 마치기)
 		return [_choice_rect(), head, "창에서 「그래도 마친다」를 고릅니다." if d == "end_turn" else "창에서 하나를 고릅니다.", false, "do"]
 	var r := _target_rect(t)
@@ -625,7 +625,7 @@ func _ok(c) -> bool:
 
 
 func _target_rect(t: String) -> Rect2:
-	var f: Dictionary = scr._actions.focus
+	var f: Dictionary = scr.actions_mod.focus
 	var g := scr.game
 	if t == "":
 		return Rect2()
@@ -639,11 +639,11 @@ func _target_rect(t: String) -> Rect2:
 		var parts := t.split(":")
 		var verb := parts[1]
 		var val := int(parts[2]) if parts.size() > 2 else -1
-		if scr._actions._menu != null and _ok(f.get("menu_any")):
+		if scr.actions_mod._menu != null and _ok(f.get("menu_any")):
 			return f["menu_any"].get_global_rect()
-		if scr._verb == verb:
+		if scr.picked_verb == verb:
 			if val < 0:
-				return scr._dice_row.get_global_rect() if _ok(scr._dice_row) else Rect2()   # 아무 주사위나 (고르기)
+				return scr.dice_row.get_global_rect() if _ok(scr.dice_row) else Rect2()   # 아무 주사위나 (고르기)
 			for di in f.get("dice", {}):
 				var d: Dictionary = g.op_dice[di]
 				if int(d["value"]) == val and not d["used"] and _ok(f["dice"][di]):
@@ -666,45 +666,45 @@ func _target_rect(t: String) -> Rect2:
 		var pp = g.police.get(scr.human, {}).get("pos")
 		return _cell_rect(pp) if pp is Vector2i else Rect2()
 	if t.begins_with("choice"):
-		if not scr._choice.visible:
+		if not scr.choice_overlay.visible:
 			return Rect2()
 		if t.begins_with("choice:"):
-			var b = scr._choice_btns.get(t.substr(7))
+			var b = scr.choice_btns.get(t.substr(7))
 			if _ok(b):
 				return b.get_global_rect()
 		return _choice_rect()
 	if t.begins_with("mission:"):
-		var card = scr._mission_cards.get(t.substr(8))
+		var card = scr.mission_cards.get(t.substr(8))
 		return card.get_global_rect() if _ok(card) else Rect2()
 	if t == "board":
-		return scr._board_rect()
+		return scr.board_screen_rect()
 	if t == "me_card":
-		var mc: Control = scr._me_box.get_parent() if scr._me_box.get_parent() is Control else scr._me_box
+		var mc: Control = scr.me_box.get_parent() if scr.me_box.get_parent() is Control else scr.me_box
 		return mc.get_global_rect()
 	if t == "ability" or t.begins_with("item:"):
 		var fb = f.get(t)
 		return fb.get_global_rect() if _ok(fb) else Rect2()
-	var node = {"dock": scr._right, "top": scr._top, "dice": scr._dice_row, "threat": scr._top._threat, "missions": scr._mid_box, "ops": scr._ops_row,
-		"hand": scr._hand_row, "allies": scr._left, "ready": scr._top._gauge, "alert": scr._top._alert, "calendar": scr._top._cal,
-		"trend": scr._top._trend_box}.get(t)
+	var node = {"dock": scr.dock, "top": scr.top_bar, "dice": scr.dice_row, "threat": scr.top_bar._threat, "missions": scr.mid_box, "ops": scr.ops_row,
+		"hand": scr.hand_row, "allies": scr.left_rail, "ready": scr.top_bar._gauge, "alert": scr.top_bar._alert, "calendar": scr.top_bar._cal,
+		"trend": scr.top_bar._trend_box}.get(t)
 	return node.get_global_rect() if _ok(node) else Rect2()
 
 
 func _choice_rect() -> Rect2:
-	for c in scr._choice.get_children():
+	for c in scr.choice_overlay.get_children():
 		if c is PanelContainer or c is CenterContainer:
 			var r: Rect2 = (c as Control).get_global_rect()
 			if c is CenterContainer and c.get_child_count() > 0:
 				r = (c.get_child(0) as Control).get_global_rect()
 			return r
-	return scr._choice.get_global_rect()
+	return scr.choice_overlay.get_global_rect()
 
 
 func _cell_rect(c: Vector2i) -> Rect2:
-	var ctr: Vector2 = scr._cell_screen(c)
+	var ctr: Vector2 = scr.cell_screen(c)
 	var side := 64.0
-	if scr._tilt == null:
-		side = scr._board.cell_rect(c).size.x
+	if scr.tilt_board == null:
+		side = scr.board_view.cell_rect(c).size.x
 	return Rect2(ctr - Vector2(side, side) / 2.0, Vector2(side, side))
 
 
@@ -813,11 +813,11 @@ class Spotlight extends Control:
 		_bubble.visible = on
 		_hole = f[0]
 		_avoid = _hole
-		if on and tut.scr._choice != null and tut.scr._choice.visible and _hole.size != Vector2.ZERO:
+		if on and tut.scr.choice_overlay != null and tut.scr.choice_overlay.visible and _hole.size != Vector2.ZERO:
 			_avoid = _hole.merge(tut._choice_rect())   # 선택 창의 다른 단추를 말풍선이 덮지 않게
 		_mode = str(f[4])
-		if on and is_instance_valid(tut.scr._peek):
-			tut.scr._peek.visible = false   # 훈련 중에는 큰 카드가 말풍선 · 밝힌 곳을 가리지 않게
+		if on and is_instance_valid(tut.scr.card_peek):
+			tut.scr.card_peek.visible = false   # 훈련 중에는 큰 카드가 말풍선 · 밝힌 곳을 가리지 않게
 		if on:
 			_next.text = "작전 시작 ▶" if _mode == "briefing" else "다음 ▶"
 			var bw := 600.0 if _mode == "briefing" else TutorialV2.BUBBLE_W

@@ -46,14 +46,6 @@
 			"why": "숨기"
 		},
 		{
-			"id": "scout",
-			"label": "정찰",
-			"actions": [
-				"scout"
-			],
-			"why": "정찰"
-		},
-		{
 			"id": "escape",
 			"label": "탈옥",
 			"actions": [

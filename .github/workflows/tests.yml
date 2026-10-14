@@ -1,0 +1,49 @@
+# 시험: 밀어 올릴 때마다 Godot 헤드리스로 규칙 · AI · 온라인 · 화면 시험을 돌린다.
+# 내려받는 Godot 판은 project.godot과 같은 4.7.1이다.
+name: 시험
+
+on:
+  push:
+    branches: [main, v2]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GODOT_VERSION: 4.7.1
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Godot 받기
+        run: |
+          curl -sSL -o godot.zip "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          unzip -q godot.zip
+          mv "Godot_v${GODOT_VERSION}-stable_linux.x86_64" godot
+          ./godot --version
+
+      - name: 자원 가져오기
+        run: ./godot --headless --path game --import || true
+
+      - name: 데이터 검증
+        run: ./godot --headless --path game --script res://tests/v2_data_test.gd
+
+      - name: 검증기 자체 시험
+        run: ./godot --headless --path game --script res://tests/v2_validator_selftest.gd
+
+      - name: 규칙 시험
+        run: ./godot --headless --path game --script res://tests/v2_mechanics_test.gd
+
+      - name: 엔진 시험 (200판)
+        run: ./godot --headless --path game --script res://tests/v2_engine_test.gd
+
+      - name: AI 시험 (220판)
+        run: ./godot --headless --path game --script res://tests/v2_ai_test.gd
+
+      - name: 온라인 시험
+        run: ./godot --headless --path game --script res://tests/v2_net_test.gd
+
+      - name: 화면 시험 (한 판)
+        run: ./godot --headless --path game -- v2uitest 1

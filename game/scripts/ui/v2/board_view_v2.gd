@@ -29,7 +29,6 @@ var _idle_wait := 0.0             # Z5: 가만히 있을 때 다시 그리기까
 const IDLE_REDRAW := 0.05         # 가만히 있을 때는 초당 20번만 다시 그린다 (반짝임 · 발자국은 느려서 충분). 움직임 · 뒤집기는 트윈이 매 프레임 그린다
 var _preview := {}
 var reach := {}                  # 이동 미리 보기: 닿을 수 있는 칸 {칸: 걸음 수} (행동 메뉴에서 이동에 올려 놓았을 때)
-var scouted := {}                # 정찰로 미리 깐 칸 (아직 아무도 멈추지 않은 곳)
 var marker_trails := {}          # 카드 id -> {"from", "to", "age"}: 표적이 움직인 자리 (잠깐 보임)
 
 const TRAIL_SECONDS := 9.0
@@ -103,20 +102,11 @@ func sync_from_game() -> void:
 	queue_redraw()
 
 
-func note_scouted(c: Vector2i) -> void:
-	scouted[c] = true
-	queue_redraw()
-
-
 func note_footprint(c: Vector2i, pid: int) -> void:
 	## V 연출: 말이 지나간 칸에 먹 발자국 (몇 초 뒤 사라짐)
 	_prints.append({"c": c, "pid": pid, "t": 0.0})
 	if _prints.size() > 40:
 		_prints.pop_front()
-
-
-func note_arrived(c: Vector2i) -> void:
-	scouted.erase(c)
 
 
 func note_marker_moved(id: String, from: Vector2i, to: Vector2i) -> void:
@@ -485,10 +475,7 @@ func _tag(r: Rect2, corner: int, text: String, col: Color) -> void:
 
 
 func _draw_marks() -> void:
-	## 정찰로 미리 깐 칸, 이번 차례에 칸 효과를 이미 받은 칸
-	for c in scouted:
-		if game.board.has(c) and not hidden_tiles.has(c):
-			_tag(cell_rect(c).grow(-3.0), 3, "정찰", Color(Style.INK_2, 0.9))
+	## 이번 차례에 칸 효과를 이미 받은 칸
 	if game.phase == "turn" and game.current == human_id:
 		for c in game.players[human_id]["fx_cells"]:
 			if game.board.has(c) and game.tile_type(c) not in ["normal", "start"] and not hidden_tiles.has(c):

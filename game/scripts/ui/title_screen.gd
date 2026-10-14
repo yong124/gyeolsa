@@ -162,12 +162,17 @@ func _show_menu() -> void:
 	head.add_child(st)
 	_panel.add_child(head)
 	_panel.add_child(UiKit.hsep())
+	var stale := SaveGameV2.drop_stale()
 	var saved := SaveGameV2.exists()
 	var quick := func(): _confirm_new(func(): quick_requested.emit())
 	if saved:
 		_panel.add_child(_hero("이어하기", SaveGameV2.summary(), ArtV2.get_tex("cut", "opening_2"), func(): continue_v2_requested.emit()))
 	else:
 		_panel.add_child(_hero("바로 시작", "", ArtV2.get_tex("cut", "opening_2"), quick))
+	if stale != "":
+		var note := UiKit.text("게임이 새 버전(%s)으로 바뀌어, %s에서 하던 판은 이어 할 수 없습니다." % [SaveGameV2.app_version(), stale], 14, Style.INK_3)
+		note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_panel.add_child(note)
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
 	_panel.add_child(row)

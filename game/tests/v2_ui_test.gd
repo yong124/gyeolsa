@@ -43,7 +43,7 @@ func _run(n: int) -> void:
 		var game := RulesV2.new()
 		game.setup(defs, 9100 + g_i)
 		var screen := GameScreenV2.new(game, 0, {})
-		screen._fast = true
+		screen.fast_forward = true
 		add_child(screen)
 		var idle_frames := 0
 		var guard := 0
@@ -65,13 +65,13 @@ func _run(n: int) -> void:
 				still_since = Time.get_ticks_msec()
 			elif Time.get_ticks_msec() - still_since > 20000:
 				_fail("판 %d: 20초 동안 액션이 없음 — phase=%s playing=%s ai_wait=%s paused=%s queue=%d ai=%d choice=%s 최근=%s" % [
-					g_i, game.phase, screen._playing, screen._ai_waiting, screen._paused, screen._queue.size(), screen._ai_actor(),
+					g_i, game.phase, screen.playing, screen.ai_waiting, screen.paused, screen.event_queue.size(), screen.ai_actor(),
 					str(game.pending.get("kind", "")), str(game.actions.slice(maxi(0, game.actions.size() - 3)))])
 				break
 			if not screen.is_idle():
 				idle_frames = 0
 				continue
-			if screen._ai_actor() >= 0:
+			if screen.ai_actor() >= 0:
 				idle_frames += 1
 				if idle_frames > 600:
 					_fail("판 %d: AI 차례인데 화면이 멈춤 (phase=%s)" % [g_i, game.phase])
@@ -131,22 +131,22 @@ func _try_menu(screen: GameScreenV2, game: RulesV2, a: Dictionary, g_i: int) -> 
 	## 행동 메뉴를 실제로 열어 본다: 같은 주사위의 행동이 모두 단추로 나오고, 미리 보기(이동 도달 칸)가 그려지는지
 	var die := int(a["die"])
 	var acts := game.legal_actions().filter(func(x): return int(x.get("player", -1)) == 0 and x.has("die") and int(x["die"]) == die)
-	screen._actions.die_menu(acts, die)
+	screen.actions_mod.die_menu(acts, die)
 	await get_tree().process_frame
 	await get_tree().process_frame
-	if screen._actions._menu == null or not is_instance_valid(screen._actions._menu):
+	if screen.actions_mod._menu == null or not is_instance_valid(screen.actions_mod._menu):
 		_fail("판 %d: 행동 메뉴가 안 열림 (%s)" % [g_i, str(a)])
 		return
 	seen["menu"] = int(seen.get("menu", 0)) + 1
 	seen["menu:" + str(a["type"])] = int(seen.get("menu:" + str(a["type"]), 0)) + 1
 	for x in acts:
-		screen._actions.hover_action(x)
+		screen.actions_mod.hover_action(x)
 		if x["type"] == "move_die":
-			if screen._board.reach.is_empty() and not game.reach_cells(game.players[0], game.move_value(game.players[0], die)).is_empty():
+			if screen.board_view.reach.is_empty() and not game.reach_cells(game.players[0], game.move_value(game.players[0], die)).is_empty():
 				_fail("판 %d: 이동 미리 보기가 비어 있음" % g_i)
-		if screen._actions.hint(x) == null:
+		if screen.actions_mod.hint(x) == null:
 			_fail("판 %d: 힌트 없음" % g_i)
-	screen._actions.close_menu()
+	screen.actions_mod.close_menu()
 
 
 func _fail(msg: String) -> void:

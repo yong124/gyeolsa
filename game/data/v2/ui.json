@@ -7,7 +7,6 @@
 		{"id": "give", "label": "바치기", "actions": ["work_give", "scene_pay"], "why": "공작 바치기"},
 		{"id": "pass", "label": "건네기", "actions": ["give_die"], "why": "건네기"},
 		{"id": "hide", "label": "숨기", "actions": ["hide"], "why": "숨기"},
-		{"id": "scout", "label": "정찰", "actions": ["scout"], "why": "정찰"},
 		{"id": "escape", "label": "탈옥", "actions": ["escape"], "why": "탈옥", "jailed": "only"}
 	],
 	"mission_art": {

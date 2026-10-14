@@ -31,7 +31,24 @@ const KNOWN_SCENE_CONDITIONS := ["enter_base", "deliver_bomb", "check", "check_p
 ## 3-3b. 미션·일제 작전 조건 kind (condition.kind). 협동은 cover_entry · people · opposite_edges
 const KNOWN_MISSION_KINDS := ["assassinate", "infiltrate", "bomb", "work", "contact", "lurk", "cover_entry", "people", "opposite_edges"]
 ## 마커 역할 (markers[].role)과 놓을 자리의 기준 (around · at은 거점 id 또는 start)
-const KNOWN_MARKER_ROLES := ["target", "informer", "base", "pickup", "dropoff", "work", "spot"]
+## rules.ai에 꼭 있어야 하는 AI 가중치: 묶음 -> 열쇠 (빈 목록이면 수 하나)
+const AI_KEYS := {
+	"turn_order": ["jailed", "chased", "act2", "hopper", "donor"],
+	"walk": ["progress", "danger", "unknown"],
+	"mission": ["ready", "intel", "exposure", "item", "bomb", "police", "peek", "grant", "penalty", "urgent", "informer_detour",
+		"bonus_share", "missed_share", "floor", "assassin_base", "assassin_chance", "bomb_fetch", "work_useless", "contact_deliver", "lurk_chased"],
+	"saga_keep": ["strike_match", "strike_kind_min"],
+	"saga_progress": ["base", "progress"],
+	"strike_pick": ["intel", "distance"],
+	"benefit": ["no_reinforce", "no_reinforce_low", "no_reinforce_alert", "other"],
+	"effect_choice": ["item", "item_full", "dice_act1", "dice_act2", "other"],
+	"morning": ["reroll_max", "adjust_at"],
+	"intel_trade": ["headroom", "max_die", "dice"],
+	"vote_late_ratio": [],
+	"threat_bad": [],
+	"reroll_min": [],
+}
+const KNOWN_MARKER_ROLES :=["target", "informer", "base", "pickup", "dropoff", "work", "spot"]
 const MARKER_CENTERS := ["barracks", "police_hq", "prison", "gg", "start"]
 ## 공작 방식: 합 N · 눈 조합 · 마커마다 하나
 const KNOWN_WORK_MODES := ["sum", "combo", "each"]
@@ -42,7 +59,8 @@ const KNOWN_BONUS_CONDS := ["not_chased", "faction", "days_left", "ally_adjacent
 const KNOWN_SAGA_CONDITIONS := ["end_turn_near_base", "visit_base_adjacent", "touch_edge", "end_turn_at_start",
 	"visit_tile", "hold_items", "rolled_value", "give_dice", "shake_police", "pass_checkpoint",
 	"never_jailed_until_launch", "chased_turns_row", "escapes", "same_cell_turns",
-	"coop_missions", "strike_final_by_me", "present_at_final", "strike_entry_by_me", "mission_done_by_me", "work_give"]
+	"coop_missions", "strike_final_by_me", "present_at_final", "strike_entry_by_me", "mission_done_by_me", "work_give",
+	"present_at_entry", "mission_kind_by_me", "same_cell_allies", "jailed", "visit_jailed"]
 ## 3-5. 캐릭터 특성·아이템 지속 효과 stat
 const KNOWN_STATS := ["evade_auto", "escape_bonus", "assassin_rerolls", "bomb_slots",
 	"work_reduce", "work_exposure", "move_min3", "hand_limit", "item_draw_choice",
@@ -533,6 +551,19 @@ func _validate_vote_ai(errs: Array[String]) -> void:
 			errs.append("rules.ai.%s가 없거나 0 이하입니다." % k)
 	if ai.has("check_min") and (float(ai["check_min"]) < 0.0 or float(ai["check_min"]) >= 1.0):
 		errs.append("rules.ai.check_min은 0 이상 1 미만이어야 합니다 (없으면 0: 모든 판정을 해 본다).")
+	for k in AI_KEYS:
+		var want: Array = AI_KEYS[k]
+		if want.is_empty():
+			if typeof(ai.get(k, null)) != TYPE_FLOAT and typeof(ai.get(k, null)) != TYPE_INT:
+				errs.append("rules.ai.%s 값(수)이 없습니다." % k)
+			continue
+		var grp = ai.get(k, null)
+		if typeof(grp) != TYPE_DICTIONARY:
+			errs.append("rules.ai.%s 묶음이 없습니다 (%s)." % [k, ", ".join(want)])
+			continue
+		for kk in want:
+			if not grp.has(kk):
+				errs.append("rules.ai.%s.%s 값이 없습니다." % [k, kk])
 	var per = ai.get("persona", null)
 	if typeof(per) != TYPE_DICTIONARY or not per.has("support"):
 		errs.append("rules.ai.persona에 support(기본 성향)가 있어야 합니다.")
@@ -562,9 +593,6 @@ func _validate_rules(errs: Array[String]) -> void:
 	var hide = rules.get("hide", null)
 	if typeof(hide) != TYPE_DICTIONARY or typeof(hide.get("tiles", null)) != TYPE_ARRAY or typeof(hide.get("flags", null)) != TYPE_ARRAY:
 		errs.append("rules.hide에 tiles와 flags(목록)가 있어야 합니다.")
-	var scout = rules.get("scout", null)
-	if typeof(scout) != TYPE_DICTIONARY or int(scout.get("count", 0)) < 1:
-		errs.append("rules.scout.count는 1 이상이어야 합니다.")
 	var launch = rules.get("launch", null)
 	if typeof(launch) != TYPE_DICTIONARY or int(launch.get("target_min_intel", 0)) < 1 or typeof(launch.get("benefits", null)) != TYPE_ARRAY:
 		errs.append("rules.launch에 target_min_intel(1 이상)과 benefits(목록)가 있어야 합니다.")
@@ -579,6 +607,14 @@ func _validate_rules(errs: Array[String]) -> void:
 				if str(b.get(k, "")).strip_edges() == "":
 					errs.append("%s: %s가 비었습니다." % [bwho, k])
 			_check_effects(errs, bwho, b.get("effects", []))
+	var sc_r: Dictionary = rules.get("scenes", {})
+	if int(sc_r.get("fail_ease", 0)) < 0 or int(sc_r.get("fail_ease_max", 0)) < 0:
+		errs.append("rules.scenes.fail_ease · fail_ease_max는 0 이상이어야 합니다.")
+	var lo = rules.get("leftover_to_intel", null)
+	if lo != null and (typeof(lo) != TYPE_DICTIONARY or int(lo.get("per", 0)) < 1 or int(lo.get("max_tokens", -1)) < 0 or not int(lo.get("act", 0)) in [1, 2]):
+		errs.append("rules.leftover_to_intel에 act(1·2) · per(1 이상) · max_tokens(0 이상)가 있어야 합니다.")
+	if typeof(rules.get("jail", {}).get("release_next_morning", false)) != TYPE_BOOL:
+		errs.append("rules.jail.release_next_morning은 true 또는 false여야 합니다.")
 	var cnt = rules.get("counter", null)
 	if typeof(cnt) != TYPE_DICTIONARY or int(cnt.get("target", 0)) < 1:
 		errs.append("rules.counter.target(1 이상)이 있어야 합니다.")
@@ -1026,6 +1062,10 @@ func _check_saga_cond(errs: Array[String], who: String, cond) -> void:
 		for k in ["base", "strike"]:
 			if cond.has(k) and not cond[k] in base_ids:
 				errs.append("%s: 조건의 %s '%s'는 거점 id가 아닙니다." % [who, k, cond[k]])
+		if str(cond.get("kind", "")) == "mission_kind_by_me" and not str(cond.get("mission_kind", "")) in KNOWN_MISSION_KINDS:
+			errs.append("%s: mission_kind '%s'는 미션 종류가 아닙니다." % [who, cond.get("mission_kind", "")])
+		if cond.has("or"):
+			_check_saga_cond(errs, who, cond["or"])
 
 
 func _check_cond(errs: Array[String], who: String, cond, known: Array) -> void:
@@ -1039,6 +1079,11 @@ func _check_cond(errs: Array[String], who: String, cond, known: Array) -> void:
 		errs.append("%s: 조건의 알 수 없는 where '%s'" % [who, cond["where"]])
 	if known == KNOWN_SCENE_CONDITIONS and cond.has("base") and not cond["base"] in base_ids and cond["base"] != "card":
 		errs.append("%s: 조건의 base '%s'는 거점 id가 아닙니다." % [who, cond["base"]])
+	if known == KNOWN_SCENE_CONDITIONS and kind in ["check", "check_pair"] and cond.has("target"):
+		# 장면 판정은 「낸 눈 + op_check_dice개」: 보정 없이 닿을 수 있는 최대를 넘으면 벽이 된다 (S단계: 당직 순사 13)
+		var top := int(rules.get("die_sides", 6)) * (1 + int(rules.get("op_check_dice", 1)))
+		if int(cond["target"]) > top:
+			errs.append("%s: 판정 목표 %d: 주사위로 닿을 수 있는 최대(%d)보다 큽니다." % [who, int(cond["target"]), top])
 	if kind == "any_of" or kind == "all_of":
 		for o in cond.get("options", []):
 			_check_cond(errs, who, o, known)

@@ -1,5 +1,5 @@
 {
-	"_comment": "v2 공개 미션 22장 + 일제 작전 4장 (규칙서 부록). 미션은 타일이 아니라 보드 위 마커로 이뤄진다. markers: 마커 놓는 법 (around = 거점 id 또는 start, min~max = 그 곳에서 맨해튼 거리, at = 그 칸에 고정, count = 개수, move = 매일 아침 움직이는 칸 수). condition: 이루는 법 (kind는 assassinate · infiltrate · bomb · work · contact · lurk, 협동은 cover_entry · people · opposite_edges). bonus: 이루는 순간 if를 채웠으면 reward를 더 받음. gear: 판정이나 거점 진입 때 내는 값 (cost: item 아이템 / funds 군자금, 둘 다 있으면 하나를 고름). informer_cost: 정보원에게 내는 값.",
+	"_comment": "v2 공개 미션 22장 + 일제 작전 4장 (규칙서 부록). 미션은 타일이 아니라 보드 위 마커로 이뤄진다. markers: 마커 놓는 법 (around = 거점 id 또는 start, min~max = 그 곳에서 맨해튼 거리, at = 그 칸에 고정, count = 개수, move = 매일 아침 움직이는 칸 수). condition: 이루는 법 (kind는 assassinate · infiltrate · bomb · work · contact · lurk, 협동은 cover_entry · people · opposite_edges). bonus: 이루는 순간 if를 채웠으면 reward를 더 받음.",
 	"types": {
 		"assassin": {"name": "암살", "loud": true},
 		"infiltrate": {"name": "잠입", "loud": false},

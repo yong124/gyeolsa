@@ -119,7 +119,6 @@ func label(a: Dictionary) -> String:
 			return "공작 바치기: 주사위 %d → 「%s」" % [scr.game.die_value(int(a["die"])), scr.game.card_def(str(wm.get("id", ""))).get("name", "")]
 		"counter_check": return "반격 막기 (주사위 %d · 성공 %d%%)" % [scr.game.die_value(int(a["die"])), chance(a)]
 		"hide": return "숨기 (주사위 %d)" % scr.game.die_value(int(a["die"]))
-		"scout": return "정찰 (주사위 %d: %d칸 안의 덮인 칸 %d곳)" % [scr.game.die_value(int(a["die"])), scr.game.die_value(int(a["die"])), int(scr.game.data.rules["scout"]["count"])]
 		"use_item":
 			return "[%s] 사용" % scr.game.item_def(str(me["items"][int(a["index"])])).get("name", "")
 		"ability":
@@ -153,12 +152,12 @@ func char_info(p: Dictionary) -> Dictionary:
 	var ch: Dictionary = scr.game.char_def(p)
 	var fac: String = str(scr.game.data.characters.get("factions", {}).get(ch.get("faction", ""), {}).get("name", ""))
 	var secs := [["특성 (늘)", str(ch.get("trait_text", ""))], ["능력 (하루 1번)", str(ch.get("ability_text", ""))]]
-	for c in scr._chips(p):
+	for c in scr.status_chips(p):
 		if c[0] == "리더" or c[0] == "추격당함" or str(c[0]).begins_with("감옥"):
 			secs.append([str(c[0]), str(c[3]), Style.SEAL if c[2] == Style.SEAL else Style.INK_3])
 	var band := "나" if p["id"] == scr.human else "동 료"
 	return {"band": band, "color": Style.seat(p["id"]),
-		"art": scr._board.faction_texture(str(ch.get("faction", ""))), "illus": ArtV2.get_tex("char", str(p["character"])), "name": str(ch.get("name", "")),
+		"art": scr.board_view.faction_texture(str(ch.get("faction", ""))), "illus": ArtV2.get_tex("char", str(p["character"])), "name": str(ch.get("name", "")),
 		"sub": "%s · %s" % [fac, ch.get("origin", "")], "sections": secs}
 
 
@@ -185,7 +184,7 @@ func mission_info(id: String) -> Dictionary:
 	if bool(m.get("loud", td.get("loud", false))):
 		secs.append(["시끄러움", "이루면 노출 +1, 경찰이 붙습니다.", Style.SEAL])
 	return {"band": "미 션 · " + str(td.get("name", "")), "color": Color("#2f7f7a") if coop else Style.MISSION,
-		"art": scr._mission_art(type, id), "illus": ArtV2.get_tex("mission", id, ArtV2.get_tex("mission", type)), "name": str(m.get("name", "")), "sections": secs}
+		"art": scr.mission_texture(type, id), "illus": ArtV2.get_tex("mission", id, ArtV2.get_tex("mission", type)), "name": str(m.get("name", "")), "sections": secs}
 
 
 func fx_text(effects: Array) -> String:
@@ -207,7 +206,7 @@ func op_info(id: String) -> Dictionary:
 	var status := scr.game.card_status(id)
 	if status != "":
 		secs.append(["진행", status, Style.GOOD])
-	return {"band": "일 제 작 전", "color": Style.SEAL, "art": ArtV2.get_tex("op", id, load(str(scr._ui()["mission_art"]["op"]))), "illus": ArtV2.get_tex("op", id), "name": str(oc.get("name", "")), "sections": secs}
+	return {"band": "일 제 작 전", "color": Style.SEAL, "art": ArtV2.get_tex("op", id, load(str(scr.ui_text()["mission_art"]["op"]))), "illus": ArtV2.get_tex("op", id), "name": str(oc.get("name", "")), "sections": secs}
 
 
 func scene_info(card: Dictionary, i: int) -> Dictionary:
@@ -244,7 +243,7 @@ func scene_info(card: Dictionary, i: int) -> Dictionary:
 
 func saga_info(id: String, pr: Dictionary, done: bool) -> Dictionary:
 	var s: Dictionary = scr.game.data.saga(id)
-	return {"band": "사 연 · 이룸" if done else "사 연 · 비밀", "color": GameScreenV2.SAGA_COL, "art": scr._saga_art(), "illus": ArtV2.get_tex("", "saga_back"),
+	return {"band": "사 연 · 이룸" if done else "사 연 · 비밀", "color": GameScreenV2.SAGA_COL, "art": scr.saga_art(), "illus": ArtV2.get_tex("", "saga_back"),
 		"name": str(s.get("name", "")), "sub": "진행 %d / %d" % [int(pr["have"]), int(pr["need"])],
 		"sections": [["", str(s.get("story", ""))], ["조건", str(s.get("condition_text", ""))], ["보상", str(s.get("reward_text", ""))],
 			["", "이룬 사연입니다." if done else "나만 봅니다. 이루면 공개됩니다."]]}

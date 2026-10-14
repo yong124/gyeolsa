@@ -11,7 +11,7 @@
 				"where": "adjacent",
 				"condition": {
 					"kind": "dice",
-					"sum": 7
+					"sum": 10
 				},
 				"on_fail": [],
 				"stop_text": "높은 담 앞에서 날이 밝았다.",
@@ -57,7 +57,7 @@
 						"kind": "hold",
 						"where": "inside",
 						"days": 1,
-						"count": 1
+						"count": 2
 					},
 					"on_fail": [],
 					"stop_text": "어느 감방에 동지들이 있는지 끝내 알 수 없었다."
@@ -86,7 +86,7 @@
 				"condition": {
 					"kind": "check",
 					"check": "lock",
-					"target": 12
+					"target": 11
 				},
 				"on_fail": [
 					{
@@ -115,7 +115,7 @@
 					"options": [
 						{
 							"kind": "dice",
-							"sum": 10
+							"sum": 13
 						},
 						{
 							"kind": "pay_item",
@@ -125,7 +125,7 @@
 				},
 				"on_fail": [],
 				"stop_text": "철조망 너머로 군영의 불빛만 보았다.",
-				"_comment": "아침 주사위 합 6 이상을 바치거나, 아이템 1장을 버림"
+				"_comment": "주사위 합 13 이상을 바치거나, 아이템 1장을 버림"
 			},
 			"middle": [
 				{
@@ -136,7 +136,7 @@
 						"kind": "hold",
 						"where": "adjacent",
 						"days": 1,
-						"count": 1
+						"count": 2
 					},
 					"on_fail": [],
 					"stop_text": "보초는 끝내 자리를 비우지 않았다.",
@@ -181,7 +181,7 @@
 						"count": 2,
 						"same_day": true,
 						"where": "barracks",
-						"target": 11
+						"target": 10
 					},
 					"on_fail": [
 						{
@@ -224,7 +224,7 @@
 				"where": "inside_or_adjacent",
 				"condition": {
 					"kind": "people",
-					"count": 2,
+					"count": 3,
 					"where": "inside_or_adjacent",
 					"same_day": true
 				},
@@ -239,7 +239,7 @@
 					"condition": {
 						"kind": "check",
 						"check": "generic",
-						"target": 13
+						"target": 12
 					},
 					"on_fail": [
 						{
@@ -256,7 +256,7 @@
 					"where": "inside",
 					"condition": {
 						"kind": "dice",
-						"sum": 11
+						"sum": 14
 					},
 					"on_fail": [],
 					"stop_text": "경보선은 그대로 이어져 있었다."
@@ -323,7 +323,7 @@
 						{
 							"kind": "check",
 							"check": "generic",
-							"target": 13
+							"target": 12
 						},
 						{
 							"kind": "pay_item",
@@ -339,7 +339,7 @@
 					}
 				],
 				"stop_text": "정문의 헌병은 서류를 두 번 들여다보았다.",
-				"_comment": "판정 9 이상, 또는 아이템 1장을 버림 (위조 출입증)"
+				"_comment": "판정 12 이상, 또는 아이템 1장을 버림 (위조 출입증)"
 			},
 			"middle": [
 				{
@@ -361,7 +361,7 @@
 					"where": "inside",
 					"condition": {
 						"kind": "dice",
-						"sum": 14
+						"sum": 17
 					},
 					"on_fail": [],
 					"stop_text": "통신실의 전보는 본국으로 날아갔다."
@@ -389,7 +389,7 @@
 						"count": 2,
 						"same_day": true,
 						"where": "gg",
-						"target": 12
+						"target": 11
 					},
 					"on_fail": [
 						{
@@ -477,7 +477,7 @@
 			},
 			"on_fail": [],
 			"stop_text": "탐조등 불빛이 밤새 거리를 쓸었다.",
-			"_comment": "아침 주사위 합 6 이상을 바치거나, 아이템 1장을 버림"
+			"_comment": "주사위 합 13 이상을 바치거나, 아이템 1장을 버림"
 		},
 		{
 			"id": "reinforce_dogs",

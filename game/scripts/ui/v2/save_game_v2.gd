@@ -1,28 +1,57 @@
 class_name SaveGameV2
 extends RefCounted
 ## v2 이어하기용 자동 저장. 매일 아침(사람이 「하루 시작」을 기다릴 때)과 「저장하고 메인 메뉴로」에서 저장한다.
+##
+## 저장에는 게임 버전(project.godot의 application/config/version)을 함께 적는다. 버전이 다른 저장은
+## 카드 · 규칙이 바뀌었을 수 있어 이어 하지 않는다 (예: 2.2.0에서 위협 카드 fund_freeze가 빠짐).
+## 쓰기는 임시 파일에 먼저 쓰고 이름을 바꾼다. 쓰다가 끊겨도 원래 저장이 깨지지 않는다.
 
 static var path := "user://save_v2.dat"   # 시험은 다른 파일로 돌린다
 
 static var disabled := false   # 캡처 도구·시험에서 실제 저장을 건드리지 않게
 
 
-static func exists() -> bool:
+static func app_version() -> String:
+	return str(ProjectSettings.get_setting("application/config/version", ""))
+
+
+static func _file_exists() -> bool:
 	return FileAccess.file_exists(path)
+
+
+static func exists() -> bool:
+	## 이어 할 수 있는 저장이 있는가 (버전이 다르거나 깨진 저장은 없는 것으로 친다)
+	var d := _raw()
+	return not d.is_empty() and str(d.get("app", "")) == app_version()
+
+
+static func drop_stale() -> String:
+	## 버전이 다른 저장이 있으면 지우고 그 버전을 돌려준다 (버전을 적기 전의 저장은 「이전 버전」). 없으면 ""
+	var d := _raw()
+	if d.is_empty() or str(d.get("app", "")) == app_version():
+		return ""
+	erase()
+	var v := str(d.get("app", ""))
+	return v if v != "" else "이전 버전"
 
 
 static func write(game: RulesV2, meta: Dictionary) -> void:
 	if disabled:
 		return
-	var f := FileAccess.open(path, FileAccess.WRITE)
+	var tmp := path + ".tmp"
+	var f := FileAccess.open(tmp, FileAccess.WRITE)
 	if f == null:
 		push_warning("저장 실패: %s" % FileAccess.get_open_error())
 		return
-	f.store_var({"meta": meta, "state": game.save_state()})
+	f.store_var({"app": app_version(), "meta": meta, "state": game.save_state()})
+	f.close()
+	var err := DirAccess.rename_absolute(ProjectSettings.globalize_path(tmp), ProjectSettings.globalize_path(path))
+	if err != OK:
+		push_warning("저장 실패: 이름 바꾸기 %d" % err)
 
 
 static func _raw() -> Dictionary:
-	if not exists():
+	if not _file_exists():
 		return {}
 	var f := FileAccess.open(path, FileAccess.READ)
 	if f == null:
@@ -34,9 +63,9 @@ static func _raw() -> Dictionary:
 
 
 static func read() -> Dictionary:
-	## {"game": RulesV2, "meta": Dictionary}. 없거나 깨졌으면 빈 사전 (깨진 저장은 지운다)
+	## {"game": RulesV2, "meta": Dictionary}. 없거나 깨졌거나 버전이 다르면 빈 사전 (그런 저장은 지운다)
 	var d := _raw()
-	if d.is_empty():
+	if d.is_empty() or str(d.get("app", "")) != app_version():
 		erase()
 		return {}
 	var g := RulesV2.new()
@@ -66,5 +95,5 @@ static func summary() -> String:
 static func erase() -> void:
 	if disabled:
 		return
-	if exists():
+	if _file_exists():
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(path))

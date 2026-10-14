@@ -13,11 +13,11 @@ func _init(screen: GameScreenV2) -> void:
 # ---------------------------------------------------------------- 선택 미리보기 띠 (U1)
 
 func _set_preview(where: String, gain: String, risk: String) -> void:
-	if scr._pv_labels.size() < 3:
+	if scr.pv_labels.size() < 3:
 		return
 	var vals := [where, gain, risk]
 	for i in 3:
-		var l: Label = scr._pv_labels[i]
+		var l: Label = scr.pv_labels[i]
 		l.text = vals[i] if vals[i] != "" else "—"
 		l.tooltip_text = vals[i]
 		l.add_theme_color_override("font_color", Style.INK_3 if vals[i] == "" else (Style.SEAL_DARK if i == 2 else Style.INK))
@@ -29,10 +29,10 @@ func _my_turn() -> bool:
 
 func preview_idle() -> void:
 	## 아무것도 가리키지 않을 때: 지금 내 상황
-	if scr._pv_box == null:
+	if scr.pv_box == null:
 		return
-	scr._pv_box.visible = scr.game.phase != "over"
-	if not scr._pv_box.visible:
+	scr.pv_box.visible = scr.game.phase != "over"
+	if not scr.pv_box.visible:
 		return
 	var me: Dictionary = scr.game.players[scr.human]
 	var risk := ""
@@ -46,9 +46,9 @@ func preview_idle() -> void:
 		# 동료 차례 · 낮 순서 · 선택: 누가 무엇을 하는지와 내 다음 차례
 		var who := ""
 		if scr.game.phase == "turn" and scr.game.current >= 0:
-			who = "%s의 차례" % scr._text.name(scr.game.current)
+			who = "%s의 차례" % scr.text_mod.name(scr.game.current)
 		elif scr.game.phase == "choice":
-			who = "%s가 고르는 중" % scr._text.name(int(scr.game.pending.get("player", -1)))
+			who = "%s가 고르는 중" % scr.text_mod.name(int(scr.game.pending.get("player", -1)))
 		else:
 			who = "낮 · 차례 순서 정하기"
 		var mine := scr.game.my_dice(scr.human).map(func(i): return str(scr.game.die_value(i)))
@@ -119,8 +119,8 @@ func preview_cell(c: Vector2i) -> void:
 			where += " · %d걸음" % (pth["path"] as Array).size()
 		elif c != me["pos"]:
 			where += " · 이번엔 못 감"
-	elif scr._board.reach.has(c):
-		where += " · %d걸음" % int(scr._board.reach[c])
+	elif scr.board_view.reach.has(c):
+		where += " · %d걸음" % int(scr.board_view.reach[c])
 	_set_preview(where, info[1], info[2])
 
 
@@ -151,9 +151,9 @@ func preview_action(a: Dictionary) -> void:
 		"escape", "mission_check", "counter_check", "scene_check":
 			var info := _cell_gain_risk(me["pos"])
 			var fail: String = {"escape": "실패해도 다른 주사위로 또", "mission_check": "실패하면 회피 7, 그것도 실패하면 투옥", "counter_check": "실패해도 다른 주사위로 또", "scene_check": "실패해도 다른 주사위로 또"}[a["type"]]
-			_set_preview("제자리 판정 · 성공 %d%%" % scr._text.chance(a), info[1] if a["type"] == "mission_check" else scr._actions.hint(a).split(" → ")[0], fail)
+			_set_preview("제자리 판정 · 성공 %d%%" % scr.text_mod.chance(a), info[1] if a["type"] == "mission_check" else scr.actions_mod.hint(a).split(" → ")[0], fail)
 		_:
-			_set_preview(scr._text.label(a), scr._actions.hint(a), "")
+			_set_preview(scr.text_mod.label(a), scr.actions_mod.hint(a), "")
 
 
 func work_preview(a: Dictionary) -> String:

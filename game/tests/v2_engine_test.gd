@@ -18,13 +18,13 @@ func _init() -> void:
 			games = int(a)
 	var data := GameDataV2.load_default()
 	var char_ids: Array = data.characters["characters"].map(func(c): return c["id"])
-	var stats := {"days": 0, "forced": 0, "vote": 0, "stub": 0, "stub3": 0, "stub4": 0, "other": 0, "jailed": 0, "actions": 0,
+	var stats := {"days": 0, "forced": 0, "vote": 0, "unknown": 0, "other": 0, "jailed": 0, "actions": 0,
 		"missions": {}, "missed": 0, "ops_blocked": 0, "ops_missed": 0, "ops_seen": 0, "checks": 0, "escapes": 0, "launched": 0,
 		"saga_done": 0, "saga_dealt": {}, "saga_hit": {}, "confiscated": 0,
 		"keeps": 0, "saga_players": 0, "endings": {}, "scene_breaks": {}, "scene_shown": {},
 		"target_breaks": {}, "target_games": {}, "act2_days": 0}
 	var plain_games := 0
-	var fast_stats := {"days": 0, "forced": 0, "vote": 0, "stub": 0, "stub3": 0, "stub4": 0, "other": 0, "jailed": 0, "actions": 0,
+	var fast_stats := {"days": 0, "forced": 0, "vote": 0, "unknown": 0, "other": 0, "jailed": 0, "actions": 0,
 		"missions": {}, "missed": 0, "ops_blocked": 0, "ops_missed": 0, "ops_seen": 0, "checks": 0, "escapes": 0, "launched": 0,
 		"saga_done": 0, "saga_dealt": {}, "saga_hit": {}, "confiscated": 0,
 		"keeps": 0, "saga_players": 0, "endings": {}, "scene_breaks": {}, "scene_shown": {},
@@ -42,7 +42,7 @@ func _init() -> void:
 			plain_games += 1
 		_play(i, chars, 5000 + i, bot, data, fast_stats if fast else stats, fast)
 	# 2·3인 판: 사연이 켜져 있어야 한다
-	var small := {"days": 0, "forced": 0, "vote": 0, "stub": 0, "stub3": 0, "stub4": 0, "other": 0, "jailed": 0, "actions": 0,
+	var small := {"days": 0, "forced": 0, "vote": 0, "unknown": 0, "other": 0, "jailed": 0, "actions": 0,
 		"missions": {}, "missed": 0, "ops_blocked": 0, "ops_missed": 0, "ops_seen": 0, "checks": 0, "escapes": 0, "launched": 0,
 		"saga_done": 0, "saga_dealt": {}, "saga_hit": {}, "confiscated": 0,
 		"keeps": 0, "saga_players": 0, "endings": {}, "scene_breaks": {}, "scene_shown": {},
@@ -91,11 +91,9 @@ func _init() -> void:
 	for id in scene_ids:
 		print("장면 %s: %d/%d (%.1f%%)" % [id, int(stats["scene_breaks"].get(id, 0)), int(stats["scene_shown"][id]),
 			100.0 * int(stats["scene_breaks"].get(id, 0)) / maxi(int(stats["scene_shown"][id]), 1)])
-	print("(2b 미구현) 호출 %d회 · (3단계 미구현) %d회 · (4단계 미구현) %d회" % [stats["stub"], stats["stub3"], stats["stub4"]])
-	if int(stats["stub"]) > 0:
-		_fail("1막 플레이에서 (2b 미구현) 효과가 %d번 불림" % stats["stub"])
-	if int(stats["stub3"]) > 0 or int(stats["stub4"]) > 0:
-		_fail("미구현 효과가 호출됨")
+	print("(알 수 없는 효과) 호출 %d회" % stats["unknown"])
+	if int(stats["unknown"]) > 0:
+		_fail("엔진이 모르는 효과가 %d번 불림" % stats["unknown"])
 	for m in messages.slice(0, 20):
 		print("FAIL: ", m)
 	print("v2 엔진 시험: 실패 %d건" % failures)
@@ -219,12 +217,8 @@ func _play(idx: int, chars: Array, seed_value: int, bot: RandomNumberGenerator, 
 		if not fast and g.act == 2 and q["saga_done"] == "" and q["sagas"].size() > 1:
 			_fail("%s: 결행이 끝났는데 요원 %s가 사연을 %d장 들고 있음" % [tag, q["name"], q["sagas"].size()])
 	for l in g.log_lines:
-		if str(l).begins_with("(2b 미구현)") or str(l).begins_with("(알 수 없는 효과)"):
-			stats["stub"] += 1
-		elif str(l).begins_with("(3단계 미구현)"):
-			stats["stub3"] += 1
-		elif str(l).begins_with("(4단계 미구현)"):
-			stats["stub4"] += 1
+		if str(l).begins_with("(알 수 없는 효과)"):
+			stats["unknown"] += 1
 	# 저장/불러오기: 중간에 복제한 엔진과 끝 상태가 같아야 한다
 	if clone != null:
 		if str(_strip(clone.save_state())) != str(_strip(g.save_state())):

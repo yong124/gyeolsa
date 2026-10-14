@@ -138,7 +138,7 @@ func _vsep() -> Control:
 
 func refresh() -> void:
 	if game.act == 1:
-		_act_lbl.text = "1막 · 정찰"
+		_act_lbl.text = "1막 · 잠행"
 		_act_lbl.add_theme_color_override("font_color", Style.INK)
 		_sub_lbl.text = "4인 · 리더 %s" % _short(game.leader)
 	else:

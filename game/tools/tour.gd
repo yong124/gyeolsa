@@ -1,7 +1,7 @@
 extends Node
 ## 화면 둘러보기 캡처 (개발용, 빌드에서 제외). 실제 저장 파일은 건드리지 않는다.
 ## 실행: godot --path game --position -3000,-3000 -- tour out=<폴더> [w=1600 h=900]
-## 모드: (없음 · v2) 요원 고르기 → 자동 진행 캡처 → 엔딩 · tutorial · firstrun · gate · online · endings · fx · q · v2f · measure · perf · gif
+## 모드: (없음 · v2) 요원 고르기 → 자동 진행 캡처 → 엔딩 · tutorial · firstrun · gate · stale · online · endings · fx · q · v2f · measure · perf · gif
 
 var main: Node
 var out := "user://tour"
@@ -51,6 +51,18 @@ func _ready() -> void:
 		await _wait(0.6)
 		await _shot("training_list")
 		Prefs.v2_trainings = []
+		get_tree().quit()
+	elif "stale" in OS.get_cmdline_user_args():
+		# 버전이 다른 이어하기 저장이 있을 때의 첫 화면 (시험용 저장 경로, 실제 저장은 그대로)
+		SaveGameV2.path = "user://tour_stale_save.dat"
+		var f := FileAccess.open(SaveGameV2.path, FileAccess.WRITE)
+		f.store_var({"app": "2.1.0", "meta": {}, "state": {"players": [{}]}})
+		f.close()
+		await _wait(0.5)
+		main._show_title()
+		await _wait(1.0)
+		await _shot("title_stale_save")
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(SaveGameV2.path))
 		get_tree().quit()
 	elif "endings" in OS.get_cmdline_user_args():
 		_endings()
@@ -114,18 +126,18 @@ func _v2() -> void:
 		elif game.act == 1 and game.day >= 3 and game.phase == "turn" and game.current == 0 and not shots["turn"]:
 			shots["turn"] = true
 			await _shot("v2_turn")
-			if not game.mission_row.is_empty() and screen._mid_box.get_child_count() > 0:
-				screen._peek.show_for(screen._mid_box.get_child(0), screen._text.mission_info(str(game.mission_row[0])), true)
+			if not game.mission_row.is_empty() and screen.mid_box.get_child_count() > 0:
+				screen.card_peek.show_for(screen.mid_box.get_child(0), screen.text_mod.mission_info(str(game.mission_row[0])), true)
 				await _wait(0.2)
 				await _shot("v2_peek_mission")
 			var sg: Array = game.saga_cards(0)
-			screen._peek.show_for(screen._hand_row.get_child(0), screen._text.saga_info(str(sg[0]), game.saga_progress(0).get(sg[0], {"have": 0, "need": 1}), false), true)
+			screen.card_peek.show_for(screen.hand_row.get_child(0), screen.text_mod.saga_info(str(sg[0]), game.saga_progress(0).get(sg[0], {"have": 0, "need": 1}), false), true)
 			await _wait(0.2)
 			await _shot("v2_peek_saga")
-			screen._peek.show_for(screen._top._threat, screen._text.threat_info(), true)
+			screen.card_peek.show_for(screen.top_bar._threat, screen.text_mod.threat_info(), true)
 			await _wait(0.2)
 			await _shot("v2_peek_threat")
-			screen._peek.visible = false
+			screen.card_peek.visible = false
 		elif game.act == 2 and game.phase == "plan" and not shots["act2_plan"]:
 			shots["act2_plan"] = true
 			await _wait(0.4)
@@ -133,15 +145,15 @@ func _v2() -> void:
 		elif game.act == 2 and game.phase == "turn" and not shots["act2_turn"] and game.day > int(game.launch_info.get("day", 0)):
 			shots["act2_turn"] = true
 			await _shot("v2_act2_turn")
-			for c in screen._mid_box.get_children():
+			for c in screen.mid_box.get_children():
 				if c is PanelContainer and c.custom_minimum_size.x > 200:
-					screen._peek.show_for(c, screen._text.scene_info(screen._text.scene_card_dict(str(game.scenes[game.scene_index])), game.scene_index), true)
+					screen.card_peek.show_for(c, screen.text_mod.scene_info(screen.text_mod.scene_card_dict(str(game.scenes[game.scene_index])), game.scene_index), true)
 			await _wait(0.2)
 			await _shot("v2_peek_scene")
-			screen._peek.show_for(screen._rows[1]["panel"], screen._text.char_info(game.players[1]), true)
+			screen.card_peek.show_for(screen.roster_rows[1]["panel"], screen.text_mod.char_info(game.players[1]), true)
 			await _wait(0.2)
 			await _shot("v2_peek_char")
-			screen._peek.visible = false
+			screen.card_peek.visible = false
 	print("[tour] v2 끝: phase=%s ending=%s day=%d act=%d" % [game.phase, game.ending.get("id", "-"), game.day, game.act])
 	var e := EndingScreenV2.new(game, 0)
 	main._swap(e)
@@ -274,10 +286,10 @@ func _fxshots() -> void:
 		game.apply(GameAIV2.decide(game, GameAIV2.next_actor(game)))
 	var screen := GameScreenV2.new(game, 0, {"autoplay": true})
 	main._swap(screen)
-	screen._paused = true   # 캡처하는 동안 AI가 두지 않게
+	screen.paused = true   # 캡처하는 동안 AI가 두지 않게
 	await _wait(1.0)
 	await _shot("fx_board")
-	var c: CinemaV2 = screen._cine
+	var c: CinemaV2 = screen.cinema
 	var faces := []
 	for q in game.players:
 		faces.append(ArtV2.get_tex("char", str(q["character"])))
@@ -289,36 +301,36 @@ func _fxshots() -> void:
 	c._skip = true
 	await _wait(0.6)
 	var sid := str(game.scenes[game.scene_index])
-	c.cut({"tex": ArtV2.get_tex("scene", sid), "title": "장면 · " + str(screen._text.scene_card_dict(sid).get("name", "")), "sub": "조건 한 줄", "stamp": "돌 파",
+	c.cut({"tex": ArtV2.get_tex("scene", sid), "title": "장면 · " + str(screen.text_mod.scene_card_dict(sid).get("name", "")), "sub": "조건 한 줄", "stamp": "돌 파",
 		"stamp_color": Style.GOOD, "hold": 3.0}, 1.0)
 	await _wait(1.2)
 	await _shot("fx_scene_break")
 	c._skip = true
 	await _wait(0.6)
-	c.cut({"tex": ArtV2.get_tex("cut", "jail", ArtV2.get_tex("threat", "prison")), "title": "투옥 · 서대문형무소 감옥", "sub": "탈옥 판정을 하거나 동료가 구하러 올 때까지 기다린다",
+	c.cut({"tex": ArtV2.get_tex("cut", "jail", ArtV2.get_tex("threat", "prison")), "title": "투옥 · 서대문형무소 감옥", "sub": "내일 아침이면 풀려난다 · 지금 나가려면 탈옥 판정",
 		"stamp": "투 옥", "hold": 3.0}, 1.0)
 	await _wait(1.2)
 	await _shot("fx_jail")
 	c._skip = true
 	await _wait(0.6)
 	c.vignette(Style.SEAL, 0.55, 3.0)
-	c.ink(screen._fx.focus_center + Vector2(-150, 0), true, 3.0)
-	c.ink(screen._fx.focus_center + Vector2(150, 0), false, 3.0)
+	c.ink(screen.fx_layer.focus_center + Vector2(-150, 0), true, 3.0)
+	c.ink(screen.fx_layer.focus_center + Vector2(150, 0), false, 3.0)
 	await _wait(0.8)
 	await _shot("fx_vignette_ink")
 	await _wait(2.5)
 	# 캐릭터 컷인 (동료: 오른쪽에서)
-	screen._playback.cutin(2, 1.0)
+	screen.playback_mod.cutin(2, 1.0)
 	await _wait(0.6)
 	await _shot("fx_cutin")
 	await _wait(1.2)
 	# 보드 분위기: 2막 밤 + 탐조등 / 비, 먹 발자국
-	screen._atmos.set_state("turn", 2, "curfew")
-	screen._board.note_footprint(game.players[0]["pos"] + Vector2i(0, 1), 0)
-	screen._board.note_footprint(game.players[0]["pos"] + Vector2i(0, 2), 0)
+	screen.atmos.set_state("turn", 2, "curfew")
+	screen.board_view.note_footprint(game.players[0]["pos"] + Vector2i(0, 1), 0)
+	screen.board_view.note_footprint(game.players[0]["pos"] + Vector2i(0, 2), 0)
 	await _wait(1.6)
 	await _shot("fx_night_searchlight")
-	screen._atmos.set_state("turn", 1, "monsoon")
+	screen.atmos.set_state("turn", 1, "monsoon")
 	await _wait(1.6)
 	await _shot("fx_rain")
 	# 마지막 장면 심장 박동, 먹 전환
@@ -353,56 +365,56 @@ func _q() -> void:
 	var game: RulesV2 = screen.game
 	await _shot("q_training_morning")
 	for step in 120:   # 아침 → 낮 → 내 차례까지: 안내를 닫고 사람 자리의 다음 수를 둔다
-		screen._tip.visible = false
+		screen.tip_panel.visible = false
 		if game.phase == "turn" and game.current == 0:
 			break
-		if screen.is_idle() and screen._ai_actor() < 0:
+		if screen.is_idle() and screen.ai_actor() < 0:
 			var mine := game.legal_actions().filter(func(a): return int(a.get("player", -1)) == 0 and a["type"] in ["start_day", "begin_turn"])
 			if not mine.is_empty():
 				screen.act_now(mine[0])
 		await _wait(0.6)
 	await _wait(0.8)
-	screen._coach.tip_check()
+	screen.coach_mod.tip_check()
 	await _wait(0.3)
 	await _shot("q_training_turn")
-	print("[tour] 넘침 %.0f · 받은 높이 %.0f · 최소 %s · 크기 %s · 화면 %s" % [screen.right_overflow(), screen._right_h, str(screen._right.get_combined_minimum_size()), str(screen._right.size), str(screen.size)])
-	screen._tip.visible = false
-	screen._coach.tip_check()
+	print("[tour] 넘침 %.0f · 받은 높이 %.0f · 최소 %s · 크기 %s · 화면 %s" % [screen.right_overflow(), screen.right_h, str(screen.dock.get_combined_minimum_size()), str(screen.dock.size), str(screen.size)])
+	screen.tip_panel.visible = false
+	screen.coach_mod.tip_check()
 	await _wait(0.3)
 	await _shot("q_training_marker")
 	# U1: 이동 주사위에 올렸을 때 선택 미리보기 띠 · 갈 수 있는 칸
-	screen._tip.visible = false
+	screen.tip_panel.visible = false
 	var mv := game.legal_actions().filter(func(a): return int(a.get("player", -1)) == 0 and a["type"] == "move_die")
 	if not mv.is_empty():
-		screen._actions.pick_verb("move", mv)   # M3: 「이동」을 누르면 쓸 주사위가 반짝
+		screen.actions_mod.pick_verb("move", mv)   # M3: 「이동」을 누르면 쓸 주사위가 반짝
 		await _wait(0.4)
 		await _shot("q_verb_move")
-		screen._actions.hover_action(mv[mv.size() - 1])
+		screen.actions_mod.hover_action(mv[mv.size() - 1])
 		await _wait(0.4)
 		await _shot("q_preview_move")
 		# M2: 기운 보드에서 칸 누르기가 맞는 칸으로 가는가
-		if screen._tilt != null and not screen._board.reach.is_empty():
-			var target: Vector2i = screen._board.reach.keys()[0]
+		if screen.tilt_board != null and not screen.board_view.reach.is_empty():
+			var target: Vector2i = screen.board_view.reach.keys()[0]
 			var before: Vector2i = game.players[0]["pos"]
 			screen.act_now(mv[mv.size() - 1])   # 이동 주사위를 먼저 고른다 (걷는 중이어야 칸을 눌러 감)
 			await _wait(1.0)
 			for c in game.reach_cells(game.players[0], game.steps_left):
 				target = c
 				break
-			var lp: Vector2 = screen._tilt.board_to_local(screen._board.cell_rect(target).get_center())
+			var lp: Vector2 = screen.tilt_board.board_to_local(screen.board_view.cell_rect(target).get_center())
 			var mm := InputEventMouseMotion.new()
 			mm.position = lp
-			screen._tilt._gui_input(mm)
+			screen.tilt_board._gui_input(mm)
 			await _wait(0.2)
-			var hov: Vector2i = screen._board.hover
+			var hov: Vector2i = screen.board_view.hover
 			var mb := InputEventMouseButton.new()
 			mb.position = lp
 			mb.button_index = MOUSE_BUTTON_LEFT
 			mb.pressed = true
-			screen._tilt._gui_input(mb)
+			screen.tilt_board._gui_input(mb)
 			var mb2: InputEventMouseButton = mb.duplicate()
 			mb2.pressed = false
-			screen._tilt._gui_input(mb2)
+			screen.tilt_board._gui_input(mb2)
 			await _wait(2.5)
 			print("[tour] 기운 보드 누르기: 목표 %s · 가리킨 칸 %s · 전 %s → 후 %s" % [str(target), str(hov), str(before), str(game.players[0]["pos"])])
 	# 엔딩: AI로 한 판을 끝까지 두고 요약을 본다
@@ -473,51 +485,50 @@ func _v2f() -> void:
 	for v in [5, 2, 6]:
 		game.op_dice.append({"value": v, "owner": 0, "used": false})
 	var screen := GameScreenV2.new(game, 0, {})
-	screen._paused = true
+	screen.paused = true
 	main._swap(screen)
 	await _wait(0.8)
-	screen._board.note_scouted(Vector2i(5, 7))
 	game.players[0]["fx_cells"] = [Vector2i(6, 6)]
-	screen._refresh()
+	screen.refresh_all()
 	await _wait(0.4)
 	await _shot("v2f_board_top")
 	var acts := game.legal_actions().filter(func(a): return int(a.get("player", -1)) == 0 and a.has("die") and int(a["die"]) == 0)
-	screen._actions.die_menu(acts, 0)
+	screen.actions_mod.die_menu(acts, 0)
 	await _wait(0.5)
 	await _shot("v2f_menu")
-	screen._actions.hover_action(acts[0])
+	screen.actions_mod.hover_action(acts[0])
 	await _wait(0.3)
 	await _shot("v2f_menu_reach")
-	screen._actions.close_menu()
+	screen.actions_mod.close_menu()
 	# 첫 판 안내
 	Prefs.v2_notes_seen = []
 	Prefs.v2_tips = true
-	screen._coach.tip_check()
-	screen._layout()
+	screen.coach_mod.tip_check()
+	screen.relayout()
 	await _wait(0.3)
 	await _shot("v2f_tip")
-	screen._tip.visible = false
+	screen.tip_panel.visible = false
 	# 결행 투표
 	game.phase = "morning"
 	game.act = 1
 	game.intel = {"barracks": 2, "police_hq": 3, "prison": 0, "gg": 1}
 	game._start_vote(false)
-	screen._show_choice()
+	screen.show_choice()
 	await _wait(0.4)
 	await _shot("v2f_vote")
-	screen._choice.visible = false
+	screen.choice_overlay.visible = false
 	# 결행 혜택
 	game.vote_state = {}
 	game.pending = {}
 	game.phase = "day"
 	game.ready = 6
 	game._launch("vote", "prison")
-	screen._refresh()
+	screen.refresh_all()
 	if game.phase == "choice":
-		screen._show_choice()
+		screen.show_choice()
 	await _wait(0.4)
 	await _shot("v2f_benefit")
-	screen._choice.visible = false
+	screen.choice_overlay.visible = false
 	# 반격 (버티기 장면)
 	game.pending = {}
 	game.phase = "day"
@@ -532,7 +543,7 @@ func _v2f() -> void:
 	game.scene_state = {}
 	game.counter = {"day": game.day, "blocked": false}
 	game.players[0]["pos"] = Vector2i(2, 1)
-	screen._refresh()
+	screen.refresh_all()
 	await _wait(0.4)
 	await _shot("v2f_counter")
 	get_tree().quit()
@@ -589,7 +600,7 @@ func _measure() -> void:
 		screen.finished.connect(func(): done[0] = true)
 		main._swap(screen)
 		await _wait(0.1)
-		screen._fast = false
+		screen.fast_forward = false
 		var guard := 0
 		while not done[0] and guard < 200000:
 			guard += 1
@@ -678,7 +689,7 @@ func _tut_one(idx: int, bad: bool, last_stays: bool) -> void:
 	main._tutorial_v2(idx)
 	await _wait(1.5)
 	var screen = main._screen
-	var tut: TutorialV2 = screen._tutor
+	var tut: TutorialV2 = screen.tutor
 	var t0 := Time.get_ticks_msec()
 	var last := -1
 	var same := 0
@@ -714,7 +725,7 @@ func _tut_one(idx: int, bad: bool, last_stays: bool) -> void:
 			same = 0
 		same += 1
 		if same > 160:
-			print("[tutorial] 멈춤: %s 단계 %d · phase %s · current %d · 짚는 곳 %s · 연출 %s · 선택 %s" % [tag, tut.i, screen.game.phase, screen.game.current, str(tut.focus()), screen._playing, str(screen.game.pending.get("kind", ""))])
+			print("[tutorial] 멈춤: %s 단계 %d · phase %s · current %d · 짚는 곳 %s · 연출 %s · 선택 %s" % [tag, tut.i, screen.game.phase, screen.game.current, str(tut.focus()), screen.playing, str(screen.game.pending.get("kind", ""))])
 			await _shot("%s_stuck" % tag)
 			_tfail("%s: 단계 %d에서 멈춤" % [tag, tut.i])
 			return
@@ -733,8 +744,15 @@ func _tut_one(idx: int, bad: bool, last_stays: bool) -> void:
 			await _click(tut.spot._next.get_global_rect().get_center())
 			clicks += 1
 			continue
-		if screen._choice.visible and not str(st.get("target", "")).begins_with("choice"):
-			var bs: Array = screen._choice.find_children("*", "Button", true, false)
+		if screen.choice_overlay.visible and str(st.get("target", "")) == "choice":
+			# 아무 선택지나 고르면 되는 단계: 창 한가운데가 단추 사이일 수 있으니 첫 단추를 누른다
+			var cbs: Array = screen.choice_overlay.find_children("*", "Button", true, false)
+			if not cbs.is_empty():
+				await _click((cbs[0] as Control).get_global_rect().get_center())
+				clicks += 1
+				continue
+		if screen.choice_overlay.visible and not str(st.get("target", "")).begins_with("choice"):
+			var bs: Array = screen.choice_overlay.find_children("*", "Button", true, false)
 			if not bs.is_empty():
 				await _click((bs[0] as Control).get_global_rect().get_center())
 				clicks += 1
@@ -742,13 +760,13 @@ func _tut_one(idx: int, bad: bool, last_stays: bool) -> void:
 		if st.has("pick"):
 			# 고르기: 「작전 판정」 → 주사위. bad이면 나쁜 눈(2)을 먼저 눌러 되묻는지 본다
 			var pk: Dictionary = st["pick"]
-			if screen._verb == "":
+			if screen.picked_verb == "":
 				await _click(f[0].get_center())
 				clicks += 1
 				continue
 			var good_i := -1
 			var bad_i := -1
-			for di in screen._actions.focus.get("dice", {}):
+			for di in screen.actions_mod.focus.get("dice", {}):
 				var dd: Dictionary = screen.game.op_dice[di]
 				if dd["used"] or int(dd["owner"]) != 0:
 					continue
@@ -758,7 +776,7 @@ func _tut_one(idx: int, bad: bool, last_stays: bool) -> void:
 					bad_i = di
 			if not bad_done and bad_i >= 0:
 				var before: int = screen.game.actions.size()
-				await _click(screen._actions.focus["dice"][bad_i].get_global_rect().get_center())
+				await _click(screen.actions_mod.focus["dice"][bad_i].get_global_rect().get_center())
 				clicks += 1
 				await _wait(0.4)
 				if screen.game.actions.size() != before:
@@ -770,20 +788,20 @@ func _tut_one(idx: int, bad: bool, last_stays: bool) -> void:
 					await _shot("%s_pick_bad" % tag)
 				continue
 			if good_i >= 0:
-				await _click(screen._actions.focus["dice"][good_i].get_global_rect().get_center())
+				await _click(screen.actions_mod.focus["dice"][good_i].get_global_rect().get_center())
 				clicks += 1
 			continue
 		var tgt := str(st.get("target", ""))
-		if tgt.begins_with("act:") and tgt.split(":").size() == 2 and screen._verb != "":
+		if tgt.begins_with("act:") and tgt.split(":").size() == 2 and screen.picked_verb != "":
 			# 행동을 골랐고 아무 주사위나 내면 되는 단계: 쓸 수 있는 주사위 하나를 누른다
 			var any_i := -1
-			for di in screen._actions.focus.get("dice", {}):
+			for di in screen.actions_mod.focus.get("dice", {}):
 				var d2: Dictionary = screen.game.op_dice[di]
 				if not d2["used"] and int(d2["owner"]) == 0:
 					any_i = di
 					break
 			if any_i >= 0:
-				await _click(screen._actions.focus["dice"][any_i].get_global_rect().get_center())
+				await _click(screen.actions_mod.focus["dice"][any_i].get_global_rect().get_center())
 				clicks += 1
 				continue
 		var r: Rect2 = f[0]
@@ -798,7 +816,7 @@ func _tut_skip() -> void:
 	main._tutorial_v2(0)
 	await _wait(1.5)
 	var screen = main._screen
-	var tut: TutorialV2 = screen._tutor
+	var tut: TutorialV2 = screen.tutor
 	var skip := tut.spot._skip
 	await _click(skip.get_global_rect().get_center())
 	await _wait(0.2)
@@ -819,7 +837,7 @@ func _tut_menu() -> void:
 	main._tutorial_v2(0)
 	await _wait(1.5)
 	var screen = main._screen
-	var tut: TutorialV2 = screen._tutor
+	var tut: TutorialV2 = screen.tutor
 	for n in 120:
 		await _wait(0.25)
 		if tut.i >= 4:
@@ -834,9 +852,9 @@ func _tut_menu() -> void:
 		if r.size != Vector2.ZERO:
 			await _click(r.get_center())
 	print("[tutorial] 나가기 전 단계 ", tut.i)
-	screen._pause()
+	screen.open_pause()
 	await _wait(0.4)
-	var leave := _find_button(screen._choice, "훈련 그만두고 메인 메뉴로")
+	var leave := _find_button(screen.choice_overlay, "훈련 그만두고 메인 메뉴로")
 	if leave == null:
 		_tfail("일시정지 메뉴에 「훈련 그만두고 메인 메뉴로」가 없음")
 		return
@@ -848,7 +866,7 @@ func _tut_menu() -> void:
 		_tfail("훈련에서 나왔는데 이어하기 저장이 생김")
 	main._tutorial_v2(0)
 	await _wait(1.5)
-	var tut2: TutorialV2 = main._screen._tutor
+	var tut2: TutorialV2 = main._screen.tutor
 	if tut2.i != 0 or main._screen.game.day != 1:
 		_tfail("다시 시작했는데 처음 단계가 아님 (단계 %d)" % tut2.i)
 	print("[tutorial] 다시 시작 단계 ", tut2.i)
@@ -865,28 +883,28 @@ func _tut_help() -> void:
 	var screen := GameScreenV2.new(game, 0, {})
 	main._swap(screen)
 	await _wait(1.0)
-	var q := _find_button(screen._top, "?")
+	var q := _find_button(screen.top_bar, "?")
 	if q == null:
 		_tfail("위쪽 띠에 「?」 단추가 없음")
 		return
 	await _click(q.get_global_rect().get_center())
 	await _wait(0.5)
-	if not screen._paused or not screen._choice.visible:
+	if not screen.paused or not screen.choice_overlay.visible:
 		_tfail("「?」를 눌러도 도움말 창이 안 열림")
 		return
 	await _shot("help_first")
 	for tab in ["미션", "타일", "판정", "경찰 · 노출", "결행 · 2막"]:
-		var b := _find_button(screen._choice, tab)
+		var b := _find_button(screen.choice_overlay, tab)
 		if b == null:
 			_tfail("도움말 탭 「%s」가 없음" % tab)
 			continue
 		await _click(b.get_global_rect().get_center())
 		await _wait(0.3)
 		await _shot("help_" + tab.replace(" · ", "_"))
-	var cl := _find_button(screen._choice, "닫기")
+	var cl := _find_button(screen.choice_overlay, "닫기")
 	await _click(cl.get_global_rect().get_center())
 	await _wait(0.4)
-	if screen._paused:
+	if screen.paused:
 		_tfail("닫기를 눌러도 판이 멈춰 있음")
 
 
@@ -910,8 +928,8 @@ func _tut_notes() -> void:
 		await _wait(0.2)
 		if game.phase == "over":
 			break
-		if screen._tip.visible:
-			var key: String = screen._coach._cur
+		if screen.tip_panel.visible:
+			var key: String = screen.coach_mod._cur
 			if key != "" and not shown.has(key):
 				shown[key] = 1
 				if not shot_taken:
@@ -921,7 +939,7 @@ func _tut_notes() -> void:
 				shown[key] += 1
 			if shown.size() >= 3 and n > 200:
 				break
-		if screen.is_idle() and screen._ai_actor() < 0:
+		if screen.is_idle() and screen.ai_actor() < 0:
 			var a := GameAIV2.decide(game, 0)
 			if not a.is_empty():
 				screen.act_now(a)
@@ -935,11 +953,11 @@ func _tut_notes() -> void:
 	if steps < 3:
 		_tfail("쪽지가 떠 있는 동안 판이 멈춤 (사람 행동 %d)" % steps)
 	# 도움말 창
-	screen._show_rules("police")
+	screen.show_rules("police")
 	await _wait(0.4)
 	await _shot("help_police")
-	screen._choice.visible = false
-	screen._paused = false
+	screen.choice_overlay.visible = false
+	screen.paused = false
 
 
 func _perf() -> void:
@@ -958,7 +976,7 @@ func _perf() -> void:
 		game.setup(defs, 4242)
 		var screen := GameScreenV2.new(game, 0, {})
 		main._swap(screen)
-		screen._fast = true
+		screen.fast_forward = true
 		var guard := 0
 		while guard < 4000 and not (screen.is_idle() and game.phase == "turn" and game.current == 0):
 			guard += 1
@@ -1003,7 +1021,7 @@ func _gif() -> void:
 	var screen := GameScreenV2.new(game, 0, {"autoplay": true})
 	main._swap(screen)
 	await _wait(0.2)
-	screen._fast = false
+	screen.fast_forward = false
 	var guard := 0
 	while not (game.day >= 2 and game.phase == "plan") and guard < 20000:
 		guard += 1

@@ -23,20 +23,20 @@ func _init(screen: GameScreenV2) -> void:
 # ---- 쪽지 상자
 
 func build_tip() -> void:
-	scr._tip = PanelContainer.new()
+	scr.tip_panel = PanelContainer.new()
 	var st := Style.flat(Color("#fff2c8"), Style.GOLD, 2, 2, 8)
 	st.content_margin_left = 12
 	st.content_margin_right = 12
 	st.content_margin_top = 8
 	st.content_margin_bottom = 10
-	scr._tip.add_theme_stylebox_override("panel", st)
-	scr._tip.visible = false
-	scr._tip.z_index = 20
-	scr._tip.resized.connect(place_tip)
+	scr.tip_panel.add_theme_stylebox_override("panel", st)
+	scr.tip_panel.visible = false
+	scr.tip_panel.z_index = 20
+	scr.tip_panel.resized.connect(place_tip)
 	# 오른쪽 레일 폭(좁음)에 맞춰 위: 「알아 두기」 · 단추, 아래: 글
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 6)
-	scr._tip.add_child(v)
+	scr.tip_panel.add_child(v)
 	var h := HBoxContainer.new()
 	h.add_theme_constant_override("separation", 8)
 	v.add_child(h)
@@ -51,18 +51,18 @@ func build_tip() -> void:
 		Prefs.save()
 		_queue.clear()
 		_hide(), 12, "paper"))
-	scr._tip_lbl = UiKit.text("", 15, Style.INK, false, 700)
-	scr._tip_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	scr._tip_lbl.custom_minimum_size = Vector2(GameScreenV2.RAIL_W - 24, 0)
-	v.add_child(scr._tip_lbl)
-	scr.add_child(scr._tip)
+	scr.tip_lbl = UiKit.text("", 15, Style.INK, false, 700)
+	scr.tip_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	scr.tip_lbl.custom_minimum_size = Vector2(GameScreenV2.RAIL_W - 24, 0)
+	v.add_child(scr.tip_lbl)
+	scr.add_child(scr.tip_panel)
 
 
 func place_tip() -> void:
 	## 쪽지는 오른쪽 레일 아래(독 바로 위)에 붙인다 (글이 길어져도 아래를 맞춤, 보드를 가리지 않음)
-	if scr._frame == null or scr._tip == null:
+	if scr.board_frame == null or scr.tip_panel == null:
 		return
-	scr._tip.position = Vector2(scr.size.x - 20 - GameScreenV2.RAIL_W, scr.size.y - 12 - GameScreenV2.DOCK_H - 8 - scr._tip.size.y)
+	scr.tip_panel.position = Vector2(scr.size.x - 20 - GameScreenV2.RAIL_W, scr.size.y - 12 - GameScreenV2.DOCK_H - 8 - scr.tip_panel.size.y)
 
 
 func _def(key: String) -> Dictionary:
@@ -73,7 +73,7 @@ func _def(key: String) -> Dictionary:
 
 
 func _enabled() -> bool:
-	return Prefs.v2_tips and scr._tutor == null and not scr._auto
+	return Prefs.v2_tips and scr.tutor == null and not scr.auto
 
 
 func note(key: String) -> void:
@@ -110,7 +110,7 @@ func on_event(e: Dictionary) -> void:
 
 func tip_check() -> void:
 	## 화면이 갱신될 때마다: 상태로 알 수 있는 쪽지를 줄 세우고, 떠 있는 것이 없으면 하나 띄운다
-	if scr._auto or scr._playing or not scr._started or scr._tutor != null:
+	if scr.auto or scr.playing or not scr.started or scr.tutor != null:
 		return
 	if _enabled():
 		_state_notes()
@@ -157,7 +157,7 @@ func tile_is(c: Vector2i, type: String) -> bool:
 
 
 func _show_next() -> void:
-	if scr._tip == null or scr._tip.visible or _queue.is_empty() or not _enabled():
+	if scr.tip_panel == null or scr.tip_panel.visible or _queue.is_empty() or not _enabled():
 		return
 	var key: String = _queue.pop_front()
 	if Prefs.v2_notes_seen.has(key):
@@ -169,23 +169,23 @@ func _show_next() -> void:
 	_cur = key
 	Prefs.v2_notes_seen.append(key)
 	Prefs.save()
-	scr._tip_lbl.text = scr.game.data.help_text(str(d.get("text", "")))
+	scr.tip_lbl.text = scr.game.data.help_text(str(d.get("text", "")))
 	_more.visible = str(d.get("tab", "")) != ""
-	scr._tip.visible = true
-	scr._tip.reset_size()
+	scr.tip_panel.visible = true
+	scr.tip_panel.reset_size()
 	place_tip()
 	_token += 1
 	var mine := _token
 	scr.get_tree().create_timer(SHOW_SECONDS).timeout.connect(func():
-		if mine == _token and scr._tip != null and scr._tip.visible:
+		if mine == _token and scr.tip_panel != null and scr.tip_panel.visible:
 			_hide())
 
 
 func _hide() -> void:
 	_token += 1
 	_cur = ""
-	if scr._tip != null:
-		scr._tip.visible = false
+	if scr.tip_panel != null:
+		scr.tip_panel.visible = false
 	if not _queue.is_empty():
 		scr.get_tree().create_timer(0.6).timeout.connect(func(): _show_next())   # 다음 쪽지는 잠깐 뒤에
 
@@ -193,4 +193,4 @@ func _hide() -> void:
 func _open_help() -> void:
 	var tab := str(_def(_cur).get("tab", ""))
 	_hide()
-	scr._show_rules(tab)
+	scr.show_rules(tab)

@@ -2,8 +2,9 @@ class_name GameAIV2
 extends RefCounted
 ## 공개 정보와 자신의 사연만 사용해 합법 액션을 고른다.
 
-## 수치는 rules.json의 ai: act2_days_per_scene(2막 장면 하나에 드는 날), saga_value(사연 목표 가치, 미션은 2~3),
-## persona(성향별 위험 · 투표 배수)
+## 판단에 쓰는 수치는 모두 rules.json의 ai에 있다 (데이터_구조.md 「AI 가중치」). 코드에 남은 숫자는 동점 깨기뿐이다.
+##   persona(성향별 위험 · 투표 배수) · turn_order(낮에 누가 먼저) · walk(걷기) · mission(미션 가치) · saga_value · saga_progress(사연)
+##   benefit(결행 혜택, 효과 op별) · effect_choice(효과 고르기) · morning(아침 다시 굴리기) · intel_trade 등
 const CHOICE_KINDS := ["launch_vote", "launch_target", "launch_benefit", "threat_look", "strike_target", "saga_keep", "reroll", "react_evade",
 	"discard", "draw_pick", "effect_choice", "pick_player", "pick_cell", "pick_die", "pick_tile", "pick_item",
 	"pick_value", "pick_bury", "hop", "intel_base"]
@@ -13,6 +14,11 @@ static var fallback_count := 0
 
 static func _ai(g: RulesV2) -> Dictionary:
 	return g.data.rules["ai"]
+
+
+static func _w(g: RulesV2, group: String, key: String) -> float:
+	## rules.ai.<group>.<key>
+	return float(g.data.rules["ai"][group][key])
 
 
 static func next_actor(g: RulesV2) -> int:
@@ -35,13 +41,13 @@ static func next_actor(g: RulesV2) -> int:
 			var p: Dictionary = g.players[int(a["player"])]
 			var score := 0.0
 			if p["jailed"]:
-				score += 10.0
+				score += _w(g, "turn_order", "jailed")
 			if g.police.has(p["id"]):
-				score += 5.0
+				score += _w(g, "turn_order", "chased")
 			if g.act == 2:
-				score += 3.0
+				score += _w(g, "turn_order", "act2")
 			if g.stat(p, "end_move_hop_to_ally") > 0:
-				score -= 2.0
+				score += _w(g, "turn_order", "hopper")
 			score += _donor_bonus(g, p)
 			score -= float(p["id"]) * 0.01
 			if score > best_score:
@@ -57,7 +63,7 @@ static func _donor_bonus(g: RulesV2, p: Dictionary) -> float:
 	var mine: int = g.my_dice(p["id"]).size()
 	for q in g.players:
 		if q["id"] != p["id"] and not q["done_today"] and not q["jailed"] and q["pos"] == p["pos"] and mine > g.my_dice(q["id"]).size():
-			return 1.5
+			return _w(g, "turn_order", "donor")
 	return 0.0
 
 
@@ -117,7 +123,7 @@ static func _choice(g: RulesV2, p: Dictionary, legal: Array, policy: Dictionary)
 				# 첩보가 쌓였거나, 준비가 넉넉해 결행 혜택을 받을 수 있거나, 2막에 쓸 날이 빠듯해지면 찬성 (기다려도 날만 줄어듦)
 				var margin := int(g.data.rules["ai"]["vote_ready_margin"])
 				var ready_now := int(g.intel.get(target, 0)) >= int(g.data.rules["launch"]["target_min_intel"]) or g.ready >= int(g.data.rules["launch_min"]) + margin
-				var no_slack := float(g.rounds_left) <= needed + 1.0 or g.rounds_left <= g.rounds_total * 0.55
+				var no_slack := float(g.rounds_left) <= needed + 1.0 or g.rounds_left <= g.rounds_total * float(_ai(g)["vote_late_ratio"])
 				var yes := ready_now or no_slack
 				score = 10.0 if bool(v) == yes else 0.0
 			"launch_target":
@@ -127,16 +133,16 @@ static func _choice(g: RulesV2, p: Dictionary, legal: Array, policy: Dictionary)
 			"threat_look":
 				score = _threat_harm(g, int(v))
 			"strike_target", "intel_base":
-				score = float(g.intel.get(str(v), 0)) * 2.0 - float(_dist(p["pos"], g.data.bases[g.data.base_index(str(v))])) * 0.1
+				score = float(g.intel.get(str(v), 0)) * _w(g, "strike_pick", "intel") - float(_dist(p["pos"], g.data.bases[g.data.base_index(str(v))])) * _w(g, "strike_pick", "distance")
 			"saga_keep":
 				var prog: Dictionary = g.saga_progress(p["id"]).get(str(v), {"have": 0, "need": 1})
 				score = float(prog["have"]) / float(maxi(1, prog["need"]))
 				var cond: Dictionary = g.data.saga(str(v)).get("condition", {})
 				if cond.get("strike", "") == g.launch_info.get("target", ""):
-					score += 0.5
+					score += _w(g, "saga_keep", "strike_match")
 				# 결행 사연은 진행도가 늘 0이지만 2막에서 이룰 수 있다: 진행이 절반이 안 되는 다른 사연보다는 낫게 본다
-				if str(cond.get("kind", "")) in ["strike_entry_by_me", "strike_final_by_me", "present_at_final"]:
-					score = maxf(score, 0.5)
+				if str(cond.get("kind", "")) in ["strike_entry_by_me", "strike_final_by_me", "present_at_final", "present_at_entry"]:
+					score = maxf(score, _w(g, "saga_keep", "strike_kind_min"))
 			"reroll":
 				score = _check_option_score(g, p, str(v))
 			"react_evade": score = 10.0 if bool(v) else 0.0
@@ -201,18 +207,19 @@ static func _best_target(g: RulesV2, p: Dictionary) -> String:
 
 
 static func _benefit_score(g: RulesV2, id: String) -> float:
-	## 결행 혜택: 경계 2단계 이상이면 경비 강화 빼기가 먼저, 그다음 첩보 토큰, 첫날 주사위, 위협 덱 보기 (효과 op만 본다)
+	## 결행 혜택의 값: 효과 op마다 rules.ai.benefit[op] (없는 op는 other). 경비 강화 빼기(no_reinforce)는
+	## 경계가 no_reinforce_alert단계 이상일 때만 그 값이고, 아니면 no_reinforce_low (효과 op만 본다)
+	var w: Dictionary = _ai(g)["benefit"]
 	var v := 0.0
 	for b in g.data.rules["launch"]["benefits"]:
 		if str(b["id"]) != id:
 			continue
 		for e in b.get("effects", []):
-			match str(e.get("op", "")):
-				"no_reinforce": v += 4.0 if g.alert_level() >= 2 else 0.5
-				"intel_token_bonus": v += 3.0
-				"dice_extra_tomorrow": v += 2.0
-				"threat_look_discard": v += 1.0
-				_: v += 0.2
+			var op := str(e.get("op", ""))
+			if op == "no_reinforce" and g.alert_level() < int(w["no_reinforce_alert"]):
+				v += float(w["no_reinforce_low"])
+			else:
+				v += float(w.get(op, w["other"]))
 	return v
 
 
@@ -222,30 +229,31 @@ static func _threat_harm(g: RulesV2, i: int) -> float:
 	if idx < 0 or idx >= g.threat_deck.size():
 		return 0.0
 	var card: Dictionary = g.data.threat(str(g.threat_deck[idx]))
-	return (2.0 if str(card.get("tone", "bad")) == "bad" else 0.0) + float(card.get("effects", []).size())
+	return (float(_ai(g)["threat_bad"]) if str(card.get("tone", "bad")) == "bad" else 0.0) + float(card.get("effects", []).size())
 
 
 static func _effects_value(g: RulesV2, p: Dictionary, effects: Array) -> float:
 	## 효과 선택지의 값. 아는 효과(아이템, 내일 주사위)만 값을 매기고, 나머지는 효과 수로 센다.
 	## 아이템은 손이 가득 차면 값이 낮고, 내일 주사위는 2막(장면에 바칠 눈이 필요함)에서 더 쓸모 있다.
 	var v := 0.0
+	var w: Dictionary = _ai(g)["effect_choice"]
 	for e in effects:
 		var n := float(e.get("count", 1))
 		match str(e.get("op", "")):
-			"draw_item": v += n * (3.0 if p["items"].size() < g.hand_limit(p) else 1.0)
-			"dice_extra_tomorrow": v += n * (3.2 if g.act == 2 else 2.5)
-			_: v += 0.5
+			"draw_item": v += n * float(w["item"] if p["items"].size() < g.hand_limit(p) else w["item_full"])
+			"dice_extra_tomorrow": v += n * float(w["dice_act2"] if g.act == 2 else w["dice_act1"])
+			_: v += float(w["other"])
 	return v
 
 
 static func _check_option_score(g: RulesV2, p: Dictionary, v: String) -> float:
-	## 실패한 판정을 다시 굴릴 권리를 쓸지: 다시 굴려 성공할 확률이 5%보다 높으면 쓴다
+	## 실패한 판정을 다시 굴릴 권리를 쓸지: 다시 굴려 성공할 확률이 rules.ai.reroll_min보다 높으면 쓴다
 	var c: Dictionary = g.check
 	if c.is_empty():
 		return 0.0
 	if v == "grant":
-		return g.check_chance(c, int(c.get("die_value", 0))) + 0.05
-	return 0.05
+		return g.check_chance(c, int(c.get("die_value", 0))) + float(_ai(g)["reroll_min"])
+	return float(_ai(g)["reroll_min"])
 
 
 static func _plan(g: RulesV2, p: Dictionary, legal: Array) -> Dictionary:
@@ -270,18 +278,18 @@ static func _morning_fix(g: RulesV2, p: Dictionary, a: Dictionary) -> Dictionary
 			"die_reroll":
 				for i in g.op_dice.size():
 					var d: Dictionary = g.op_dice[i]
-					if not d["used"] and int(d["value"]) <= 2 and (str(e.get("scope", "own")) == "any" or int(d["owner"]) == p["id"]):
+					if not d["used"] and int(d["value"]) <= int(_ai(g)["morning"]["reroll_max"]) and (str(e.get("scope", "own")) == "any" or int(d["owner"]) == p["id"]):
 						return a
 			"die_adjust":
 				for i in g.my_dice(p["id"]):
-					if g.die_value(i) == 5:
+					if g.die_value(i) == int(_ai(g)["morning"]["adjust_at"]):
 						return a
 	return {}
 
 
 static func _turn(g: RulesV2, p: Dictionary, legal: Array, policy: Dictionary) -> Dictionary:
 	## 낮의 한 걸음. 주사위 1개 = 행동 1개이므로 하루 계획은 곧 주사위 배분이다:
-	## 판정에 남길 큰 눈과 이동에 쓸 눈을 나누고, 남는 주사위는 건네거나 정찰·숨기에 쓰고, 쓸모가 없으면 차례를 마친다.
+	## 판정에 남길 큰 눈과 이동에 쓸 눈을 나누고, 남는 주사위는 건네거나 숨기에 쓰고, 쓸모가 없으면 차례를 마친다.
 	if p["jailed"]:
 		return _jailed_turn(g, p, legal)
 	if g.steps_left > 0:
@@ -317,16 +325,12 @@ static func _turn(g: RulesV2, p: Dictionary, legal: Array, policy: Dictionary) -
 	var free := _free_use(g, p, legal, policy)
 	if not free.is_empty():
 		return free
-	# 3. 이동: 가려는 곳에 닿는 눈을 고른다. 갈 길이 덮여 있고 주사위가 넉넉하면 먼저 정찰한다.
+	# 3. 이동: 가려는 곳에 닿는 눈을 고른다.
 	var goal := _goal(g, p, policy)
-	if goal != p["pos"] and g.my_dice(p["id"]).size() >= 3 and _dist(p["pos"], goal) >= 3 and g.path_to(p, goal)["path"].is_empty():
-		var look := _smallest(g, p, legal, "scout")
-		if not look.is_empty():
-			return look
 	var mv := _move_die(g, p, legal, goal)
 	if not mv.is_empty():
 		return mv
-	# 4. 남는 주사위: 건네기 > 숨기(쫓길 때) > 정찰 > 차례 마치기
+	# 4. 남는 주사위: 건네기 > 숨기(쫓길 때) > 차례 마치기
 	var idle := _give_die_action(g, p, legal)
 	if not idle.is_empty():
 		return idle
@@ -334,11 +338,6 @@ static func _turn(g: RulesV2, p: Dictionary, legal: Array, policy: Dictionary) -
 		var hide := _smallest(g, p, legal, "hide")
 		if not hide.is_empty():
 			return hide
-	var scout := _largest(g, p, legal, "scout")
-	if not scout.is_empty() and goal != p["pos"]:
-		var route: Dictionary = g.path_to(p, goal)
-		if route["path"].is_empty() or int(route["unknown"]) > 0:
-			return scout   # 가려는 길이 덮여 있을 때만 정찰
 	return _find(legal, "end_turn")
 
 
@@ -372,13 +371,13 @@ static func _walk(g: RulesV2, p: Dictionary, legal: Array, policy: Dictionary) -
 		if a["type"] != "step":
 			continue
 		var to: Vector2i = a["to"]
-		var score := float(now - _dist(to, goal)) * 10.0
+		var score := float(now - _dist(to, goal)) * _w(g, "walk", "progress")
 		if g.police_danger(p).has(to):
-			score -= float(policy["risk"]) * 4.0
+			score -= float(policy["risk"]) * _w(g, "walk", "danger")
 		if g.tile_type(to) == "check":
-			score -= (1.0 - g.evade_chance(p)) * float(policy["risk"]) * 4.0
+			score -= (1.0 - g.evade_chance(p)) * float(policy["risk"]) * _w(g, "walk", "danger")
 		if not g.board.has(to):
-			score += 0.2
+			score += _w(g, "walk", "unknown")
 		if score > best_score:
 			best_score = score
 			best = a
@@ -405,8 +404,8 @@ static func _free_use(g: RulesV2, p: Dictionary, legal: Array, policy: Dictionar
 				if op == "give_die" and a.has("target") and g.my_dice(p["id"]).size() >= 2 \
 						and (g.players[int(a["target"])]["jailed"] or _saga_kind(g, p, "give_dice")):
 					return a   # 감옥의 동료가 탈옥 판정에 쓰도록, 또는 주사위를 건네는 사연을 위해
-				if op == "intel" and e.get("base", "") == "choose" and g.act == 1 and _exposure_headroom(g) >= 2 \
-						and g.my_dice(p["id"]).size() >= 2 and g.die_value(int(a["die"])) <= 3:
+				if op == "intel" and e.get("base", "") == "choose" and g.act == 1 and _exposure_headroom(g) >= int(_ai(g)["intel_trade"]["headroom"]) \
+						and g.my_dice(p["id"]).size() >= int(_ai(g)["intel_trade"]["dice"]) and g.die_value(int(a["die"])) <= int(_ai(g)["intel_trade"]["max_die"]):
 					return a   # 낮은 눈 하나로, 경계 단계가 오르기까지 여유가 있을 때만 첩보를 노출과 바꾼다
 				if op == "police_remove" and g.police.has(p["id"]):
 					return a
@@ -658,12 +657,12 @@ static func _card_value(g: RulesV2, id: String) -> float:
 		v = float(card.get("ready", 0)) * float(w["ready"]) + _fx_value(card.get("rewards", []), w)
 		var b = card.get("bonus")
 		if typeof(b) == TYPE_DICTIONARY:
-			v += 0.5 * _fx_value(b.get("reward", []), w)
-		v -= 0.5 * float(w["penalty"]) * _fx_value(card.get("missed", []), w)
+			v += float(w["bonus_share"]) * _fx_value(b.get("reward", []), w)
+		v -= float(w["missed_share"]) * float(w["penalty"]) * _fx_value(card.get("missed", []), w)
 	var days := g.card_days_left(id)
 	if days > 0:
 		v *= 1.0 + float(w["urgent"]) / float(days)
-	return maxf(v, 0.3)
+	return maxf(v, float(w["floor"]))
 
 
 static func _target_chance(g: RulesV2, p: Dictionary, cond: Dictionary, informed: bool) -> float:
@@ -678,6 +677,7 @@ static func _target_chance(g: RulesV2, p: Dictionary, cond: Dictionary, informed
 static func _mission_targets(g: RulesV2, p: Dictionary) -> Array:
 	## 미션·일제 작전을 하러 갈 칸 후보: [[칸들, 가치]]. 카드 id는 보지 않고 condition.kind와 마커 역할로만 고른다.
 	## 연락은 받기 → 주기 두 걸음으로 경로를 짜고, 협동은 요원마다 맡을 자리를 나눠 함께 움직인다.
+	var w: Dictionary = _ai(g)["mission"]
 	var out := []
 	var ids := []
 	ids.append_array(g.mission_row)
@@ -697,7 +697,7 @@ static func _mission_targets(g: RulesV2, p: Dictionary) -> Array:
 					cells.append(informers[0]["pos"])   # 정보원에 먼저 들러 표적을 멈추고 판정을 쉽게 한다
 				else:
 					cells.append(targets[0]["pos"])
-				value *= 0.4 + 0.6 * _target_chance(g, p, cond, bool(st.get("informed", false)))
+				value *= float(w["assassin_base"]) + float(w["assassin_chance"]) * _target_chance(g, p, cond, bool(st.get("informed", false)))
 			"infiltrate":
 				var bi: int = g.data.base_index(str(cond.get("base", "")))
 				if bi >= 0 and g.data.bases[bi] != p["pos"] and not g.police_on(g.data.bases[bi]):
@@ -712,7 +712,7 @@ static func _mission_targets(g: RulesV2, p: Dictionary) -> Array:
 					for c in g.board:
 						if g.tile_has_op(g.tile_type(c), "gain_bomb") and c != p["pos"]:
 							cells.append(c)   # 폭탄부터 구하러 간다
-					value *= 0.7
+					value *= float(w["bomb_fetch"])
 			"work":
 				for m in g.markers_of(str(id), "work"):
 					cells.append(m["pos"])
@@ -721,13 +721,13 @@ static func _mission_targets(g: RulesV2, p: Dictionary) -> Array:
 					if g.work_ok(str(id), g.die_value(i)):
 						useful = true
 				if not useful:
-					value *= 0.3   # 바칠 눈이 없으면 서둘러 가지 않는다
+					value *= float(w["work_useless"])   # 바칠 눈이 없으면 서둘러 가지 않는다
 			"contact":
 				var holder := int(st.get("holder", -1))
 				if holder == p["id"]:
 					for m in g.markers_of(str(id), "dropoff"):
 						cells.append(m["pos"])
-					value *= 1.5
+					value *= float(w["contact_deliver"])
 				elif holder < 0:
 					for m in g.markers_of(str(id), "pickup"):
 						if m["pos"] != p["pos"] and not g.police_on(m["pos"]):
@@ -736,7 +736,7 @@ static func _mission_targets(g: RulesV2, p: Dictionary) -> Array:
 				for m in g.markers_of(str(id), "spot"):
 					cells.append(m["pos"])
 				if g.police.has(p["id"]):
-					value *= 0.2   # 쫓기는 요원은 잠복을 못 센다
+					value *= float(w["lurk_chased"])   # 쫓기는 요원은 잠복을 못 센다
 			"cover_entry", "people", "opposite_edges":
 				cells = _coop_cells(g, p, cond)
 		if not cells.is_empty():
@@ -852,7 +852,7 @@ static func _saga_targets(g: RulesV2, p: Dictionary) -> Array:
 		var cond: Dictionary = g.data.saga(str(id)).get("condition", {})
 		var tr: Dictionary = p["saga_track"].get(id, {})
 		var pr: Dictionary = prog.get(id, {"have": 0, "need": 1})
-		var value := float(_ai(g)["saga_value"]) * (0.6 + 0.4 * float(pr["have"]) / float(maxi(1, pr["need"])))
+		var value := float(_ai(g)["saga_value"]) * (_w(g, "saga_progress", "base") + _w(g, "saga_progress", "progress") * float(pr["have"]) / float(maxi(1, pr["need"])))
 		var cells := []
 		match str(cond.get("kind", "")):
 			"end_turn_near_base":
@@ -898,7 +898,14 @@ static func _saga_targets(g: RulesV2, p: Dictionary) -> Array:
 				for m in g.markers:
 					if str(m["role"]) == "work" and m["pos"] != p["pos"]:
 						cells.append(m["pos"])
-			"same_cell_turns", "give_dice":
+			"visit_jailed":
+				for q in g.players:
+					if q["id"] != p["id"] and q["jailed"]:
+						for d in RulesV2.DIRS:
+							var cj: Vector2i = q["pos"] + d
+							if g.in_bounds(cj) and not cj in g.data.bases:
+								cells.append(cj)
+			"same_cell_turns", "give_dice", "same_cell_allies":
 				for q in g.players:
 					if q["id"] != p["id"] and not q["jailed"]:
 						cells.append(q["pos"])

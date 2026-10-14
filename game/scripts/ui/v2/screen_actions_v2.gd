@@ -17,10 +17,10 @@ func _init(screen: GameScreenV2) -> void:
 
 func refresh_actions() -> void:
 	focus = {"dice": {}, "verbs": {}}
-	UiKit.clear(scr._dice_row)
-	UiKit.clear(scr._act_row)
-	scr._shown_actions = []
-	scr._primary_action = {}
+	UiKit.clear(scr.dice_row)
+	UiKit.clear(scr.act_row)
+	scr.shown_actions = []
+	scr.primary_action = {}
 	var me: Dictionary = scr.game.players[scr.human]
 	var legal := scr.game.legal_actions()
 	var mine := legal.filter(func(a): return int(a.get("player", -1)) == scr.human)
@@ -39,9 +39,9 @@ func refresh_actions() -> void:
 			title = "아 침 계 획"
 			hint = "오늘의 작전 주사위 · 주사위 1개 = 행동 1개 · 큰 눈을 이동에 쓸지, 판정에 남길지 정합니다"
 			primary = _take_type(others, "start_day")
-			if scr._remote != null:
+			if scr.remote_client != null:
 				# 온라인: 「하루 시작」은 사람마다 누르고, 모두 누르면 서버가 시작한다
-				var wait: Array = scr._remote_info.get("waiting_day", [])
+				var wait: Array = scr.remote_info.get("waiting_day", [])
 				primary = {"type": "start_day", "player": scr.human} if scr.human in wait or wait.is_empty() else {}
 				if not scr.human in wait and not wait.is_empty():
 					hint = "준비 완료 · %d명을 기다리는 중" % wait.size()
@@ -52,26 +52,26 @@ func refresh_actions() -> void:
 			if scr.game.can_begin_turn(me):
 				hint = "자유 순서 · 다음 차례를 고릅니다 (내 차례 또는 동료 한 명)"
 				primary = _take_type(others, "begin_turn")
-				if scr._remote == null:
+				if scr.remote_client == null:
 					extra_btns.append(_order_toggle())
 				for x in legal:
-					if scr._remote != null:
+					if scr.remote_client != null:
 						break   # 온라인: 동료 차례는 그 사람(또는 서버 AI)이 시작한다
 					if x["type"] == "begin_turn" and int(x["player"]) != scr.human:
 						var xa: Dictionary = x
-						extra_btns.append({"text": "%s 차례" % scr._text.name(int(x["player"])), "icon": "swap", "action": xa,
-							"cb": func(): scr._act(xa), "tip": "이 동료가 지금 차례를 진행합니다."})
+						extra_btns.append({"text": "%s 차례" % scr.text_mod.name(int(x["player"])), "icon": "swap", "action": xa,
+							"cb": func(): scr.send_action(xa), "tip": "이 동료가 지금 차례를 진행합니다."})
 			else:
 				hint = "동료들이 움직이는 중입니다."
 		"turn":
 			if scr.game.current == scr.human:
 				title = "내 차 례"
 				if me["jailed"]:
-					hint = "감옥 · 주사위로 탈옥 판정 %d 이상이면 나갑니다" % scr.game.check_target("escape")
+					hint = ("감옥 · 내일 아침 풀려납니다. 지금 나가려면 탈옥 판정 %d 이상 (경찰이 붙음)" if bool(scr.game.data.rules["jail"].get("release_next_morning", false)) else "감옥 · 주사위로 탈옥 판정 %d 이상이면 나갑니다") % scr.game.check_target("escape")
 				elif scr.game.steps_left > 0:
 					hint = "이동 %d칸 남음 · 보드에서 칸을 누르면 그 길로 걸어갑니다 · 이동을 마치면 다른 행동을 고를 수 있습니다" % scr.game.steps_left
 				elif not scr.game.my_dice(scr.human).is_empty():
-					hint = "주사위 1개 = 행동 1개 · 주사위를 눌러 이동·판정·건네기·정찰·숨기를 고릅니다 · 다 하면 「차례 마치기」"
+					hint = "주사위 1개 = 행동 1개 · 주사위를 눌러 이동·판정·건네기·숨기를 고릅니다 · 다 하면 「차례 마치기」"
 				else:
 					hint = "주사위를 다 썼습니다 · 「차례 마치기」"
 				if scr.game.act == 2:
@@ -97,39 +97,39 @@ func refresh_actions() -> void:
 				others.sort_custom(func(x, y): return _rank(x) < _rank(y))
 			else:
 				title = "동 료 차 례"
-				hint = "%s의 차례입니다." % scr._text.name(scr.game.current)
+				hint = "%s의 차례입니다." % scr.text_mod.name(scr.game.current)
 		"choice":
 			title = "선 택"
-			hint = "%s가 고르는 중입니다." % scr._text.name(int(scr.game.pending["player"])) if int(scr.game.pending["player"]) != scr.human else "선택 창에서 고릅니다."
+			hint = "%s가 고르는 중입니다." % scr.text_mod.name(int(scr.game.pending["player"])) if int(scr.game.pending["player"]) != scr.human else "선택 창에서 고릅니다."
 		"over":
 			title = "작 전 종 료"
-	if scr._playing:
+	if scr.playing:
 		hint = "…"
-	scr._act_title.text = title
-	scr._act_hint.text = hint
-	scr._act_hint.tooltip_text = hint
-	scr._status_lbl.text = _status_line()
-	scr._preview.preview_idle()
-	scr._coach.tip_check()
-	if scr.game.phase == "turn" and scr.game.current == scr.human and scr.game.steps_left == 0 and not scr._playing and not scr._auto:
+	scr.act_title.text = title
+	scr.act_hint.text = hint
+	scr.act_hint.tooltip_text = hint
+	scr.status_lbl.text = _status_line()
+	scr.preview_mod.preview_idle()
+	scr.coach_mod.tip_check()
+	if scr.game.phase == "turn" and scr.game.current == scr.human and scr.game.steps_left == 0 and not scr.playing and not scr.auto:
 		_build_verbs(mine, primary, others)
-		scr._fit_right.call_deferred()
+		scr.fit_right.call_deferred()
 		return
-	scr._verb = ""
+	scr.picked_verb = ""
 	# 주 버튼
 	var pb := UiKit.button("", func(): pass, 21, "primary")
 	pb.custom_minimum_size = Vector2(290, 54)
 	pb.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	pb.add_theme_constant_override("icon_max_width", 26)
 	pb.add_theme_constant_override("h_separation", 10)
-	if not primary.is_empty() and not scr._playing:
-		pb.text = scr._text.label(primary) if primary["type"] != "move_die" else "주사위 %d로 이동" % scr.game.die_value(int(primary["die"]))
+	if not primary.is_empty() and not scr.playing:
+		pb.text = scr.text_mod.label(primary) if primary["type"] != "move_die" else "주사위 %d로 이동" % scr.game.die_value(int(primary["die"]))
 		pb.icon = UiKit.ui_icon(_icon(primary) + "_light")
 		var pa: Dictionary = primary
-		scr._primary_action = pa
+		scr.primary_action = pa
 		focus["primary"] = pb
-		pb.pressed.connect(func(): scr._press(pa))
-		scr._shown_actions.append(primary)
+		pb.pressed.connect(func(): scr.press_action(pa))
+		scr.shown_actions.append(primary)
 		var key := UiKit.label("Space", 11, Color("#fff5e6"))
 		var ks := Style.flat(Color(1, 1, 1, 0.0), Color(1, 1, 1, 0.55), 1, 3, 0)
 		ks.content_margin_left = 5
@@ -142,23 +142,23 @@ func refresh_actions() -> void:
 	else:
 		pb.text = "기다리는 중"
 		pb.disabled = true
-	scr._hover_lift(pb)
-	scr._act_row.add_child(pb)
+	scr.hover_lift(pb)
+	scr.act_row.add_child(pb)
 	# 보조 버튼
 	var secs := []
-	if not scr._playing:
+	if not scr.playing:
 		for x in extra_btns:
 			secs.append(x)
-	if not scr._playing:
+	if not scr.playing:
 		for a in others:
 			if a == primary:
 				continue
-			if scr._tutor != null and not scr._tutor.action_shown(a):
+			if scr.tutor != null and not scr.tutor.action_shown(a):
 				continue   # 훈련: 아직 배우지 않은 아이템 · 능력은 숨긴다
 			var aa: Dictionary = a
-			secs.append({"text": scr._text.label(a), "icon": _icon(a), "cb": func(): scr._press(aa), "action": a})
+			secs.append({"text": scr.text_mod.label(a), "icon": _icon(a), "cb": func(): scr.press_action(aa), "action": a})
 	for i in mini(secs.size(), SECONDARY_MAX):
-		scr._act_row.add_child(_sec_btn(secs[i]))
+		scr.act_row.add_child(_sec_btn(secs[i]))
 	if secs.size() > SECONDARY_MAX:
 		var more := MenuButton.new()
 		more.text = "더 보기 (%d)" % (secs.size() - SECONDARY_MAX)
@@ -171,17 +171,17 @@ func refresh_actions() -> void:
 		for i in rest.size():
 			pm.add_item(rest[i]["text"], i)
 			if rest[i].has("action"):
-				scr._shown_actions.append(rest[i]["action"])
+				scr.shown_actions.append(rest[i]["action"])
 		pm.id_pressed.connect(func(id): rest[id]["cb"].call())
-		scr._act_row.add_child(more)
+		scr.act_row.add_child(more)
 	else:
 		for i in range(secs.size(), SECONDARY_MAX):
 			var blank := UiKit.button("", func(): pass, 12, "paper")
 			blank.disabled = true
 			blank.custom_minimum_size = Vector2(0, 54)
 			blank.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			scr._act_row.add_child(blank)
-	scr._fit_right.call_deferred()
+			scr.act_row.add_child(blank)
+	scr.fit_right.call_deferred()
 
 
 func _build_verbs(mine: Array, primary: Dictionary, others: Array) -> void:
@@ -191,12 +191,12 @@ func _build_verbs(mine: Array, primary: Dictionary, others: Array) -> void:
 	grid.add_theme_constant_override("h_separation", 5)
 	grid.add_theme_constant_override("v_separation", 5)
 	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scr._act_row.add_child(grid)
+	scr.act_row.add_child(grid)
 	var why := {}
 	for r in _why_not_rows(mine):
 		why[str(r[0])] = str(r[1])
 	var me: Dictionary = scr.game.players[scr.human]
-	for vb in scr._ui()["verbs"]:
+	for vb in scr.ui_text()["verbs"]:
 		var key: String = vb["id"]
 		var types: Array = vb["actions"]
 		var acts: Array = mine.filter(func(a): return a["type"] in types)
@@ -207,9 +207,9 @@ func _build_verbs(mine: Array, primary: Dictionary, others: Array) -> void:
 			continue
 		if vb.has("acts") and not scr.game.act in (vb["acts"] as Array).map(func(x): return int(x)):
 			continue
-		if scr._tutor != null and not scr._tutor.verb_shown(key):
+		if scr.tutor != null and not scr.tutor.verb_shown(key):
 			continue   # 훈련: 아직 배우지 않은 행동은 숨긴다 (단계적 공개)
-		var on := scr._verb == key
+		var on := scr.picked_verb == key
 		var rec := not primary.is_empty() and primary in acts
 		var b := UiKit.button(str(vb["label"]), func(): pick_verb(key, acts), 14, "primary" if on else "paper")
 		focus["verbs"][key] = b
@@ -228,55 +228,55 @@ func _build_verbs(mine: Array, primary: Dictionary, others: Array) -> void:
 				first = primary
 				focus["verb"] = b
 				b.text = str(vb["label"]) + " ★"
-				b.tooltip_text = "추천 · " + scr._text.label(primary) + "\n" + b.tooltip_text
+				b.tooltip_text = "추천 · " + scr.text_mod.label(primary) + "\n" + b.tooltip_text
 			b.mouse_entered.connect(func(): hover_action(first))
 			b.mouse_exited.connect(func():
-				if scr._verb == "":
-					scr._board.reach = {}
-					scr._board.queue_redraw())
+				if scr.picked_verb == "":
+					scr.board_view.reach = {}
+					scr.board_view.queue_redraw())
 			for a in acts:
-				scr._shown_actions.append(a)
-		scr._hover_lift(b)
+				scr.shown_actions.append(a)
+		scr.hover_lift(b)
 		grid.add_child(b)
 	if not primary.is_empty():
-		scr._primary_action = primary   # 스페이스 = 추천 수
+		scr.primary_action = primary   # 스페이스 = 추천 수
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 5)
 	col.custom_minimum_size = Vector2(150, 0)
-	scr._act_row.add_child(col)
+	scr.act_row.add_child(col)
 	var rest := []
 	for a in others:
 		if _die_of(a) >= 0 or a == primary:
 			continue
-		if scr._tutor != null and not scr._tutor.action_shown(a):
+		if scr.tutor != null and not scr.tutor.action_shown(a):
 			continue
 		if a["type"] == "end_turn":
 			var aa: Dictionary = a
-			var eb := UiKit.button("차례 마치기", func(): scr._press(aa), 15, "dark")
+			var eb := UiKit.button("차례 마치기", func(): scr.press_action(aa), 15, "dark")
 			eb.custom_minimum_size = Vector2(0, 40)
 			focus["end_turn"] = eb
 			col.add_child(eb)
-			scr._shown_actions.append(a)
+			scr.shown_actions.append(a)
 		else:
 			rest.append(a)
 	if not primary.is_empty() and _die_of(primary) < 0 and primary["type"] != "end_turn":
 		rest.push_front(primary)
 	elif not primary.is_empty() and primary["type"] == "end_turn":
 		var pa: Dictionary = primary
-		var eb2 := UiKit.button("차례 마치기", func(): scr._press(pa), 15, "dark")
+		var eb2 := UiKit.button("차례 마치기", func(): scr.press_action(pa), 15, "dark")
 		eb2.custom_minimum_size = Vector2(0, 40)
 		focus["end_turn"] = eb2
 		focus["end_is_primary"] = true
 		col.add_child(eb2)
-		scr._shown_actions.append(primary)
-	if not rest.is_empty() and scr._tutor != null and scr._tutor.active:
+		scr.shown_actions.append(primary)
+	if not rest.is_empty() and scr.tutor != null and scr.tutor.active:
 		# 훈련: 아이템 · 능력을 메뉴에 숨기지 않고 단추로 하나씩 (짚어 누를 수 있게)
 		for a in rest:
 			var ra: Dictionary = a
-			var rb := UiKit.button(scr._text.label(ra).replace("능력 「", "").replace("」", ""), func(): scr._press(ra), 13, "paper")
+			var rb := UiKit.button(scr.text_mod.label(ra).replace("능력 「", "").replace("」", ""), func(): scr.press_action(ra), 13, "paper")
 			rb.custom_minimum_size = Vector2(0, 40)
 			rb.clip_text = true
-			rb.tooltip_text = scr._text.label(ra)
+			rb.tooltip_text = scr.text_mod.label(ra)
 			if ra["type"] == "ability":
 				focus["ability"] = rb
 			elif ra["type"] == "use_item":
@@ -285,7 +285,7 @@ func _build_verbs(mine: Array, primary: Dictionary, others: Array) -> void:
 				if ii >= 0 and ii < items.size():
 					focus["item:" + str(items[ii])] = rb
 			col.add_child(rb)
-			scr._shown_actions.append(ra)
+			scr.shown_actions.append(ra)
 	elif not rest.is_empty():
 		var more := MenuButton.new()
 		more.text = "아이템 · 능력 (%d)" % rest.size()
@@ -294,32 +294,32 @@ func _build_verbs(mine: Array, primary: Dictionary, others: Array) -> void:
 		more.custom_minimum_size = Vector2(0, 40)
 		var pm := more.get_popup()
 		for i in rest.size():
-			pm.add_item(scr._text.label(rest[i]), i)
-			scr._shown_actions.append(rest[i])
-		pm.id_pressed.connect(func(id): scr._press(rest[id]))
+			pm.add_item(scr.text_mod.label(rest[i]), i)
+			scr.shown_actions.append(rest[i])
+		pm.id_pressed.connect(func(id): scr.press_action(rest[id]))
 		col.add_child(more)
-	if scr._verb != "":
-		scr._act_hint.text = "「%s」 — 쓸 주사위를 누릅니다 (반짝이는 주사위)" % str(scr._ui()["verbs"].filter(func(v): return v["id"] == scr._verb)[0]["label"])
+	if scr.picked_verb != "":
+		scr.act_hint.text = "「%s」 — 쓸 주사위를 누릅니다 (반짝이는 주사위)" % str(scr.ui_text()["verbs"].filter(func(v): return v["id"] == scr.picked_verb)[0]["label"])
 
 
 func pick_verb(key: String, acts: Array) -> void:
 	## 행동을 골랐다: 쓸 수 있는 수가 하나면 바로, 주사위가 여럿이면 주사위를 고르게, 한 주사위에 여럿이면 메뉴
-	if acts.is_empty() or scr._playing:
+	if acts.is_empty() or scr.playing:
 		return
 	Sfx.play("click")
 	var dice := {}
 	for a in acts:
 		dice[_die_of(a)] = true
 	if acts.size() == 1:
-		scr._press(acts[0])
+		scr.press_action(acts[0])
 		return
 	if dice.size() == 1:
 		die_menu(acts, int(dice.keys()[0]))
 		return
-	scr._verb = "" if scr._verb == key else key
-	scr._verb_acts = acts if scr._verb != "" else []
+	scr.picked_verb = "" if scr.picked_verb == key else key
+	scr.verb_acts = acts if scr.picked_verb != "" else []
 	refresh_actions()
-	if scr._verb != "":
+	if scr.picked_verb != "":
 		hover_action(acts[acts.size() - 1])
 
 
@@ -336,8 +336,8 @@ func _sec_btn(s: Dictionary) -> Button:
 	b.clip_text = true
 	b.tooltip_text = s.get("tip", s["text"])
 	if s.has("action"):
-		scr._shown_actions.append(s["action"])
-	scr._hover_lift(b)
+		scr.shown_actions.append(s["action"])
+	scr.hover_lift(b)
 	return b
 
 
@@ -350,10 +350,10 @@ func _take_type(list: Array, t: String) -> Dictionary:
 
 func _order_toggle() -> Dictionary:
 	## 낮의 순서: AI 동료가 먼저 / 내가 먼저 (한 번에 한 요원씩)
-	return {"text": "동료 먼저 하게 함" if scr._ai_first else "동료 기다리게 하기", "icon": "swap", "tip": "누르면 바뀝니다. 동료 먼저 하게 함: 동료가 모두 차례를 마친 뒤 내가 합니다. 동료 기다리게 하기: 다음 차례를 내가 고릅니다 (내가 먼저 해서 주사위를 건네거나 길을 열 수 있음).",
+	return {"text": "동료 먼저 하게 함" if scr.ai_first else "동료 기다리게 하기", "icon": "swap", "tip": "누르면 바뀝니다. 동료 먼저 하게 함: 동료가 모두 차례를 마친 뒤 내가 합니다. 동료 기다리게 하기: 다음 차례를 내가 고릅니다 (내가 먼저 해서 주사위를 건네거나 길을 열 수 있음).",
 		"cb": func():
-			scr._ai_first = not scr._ai_first
-			scr._after_queue()}
+			scr.ai_first = not scr.ai_first
+			scr.after_queue()}
 
 
 func _die_of(a: Dictionary) -> int:
@@ -417,9 +417,9 @@ func _refresh_dice(mine: Array) -> void:
 		if int(scr.game.op_dice[i]["owner"]) == scr.human:
 			idx.append(i)
 	if idx.is_empty() or not scr.game.phase in ["plan", "day", "turn", "choice"]:
-		scr._dice_row.visible = false
+		scr.dice_row.visible = false
 		return
-	scr._dice_row.visible = true
+	scr.dice_row.visible = true
 	for i in idx:
 		var d: Dictionary = scr.game.op_dice[i]
 		var acts := []
@@ -431,9 +431,9 @@ func _refresh_dice(mine: Array) -> void:
 		var die := GameScreenV2.DieFace.new()
 		focus["dice"][i] = die
 		die.value = int(d["value"])
-		die.mine = not acts.is_empty() and not scr._playing
-		var vacts: Array = scr._verb_acts.filter(func(x): return _die_of(x) == i)
-		die.pick = scr._verb != "" and not vacts.is_empty()
+		die.mine = not acts.is_empty() and not scr.playing
+		var vacts: Array = scr.verb_acts.filter(func(x): return _die_of(x) == i)
+		die.pick = scr.picked_verb != "" and not vacts.is_empty()
 		die.used = d["used"]
 		die.custom_minimum_size = Vector2(44, 44)
 		if die.mine:
@@ -441,7 +441,7 @@ func _refresh_dice(mine: Array) -> void:
 			var mv: Array = acts.filter(func(x): return x["type"] == "move_die")
 			var first: Dictionary = mv[0] if not mv.is_empty() else acts[0]
 			die.mouse_entered.connect(func():
-				scr._preview.preview_action(first)
+				scr.preview_mod.preview_action(first)
 				hover_action(first)
 				die.hover = true
 				Sfx.play("click", 0.3, 0.25)
@@ -449,40 +449,40 @@ func _refresh_dice(mine: Array) -> void:
 			die.mouse_exited.connect(func():
 				die.hover = false
 				die.queue_redraw())
-			die.tooltip_text = "눌러서: " + " / ".join(acts.map(func(a): return scr._text.label(a)))
+			die.tooltip_text = "눌러서: " + " / ".join(acts.map(func(a): return scr.text_mod.label(a)))
 			var at := acts.duplicate()
 			if die.pick:
 				first = vacts[0]
-				die.tooltip_text = "이 주사위로: " + scr._text.label(vacts[0])
+				die.tooltip_text = "이 주사위로: " + scr.text_mod.label(vacts[0])
 			die.gui_input.connect(func(ev):
 				if ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT:
-					if not vacts.is_empty() and scr._verb != "":
+					if not vacts.is_empty() and scr.picked_verb != "":
 						if vacts.size() == 1:
-							scr._press(vacts[0])
+							scr.press_action(vacts[0])
 						else:
 							die_menu(vacts, i)
 					else:
 						die_menu(at, i))
 			for a in acts:
-				scr._shown_actions.append(a)
+				scr.shown_actions.append(a)
 		v.add_child(die)
 		var l := UiKit.text("씀" if d["used"] else ("이동 %d" % scr.game.move_value(scr.game.players[scr.human], i) if scr.game.phase == "turn" else "내 주사위"), 11, Style.INK_3, false, 700)
 		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		v.add_child(l)
-		scr._dice_row.add_child(v)
+		scr.dice_row.add_child(v)
 	if false:   # M: 독에는 자리가 없어 고정 안내를 두지 않는다 (훈련 안내 · 미리보기 띠가 대신)
-		var tip := UiKit.text("주사위 1개 = 행동 1개: 이동(눈만큼) · 작전 판정(눈 + 주사위 1개) · 바치기\n건네기 · 숨기 · 정찰 — 주사위를 눌러 고릅니다\n남은 주사위는 밤에 사라집니다", 11, Style.INK_3, false)
+		var tip := UiKit.text("주사위 1개 = 행동 1개: 이동(눈만큼) · 작전 판정(눈 + 주사위 1개) · 바치기\n건네기 · 숨기 — 주사위를 눌러 고릅니다\n남은 주사위는 밤에 사라집니다", 11, Style.INK_3, false)
 		tip.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		tip.name = "DiceTip"
-		scr._dice_row.add_child(tip)
+		scr.dice_row.add_child(tip)
 
 
 func close_menu() -> void:
 	if _menu != null and is_instance_valid(_menu):
 		_menu.queue_free()
 	_menu = null
-	if scr._board != null:
-		scr._board.reach = {}
+	if scr.board_view != null:
+		scr.board_view.reach = {}
 
 
 func die_menu(acts: Array, die := -1) -> void:
@@ -509,16 +509,16 @@ func die_menu(acts: Array, die := -1) -> void:
 		var aa: Dictionary = a
 		var row := VBoxContainer.new()
 		row.add_theme_constant_override("separation", 0)
-		var btn := UiKit.button(scr._text.label(aa), func():
+		var btn := UiKit.button(scr.text_mod.label(aa), func():
 			close_menu()
-			scr._press(aa), 14, "paper")
+			scr.press_action(aa), 14, "paper")
 		btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
-		if aa == scr._primary_action:
+		if aa == scr.primary_action:
 			focus["menu"] = btn
 		if not focus.has("menu_any"):
 			focus["menu_any"] = btn
 		btn.mouse_entered.connect(func(): hover_action(aa))
-		btn.mouse_exited.connect(func(): scr._board.reach = {})
+		btn.mouse_exited.connect(func(): scr.board_view.reach = {})
 		row.add_child(btn)
 		var hint := hint(aa)
 		if hint != "":
@@ -545,11 +545,11 @@ func die_menu(acts: Array, die := -1) -> void:
 
 
 func hover_action(a: Dictionary) -> void:
-	scr._preview.preview_action(a)
-	scr._board.reach = {}
+	scr.preview_mod.preview_action(a)
+	scr.board_view.reach = {}
 	if a["type"] == "move_die":
-		scr._board.reach = scr.game.reach_cells(scr.game.players[scr.human], scr.game.move_value(scr.game.players[scr.human], int(a["die"])))
-	scr._board.queue_redraw()
+		scr.board_view.reach = scr.game.reach_cells(scr.game.players[scr.human], scr.game.move_value(scr.game.players[scr.human], int(a["die"])))
+	scr.board_view.queue_redraw()
 
 
 func hint(a: Dictionary) -> String:
@@ -560,10 +560,10 @@ func hint(a: Dictionary) -> String:
 			return "최대 %d칸 걷기 (중간에 멈춰도 됨) — 올려 두면 갈 수 있는 칸이 보드에 밝혀집니다" % scr.game.move_value(me, int(a["die"]))
 		"escape", "mission_check", "counter_check", "scene_check":
 			var c: Dictionary = scr.game.check_preview(me, a)
-			return "낸 눈 %d + 새 주사위 1개 ≥ 목표 %d%s → 성공 %d%%. 실패하면 %s" % [scr.game.die_value(int(a["die"])), int(c["target"]), (" (보정 %+d)" % int(c["bonus"])) if int(c["bonus"]) != 0 else "", scr._text.chance(a),
+			return "낸 눈 %d + 새 주사위 1개 ≥ 목표 %d%s → 성공 %d%%. 실패하면 %s" % [scr.game.die_value(int(a["die"])), int(c["target"]), (" (보정 %+d)" % int(c["bonus"])) if int(c["bonus"]) != 0 else "", scr.text_mod.chance(a),
 				{"escape": "다른 주사위로 또 시도할 수 있음", "mission_check": "회피 판정(7)을 해야 하고 실패하면 투옥", "counter_check": "다른 주사위로 또 시도할 수 있음", "scene_check": "다른 주사위로 또 시도할 수 있음"}[a["type"]]]
 		"work_give":
-			return scr._preview.work_preview(a)
+			return scr.preview_mod.work_preview(a)
 		"scene_pay":
 			match a["what"]:
 				"die":
@@ -574,11 +574,9 @@ func hint(a: Dictionary) -> String:
 				"bomb":
 					return "폭탄을 내고 장면 조건을 채움 (주사위 하나도 씀)"
 		"give_die":
-			return RulesV2.josa("하루 한 번. %s은(는) 행동이 하나 늘고 나는 하나 줆" % scr._text.name(int(a["target"])))
+			return RulesV2.josa("하루 한 번. %s은(는) 행동이 하나 늘고 나는 하나 줆" % scr.text_mod.name(int(a["target"])))
 		"hide":
 			return "이번 차례 끝에 나를 쫓는 경찰이 다가오지 않음"
-		"scout":
-			return "눈 %d칸 안의 덮인 칸 %d곳을 골라 타일을 미리 깜 (효과는 그 칸에서 멈출 때)" % [scr.game.die_value(int(a["die"])), int(scr.game.data.rules["scout"]["count"])]
 		"ability":
 			return str(scr.game.ability_def(me).get("text", ""))
 	return ""
@@ -602,8 +600,6 @@ func _why_not_rows(acts: Array) -> Array:
 			rows.append(["건네기", "같은 칸에 아직 차례를 안 한 동료가 없음"])
 	if not have.has("hide"):
 		rows.append(["숨기", "이미 숨었음" if me["hidden"] else "골목·주막·은신처 칸에서만 숨을 수 있음"])
-	if not have.has("scout"):
-		rows.append(["정찰", "범위 안에 덮인 칸이 없음"])
 	if scr.game.act == 1:
 		var has_target := false
 		var has_work := false
@@ -626,6 +622,9 @@ func _status_line() -> String:
 		return ""
 	var me: Dictionary = scr.game.players[scr.human]
 	var parts := ["주사위 %d개 남음" % scr.game.my_dice(scr.human).size()]
+	var lo: Dictionary = scr.game.leftover_rule()
+	if not lo.is_empty() and scr.game.act == int(lo.get("act", 2)):
+		parts[0] += " (남기면 밤에 %d개당 첩보 토큰 1)" % int(lo.get("per", 2))
 	parts.append("아이템 %d/%d장 씀 (공짜)" % [int(me["item_uses"]), int(scr.game.data.rules["item_uses_per_turn"])])
 	var ab: Dictionary = scr.game.ability_def(me)
 	if not ab.is_empty():

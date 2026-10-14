@@ -20,7 +20,8 @@ game/
 ├─ scripts/
 │  ├─ core/v2/            ← 화면과 무관한 게임 로직
 │  │  ├─ game_data_v2.gd  데이터 로드 · 조회 · 검증
-│  │  ├─ rules_v2.gd      규칙 엔진 (액션 → 상태 변화 + 연출 이벤트)
+│  │  ├─ rules_v2.gd      규칙 엔진 (액션 → 상태 변화 + 연출 이벤트). 층마다 한 파일로, 위 층이 아래 층을 상속한다:
+│  │  │                   rules_base(상태 · 조회) → effects(효과 · 경찰) → missions → saga(결행 · 사연) → act2 → rules_v2(흐름)
 │  │  └─ ai_v2.gd         AI 동료의 판단
 │  ├─ net/                ← 온라인: 서버 권위 · 보기 거르기 · 클라이언트
 │  └─ ui/                 ← 화면
@@ -30,14 +31,16 @@ game/
 │     ├─ fx_layer.gd      판정 주사위 · 배너 · 날짜 넘김 연출
 │     ├─ settings_panel.gd · prefs.gd · sfx.gd · music.gd
 │     └─ v2/              게임 화면(game_screen_v2)과 역할별 모듈, 튜토리얼, 엔딩, 요원 고르기, 온라인 로비
-├─ tests/                 ← 헤드리스 시험 (v2_*)
+│                         (화면의 밑줄 없는 멤버는 모듈이 함께 쓰는 것, 밑줄 멤버는 화면 안에서만)
+├─ tests/                 ← 헤드리스 시험 (v2_*). 규칙 시험은 mechanics/에 층마다 한 파일, 실행은 v2_mechanics_test.gd
 └─ tools/                 ← 개발 도구 (빌드에서 제외): 밸런스 측정 · 성능 · 화면 캡처 · 웹 빌드 · 그림 · 글꼴 · 소리
 ```
 
 ## 설계 원칙
 - **규칙과 화면 분리:** `RulesV2`는 화면을 모릅니다. UI는 `apply(action)`으로 조작하고, `events` 큐와 상태를 읽어 그립니다.
-- **데이터 주도:** 규칙 수치 · 카드 · 문장은 `data/v2/*.json`에 있고, 코드에 카드 id나 밸런스 수치를 쓰지 않습니다. 검증기(`game_data_v2.gd`)가 오타 · 모르는 효과 · 빠진 필드를 잡습니다.
-- **같은 시드 = 같은 판:** 액션만 주고받으면 모든 클라이언트의 상태가 같아집니다 (온라인 · 저장).
+- **데이터 주도:** 규칙 수치 · 카드 · 문장 · AI 판단 가중치는 `data/v2/*.json`에 있고, 코드에 카드 id나 밸런스 · AI 수치를 쓰지 않습니다 (일부러 남긴 것은 `../v2_구현/데이터_구조.md` 6절). 검증기(`game_data_v2.gd`)가 오타 · 모르는 효과 · 빠진 필드를 잡습니다.
+- **같은 시드 = 같은 판:** 액션만 주고받으면 모든 클라이언트의 상태가 같아집니다 (온라인 · 저장). 리팩토링은 같은 시드의 밸런스 측정 결과가 한 글자도 안 바뀌는지로 확인합니다.
+- **저장 버전:** 이어하기 저장에는 게임 버전을 적고, 버전이 다른 저장은 이어 하지 않습니다 (카드 · 규칙이 바뀌었을 수 있어서).
 
 ## 시험
 ```bash
@@ -52,5 +55,5 @@ godot --headless --path game --script res://tools/v2_balance.gd -- games=1000   
 ```
 
 ## 빌드
-- 웹(itch.io): 프로젝트 루트에서 `powershell -ExecutionPolicy Bypass -File game\tools\build_web.ps1 -Version 2.2.0` → `build/web/`, `build/GwangbokIF_web_v2.2.0.zip`
+- 웹(itch.io): 프로젝트 루트에서 `powershell -ExecutionPolicy Bypass -File game\tools\build_web.ps1 -Version 2.3.0` → `build/web/`, `build/GwangbokIF_web_v2.3.0.zip`
 - 온라인 서버: `../v2_구현/서버_배포.md`
